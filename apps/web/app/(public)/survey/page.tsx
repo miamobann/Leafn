@@ -1,23 +1,44 @@
 import Link from "next/link";
-import { StepFormTemplate } from "@/components/templates";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-// 동의 체크 상태는 P7에서 연결. 지금은 시작 버튼을 비활성으로 둔다 (동의 전 시작 불가).
+// 일본어 문구는 원어민 검수 전. 미성년자 사전 고지는 개인정보 안내 v0.1과 맞춘다
+const COPY = {
+  title: "肌タイプ診断",
+  lead: "10の質問に答えると、肌の皮脂・乾燥・敏感の傾向と、肌タイプの目安がわかります。",
+  facts: [
+    { label: "所要時間", value: "約3分" },
+    { label: "質問数", value: "10問" },
+  ],
+  minorNotice: "※ 18歳未満の方の回答データはサーバーに保存されず、診断結果の表示のみに使用されます。",
+  privacyLink: "個人情報の取扱いについて",
+  start: "はじめる",
+  footer: "© Leaf&（デモ）",
+};
+
 export default function SurveyPage() {
   return (
-    <>
-      <h1 className="mb-2 text-xl font-semibold">肌タイプ診断</h1>
-      <p className="mb-6 text-sm text-muted-foreground">所要時間 約1分 · 回答は匿名で保存されます</p>
-      <StepFormTemplate step={0} total={2} nextHref="/survey/questions" nextLabel="はじめる" nextDisabled>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-1" />
-          <span>
-            <Link href="/survey/privacy" className="underline">
-              個人情報の取り扱い
-            </Link>
-            に同意します
-          </span>
-        </label>
-      </StepFormTemplate>
-    </>
+    <div className="mx-auto flex max-w-md flex-col gap-6">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold">{COPY.title}</h1>
+        <p className="text-sm leading-relaxed text-muted-foreground">{COPY.lead}</p>
+      </div>
+      <dl className="divide-y rounded-lg border text-sm">
+        {COPY.facts.map((f) => (
+          <div key={f.label} className="flex justify-between px-4 py-3">
+            <dt className="text-muted-foreground">{f.label}</dt>
+            <dd>{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="text-xs leading-relaxed text-muted-foreground">{COPY.minorNotice}</p>
+      <Link href="/survey/questions" className={cn(buttonVariants({ size: "lg" }), "h-12 w-full text-base")}>
+        {COPY.start}
+      </Link>
+      <Link href="/survey/privacy" className="text-center text-sm underline underline-offset-4">
+        {COPY.privacyLink}
+      </Link>
+      <p className="text-center text-xs text-muted-foreground">{COPY.footer}</p>
+    </div>
   );
 }
