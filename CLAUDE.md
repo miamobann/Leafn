@@ -3,12 +3,22 @@
 > 팀 코딩용 기준 문서입니다. 근거와 비유를 포함한 전체 분석은 [기술 스택 분석 문서](https://claude.ai/artifact/MA3A2F3vJ7c7u2wNiveKxj)를 보세요.
 > 기준: 기획안 v1 · 작성일 2026-10-21 · 상태: 초안 (DB 스키마와 API는 팀 합의 후 확정)
 > 프로토타입(화면 뼈대) 계획: `docs/prototype-plan.md`
+> DB 작업 규칙: `docs/DB_RULES.md` · 통합 DB 프레임 초안: `docs/db-frame.md`
 
 **한 줄 정의:** 일본 진출을 준비하는 K-뷰티 중소기업 해외마케팅팀이 시장 조사, 리뷰 분석, 약기법 광고 검토, 프로모션 일정을 한곳에서 AI로 처리하는 팀 업무용 웹서비스.
 
 **원칙:** 도구를 먼저 고르지 않는다. 문제 → 기능 → 그 기능에 맞는 언어·도구 순서로 결정하고, 새 기술은 필요해진 시점에 추가한다.
 
-**사용법 (바이브 코딩):** 이 파일을 저장소 루트에 두고 AI 코딩 도구가 매번 읽게 한다. Claude Code는 `CLAUDE.md`, Cursor는 `.cursor/rules/`, 그 밖의 도구는 `AGENTS.md`로 복사하거나 그 파일에서 이 파일을 참조한다. 작업을 시킬 때는 13장의 프롬프트를 복사해 쓴다.
+**사용법 (바이브 코딩):** 이 파일을 저장소 루트에 두고 AI 코딩 도구가 매번 읽게 한다. Claude Code는 `CLAUDE.md`, Cursor는 `.cursor/rules/`, 그 밖의 도구는 `AGENTS.md`로 복사하거나 그 파일에서 이 파일을 참조한다 (저장소에 `AGENTS.md`와 `.cursor/rules/leafn.mdc`가 이 파일을 가리키도록 들어 있다). 작업을 시킬 때는 13장의 프롬프트를 복사해 쓴다.
+
+**문서 지도와 우선순위:** 문서끼리 다르면 번호가 앞선 문서를 따르고, 뒤의 문서를 고친다.
+
+1. `CLAUDE.md` (이 파일): 기술 판단의 기준
+2. `docs/CODING_RULES.md` (협업·Git·코드 스타일), `docs/DB_RULES.md` (DB 작업 절차)
+3. `docs/db-frame.md`: 팀 합의 전 DB 초안. 합의되면 5장에 옮긴다
+4. `docs/prototype-plan.md`: 화면 뼈대 계획과 진행 기록
+
+`docs/TECH_STACK.md`는 이 파일로 옮기기 전의 사본이라 따르지 않는다.
 
 ---
 
@@ -22,13 +32,20 @@
 **구조**
 - 파일 위치는 4장 저장소 구조를 따른다.
 - DB 변경은 반드시 `supabase/migrations/`에 새 SQL 파일로 만든다. 기존 마이그레이션을 고치지 않는다.
-- 새 테이블에는 `workspace_id`와 RLS 정책을 함께 만든다 (예외: 5장에 적힌 것만).
+- DB·`lib/schemas`·`lib/mock`·`lib/data`·`collectors/`를 건드리는 작업은 시작 전에 `docs/DB_RULES.md`를 읽고, 그 문서의 PR 체크리스트를 PR 본문에 붙인다.
+- 새 테이블에는 `workspace_id`와 RLS 정책을 함께 만든다 (예외: 5장에 적힌 것만. 지금은 없음).
 - AI 호출은 `lib/ai/`에서만, 프롬프트 원문은 `prompts/`에만 둔다. 컴포넌트나 Route Handler에 프롬프트 문자열을 직접 쓰지 않는다.
 - AI 응답과 API 입력은 `lib/schemas/`의 Zod 스키마로 검증한다.
 
 **보안**
 - `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`는 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
 - 키, `.env` 파일, 실제 리뷰 원문 대량 데이터를 커밋하지 않는다.
+
+**Git** (자세한 약속은 `docs/CODING_RULES.md` 1~3장)
+- 커밋과 push는 사용자가 요청할 때만 한다. 기본 대상은 사용자의 개인 브랜치다.
+- `Leafn_main`에는 push하지 않는다. `sub_main`에 직접 push하라는 요청이면 한 번 확인한 뒤 한다.
+- 작업을 시작하기 전에 `sub_main`의 최신 내용을 받아 온다.
+- 커밋 메시지는 CODING_RULES 2장 형식(`<타입>(<범위>): <요약>`)을 따른다.
 
 **코드 스타일**
 - TypeScript strict 모드. `any` 금지, 불가피하면 이유를 주석으로.
@@ -195,6 +212,8 @@
 
 ## 5. DB 스키마 초안
 
+> 컬럼·테이블·행을 추가하는 규칙은 `docs/DB_RULES.md`, 팀 합의를 기다리는 통합 프레임 초안은 `docs/db-frame.md`에 있다.
+
 표의 "기능"에 **(참조)**가 붙은 테이블은 해당 참조 기능을 만들 때 생성한다. MVP에서는 만들지 않는다.
 
 모든 업무 테이블은 `workspace_id`를 갖고, RLS로 **자기 워크스페이스 행만** 읽고 쓰게 한다. 공통 컬럼: `id uuid pk`, `created_at timestamptz`.
@@ -204,11 +223,11 @@
 | `workspaces` | name | J |
 | `workspace_members` | workspace_id, user_id, role (`owner` / `member`) | J |
 | `products` | workspace_id, kind (`own` / `competitor`), brand, name, platform, url, price_jpy, volume_ml, ingredients jsonb, features text[], image_path, source_raw jsonb | E에서 생성, C에서 확장 |
-| `reviews` | workspace_id, product_id, source (`cosme` / `rakuten` / `qoo10` / `oliveyoung` / `csv`), external_id, lang (`ja` / `ko`), rating, body, posted_at, raw jsonb · unique(source, external_id) | E (D는 참조) |
-| `review_analyses` | review_id, sentiment (`positive` / `negative` / `neutral`), keywords text[], pain_points text[], repurchase_factors text[], model, prompt_version | E (D는 참조) |
+| `reviews` | workspace_id, product_id, source (`cosme` / `rakuten` / `qoo10` / `oliveyoung` / `csv`), external_id, lang (`ja` / `ko`), rating, body, posted_at, raw jsonb · unique(workspace_id, source, external_id) | E (D는 참조) |
+| `review_analyses` | review_id, sentiment (`positive` / `negative` / `neutral`), keywords jsonb `[{text, category}]` (category: `ingredient` / `texture` / `price` / `scent` / `skin_reaction` / `other`), pain_points text[], repurchase_factors text[], model, prompt_version | E (D는 참조) |
 | `review_insights` | workspace_id, product_id, kind (`pain_point` / `repurchase_factor` / `keyword`), label, count, evidence_review_ids uuid[] | E (원문 근거 연결) |
 | `review_translations` | review_id, text_ja, ad_check_id, status (`draft` / `approved`) | F (참조) |
-| `ad_checks` | workspace_id, input_text, input_lang, findings jsonb, suggestions jsonb, model, prompt_version, reviewer_id, review_status (`pending` / `approved` / `rejected`), reviewer_note | A |
+| `ad_checks` | workspace_id, input_text, input_lang, findings jsonb (대체 표현은 각 항목 안의 `suggestions`, 7장), model, prompt_version, reviewer_id, review_status (`pending` / `approved` / `rejected`), reviewer_note | A |
 | `trend_snapshots` | workspace_id, source (`rakuten_ranking` / …), category, captured_at, data jsonb | B |
 | `geo_snapshots` | workspace_id, engine, query, answer, brands_mentioned text[], captured_at | GEO (참조) |
 | `promo_events` | workspace_id, platform, title, start_date, end_date, prep_due_date, memo | I (참조) |
@@ -272,7 +291,11 @@
 {
   "review_id": "uuid",
   "sentiment": "negative",
-  "keywords": ["保湿", "べたつき", "香り"],
+  "keywords": [
+    { "text": "保湿", "category": "texture" },
+    { "text": "べたつき", "category": "texture" },
+    { "text": "香り", "category": "scent" }
+  ],
   "pain_points": ["べたつきが残る"],
   "repurchase_factors": []
 }
@@ -284,7 +307,7 @@
 
 - **공식 API 우선.** 라쿠텐은 API를 쓰고, 크롤링은 API가 없는 곳에만.
 - 크롤링 전 각 사이트의 이용약관과 robots.txt를 확인하고, 요청 간격을 두며 필요한 범위만 수집한다.
-- 저장은 `(source, external_id)` 기준 upsert로 중복을 막는다.
+- 저장은 `(workspace_id, source, external_id)` 기준 upsert로 중복을 막는다. 수집기는 service role 키로 RLS를 우회하므로 `workspace_id`를 코드에서 반드시 채운다 (`docs/DB_RULES.md` 4장).
 - 원본은 `raw jsonb`에 보관해 파서가 바뀌어도 다시 가공할 수 있게 한다.
 - 수집 실패는 GitHub Actions 로그로 확인한다. 사이트 구조 변경으로 깨지는 것을 전제로 소스별 파일을 분리한다.
 
@@ -355,7 +378,7 @@
 
 ## 13. 단계별 작업 요청 프롬프트 (복사해서 사용)
 
-각 프롬프트 앞에 "TECH_STACK.md(또는 CLAUDE.md)를 먼저 읽고 0장 규칙을 지켜줘."가 들어간다고 가정한다. 번호는 10장 개발 순서와 같다. 한 단계를 확인한 뒤 다음 단계로 넘어간다.
+각 프롬프트 앞에 "CLAUDE.md를 먼저 읽고 0장 규칙을 지켜줘."가 들어간다고 가정한다. 번호는 10장 개발 순서와 같다. 한 단계를 확인한 뒤 다음 단계로 넘어간다.
 
 ### MVP
 
@@ -391,7 +414,7 @@ Recharts로 감성 비율(도넛), 키워드 빈도(막대), 주요 불만 유�
 **2-3. Python 수집기**
 ```
 collectors/에 Python 수집기를 만들어줘. 우선 sources/oliveyoung.py 하나만.
-상품 URL 목록을 받아 리뷰를 수집하고 (source, external_id)로 reviews에 upsert해줘. 원본은 raw에 저장.
+상품 URL 목록을 받아 리뷰를 수집하고 (workspace_id, source, external_id)로 reviews에 upsert해줘. workspace_id는 실행 설정에서 받아 반드시 채우고, 원본은 raw에 저장.
 요청 사이에 간격을 두고, 실패해도 다른 상품은 계속 진행되게 해줘.
 .github/workflows/collect.yml로 매일 1회 실행되게 하고, 키는 GitHub Secrets에서 읽어줘.
 ```

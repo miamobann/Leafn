@@ -2,7 +2,8 @@
 
 > 기준: 기획안 v1 + `TECH_STACK.md`(2026-10-21 초안, 수정안을 반영해 저장소 루트 `CLAUDE.md`로 복사함) · 작성일 2026-10-21 · 상태: P1 구현 완료, 첫 클릭 테스트 전 (12장)
 > 범위: 백엔드·DB·API·AI 호출 없이 **가짜 데이터로 클릭해 볼 수 있는 화면**. 3개 탭 + 관심 기능 8개 전부를 화면 뼈대 수준으로.
-> 이 문서의 장 번호는 이 문서 기준이다. TECH_STACK.md의 장은 "TECH_STACK n장"으로 적는다.
+> 이 문서의 장 번호는 이 문서 기준이다. TECH_STACK.md의 장은 "TECH_STACK n장"으로 적는다. **TECH_STACK.md는 루트 `CLAUDE.md`로 옮겨졌으므로 "TECH_STACK n장"은 지금의 "CLAUDE.md n장"으로 읽는다** (`docs/TECH_STACK.md`는 옛 사본이라 따르지 않는다).
+> 문서끼리 다르면 CLAUDE.md 머리의 "문서 지도와 우선순위"를 따른다. 이 문서의 계획과 실제 코드가 다르면 코드(`apps/web/package.json`, 실제 파일)가 기준이다.
 
 ---
 
@@ -445,10 +446,9 @@ marketing-prototype/
    ├─ components/
    │  ├─ ui/                     # shadcn/ui 생성물
    │  ├─ layout/                 # app-sidebar.tsx, top-bar.tsx, page-header.tsx, nav-config.ts
-   │  ├─ common/                 # sample-data-badge.tsx, empty-state.tsx, loading-state.tsx, error-state.tsx,
-   │  │                          # ai-disclaimer.tsx, ai-result-meta.tsx, evidence-sheet.tsx, badges.tsx, feature-tag.tsx
-   │  └─ templates/              # overview.tsx, data-table.tsx, report.tsx, text-review.tsx,
-   │                             # calendar-view.tsx, step-form.tsx, detail.tsx
+   │  ├─ common/                 # (실제) ai.tsx, badges.tsx, evidence-list.tsx, states.tsx, view-state.tsx
+   │  │                          #   — 4.2의 부품들을 이 파일들에 묶어 두었다
+   │  └─ templates/              # (실제) index.tsx 하나에 템플릿 7종
    ├─ lib/
    │  ├─ schemas/                # common.ts, workspace.ts, product.ts, review.ts, ad-check.ts,
    │  │                          # trend.ts, geo.ts, promo.ts, platform.ts, survey.ts, activity.ts
@@ -568,7 +568,7 @@ getLibraryItems({ type?, q? }), getActivity()
 | QR 코드 생성 | 설문 링크 배포 (P7) | 필요 없음 | 링크 복사 |
 | Playwright(TS) 또는 Vitest | 라우트 순회 자동화 | 필요 없음 | 빌드 + 브라우저 순회 (10.1) |
 
-shadcn/ui CLI가 컴포넌트와 함께 설치하는 의존성(Radix, lucide-react, chart의 Recharts 등)은 2장의 shadcn/ui·Recharts에 포함된 것으로 본다.
+shadcn/ui CLI가 컴포넌트와 함께 설치하는 의존성(Base UI `@base-ui/react`, `cn`, lucide-react, chart의 Recharts 등)은 2장의 shadcn/ui·Recharts에 포함된 것으로 본다.
 
 ---
 
@@ -679,6 +679,8 @@ shadcn/ui CLI가 컴포넌트와 함께 설치하는 의존성(Radix, lucide-rea
 ---
 
 ## 12. P1 진행 기록 (2026-10-21)
+
+> **확인 필요 (2026-10-22):** `sub_main`에 올라간 코드는 Next.js 15.5.28, shadcn `base-nova` 프리셋(`@base-ui/react`)이고 `components/ui`에는 10개 컴포넌트만 있다. 아래 기록의 버전(Next.js 16.4.2, Radix)·파일 이름과 다르다. 다르면 `apps/web/package.json`과 실제 파일이 기준이며, 이 장은 담당자가 실제 코드에 맞춰 고친다.
 
 **만든 것:** 6장 전체. 화면 27개 + `/market` 리다이렉트, 템플릿 7종, 공통 부품, Zod 스키마 11개 파일, 가짜 데이터 13개 파일, 읽기 함수 11개 파일, 대시보드용 404 화면 (`(dashboard)/not-found.tsx`, 계획에 없던 추가).
 
