@@ -70,6 +70,8 @@ Leafn_main   배포 기준. 직접 push 금지
 
 ## 7. Supabase
 
+> 행·열·테이블 추가 규칙과 PR 체크리스트는 [DB_RULES.md](DB_RULES.md)에 있다.
+
 - 테이블·RLS 변경은 `supabase/migrations/<YYYYMMDDHHMM>_<설명>.sql` 새 파일로만.
 - 새 업무 테이블에는 `workspace_id`와 RLS 정책을 같이 만든다.
 - 브라우저에서는 anon 키만. `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `RAKUTEN_APPLICATION_ID`는 서버 코드에서만 쓰고 `NEXT_PUBLIC_`을 붙이지 않는다.

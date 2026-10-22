@@ -5,6 +5,7 @@
 - 개발 기준 문서: [CLAUDE.md](CLAUDE.md)
 - 기술 스택 분석: [docs/TECH_STACK.md](docs/TECH_STACK.md)
 - 프로토타입(화면 뼈대) 계획: [docs/prototype-plan.md](docs/prototype-plan.md)
+- DB 작업 규칙: [docs/DB_RULES.md](docs/DB_RULES.md) · 통합 DB 프레임 초안: [docs/db-frame.md](docs/db-frame.md)
 
 ## 업무별 디렉터리
 

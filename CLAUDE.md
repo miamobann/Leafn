@@ -3,6 +3,7 @@
 > 팀 코딩용 기준 문서입니다. 근거와 비유를 포함한 전체 분석은 [기술 스택 분석 문서](https://claude.ai/artifact/MA3A2F3vJ7c7u2wNiveKxj)를 보세요.
 > 기준: 기획안 v1 · 작성일 2026-10-21 · 상태: 초안 (DB 스키마와 API는 팀 합의 후 확정)
 > 프로토타입(화면 뼈대) 계획: `docs/prototype-plan.md`
+> DB 작업 규칙: `docs/DB_RULES.md` · 통합 DB 프레임 초안: `docs/db-frame.md`
 
 **한 줄 정의:** 일본 진출을 준비하는 K-뷰티 중소기업 해외마케팅팀이 시장 조사, 리뷰 분석, 약기법 광고 검토, 프로모션 일정을 한곳에서 AI로 처리하는 팀 업무용 웹서비스.
 
@@ -22,6 +23,7 @@
 **구조**
 - 파일 위치는 4장 저장소 구조를 따른다.
 - DB 변경은 반드시 `supabase/migrations/`에 새 SQL 파일로 만든다. 기존 마이그레이션을 고치지 않는다.
+- DB·`lib/schemas`·`lib/mock`·`lib/data`·`collectors/`를 건드리는 작업은 시작 전에 `docs/DB_RULES.md`를 읽고, 그 문서의 PR 체크리스트를 PR 본문에 붙인다.
 - 새 테이블에는 `workspace_id`와 RLS 정책을 함께 만든다 (예외: 5장에 적힌 것만).
 - AI 호출은 `lib/ai/`에서만, 프롬프트 원문은 `prompts/`에만 둔다. 컴포넌트나 Route Handler에 프롬프트 문자열을 직접 쓰지 않는다.
 - AI 응답과 API 입력은 `lib/schemas/`의 Zod 스키마로 검증한다.
@@ -194,6 +196,8 @@
 ---
 
 ## 5. DB 스키마 초안
+
+> 컬럼·테이블·행을 추가하는 규칙은 `docs/DB_RULES.md`, 팀 합의를 기다리는 통합 프레임 초안은 `docs/db-frame.md`에 있다.
 
 표의 "기능"에 **(참조)**가 붙은 테이블은 해당 참조 기능을 만들 때 생성한다. MVP에서는 만들지 않는다.
 
