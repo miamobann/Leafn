@@ -1,0 +1,28 @@
+# env / keys (CLAUDE.md 0장, 9장)
+.env
+.env*
+!.env.example
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 수집 데이터 원문 (커밋 금지)
+collectors/data/
+*.csv
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
