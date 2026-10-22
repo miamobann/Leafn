@@ -2,9 +2,9 @@
 
 > 상태: 시안 · 2026-10-22 · 팀 합의 후 확정
 > 읽는 사람: 팀원 6명, 그리고 팀원이 쓰는 AI 코딩 에이전트
-> 관련 문서: [CLAUDE.md](../CLAUDE.md) 5장 (DB 스키마 초안) · [db-frame.md](db-frame.md) (통합 DB 프레임 초안) · [CODING_RULES.md](CODING_RULES.md) 7장
+> 관련 문서: [SUPABASE_SETUP.md](SUPABASE_SETUP.md) (팀원 연동 방법) · [CLAUDE.md](../CLAUDE.md) 5장 (DB 스키마 초안) · [db-frame.md](db-frame.md) (통합 DB 프레임 초안) · [CODING_RULES.md](CODING_RULES.md) 7장
 >
-> **기준의 우선순위:** 테이블과 컬럼의 정의는 프레임이 합의되기 전까지 CLAUDE.md 5장이 기준이다. 이 문서에 나오는 `platforms`, `platform_id`, `promo_milestones`, `surveys`, `is_member()` 같은 이름은 db-frame.md 초안 기준이라서, 합의 전에는 만들지 않는다. 대신 이 문서의 절차 규칙(1·2·4·5·6장)은 지금부터 바로 지킨다.
+> **기준의 우선순위:** 테이블과 컬럼의 정의는 프레임이 합의되기 전까지 CLAUDE.md 5장이 기준이다. 이 문서에 나오는 `platforms`, `platform_id`, `promo_milestones`, `surveys`, `is_member()` 같은 이름은 db-frame.md 초안 기준이라서, 합의 전에는 만들지 않는다. 대신 이 문서의 절차 규칙(1·2·4·5·6·7장)은 지금부터 바로 지킨다.
 
 ## AI 에이전트에게 먼저
 
@@ -13,7 +13,7 @@ DB, `lib/schemas/`, `lib/mock/`, `lib/data/`, `supabase/`, `collectors/` 중 하
 1. 이 문서를 끝까지 읽는다.
 2. 작업이 **열 추가 · 테이블 추가 · 행 추가 · 수정 · 삭제** 중 무엇인지 사용자에게 한 줄로 말한다.
 3. 아래 **금지** 항목에 걸리면 작업을 멈추고 사용자에게 알린다. 우회하지 않는다.
-4. 끝나면 맨 아래 **PR 체크리스트**를 PR 본문에 붙이고 항목마다 체크한다.
+4. 끝나면 맨 아래 **PR 체크리스트**(7장)를 PR 본문에 붙이고 항목마다 체크한다.
 
 모르는 게 있으면 추측해서 컬럼을 만들지 말고 사용자에게 묻는다. 잘못 만든 컬럼은 지우기가 만들기보다 훨씬 어렵다.
 
@@ -178,7 +178,25 @@ create policy "members delete" on influencers for delete using (is_member(worksp
 
 ---
 
-## 6. PR 체크리스트 (DB를 건드린 PR 본문에 붙인다)
+## 6. Supabase 프로젝트 운영
+
+팀은 Supabase 프로젝트 **하나**(`Leaf&`, 도쿄 리전)를 같이 쓴다. 연결 방법은 [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
+
+| 항목 | 규칙 |
+| --- | --- |
+| DB 개수 | 6명이 같은 DB 하나를 쓴다. 각자 따로 프로젝트를 만들지 않는다 |
+| 테스트 데이터 | 팀원마다 자기 워크스페이스 행을 하나씩 만들어 그 안에서만 테스트한다. 남의 워크스페이스 데이터를 지우거나 고치지 않는다 |
+| 마이그레이션 적용 | 실제 DB에 SQL을 적용하는 사람은 **DB 관리자 1명**(Min)뿐이다. 다른 사람은 `supabase/migrations/` 파일을 PR로 올리고, sub_main에 머지된 뒤 관리자가 적용한다 |
+| 대시보드 권한 | 대시보드(테이블 편집기, SQL Editor)는 보기용이다. 대시보드에서 테이블·컬럼·정책을 손으로 만들거나 바꾸지 않는다 (1장 6번) |
+| 키 공유 | URL과 publishable(anon) 키는 팀 채팅으로 공유해도 된다. **service_role(secret) 키는 채팅·문서·코드 어디에도 붙이지 않는다.** Vercel 환경 변수와 GitHub Actions Secrets에만 관리자가 넣는다 |
+| 키 유출 시 | 바로 관리자에게 알린다. 관리자가 Supabase 대시보드에서 키를 교체하고 팀에 새 값을 공지한다 |
+| 데이터 초기화 | 테이블을 비우거나(`truncate`) 지우는(`drop`) 작업은 채팅에서 미리 알리고 관리자만 한다 |
+
+**AI 에이전트에게:** Supabase MCP나 CLI로 원격 DB에 접근할 수 있어도 `apply_migration`, `execute_sql`로 스키마나 데이터를 바꾸지 않는다. 마이그레이션 파일만 만들고, 적용은 사용자(관리자)에게 넘긴다. 읽기 조회(`select`, 테이블 목록)는 괜찮다.
+
+---
+
+## 7. PR 체크리스트 (DB를 건드린 PR 본문에 붙인다)
 
 ```markdown
 ### DB 체크리스트
@@ -191,6 +209,7 @@ create policy "members delete" on influencers for delete using (is_member(worksp
 - [ ] lib/mock 가짜 데이터를 같이 고쳤고 빌드가 통과한다
 - [ ] platform_id는 platforms의 slug만 쓴다
 - [ ] service role 키는 서버 코드에서만 쓴다
+- [ ] 원격 DB에 직접 적용하지 않았다 (적용은 머지 후 DB 관리자가)
 - [ ] 다른 탭 테이블을 건드렸으면 그 담당자를 리뷰어로 넣었다
 - [ ] npm run typecheck / lint / build 통과
 ```
