@@ -6,18 +6,23 @@
 ## 1. 브랜치
 
 ```
-Leafn_main   배포 기준. 직접 push 금지
-└─ sub_main  통합 브랜치. 직접 push 금지, PR로만
+Leafn_main   배포 기준. 직접 push하지 않는다
+└─ sub_main  통합 브랜치. 기본은 PR로 들어온다
    └─ 개인 브랜치 (각자 이름, 예: minseo)
 ```
 
-- 작업은 항상 개인 브랜치에서 한다. 시작 전에 `sub_main`을 받아 온다.
+브랜치 운영은 유동적으로 한다. 아래는 기본 흐름이고, 예외는 채팅에서 알리면 된다.
+
+- 작업은 기본적으로 개인 브랜치에서 한다. 시작 전에 `sub_main`을 받아 온다.
   ```bash
   git checkout <내 브랜치>
   git pull origin sub_main
   ```
-- 큰 기능은 개인 브랜치에서 다시 따도 된다: `<내 브랜치>/<기능>` (예: `minseo/trends-chart`).
-- `sub_main` → `Leafn_main` 반영은 총괄(lead)이 페이즈가 끝날 때 PR로 한다.
+- 문서 수정, 급한 수정, 팀이 합의한 작업은 `sub_main`에 직접 push해도 된다. push 전에 `npm run typecheck`, `npm run lint`, `npm run build`를 통과시키고, push 뒤 채팅에 무엇을 올렸는지 알린다.
+- 기능을 따로 나누고 싶으면 `<이름>-<기능>`으로 딴다 (예: `minseo-trends-chart`). `minseo/trends-chart`처럼 `/`를 쓰면 이미 있는 `minseo` 브랜치와 이름이 겹쳐 git이 만들지 못한다.
+- `sub_main` → `Leafn_main` 반영은 총괄(lead)이 페이즈가 끝날 때 PR로 한다. 개인 브랜치의 PR은 `Leafn_main`이 아니라 `sub_main`으로 보낸다.
+- `Leafn_main` 보호는 GitHub가 강제하지 않는다 (개인 계정 비공개 레포는 무료 플랜에서 브랜치 규칙이 적용되지 않음). 그래서 약속으로 지킨다: `Leafn_main`에는 총괄만 머지하고, `sub_main` → `Leafn_main` PR의 CI가 초록일 때만 머지한다. 직접 push, 강제 push, 브랜치 삭제는 하지 않는다.
+- GitHub 기본 브랜치는 `sub_main`이다. 새로 받는 사람과 AI 도구, 새 PR은 기본으로 `sub_main`을 본다.
 
 ## 2. 커밋
 
@@ -30,13 +35,16 @@ Leafn_main   배포 기준. 직접 push 금지
 
 ## 3. Pull Request
 
-- 대상은 항상 `sub_main`. 제목은 커밋 형식과 같다.
-- 본문: 무엇을 바꿨나 / 확인 방법(어느 화면에서 무엇을 누르면 되는지) / 스크린샷(화면 변경 시).
-- 머지 조건: 리뷰 1명 승인 + `npm run typecheck`, `npm run lint`, `npm run build` 통과.
-- 머지 방식: Squash merge. 머지 후 개인 브랜치는 지우지 않고 계속 쓴다.
+- 대상은 `sub_main` (GitHub 기본 브랜치라 자동으로 잡힌다). 제목은 커밋 형식과 같다.
+- 본문은 `.github/pull_request_template.md`가 자동으로 채우는 칸을 쓴다: 무엇을 바꿨나 / 확인 방법 / 스크린샷 / AI가 정한 설계 결정 / (DB를 건드렸으면) DB 체크리스트.
+- 머지 조건: 리뷰 1명 승인 + CI 통과. CI(`.github/workflows/ci.yml`, 검사 이름 `web`)가 PR마다 `typecheck`, `lint`, `build`를 자동으로 돌린다. GitHub가 머지를 막지는 않으므로 CI가 빨간 PR은 머지하지 않는다는 약속으로 지킨다.
+- 머지 방식: Merge commit (GitHub 기본, 지금까지 쓴 방식). Squash는 쓰지 않는다. 개인 브랜치를 계속 쓰는 방식에서 Squash를 하면 다음 PR에 이미 머지된 커밋이 다시 나온다.
+- 머지 후 개인 브랜치는 지우지 않고 계속 쓴다.
 - 400줄이 넘으면 나눠서 올린다 (자동 생성된 shadcn 컴포넌트, lock 파일 제외).
 
 ## 4. 내 영역 / 공용 영역
+
+**총괄은 Min(GitHub `@miamobann`, 해외사업팀장)이다.** 이 문서와 DB_RULES의 "총괄"은 모두 Min을 뜻한다. 아래 표에서 총괄 리뷰가 필요한 PR은 Min을 리뷰어로 직접 넣는다. 리뷰어 자동 지정(CODEOWNERS)은 무료 플랜의 비공개 레포에서 동작하지 않아서 쓰지 않는다.
 
 | 영역 | 경로 | 고칠 수 있는 사람 |
 | --- | --- | --- |
@@ -54,7 +62,7 @@ Leafn_main   배포 기준. 직접 push 금지
 - `strict` 모드. `any` 금지, 불가피하면 이유를 주석으로.
 - 기본은 Server Component. 상태·이벤트가 필요한 곳만 `"use client"`를 맨 위에.
 - 파일·폴더 이름은 `kebab-case` (`review-table.tsx`), 컴포넌트는 `PascalCase`, 함수·변수는 `camelCase`, 상수는 `UPPER_SNAKE_CASE`.
-- import는 별칭 `@/`를 쓴다 (`@/components/common/empty-state`). `../../..` 금지.
+- import는 별칭 `@/`를 쓴다 (`@/components/common/states`). `../../..` 금지.
 - 화면은 `lib/mock/`을 직접 import하지 않고 `lib/data/`의 함수만 부른다.
 - 데이터 모양은 `lib/schemas/`의 Zod 스키마에서 `z.infer`로 타입을 만든다. 같은 타입을 따로 선언하지 않는다.
 - AI 호출은 `lib/ai/`에서만, 프롬프트 원문은 `prompts/`에만.
@@ -72,16 +80,16 @@ Leafn_main   배포 기준. 직접 push 금지
 
 > 행·열·테이블 추가 규칙과 PR 체크리스트는 [DB_RULES.md](DB_RULES.md)에 있다.
 
-- 테이블·RLS 변경은 `supabase/migrations/<YYYYMMDDHHMM>_<설명>.sql` 새 파일로만.
+- 테이블·RLS 변경은 새 마이그레이션 파일로만. 파일은 Supabase CLI로 만든다: `npx supabase migration new <설명>` → `supabase/migrations/<YYYYMMDDHHMMSS>_<설명>.sql` (14자리 시각). 손으로 이름을 지으면 자릿수가 달라져 적용 순서가 꼬일 수 있다.
 - 새 업무 테이블에는 `workspace_id`와 RLS 정책을 같이 만든다.
 - 브라우저에서는 anon 키만. `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `RAKUTEN_APPLICATION_ID`는 서버 코드에서만 쓰고 `NEXT_PUBLIC_`을 붙이지 않는다.
-- 필요한 환경 변수는 `.env.example`에 이름만 적는다.
+- 필요한 환경 변수는 저장소 루트 `.env.example`에 이름만 적는다. 실제 값은 `apps/web/.env.local`(로컬), Vercel 환경 변수, GitHub Actions Secrets에만 넣는다.
 
 ## 8. Python 수집기 (`collectors/`)
 
 - Python 3.11+, 포맷은 `ruff format`, 린트는 `ruff check`.
 - 사이트 하나 = `sources/` 파일 하나. 한 사이트가 깨져도 다른 사이트는 돌아가게.
-- 저장은 `db.py`를 통해 `(source, external_id)` upsert. 원본은 `raw`에.
+- 저장은 `db.py`를 통해 `(workspace_id, source, external_id)` upsert. `workspace_id`는 반드시 채운다. 원본은 `raw`에.
 - 요청 사이 간격을 두고, 이용약관·robots.txt를 확인한 사이트만 수집한다.
 - 라이브러리를 추가하면 `requirements.txt`에 버전을 고정해 적는다.
 
@@ -92,6 +100,7 @@ Leafn_main   배포 기준. 직접 push 금지
 
 ## 10. AI 코딩 도구를 쓸 때
 
-- 작업 전에 CLAUDE.md를 읽게 한다 (Claude Code는 자동).
+- 작업 전에 CLAUDE.md를 읽게 한다. Claude Code는 자동으로, Codex·Gemini CLI 등은 `AGENTS.md`, Cursor는 `.cursor/rules/leafn.mdc`를 거쳐 읽는다.
+- AI에게 커밋·push를 맡길 때는 대상 브랜치를 말해 준다. AI는 `Leafn_main`에 push하지 않는다 (CLAUDE.md 0장 Git).
 - 한 번에 한 작업. 생성된 코드는 내가 읽고 이해한 것만 커밋한다.
 - AI가 정한 설계 결정은 PR 본문에 적어 리뷰어가 볼 수 있게 한다.

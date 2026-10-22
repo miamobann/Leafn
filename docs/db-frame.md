@@ -130,7 +130,7 @@ create policy "members delete" on products for delete using (is_member(workspace
 
 ## 5. 마이그레이션 파일 나누기 (제안)
 
-CODING_RULES 7장에 따라 새 파일로만 추가한다.
+CODING_RULES 7장에 따라 새 파일로만 추가한다. 실제 파일은 `npx supabase migration new <이름>`으로 만들고, 아래 `...`에는 CLI가 붙이는 14자리 시각이 들어간다.
 
 1. `..._base.sql`: workspaces, profiles, workspace_members, `is_member()`, activity_log
 2. `..._platforms.sql`: platforms + 시드 (slug 목록)
