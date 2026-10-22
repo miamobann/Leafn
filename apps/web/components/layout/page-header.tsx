@@ -11,10 +11,10 @@ export function PageHeader({ title, description, featureId }: PageHeaderProps) {
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-semibold">{title}</h1>
         {featureId && (
-          <span className="rounded border border-border px-1.5 text-xs text-muted">{featureId}</span>
+          <span className="rounded border border-border px-1.5 text-xs text-muted-foreground">{featureId}</span>
         )}
       </div>
-      {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+      {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
     </div>
   );
 }

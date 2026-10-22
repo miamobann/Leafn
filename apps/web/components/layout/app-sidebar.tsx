@@ -25,7 +25,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       target={item.external ? "_blank" : undefined}
       aria-current={active ? "page" : undefined}
       className={`block rounded-md px-3 py-1.5 text-sm ${
-        active ? "bg-sidebar-accent font-medium" : "text-muted hover:bg-sidebar-accent"
+        active ? "bg-sidebar-accent font-medium" : "text-muted-foreground hover:bg-sidebar-accent"
       }`}
     >
       {item.label}
@@ -43,7 +43,7 @@ export function AppSidebar() {
         <NavLink item={HOME_ITEM} active={current === HOME_ITEM.href} />
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
-            <div className="px-3 pb-1 text-xs font-medium text-muted">{group.label}</div>
+            <div className="px-3 pb-1 text-xs font-medium text-muted-foreground">{group.label}</div>
             {group.items.map((item) => (
               <NavLink key={item.href} item={item} active={current === item.href} />
             ))}
