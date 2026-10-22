@@ -6,6 +6,7 @@
 - 협업·Git 규칙: [docs/CODING_RULES.md](docs/CODING_RULES.md)
 - 기술 스택 분석 원문 (근거·비유 포함): [기술 스택 분석 문서](https://claude.ai/artifact/MA3A2F3vJ7c7u2wNiveKxj) · `docs/TECH_STACK.md`는 CLAUDE.md로 옮기기 전 사본이라 따르지 않는다
 - 프로토타입(화면 뼈대) 계획: [docs/prototype-plan.md](docs/prototype-plan.md)
+- Supabase 연동 방법(팀원용): [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)
 - DB 작업 규칙: [docs/DB_RULES.md](docs/DB_RULES.md) · 통합 DB 프레임 초안: [docs/db-frame.md](docs/db-frame.md)
 
 ## 업무별 디렉터리
