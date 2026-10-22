@@ -140,8 +140,7 @@ export function ReviewWorkspace({ products, book, workspaceId }: ReviewWorkspace
   return (
     <ViewStateGate>
       <div className="grid grid-cols-[minmax(18rem,2fr)_3fr] items-start gap-4">
-        {/* 결과가 길어도 입력 패널이 보이도록 고정한다 */}
-        <Card className="sticky top-16">
+        <Card>
           <CardHeader>
             <CardTitle>입력</CardTitle>
           </CardHeader>
