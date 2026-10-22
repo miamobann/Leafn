@@ -1,21 +1,27 @@
 import Link from "next/link";
-import { Input } from "@/components/ui/input";
+import { isSupabaseConfigured } from "@/lib/data/workspace";
+import { LoginForm } from "./login-form";
 
-// 프로토타입은 가짜 로그인: 누르면 홈으로 이동 (인증 없음)
+const TEXT = {
+  title: "Leafn 로그인",
+  notConfigured: "Supabase가 연결되지 않았습니다. docs/SUPABASE_SETUP.md를 따라 apps/web/.env.local을 만들어 주세요.",
+  skip: "로그인 없이 샘플 화면 보기",
+  account: "계정은 워크스페이스 관리자에게 요청하세요.",
+};
+
 export default function LoginPage() {
   return (
     <>
-      <h1 className="mb-6 text-xl font-semibold">Leafn 로그인</h1>
-      <div className="space-y-3">
-        <Input type="email" placeholder="이메일" />
-        <Input type="password" placeholder="비밀번호" />
-        <Link href="/" className="block rounded-md bg-primary py-2 text-center text-sm text-primary-foreground">
-          로그인
-        </Link>
-        <Link href="/onboarding" className="block text-center text-sm text-muted-foreground hover:underline">
-          처음이신가요? 워크스페이스 시작
-        </Link>
-      </div>
+      <h1 className="mb-6 text-xl font-semibold">{TEXT.title}</h1>
+      {isSupabaseConfigured() ? (
+        <LoginForm />
+      ) : (
+        <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">{TEXT.notConfigured}</p>
+      )}
+      <p className="mt-4 text-center text-xs text-muted-foreground">{TEXT.account}</p>
+      <Link href="/" className="mt-2 block text-center text-sm text-muted-foreground hover:underline">
+        {TEXT.skip}
+      </Link>
     </>
   );
 }
