@@ -1,6 +1,7 @@
 "use server";
 
 // 로그인·로그아웃·워크스페이스 만들기/참여 (Server Action)
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,6 +18,30 @@ export async function signIn(_prev: FormState, formData: FormData): Promise<Form
 
   const { data } = await supabase.from("workspace_members").select("id").limit(1);
   redirect(data && data.length > 0 ? "/settings" : "/onboarding");
+}
+
+export type SignUpState = FormState & { sentTo?: string };
+
+export async function signUp(_prev: SignUpState, formData: FormData): Promise<SignUpState> {
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const displayName = String(formData.get("display_name") ?? "").trim();
+  if (!email || !password || !displayName) return { error: "이름, 이메일, 비밀번호를 모두 입력해 주세요." };
+  if (password.length < 8) return { error: "비밀번호는 8자 이상으로 정해 주세요." };
+
+  const origin = (await headers()).get("origin") ?? "http://localhost:3000";
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    // display_name은 가입 트리거(handle_new_user)가 profiles에 옮겨 담는다
+    options: { data: { display_name: displayName }, emailRedirectTo: `${origin}/auth/callback?next=/onboarding` },
+  });
+  if (error) return { error: `가입하지 못했습니다: ${error.message}` };
+
+  // 이메일 확인이 꺼져 있으면 바로 로그인된 상태로 돌아온다
+  if (data.session) redirect("/onboarding");
+  return { error: null, sentTo: email };
 }
 
 export async function signOut() {
