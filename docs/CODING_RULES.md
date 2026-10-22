@@ -44,6 +44,8 @@ Leafn_main   배포 기준. 직접 push하지 않는다
 
 ## 4. 내 영역 / 공용 영역
 
+**총괄은 Min(GitHub `@miamobann`, 해외사업팀장)이다.** 이 문서와 DB_RULES의 "총괄"은 모두 Min을 뜻한다. 아래 표에서 총괄 리뷰가 필요한 PR은 Min을 리뷰어로 직접 넣는다. 리뷰어 자동 지정(CODEOWNERS)은 무료 플랜의 비공개 레포에서 동작하지 않아서 쓰지 않는다.
+
 | 영역 | 경로 | 고칠 수 있는 사람 |
 | --- | --- | --- |
 | 내 화면 | `app/(internal)/(dashboard)/<내 탭>/`, `app/(public)/survey/` | 담당자 |

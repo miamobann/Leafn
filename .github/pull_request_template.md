@@ -19,7 +19,7 @@
 ## 체크
 - [ ] `npm run typecheck` / `npm run lint` / `npm run build` 통과 (CI도 확인)
 - [ ] `.env*`, API 키, 실제 리뷰 원문 대량 데이터를 커밋하지 않았다
-- [ ] 다른 사람 영역(CODING_RULES 4장)을 건드렸으면 그 사람을 리뷰어로 넣었다
+- [ ] 다른 사람 영역(CODING_RULES 4장)을 건드렸으면 그 사람을 리뷰어로 넣었다 (공용 영역은 총괄 `@miamobann`)
 - [ ] 결정이 필요한 부분은 임의로 정하지 않고 CLAUDE.md 11장 열린 질문에 올렸다
 
 <!-- DB, lib/schemas, lib/mock, lib/data, supabase/, collectors/ 를 건드렸으면 아래를 남기고 체크한다. 아니면 지운다 (DB_RULES 6장) -->
