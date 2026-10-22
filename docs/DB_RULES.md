@@ -4,7 +4,7 @@
 > 읽는 사람: 팀원 6명, 그리고 팀원이 쓰는 AI 코딩 에이전트
 > 관련 문서: [SUPABASE_SETUP.md](SUPABASE_SETUP.md) (팀원 연동 방법) · [CLAUDE.md](../CLAUDE.md) 5장 (DB 스키마 초안) · [db-frame.md](db-frame.md) (통합 DB 프레임 초안) · [CODING_RULES.md](CODING_RULES.md) 7장
 >
-> **기준의 우선순위:** 테이블과 컬럼의 정의는 프레임이 합의되기 전까지 CLAUDE.md 5장이 기준이다. 이 문서에 나오는 `platforms`, `platform_id`, `promo_milestones`, `surveys`, `is_member()` 같은 이름은 db-frame.md 초안 기준이라서, 합의 전에는 만들지 않는다. 대신 이 문서의 절차 규칙(1·2·4·5·6·7장)은 지금부터 바로 지킨다.
+> **기준의 우선순위:** 테이블과 컬럼의 정의는 프레임이 합의되기 전까지 CLAUDE.md 5장이 기준이다. 이 문서에 나오는 `platforms`, `platform_id`, `promo_milestones`, `surveys`, `is_member()` 같은 이름은 db-frame.md 초안 기준이라서, 합의 전에는 만들지 않는다. 대신 이 문서의 절차 규칙(1·2·4·5·6·7장)은 지금부터 바로 지킨다. 그 안에서 **(프레임 후)**라고 표시한 줄만 프레임 합의 뒤에 적용하고, 그 전에는 CLAUDE.md 5장 이름(`platform` 텍스트 칸, `reviews.source`, `skin_survey_responses`)을 쓴다.
 
 ## AI 에이전트에게 먼저
 
@@ -25,7 +25,7 @@ DB, `lib/schemas/`, `lib/mock/`, `lib/data/`, `supabase/`, `collectors/` 중 하
 | --- | --- | --- |
 | 1 | `supabase/migrations/`의 **기존 파일 수정·삭제** | 이미 적용된 DB와 파일이 어긋난다. 바꿀 게 있으면 새 파일로 |
 | 2 | 컬럼·테이블 **이름 변경, 삭제, 타입 변경**을 혼자 결정 | 다른 팀원 브랜치와 화면이 바로 깨진다. 채팅에서 합의 후 총괄 리뷰 |
-| 3 | `workspace_id` 없는 팀 데이터 테이블 | 다른 회사 데이터가 섞인다 (예외는 공용 테이블 2개뿐: `platforms`, `trend_snapshots`) |
+| 3 | `workspace_id` 없는 팀 데이터 테이블 | 다른 회사 데이터가 섞인다 (지금은 예외 없음. **(프레임 후)** 공용 테이블 `platforms`, `trend_snapshots` 2개만 예외) |
 | 4 | RLS 없이 테이블 만들기 | anon 키로 누구나 읽고 쓸 수 있게 된다 |
 | 5 | `SUPABASE_SERVICE_ROLE_KEY`를 브라우저 코드·`NEXT_PUBLIC_` 변수에 넣기 | 모든 회사의 데이터 마스터키가 노출된다 |
 | 6 | Supabase 대시보드에서 손으로 테이블·컬럼 만들기 | 마이그레이션 파일에 안 남아서 다른 사람 DB에는 없다 |
@@ -53,7 +53,7 @@ DB, `lib/schemas/`, `lib/mock/`, `lib/data/`, `supabase/`, `collectors/` 중 하
 
 | 순서 | 파일 | 할 일 |
 | --- | --- | --- |
-| 1 | `supabase/migrations/<YYYYMMDDHHMM>_<설명>.sql` (새 파일) | `alter table ... add column ...` |
+| 1 | `npx supabase migration new <설명>`으로 만든 새 파일 (`supabase/migrations/<YYYYMMDDHHMMSS>_<설명>.sql`) | `alter table ... add column ...` |
 | 2 | `apps/web/lib/schemas/<도메인>.ts` | Zod 필드 추가 |
 | 3 | `apps/web/lib/mock/<도메인>.ts` | 가짜 데이터에 값 채우기 (가상 브랜드만) |
 | 4 | `apps/web/lib/data/index.ts` | 필터·정렬에 쓰면 함수 인자 추가 |
@@ -84,7 +84,7 @@ DB, `lib/schemas/`, `lib/mock/`, `lib/data/`, `supabase/`, `collectors/` 중 하
 ### 2.4 예시
 
 ```sql
--- supabase/migrations/202610221430_products_add_launch_status.sql
+-- supabase/migrations/20261022143000_products_add_launch_status.sql
 alter table products
   add column launch_status text
     check (launch_status in ('planning', 'live', 'paused'));  -- null 허용: 기존 행 안전
@@ -106,12 +106,12 @@ launch_status: z.enum(["planning", "live", "paused"]).nullable(),
 1. 기본 칸: `id uuid primary key default gen_random_uuid()`, `created_at timestamptz not null default now()`, 수정되는 테이블이면 `updated_at`.
 2. 팀 데이터면 `workspace_id uuid not null references workspaces on delete cascade` + 인덱스.
 3. **같은 파일 안에서** RLS를 켜고 정책 4개(select, insert, update, delete)를 `is_member(workspace_id)`로 만든다. 템플릿은 아래.
-4. 수집 데이터면 공통 칸을 넣는다: `platform_id`, `source`, `external_id`, `raw jsonb`, `collected_at`, 그리고 중복 방지 `unique (workspace_id, platform_id, external_id)`.
+4. 수집 데이터면 공통 칸을 넣는다: `platform_id`, `source`, `external_id`, `raw jsonb`, `collected_at`, 그리고 중복 방지 `unique (workspace_id, platform_id, external_id)`. 프레임 합의 전에는 `platform_id` 대신 `source`로: `unique (workspace_id, source, external_id)`.
 5. `lib/schemas/`에 새 파일, `common.ts`의 `WorkspaceRow`를 확장한다.
 6. CLAUDE.md 5장 표(프레임 합의 후에는 `docs/db-frame.md` 2장 표)에 한 줄 추가한다.
 
 ```sql
--- supabase/migrations/202610221500_create_influencers.sql
+-- supabase/migrations/20261022150000_create_influencers.sql
 create table influencers (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
@@ -139,15 +139,15 @@ create policy "members delete" on influencers for delete using (is_member(worksp
 | 넣는 쪽 | 방법 | 주의 |
 | --- | --- | --- |
 | 화면 (팀원) | `lib/data/`의 함수 → Supabase 클라이언트 (anon 키 + 로그인) | `workspace_id`는 현재 워크스페이스로 서버에서 채운다. 화면 입력값을 그대로 믿지 않는다 |
-| 수집기 (Python, GitHub Actions) | service role 키 | RLS를 우회하므로 **`workspace_id`를 코드에서 반드시 넣는다**. `insert` 대신 `upsert` (on conflict `external_id`) |
-| 공개 설문 (일본 소비자) | anon 키, `survey_responses` insert만 | 개인정보는 동의한 범위만. 이메일 등은 APPI 검토 전 받지 않는다 |
-| 기준 데이터 (`platforms`) | 마이그레이션 파일의 `insert` | 새 플랫폼 = 코드 상수 + 시드 마이그레이션을 같은 PR에서 |
+| 수집기 (Python, GitHub Actions) | service role 키 | RLS를 우회하므로 **`workspace_id`를 코드에서 반드시 넣는다**. `insert` 대신 `upsert` (on conflict `(workspace_id, source, external_id)`, **(프레임 후)** `(workspace_id, platform_id, external_id)`) |
+| 공개 설문 (일본 소비자) | anon 키, 설문 응답 테이블 insert만 (지금 `skin_survey_responses`, **(프레임 후)** `survey_responses`) | 개인정보는 동의한 범위만. 이메일 등은 APPI 검토 전 받지 않는다 |
+| **(프레임 후)** 기준 데이터 (`platforms`) | 마이그레이션 파일의 `insert` | 새 플랫폼 = 코드 상수 + 시드 마이그레이션을 같은 PR에서 |
 
 ### 4.2 행 규칙
 
-- `platform_id`에는 `platforms`에 있는 slug만 쓴다. 새 플랫폼이 필요하면 4.1 마지막 줄대로 먼저 추가한다.
+- **(프레임 후)** `platform_id`에는 `platforms`에 있는 slug만 쓴다. 새 플랫폼이 필요하면 4.1 마지막 줄대로 먼저 추가한다.
 - `id`는 직접 만들지 않는다 (DB가 uuid를 만든다). 가짜 데이터의 `p-own-1` 같은 문자열 ID는 mock 안에서만 쓴다.
-- 같은 리뷰를 두 번 수집해도 행이 두 개가 되지 않게 `external_id`로 upsert한다.
+- 같은 리뷰를 두 번 수집해도 행이 두 개가 되지 않게 `(workspace_id, source, external_id)`로 upsert한다. `external_id`만으로 upsert하면 다른 워크스페이스의 행을 덮어쓴다.
 - 다른 행을 가리키는 ID(`evidence_review_ids` 같은 배열 포함)는 실제로 있는 행만 넣는다. 배열은 FK 검사가 안 되므로 넣는 코드에서 확인한다.
 - 수정이 많은 행(광고 검토 승인 등)은 `updated_at`을 갱신한다. 누가 바꿨는지 남겨야 하면 `activity_log`에도 한 줄 넣는다.
 - 지우기 전에 `on delete cascade`로 같이 지워지는 자식이 있는지 확인한다. 리뷰 원본을 지우면 분석·번역도 사라진다.
@@ -162,7 +162,7 @@ create policy "members delete" on influencers for delete using (is_member(worksp
 
 ## 5. 여러 명이 동시에 작업할 때
 
-- 마이그레이션 파일을 만들기 직전에 `git pull origin sub_main`을 한다. 파일 이름의 시각은 **만드는 순간**의 시각으로 한다.
+- 마이그레이션 파일을 만들기 직전에 `git pull origin sub_main`을 하고, 파일은 `npx supabase migration new <설명>`으로 만든다. 이름에 **만드는 순간**의 시각(14자리)이 자동으로 붙는다.
 - 같은 테이블을 두 사람이 고치면 PR 순서대로 머지하고, 늦은 쪽이 sub_main을 받아 다시 확인한다.
 - 한 마이그레이션 파일에는 한 가지 목적만 넣는다 (기능 하나 = 파일 하나).
 - 남의 탭 테이블에 컬럼을 넣어야 하면 먼저 채팅에서 담당자에게 말하고, PR 리뷰어로 넣는다.
@@ -200,14 +200,15 @@ create policy "members delete" on influencers for delete using (is_member(worksp
 
 ```markdown
 ### DB 체크리스트
-- [ ] 기존 마이그레이션 파일은 수정하지 않았다 (새 파일만)
+- [ ] 기존 마이그레이션 파일은 수정하지 않았다 (새 파일만, `supabase migration new`로 생성)
 - [ ] 이름 변경·삭제·타입 변경이 없다 (있으면 합의한 채팅 링크: )
 - [ ] 새 컬럼은 null 허용이거나 default가 있다
 - [ ] 새 테이블에 workspace_id + 인덱스 + RLS 정책 4개가 있다 (공용 테이블이면 이유: )
 - [ ] 외래 키에 on delete 동작과 인덱스를 정했다
 - [ ] lib/schemas Zod를 같이 고쳤다 (DB 컬럼은 .nullable())
 - [ ] lib/mock 가짜 데이터를 같이 고쳤고 빌드가 통과한다
-- [ ] platform_id는 platforms의 slug만 쓴다
+- [ ] 수집·upsert 키에 workspace_id가 들어 있다
+- [ ] (프레임 후) platform_id는 platforms의 slug만 쓴다
 - [ ] service role 키는 서버 코드에서만 쓴다
 - [ ] 원격 DB에 직접 적용하지 않았다 (적용은 머지 후 DB 관리자가)
 - [ ] 다른 탭 테이블을 건드렸으면 그 담당자를 리뷰어로 넣었다
