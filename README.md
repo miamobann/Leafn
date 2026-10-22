@@ -52,7 +52,7 @@ Leafn_main   기본 브랜치, 배포 기준
    └─ <이름>  개인 작업 브랜치 (각자 이름, 예: minseo)
 ```
 
-개인 브랜치는 각자 이름으로 `sub_main`에서 따고 `sub_main`으로 PR을 보낸다 (PR의 base가 `sub_main`인지 확인). `sub_main`이 안정되면 `Leafn_main`으로 PR을 보낸다. 브랜치 운영은 유동적이라 문서·급한 수정은 `sub_main`에 직접 올려도 된다. 자세한 약속은 [docs/CODING_RULES.md](docs/CODING_RULES.md).
+개인 브랜치는 각자 이름으로 `sub_main`에서 따고 `sub_main`으로 PR을 보낸다 (GitHub 기본 브랜치가 `sub_main`이라 PR 대상도 자동으로 `sub_main`). `sub_main`이 안정되면 `Leafn_main`으로 PR을 보낸다. 브랜치 운영은 유동적이라 문서·급한 수정은 `sub_main`에 직접 올려도 된다. 자세한 약속은 [docs/CODING_RULES.md](docs/CODING_RULES.md).
 
 | # | 직무 | 업무 | 맡은 탭 (페이즈) |
 | --- | --- | --- | --- |

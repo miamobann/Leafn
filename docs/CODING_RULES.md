@@ -21,6 +21,8 @@ Leafn_main   배포 기준. 직접 push하지 않는다
 - 문서 수정, 급한 수정, 팀이 합의한 작업은 `sub_main`에 직접 push해도 된다. push 전에 `npm run typecheck`, `npm run lint`, `npm run build`를 통과시키고, push 뒤 채팅에 무엇을 올렸는지 알린다.
 - 기능을 따로 나누고 싶으면 `<이름>-<기능>`으로 딴다 (예: `minseo-trends-chart`). `minseo/trends-chart`처럼 `/`를 쓰면 이미 있는 `minseo` 브랜치와 이름이 겹쳐 git이 만들지 못한다.
 - `sub_main` → `Leafn_main` 반영은 총괄(lead)이 페이즈가 끝날 때 PR로 한다. 개인 브랜치의 PR은 `Leafn_main`이 아니라 `sub_main`으로 보낸다.
+- `Leafn_main` 보호는 GitHub가 강제하지 않는다 (개인 계정 비공개 레포는 무료 플랜에서 브랜치 규칙이 적용되지 않음). 그래서 약속으로 지킨다: `Leafn_main`에는 총괄만 머지하고, `sub_main` → `Leafn_main` PR의 CI가 초록일 때만 머지한다. 직접 push, 강제 push, 브랜치 삭제는 하지 않는다.
+- GitHub 기본 브랜치는 `sub_main`이다. 새로 받는 사람과 AI 도구, 새 PR은 기본으로 `sub_main`을 본다.
 
 ## 2. 커밋
 
@@ -33,9 +35,9 @@ Leafn_main   배포 기준. 직접 push하지 않는다
 
 ## 3. Pull Request
 
-- 대상은 `sub_main`. PR을 열 때 base가 `sub_main`인지 확인한다 (GitHub 기본 브랜치가 `Leafn_main`이면 그쪽이 기본으로 잡힌다). 제목은 커밋 형식과 같다.
+- 대상은 `sub_main` (GitHub 기본 브랜치라 자동으로 잡힌다). 제목은 커밋 형식과 같다.
 - 본문은 `.github/pull_request_template.md`가 자동으로 채우는 칸을 쓴다: 무엇을 바꿨나 / 확인 방법 / 스크린샷 / AI가 정한 설계 결정 / (DB를 건드렸으면) DB 체크리스트.
-- 머지 조건: 리뷰 1명 승인 + CI 통과. CI(`.github/workflows/ci.yml`)가 PR마다 `typecheck`, `lint`, `build`를 자동으로 돌린다.
+- 머지 조건: 리뷰 1명 승인 + CI 통과. CI(`.github/workflows/ci.yml`, 검사 이름 `web`)가 PR마다 `typecheck`, `lint`, `build`를 자동으로 돌린다. GitHub가 머지를 막지는 않으므로 CI가 빨간 PR은 머지하지 않는다는 약속으로 지킨다.
 - 머지 방식: Merge commit (GitHub 기본, 지금까지 쓴 방식). Squash는 쓰지 않는다. 개인 브랜치를 계속 쓰는 방식에서 Squash를 하면 다음 PR에 이미 머지된 커밋이 다시 나온다.
 - 머지 후 개인 브랜치는 지우지 않고 계속 쓴다.
 - 400줄이 넘으면 나눠서 올린다 (자동 생성된 shadcn 컴포넌트, lock 파일 제외).

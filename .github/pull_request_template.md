@@ -1,5 +1,5 @@
 <!-- 제목은 커밋 형식: <타입>(<범위>): <요약>  예) feat(reviews): CSV 미리보기 표 추가 -->
-<!-- base 브랜치가 sub_main인지 확인 (CODING_RULES 1·3장) -->
+<!-- base 브랜치는 sub_main (기본값). Leafn_main으로는 총괄만 sub_main에서 PR (CODING_RULES 1·3장) -->
 
 ## 무엇을 바꿨나
 
