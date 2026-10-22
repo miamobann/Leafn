@@ -1,0 +1,66 @@
+import { Product } from "@/lib/schemas/product";
+import { parseAll, ts, WORKSPACE_ID } from "./helpers";
+
+// 가상 브랜드. 가격은 세금 포함 총액(税込), 성분은 全成分 표기 순서를 흉내 낸 샘플
+export const products = parseAll(
+  Product,
+  [
+    {
+      id: "p-own-1",
+      kind: "own",
+      brand: "Leafn",
+      name: "시카 수분 토너",
+      platform: "Qoo10",
+      price_jpy: 2480,
+      volume_ml: 200,
+      ingredients: ["水", "ツボクサエキス", "グリセリン", "ナイアシンアミド"],
+      features: ["저자극", "수분"],
+      category: "化粧水",
+    },
+    {
+      id: "p-comp-1",
+      kind: "competitor",
+      brand: "SampleA",
+      name: "ドクダミ化粧水",
+      platform: "楽天市場",
+      price_jpy: 1980,
+      volume_ml: 250,
+      ingredients: ["水", "ドクダミエキス", "BG"],
+      features: ["진정"],
+      category: "化粧水",
+    },
+    {
+      id: "p-comp-2",
+      kind: "competitor",
+      brand: "SampleB",
+      name: "セラミドトナー",
+      platform: "Qoo10",
+      price_jpy: 2750,
+      volume_ml: 150,
+      ingredients: ["水", "セラミドNP", "グリセリン"],
+      features: ["보습", "장벽"],
+      category: "化粧水",
+    },
+    {
+      id: "p-comp-3",
+      kind: "competitor",
+      brand: "SampleC",
+      name: "ビタCトナー",
+      platform: "@cosme SHOPPING",
+      price_jpy: 3300,
+      volume_ml: 120,
+      ingredients: ["水", "アスコルビン酸", "BG"],
+      features: ["톤 정돈"],
+      category: "化粧水",
+    },
+  ].map((p) => ({
+    url: null,
+    image_path: null,
+    source_raw: null,
+    price_kind: "regular",
+    ...p,
+    workspace_id: WORKSPACE_ID,
+    created_at: ts("2026-10-10"),
+  })),
+  "products",
+);
