@@ -1,15 +1,38 @@
 // Leaf & 제품 4종 (가상 데이터). 출처: 팀이 만든 leaf_and_japan_marketing_test_data.csv
-// 일본어 표시명은 가칭이며 확인 전이다 (CSV 팩트체크 FC01).
-import type { Product } from "./types";
+// 연습장(Suyeon-lab) 전용: 공용 products(TAB 2 담당)를 건드리지 않으려고 탭 안에 둔다.
+// 정식 브랜치로 옮길 때 TAB 2 담당자와 합의해 lib/mock/products.ts로 옮긴다.
+import { z } from "zod";
+import { ProductCategory } from "@/lib/schemas/ad-check";
 
-export const MOCK_PRODUCTS: Product[] = [
+export const LabIngredient = z.object({
+  ko: z.string(),
+  inci: z.string(),
+  /** 일본어 표시명(가칭). 확인 전 */
+  ja: z.string(),
+});
+
+export const LabProduct = z.object({
+  id: z.string(),
+  name_ko: z.string(),
+  name_ja: z.string(),
+  line: z.string(),
+  launch_status: z.enum(["live", "developing"]),
+  /** 일본 제품 구분. 미정이면 null */
+  product_category: ProductCategory.nullable(),
+  volume: z.string(),
+  container: z.string(),
+  ingredients: z.array(LabIngredient),
+});
+export type LabProduct = z.infer<typeof LabProduct>;
+
+export const LAB_PRODUCTS: unknown[] = [
   {
-    id: "dry-skin",
-    nameKo: "Leaf & 모이스트 밸런스 스킨",
-    nameJa: "リーフアンド モイストバランスローション",
+    id: "leaf-dry-skin",
+    name_ko: "Leaf & 모이스트 밸런스 스킨",
+    name_ja: "リーフアンド モイストバランスローション",
     line: "건성 스킨",
-    launchStatus: "출시",
-    category: "미정",
+    launch_status: "live",
+    product_category: null,
     volume: "가상 150 ml",
     container: "플라스틱 통형",
     ingredients: [
@@ -30,12 +53,12 @@ export const MOCK_PRODUCTS: Product[] = [
     ],
   },
   {
-    id: "dry-essence",
-    nameKo: "Leaf & 모이스트 리페어 에센스",
-    nameJa: "リーフアンド モイストリペアエッセンス",
+    id: "leaf-dry-essence",
+    name_ko: "Leaf & 모이스트 리페어 에센스",
+    name_ja: "リーフアンド モイストリペアエッセンス",
     line: "건성 에센스",
-    launchStatus: "출시",
-    category: "미정",
+    launch_status: "live",
+    product_category: null,
     volume: "가상 30 ml",
     container: "유리 펌프형",
     ingredients: [
@@ -48,11 +71,7 @@ export const MOCK_PRODUCTS: Product[] = [
       { ko: "부틸렌글라이콜", inci: "Butylene Glycol", ja: "BG" },
       { ko: "프로판다이올", inci: "Propanediol", ja: "プロパンジオール" },
       { ko: "스쿠알란", inci: "Squalane", ja: "スクワラン" },
-      {
-        ko: "카프릴릭/카프릭트라이글리세라이드",
-        inci: "Caprylic/Capric Triglyceride",
-        ja: "トリ（カプリル酸／カプリン酸）グリセリル",
-      },
+      { ko: "카프릴릭/카프릭트라이글리세라이드", inci: "Caprylic/Capric Triglyceride", ja: "トリ（カプリル酸／カプリン酸）グリセリル" },
       { ko: "하이드로제네이티드레시틴", inci: "Hydrogenated Lecithin", ja: "水添レシチン" },
       { ko: "카보머", inci: "Carbomer", ja: "カルボマー" },
       { ko: "아르기닌", inci: "Arginine", ja: "アルギニン" },
@@ -62,12 +81,12 @@ export const MOCK_PRODUCTS: Product[] = [
     ],
   },
   {
-    id: "oily-skin",
-    nameKo: "Leaf & 프레시 밸런스 스킨",
-    nameJa: "リーフアンド フレッシュバランスローション",
+    id: "leaf-oily-skin",
+    name_ko: "Leaf & 프레시 밸런스 스킨",
+    name_ja: "リーフアンド フレッシュバランスローション",
     line: "지성 스킨",
-    launchStatus: "개발 중",
-    category: "미정",
+    launch_status: "developing",
+    product_category: null,
     volume: "가상 150 ml (예정)",
     container: "미정",
     ingredients: [
@@ -77,12 +96,12 @@ export const MOCK_PRODUCTS: Product[] = [
     ],
   },
   {
-    id: "combo-skin",
-    nameKo: "Leaf & 하이드로 밸런스 스킨",
-    nameJa: "リーフアンド ハイドロバランスローション",
+    id: "leaf-combo-skin",
+    name_ko: "Leaf & 하이드로 밸런스 스킨",
+    name_ja: "リーフアンド ハイドロバランスローション",
     line: "복합성 스킨",
-    launchStatus: "개발 중",
-    category: "미정",
+    launch_status: "developing",
+    product_category: null,
     volume: "가상 150 ml (예정)",
     container: "미정",
     ingredients: [
