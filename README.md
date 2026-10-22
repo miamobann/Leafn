@@ -3,8 +3,10 @@
 일본 진출을 준비하는 K-뷰티 중소기업 해외마케팅팀이 시장 조사, 리뷰 분석, 약기법 광고 검토, 프로모션 일정을 한곳에서 AI로 처리하는 팀 업무용 웹서비스.
 
 - 개발 기준 문서: [CLAUDE.md](CLAUDE.md)
-- 기술 스택 분석: [docs/TECH_STACK.md](docs/TECH_STACK.md)
+- 협업·Git 규칙: [docs/CODING_RULES.md](docs/CODING_RULES.md)
+- 기술 스택 분석 원문 (근거·비유 포함): [기술 스택 분석 문서](https://claude.ai/artifact/MA3A2F3vJ7c7u2wNiveKxj) · `docs/TECH_STACK.md`는 CLAUDE.md로 옮기기 전 사본이라 따르지 않는다
 - 프로토타입(화면 뼈대) 계획: [docs/prototype-plan.md](docs/prototype-plan.md)
+- Supabase 연동 방법(팀원용): [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)
 - DB 작업 규칙: [docs/DB_RULES.md](docs/DB_RULES.md) · 통합 DB 프레임 초안: [docs/db-frame.md](docs/db-frame.md)
 
 ## 업무별 디렉터리
@@ -35,6 +37,14 @@ docs/            기획 · 기술 문서
 
 빈 디렉터리는 `.gitkeep`으로 자리만 잡아 두었다.
 
+AI 코딩 도구용 입구: `CLAUDE.md`(Claude Code), `AGENTS.md`(Codex·Gemini CLI 등), `.cursor/rules/leafn.mdc`(Cursor). 뒤의 둘은 CLAUDE.md를 가리키기만 한다.
+
+```bash
+npm run setup      # apps/web 의존성 설치
+npm run dev        # 개발 서버
+npm run typecheck && npm run lint && npm run build   # PR 전에 확인 (CI도 같은 검사)
+```
+
 ## 브랜치
 
 ```
@@ -43,13 +53,13 @@ Leafn_main   기본 브랜치, 배포 기준
    └─ <이름>  개인 작업 브랜치 (각자 이름, 예: minseo)
 ```
 
-개인 브랜치는 각자 이름으로 `sub_main`에서 따고 `sub_main`으로 PR을 보낸다. `sub_main`이 안정되면 `Leafn_main`으로 PR을 보낸다. 자세한 약속은 [docs/CODING_RULES.md](docs/CODING_RULES.md).
+개인 브랜치는 각자 이름으로 `sub_main`에서 따고 `sub_main`으로 PR을 보낸다 (GitHub 기본 브랜치가 `sub_main`이라 PR 대상도 자동으로 `sub_main`). `sub_main`이 안정되면 `Leafn_main`으로 PR을 보낸다. 브랜치 운영은 유동적이라 문서·급한 수정은 `sub_main`에 직접 올려도 된다. 자세한 약속은 [docs/CODING_RULES.md](docs/CODING_RULES.md).
 
 | # | 직무 | 업무 | 맡은 탭 (페이즈) |
 | --- | --- | --- | --- |
-| 1 | 해외사업팀장 | 총괄 | 홈 · 자료실 · 설정 (P8) |
+| 1 | 해외사업팀장 (Min, `@miamobann`) | 총괄 | 홈 · 자료실 · 설정 (P8) |
 | 2 | 브랜드·시장 전략 | 조사 | 시장 분석 TAB 1 (P3) |
 | 3 | 고객 인사이트 | 분석 | 리뷰 분석 TAB 2 (P4) |
 | 4 | 콘텐츠·현지화 | 검수 | 광고 검토 TAB 3 + 리뷰 번역 (P2 · P5) |
 | 5 | 이커머스·프로모션 | 실행 | 진출 실행 (P6) |
-| 6 | 인플루언서·SNS | 소통 | 소비자 설문 (P7) |
+| 6 | 인플루언서·SNS | 소통 | 소비자 설문 (P7) | #주현
