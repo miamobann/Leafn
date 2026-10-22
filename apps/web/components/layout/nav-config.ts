@@ -1,5 +1,15 @@
 // 사이드바 내비게이션의 단일 출처 (docs/prototype-plan.md 3.2)
-import { Folder, House, Settings, type LucideIcon } from "lucide-react";
+import {
+  ChartLine,
+  ClipboardList,
+  Folder,
+  House,
+  MessageSquareText,
+  Rocket,
+  Settings,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -13,6 +23,8 @@ export type NavItem = {
 
 export type NavGroup = {
   label: string;
+  /** 펼친 사이드바의 그룹 줄과 접은 아이콘 줄에 같은 아이콘을 쓴다 */
+  icon: LucideIcon;
   items: NavItem[];
 };
 
@@ -21,6 +33,7 @@ export const HOME_ITEM: NavItem = { label: "홈", href: "/", featureId: "J", ico
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "시장 분석",
+    icon: ChartLine,
     items: [
       { label: "시장 트렌드", href: "/market/trends", featureId: "B" },
       { label: "성분 관심도", href: "/market/ingredients", featureId: "B" },
@@ -30,6 +43,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "리뷰 분석",
+    icon: MessageSquareText,
     items: [
       { label: "리뷰 리포트", href: "/reviews", featureId: "E" },
       { label: "소구점 찾기", href: "/reviews/compare", featureId: "E" },
@@ -38,6 +52,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "광고 검토",
+    icon: ShieldCheck,
     items: [
       { label: "새 검토", href: "/ad-check", featureId: "A" },
       { label: "검토 이력", href: "/ad-check/history", featureId: "A" },
@@ -45,6 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "진출 실행",
+    icon: Rocket,
     items: [
       { label: "플랫폼별 강점", href: "/platforms", featureId: "H" },
       { label: "프로모션 캘린더", href: "/calendar", featureId: "I" },
@@ -52,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "소비자 설문",
+    icon: ClipboardList,
     items: [
       { label: "응답 집계", href: "/survey-results", featureId: "G" },
       { label: "공개 설문 열기 ↗", href: "/survey", featureId: "G", external: true },
