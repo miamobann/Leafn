@@ -18,7 +18,7 @@ export const WorkspaceMember = BaseRow.extend({
 });
 export type WorkspaceMember = z.infer<typeof WorkspaceMember>;
 
-// profiles 테이블 (supabase/migrations/202610221720_base_workspaces.sql)
+// profiles 테이블 (supabase/migrations/20261022082907_base_workspaces.sql)
 export const Profile = BaseRow.extend({
   display_name: z.string().nullable(),
   title: z.string().nullable(),
