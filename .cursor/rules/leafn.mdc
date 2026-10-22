@@ -1,0 +1,8 @@
+---
+description: Leafn 프로젝트 규칙 (CLAUDE.md를 따른다)
+alwaysApply: true
+---
+
+이 저장소의 규칙은 루트 `CLAUDE.md`에 있다. 작업 전에 CLAUDE.md를 읽고 0장 규칙을 지킨다.
+협업·Git 규칙은 `docs/CODING_RULES.md`, DB 관련 작업은 `docs/DB_RULES.md`를 함께 읽는다.
+`docs/TECH_STACK.md`는 옛 사본이므로 따르지 않는다. 규칙을 바꿀 때는 이 파일이 아니라 CLAUDE.md를 고친다.
