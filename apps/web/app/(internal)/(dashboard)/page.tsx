@@ -1,29 +1,38 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { OverviewTemplate } from "@/components/templates";
-import { getActivity, getAdChecks, getPromoEvents, getReviews, getSurveySummary } from "@/lib/data";
+import { Card, CardContent } from "@/components/ui/card";
+import { getActivity, getAdChecks, getPromoEvents } from "@/lib/data";
 import { dDay, formatDate } from "@/lib/format";
 
 export default async function HomePage() {
-  const [pending, events, reviews, survey, activity] = await Promise.all([
+  const [pending, events, activity] = await Promise.all([
     getAdChecks({ status: "pending" }),
     getPromoEvents(),
-    getReviews(),
-    getSurveySummary(),
     getActivity(),
   ]);
   const next = events[0];
+  const stats = [
+    { label: "승인 대기 문구", value: `${pending.length}건` },
+    { label: "다음 행사", value: next ? `${dDay(next.start_date)}` : "—" },
+  ];
 
   return (
     <>
       <PageHeader title="홈" description="이번 주 할 일과 팀 활동" featureId="J" />
+      {/* 템플릿의 숫자 카드 줄은 4칸 고정이라, 홈에서만 2칸으로 넓히려고 여기서 직접 그린다 */}
+      <div className="grid grid-cols-2 gap-4">
+        {stats.map((s) => (
+          <Card key={s.label}>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="mt-1 text-2xl font-semibold">{s.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
       <OverviewTemplate
-        stats={[
-          { label: "승인 대기 문구", value: `${pending.length}건` },
-          { label: "다음 행사", value: next ? `${dDay(next.start_date)}` : "—" },
-          { label: "분석된 리뷰", value: `${reviews.length}건` },
-          { label: "설문 응답", value: `${survey.total}건` },
-        ]}
+        stats={[]}
         sections={[
           {
             title: "할 일",
