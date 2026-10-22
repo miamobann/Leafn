@@ -8,7 +8,7 @@ import { reviewAnalyses } from "./review-analyses";
 import { reviewInsights } from "./review-insights";
 import { reviewTranslations } from "./review-translations";
 import { reviews } from "./reviews";
-import { surveyQuestions, surveySummary } from "./survey";
+import { surveyProductLines, surveyQuestions, surveySummary } from "./survey";
 import { trendSnapshots } from "./trends";
 import { members, workspace } from "./workspace";
 
@@ -44,6 +44,21 @@ function checkRefs() {
   for (const p of platforms) expect(userIds.has(p.updated_by), `platforms ${p.id}.updated_by`);
   for (const a of activity) expect(userIds.has(a.actor_id), `activity ${a.id}.actor_id`);
 
+  // 설문 집계가 가리키는 라인 · 연령대 · 고민 값이 문항과 추천 라인에 있어야 한다
+  const lineIds = ids(surveyProductLines);
+  const optionValues = (qid: string) => new Set(surveyQuestions.find((q) => q.id === qid)?.options.map((o) => o.value) ?? []);
+  const ageValues = optionValues("age");
+  const concernValues = optionValues("concerns");
+  for (const l of surveySummary.product_lines) expect(lineIds.has(l.line_id), `surveySummary.product_lines ${l.line_id}`);
+  for (const row of surveySummary.age_by_concern) {
+    expect(ageValues.has(row.age_group), `surveySummary.age_by_concern ${row.age_group}`);
+    for (const key of Object.keys(row.counts)) expect(concernValues.has(key), `surveySummary.age_by_concern ${row.age_group}.${key}`);
+  }
+  for (const r of surveySummary.recent) {
+    expect(ageValues.has(r.age_group), `surveySummary.recent ${r.at}.age_group`);
+    for (const c of r.concerns) expect(concernValues.has(c), `surveySummary.recent ${r.at}.concerns ${c}`);
+  }
+
   if (errors.length > 0) {
     throw new Error(`교차 참조 검사 실패:\n${errors.join("\n")}`);
   }
@@ -65,6 +80,7 @@ export const mock = {
   promoEvents,
   platforms,
   surveyQuestions,
+  surveyProductLines,
   surveySummary,
   activity,
 };
