@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getActivity, getAdChecks, getProjects, getPromoEvents } from "@/lib/data";
 import { dDay, formatDate } from "@/lib/format";
 import { ProjectBoard, ProjectProgress, StageDetail } from "./_home/project-board";
+import { ScrollButtons } from "./_home/scroll-buttons";
 
 export default async function HomePage() {
   const [pending, events, activity, projects] = await Promise.all([
@@ -66,6 +67,7 @@ export default async function HomePage() {
         />
       </div>
       <StageDetail projects={projects} />
+      <ScrollButtons />
     </ProjectProgress>
   );
 }

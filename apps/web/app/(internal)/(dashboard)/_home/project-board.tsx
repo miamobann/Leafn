@@ -5,7 +5,7 @@ import { CalendarDays, Check, Ellipsis, TriangleAlert, User, type LucideIcon } f
 import Link from "next/link";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { getProjects } from "@/lib/data";
 import { dDay } from "@/lib/format";
@@ -28,7 +28,6 @@ const TEXT = {
   log: "진행 기록",
   noLog: "아직 기록이 없어요",
   openScreen: "화면 열기 →",
-  back: "↑ 현황판으로",
 };
 
 /** 단계마다 현황판 열 이름, 상세 제목, 관련 화면 (prototype-plan 2장) */
@@ -215,13 +214,6 @@ export function StageDetail({ projects }: { projects: HomeProject[] }) {
   const status = STATUS[stage.status];
   const StatusIcon = status.icon;
   const period = stage.start_date && stage.due_date ? `${monthDay(stage.start_date)} ~ ${monthDay(stage.due_date)}` : TEXT.noPeriod;
-  const selectedBrickId = brickId(project.id, stage.stage);
-
-  // 현황판만이 아니라 첫 화면 전체가 다시 보이도록 본문 맨 위로 올라간다
-  function backToBoard() {
-    document.getElementById(BOARD_ID)?.closest("main")?.scrollTo({ top: 0, behavior: scrollBehavior() });
-    document.getElementById(selectedBrickId)?.focus({ preventScroll: true });
-  }
 
   return (
     // 상세가 짧아도 맨 위까지 올라오도록 최소 높이를 본문 한 화면으로 둔다
@@ -280,13 +272,10 @@ export function StageDetail({ projects }: { projects: HomeProject[] }) {
         <p className="mt-1 text-sm text-muted-foreground">{TEXT.noLog}</p>
       )}
 
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6">
         <Link href={meta.href} className={buttonVariants({ variant: "outline" })}>
           {meta.screen} {TEXT.openScreen}
         </Link>
-        <Button variant="outline" onClick={backToBoard}>
-          {TEXT.back}
-        </Button>
       </div>
     </section>
   );
