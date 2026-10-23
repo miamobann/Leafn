@@ -8,7 +8,8 @@ import { reviewAnalyses } from "./review-analyses";
 import { reviewInsights } from "./review-insights";
 import { reviewTranslations } from "./review-translations";
 import { reviews } from "./reviews";
-import { surveyProductLines, surveyQuestions, surveySummary } from "./survey";
+import { surveyProductLines, surveyQuestions } from "./survey";
+import { survey, surveyMinorCounts, surveyResponses, surveySummary } from "./survey-responses";
 import { trendSnapshots } from "./trends";
 import { members, workspace } from "./workspace";
 
@@ -54,6 +55,10 @@ function checkRefs() {
     expect(ageValues.has(row.age_group), `surveySummary.age_by_concern ${row.age_group}`);
     for (const key of Object.keys(row.counts)) expect(concernValues.has(key), `surveySummary.age_by_concern ${row.age_group}.${key}`);
   }
+  for (const r of surveyResponses) {
+    expect(r.survey_id === survey.id, `surveyResponses ${r.id}.survey_id`);
+    for (const c of r.concerns) expect(concernValues.has(c), `surveyResponses ${r.id}.concerns ${c}`);
+  }
   for (const r of surveySummary.recent) {
     expect(ageValues.has(r.age_group), `surveySummary.recent ${r.at}.age_group`);
     for (const c of r.concerns) expect(concernValues.has(c), `surveySummary.recent ${r.at}.concerns ${c}`);
@@ -81,6 +86,9 @@ export const mock = {
   platforms,
   surveyQuestions,
   surveyProductLines,
+  survey,
+  surveyResponses,
+  surveyMinorCounts,
   surveySummary,
   activity,
 };

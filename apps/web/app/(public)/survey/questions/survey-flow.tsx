@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { SurveySource, type SurveyAnswer, type SurveyQuestion } from "@/lib/schemas/survey";
-import { isUnder18 } from "../_lib/judge";
+import { isUnder18 } from "@/lib/survey/judge";
 import { saveSession } from "../_lib/session";
 import { submitSurvey } from "../_lib/submit";
 

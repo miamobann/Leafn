@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Scores, SkinType, SurveyProductLine, SurveyQuestion } from "@/lib/schemas/survey";
-import { calcScores, isUnder18, judge, maxScores } from "../_lib/judge";
+import { calcScores, isUnder18, judge, maxScores } from "@/lib/survey/judge";
 import { clearSession, parseSession, readSessionRaw, subscribeSession } from "../_lib/session";
 import { trackReco } from "../_lib/submit";
 

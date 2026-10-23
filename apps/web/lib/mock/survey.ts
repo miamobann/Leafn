@@ -1,5 +1,5 @@
-import { SurveyProductLine, SurveyQuestion, SurveySummary } from "@/lib/schemas/survey";
-import { parseAll, ts } from "./helpers";
+import { SurveyProductLine, SurveyQuestion } from "@/lib/schemas/survey";
+import { parseAll } from "./helpers";
 
 // 문항·점수는 자체 기준 (설계 정리 문서). 일본어는 원어민 검수 전
 // 점수 키: t = T존 유분, c = 볼 유분, d = 건조, s = 민감
@@ -158,54 +158,4 @@ export const surveyProductLines = parseAll(
   "surveyProductLines",
 );
 
-export const surveySummary = SurveySummary.parse({
-  total: 120,
-  recent_7d: 18,
-  under18_count: 7,
-  sensitive_count: 46,
-  by_source: [
-    { source: "instagram", count: 41 },
-    { source: "line", count: 18 },
-    { source: "rakuten", count: 15 },
-    { source: "x", count: 12 },
-    { source: "friend", count: 10 },
-    { source: "qoo10", count: 9 },
-    { source: "search", count: 8 },
-    { source: "other", count: 7 },
-  ],
-  by_skin_type: [
-    { skin_type: "dry", count: 36 },
-    { skin_type: "combo", count: 29 },
-    { skin_type: "normal", count: 22 },
-    { skin_type: "oily", count: 19 },
-    { skin_type: "inner_dry", count: 14 },
-  ],
-  age_by_concern: [
-    { age_group: "18-19", counts: { dryness: 3, shine: 6, acne: 7, dullness: 1, redness: 2, firmness: 0, other: 1 } },
-    { age_group: "20s", counts: { dryness: 12, shine: 15, acne: 14, dullness: 6, redness: 7, firmness: 2, other: 2 } },
-    { age_group: "30s", counts: { dryness: 15, shine: 9, acne: 6, dullness: 11, redness: 7, firmness: 9, other: 1 } },
-    { age_group: "40s", counts: { dryness: 13, shine: 4, acne: 2, dullness: 9, redness: 5, firmness: 15, other: 2 } },
-    { age_group: "50plus", counts: { dryness: 8, shine: 1, acne: 0, dullness: 5, redness: 2, firmness: 11, other: 0 } },
-  ],
-  concern_other: [
-    { text_ja: "目の下のクマ", text_ko: "다크서클", date: "2026-10-21" },
-    { text_ja: "マスクによる肌あれ", text_ko: "마스크로 인한 트러블", date: "2026-10-20" },
-    { text_ja: "肌のごわつき", text_ko: "피부가 거칠고 뻣뻣함", date: "2026-10-20" },
-    { text_ja: "毛穴の黒ずみ", text_ko: "모공 속 블랙헤드", date: "2026-10-19" },
-  ],
-  // 추천 본 사람 = 해당 결과 유형 응답 수 (스킨: 건성 36 + 속건조 14 + 중성 22, 복합성 라인: 복합성 29 + 속건조 14, 지성 라인: 지성 19 + 중성 22)
-  product_lines: [
-    { line_id: "moisture-skin", shown: 72, clicks: 27 },
-    { line_id: "combo-line", shown: 43, notify_email: 7, notify_line: 11 },
-    { line_id: "oily-line", shown: 41, notify_email: 8, notify_line: 7 },
-  ],
-  recent: [
-    { at: ts("2026-10-21", "14:05"), age_group: "20s", skin_type: "combo", is_sensitive: false, concerns: ["shine", "acne"], source: "instagram", consent_version: "v0.1" },
-    { at: ts("2026-10-21", "11:48"), age_group: "30s", skin_type: "dry", is_sensitive: false, concerns: ["dryness"], source: "rakuten", consent_version: "v0.1" },
-    { at: ts("2026-10-20", "22:17"), age_group: "20s", skin_type: "dry", is_sensitive: true, concerns: ["redness"], source: "line", consent_version: "v0.1" },
-    { at: ts("2026-10-20", "19:02"), age_group: "40s", skin_type: "dry", is_sensitive: false, concerns: ["firmness", "dullness", "other"], source: "x", consent_version: "v0.1" },
-    { at: ts("2026-10-20", "08:30"), age_group: "18-19", skin_type: "oily", is_sensitive: false, concerns: ["acne"], source: "instagram", consent_version: "v0.1" },
-    { at: ts("2026-10-19", "23:41"), age_group: "30s", skin_type: "normal", is_sensitive: false, concerns: ["dullness"], source: "search", consent_version: "v0.1" },
-    { at: ts("2026-10-19", "13:12"), age_group: "50plus", skin_type: "inner_dry", is_sensitive: true, concerns: ["firmness"], source: "friend", consent_version: "v0.1" },
-  ],
-});
+// 응답 집계(surveySummary)는 더미 응답에서 계산한다: ./survey-responses.ts
