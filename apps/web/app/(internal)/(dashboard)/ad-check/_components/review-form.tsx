@@ -13,7 +13,15 @@ const INGREDIENT_PREVIEW = 4;
 
 type Usage = z.infer<typeof AdUsage>;
 
+/** sample: 샘플 판정(AI 호출 없음) · ai: 서버에서 AI 판정 (연습장, AD_CHECK_LAB_AI=1 일 때만) */
+export type JudgeMode = "sample" | "ai";
+
+const MODE_LABEL: Record<JudgeMode, string> = { sample: "샘플 판정 (비용 없음)", ai: "AI 판정 (API 호출)" };
+
 type ReviewFormProps = {
+  aiEnabled: boolean;
+  mode: JudgeMode;
+  onModeChange: (mode: JudgeMode) => void;
   products: LabProduct[];
   productId: string;
   onProductChange: (id: string) => void;
@@ -41,6 +49,20 @@ export function ReviewForm(props: ReviewFormProps) {
         props.onSubmit();
       }}
     >
+      {props.aiEnabled && (
+        <fieldset>
+          <legend className={LABEL}>판정 방식</legend>
+          <div className="flex flex-wrap gap-4 text-sm">
+            {(Object.keys(MODE_LABEL) as JudgeMode[]).map((m) => (
+              <label key={m} className="flex items-center gap-1.5">
+                <input type="radio" name="ad-mode" value={m} checked={props.mode === m} onChange={() => props.onModeChange(m)} />
+                {MODE_LABEL[m]}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
       <div>
         <label htmlFor="ad-product" className={LABEL}>
           제품
