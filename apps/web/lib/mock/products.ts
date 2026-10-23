@@ -4,7 +4,7 @@ import { ownProductImage, ownProductName } from "@/lib/own-products";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 가상 브랜드. 가격은 세금 포함 총액(税込), 성분은 全成分 표기 순서를 흉내 낸 샘플
-// 자사 2(이름·사진은 lib/own-products.ts) + 경쟁 8 + Qoo10 랭킹 20. 자사 제품은 평점 정보가 없어 source_raw = null
+// 자사 4(이름·사진은 lib/own-products.ts, 개발 중 2종 포함) + 경쟁 8 + Qoo10 랭킹 20. 자사 제품은 평점 정보가 없어 source_raw = null
 // platform은 lib/platforms.ts의 slug. @cosme는 쓰지 않기로 해서 SampleC·SampleH는 楽天으로 옮기고 평점을 5점 척도로 환산했다 (2026-10-23)
 // source_raw는 상품 페이지 추출 원본을 흉내 낸 값. 평점·리뷰 수·행사가는 여기서만 꺼내 쓴다 (lib/schemas/product.ts readListing)
 // Qoo10 카테고리 랭킹 TOP10 (가상 브랜드). 순위는 수집 API가 주는 값이라 source_raw에 둔다 (DB_RULES 2.1)
@@ -94,6 +94,33 @@ const seeds: Seed[] = [
     ingredients: ["水", "BG", "ヒアルロン酸Na", "アセチルヒアルロン酸Na", "グリセリン"],
     features: ["히알루론산", "가벼운 제형"],
     category: "美容液",
+  },
+  // 개발 중 2종 (광고 검토 TAB 3, 2026-10-23). 가격·용량은 정해지지 않아 가정값이다. 전성분은 광고 검토 탭 _lib/products.ts 의 일본어 표시명(가칭)
+  {
+    id: "p-own-3",
+    kind: "own",
+    brand: "Leafn",
+    name: ownProductName("tea-pure-skin"),
+    image_path: ownProductImage("tea-pure-skin"),
+    platform: "qoo10",
+    price_jpy: 2480,
+    volume_ml: 150,
+    ingredients: ["ヒアルロン酸Na", "パンテノール", "チャ葉エキス"],
+    features: ["산뜻함", "개발 중"],
+    category: "化粧水",
+  },
+  {
+    id: "p-own-4",
+    kind: "own",
+    brand: "Leafn",
+    name: ownProductName("mild-skin"),
+    image_path: ownProductImage("mild-skin"),
+    platform: "qoo10",
+    price_jpy: 2480,
+    volume_ml: 150,
+    ingredients: ["ヒアルロン酸Na", "グリセリン", "ベタイン"],
+    features: ["유수분 밸런스", "개발 중"],
+    category: "化粧水",
   },
   {
     id: "p-comp-1",

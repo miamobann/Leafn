@@ -7,7 +7,7 @@ import { parseModelOutput } from "./parse";
 import { buildSystemPrompt, buildUserMessage } from "./prompt";
 
 /** 지금 쓰는 프롬프트 버전 (prompts/ad-check.<버전>.md). 저장하는 prompt_version 은 "ad-check.<버전>" */
-export const AD_CHECK_PROMPT_VERSION = "v4";
+export const AD_CHECK_PROMPT_VERSION = "v5";
 
 /** AI 응답이 두 번 모두 약속한 모양이 아닐 때. message 는 화면에 보여 줘도 안전하다 (모델 출력 원문은 cause 에만 있다) */
 export class AdCheckParseError extends Error {

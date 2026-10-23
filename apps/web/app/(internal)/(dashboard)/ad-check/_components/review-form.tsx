@@ -10,6 +10,7 @@ const LABEL = "mb-1 block text-sm font-medium";
 // shadcn select는 아직 설치되지 않아 기본 select를 같은 모양으로 쓴다 (components/ui는 공용 영역)
 const SELECT = "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm";
 const INGREDIENT_PREVIEW = 4;
+const CATEGORY_LABEL = { general_cosmetic: "一般化粧品", quasi_drug: "医薬部外品" } as const;
 
 type Usage = z.infer<typeof AdUsage>;
 
@@ -54,7 +55,7 @@ export function ReviewForm(props: ReviewFormProps) {
         </select>
         <dl className="mt-2 grid grid-cols-[5rem_1fr] gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <dt>제품 구분</dt>
-          <dd>{product.product_category ?? "미정 (一般化粧品 / 医薬部外品 확인 필요)"}</dd>
+          <dd>{product.product_category ? CATEGORY_LABEL[product.product_category] : "미정 (一般化粧品 / 医薬部外品 확인 필요)"}</dd>
           <dt>용기</dt>
           <dd>{product.container}</dd>
           <dt>전성분</dt>

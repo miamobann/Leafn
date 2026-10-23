@@ -15,31 +15,42 @@ type LineResultCardProps = {
   onSelect?: (text: string | null) => void;
 };
 
+/** 줄마다 맨 위에 보여 줄 결론 한 문장 (두괄식) */
+const CONCLUSION: Record<AdLineResult["action"], string> = {
+  must_fix: "고쳐야 합니다",
+  should_fix: "고치는 것을 권합니다",
+  expert: "전문가 확인이 필요합니다",
+  ok: "그대로 써도 됩니다",
+};
+
+function conclusion(line: AdLineResult, findings: AdFinding[]): string {
+  if (line.action === "ok" || findings.length === 0) return `이 줄은 ${CONCLUSION[line.action]}.`;
+  return `${findings.map((f) => `「${f.text}」`).join(", ")} 표현을 ${CONCLUSION[line.action]}.`;
+}
+
 export function LineResultCard({ line, findings, selectedSuggestion, onSelect }: LineResultCardProps) {
   const rechecks = findings.flatMap((f) => f.suggestion_rechecks ?? []);
   const lang = /[぀-ヿ]/.test(line.original) ? "ja" : "ko";
 
   return (
-    <article className="rounded-lg border p-4">
-      <header className="mb-3 flex flex-wrap items-center gap-2">
+    <article id={`line-${line.line_index}`} className="scroll-mt-4 rounded-lg border p-4">
+      <header className="mb-2 flex flex-wrap items-center gap-2">
         <span className="text-sm font-semibold">#{line.line_index}</span>
         <ActionBadge action={line.action} />
         <LangBadge lang={lang} />
       </header>
+      <p className="mb-3 text-sm font-medium">{conclusion(line, findings)}</p>
 
       <HighlightedText text={line.original} findings={findings} action={line.action} />
 
       {findings.length > 0 && (
         <section className="mt-4">
-          <h3 className="mb-2 text-sm font-semibold">위험 표현과 사유</h3>
+          <h3 className="mb-2 text-sm font-semibold">고칠 이유</h3>
           <ul className="space-y-2">
             {findings.map((f) => (
               <li key={f.text} className="rounded-md bg-muted p-3 text-sm">
                 <p className="font-medium">「{f.text}」</p>
                 <p className="mt-1">{f.reason}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  근거: {f.basis} · {f.basis_status ? BASIS_STATUS_LABEL[f.basis_status] : "자료 확인 필요"}
-                </p>
               </li>
             ))}
           </ul>
@@ -66,21 +77,37 @@ export function LineResultCard({ line, findings, selectedSuggestion, onSelect }:
                     } ${selectable ? "hover:bg-muted" : "cursor-default"}`}
                   >
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{s.text}</span>
+                      <span className="font-medium" lang="ja">
+                        {s.text}
+                      </span>
                       <span
                         className={`rounded px-1.5 text-xs ${
                           s.recheck === "pass" ? "bg-risk-low/15 text-risk-low" : "bg-risk-medium/15 text-risk-medium"
                         }`}
                       >
-                        {s.recheck === "pass" ? "✓ 재검토 통과" : "! 재수정 필요"}
+                        {s.recheck === "pass" ? "재검토 통과" : "재수정 필요"}
                       </span>
                       {selected && <span className="text-xs">선택됨</span>}
                     </span>
-                    <span className="mt-1 block text-xs text-muted-foreground">{s.recheck_reason}</span>
+                    {s.text_ko && <span className="mt-1 block">한국어: {s.text_ko}</span>}
+                    <span className="mt-2 block border-t pt-2 text-xs text-muted-foreground">근거 설명: {s.recheck_reason}</span>
                   </button>
                 </li>
               );
             })}
+          </ul>
+        </section>
+      )}
+
+      {findings.length > 0 && (
+        <section className="mt-4 text-sm">
+          <h3 className="mb-1 font-semibold">근거</h3>
+          <ul className="space-y-1 text-muted-foreground">
+            {findings.map((f) => (
+              <li key={f.text}>
+                「{f.text}」 {f.basis} · {f.basis_status ? BASIS_STATUS_LABEL[f.basis_status] : "자료 확인 필요"}
+              </li>
+            ))}
           </ul>
         </section>
       )}
