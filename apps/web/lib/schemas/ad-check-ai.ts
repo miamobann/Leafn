@@ -1,9 +1,17 @@
 import { z } from "zod";
-import { AdAction, AdFinding, BasisStatus, SuggestionRecheck } from "./ad-check";
+import { AdAction, AdFinding, BasisStatus, ProductCategory, SuggestionRecheck } from "./ad-check";
 import { Risk } from "./common";
 
 // 광고 검토 AI가 내는 JSON의 모양 (prompts/ad-check.v4.md 9장). 검증에 통과해야 화면·DB 모양(AdFinding 등)으로 바뀐다.
 // ok 줄은 line_index, action, 번역, 역번역, findings(빈 배열)만 낸다. 그 밖의 칸은 코드가 채운다.
+
+// 판정에 필요한 제품 정보만 받는다. products 테이블 행을 그대로 받지 않아서, 제품 구분처럼 아직 DB에 없는 값도 따로 넘길 수 있다.
+export const AdCheckProductInput = z.object({
+  name: z.string().min(1),
+  product_category: ProductCategory.nullable(), // 일반 화장품 / 의약부외품. 미정이면 null
+  ingredients: z.array(z.string().min(1)).min(1), // 전성분 표시명. 한국어(일본어) 병기도 문자열 그대로 넘기면 된다
+});
+export type AdCheckProductInput = z.infer<typeof AdCheckProductInput>;
 
 export const AiSuggestion = z.object({
   text: z.string(),
