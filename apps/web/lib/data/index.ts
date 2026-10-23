@@ -185,7 +185,7 @@ export async function getLibraryItems(opts: { type?: string; q?: string } = {}) 
   const items: LibraryItem[] = [
     ...mock.adChecks.map((a) => ({ id: a.id, type: "광고 검토", title: a.input_text, href: `/ad-check/${a.id}`, created_at: a.created_at })),
     ...mock.products.map((p) => ({ id: p.id, type: "제품", title: `${p.brand} ${p.name}`, href: `/market/competitors/${p.id}`, created_at: p.created_at })),
-    ...mock.geoSnapshots.map((g) => ({ id: g.id, type: "GEO 측정", title: `${g.engine} · ${g.query}`, href: "/market/geo", created_at: g.created_at })),
+    ...mock.geoSnapshots.map((g) => ({ id: g.id, type: "GEO 측정", title: `${g.engine} · ${g.query}`, href: "/market/trends", created_at: g.created_at })),
   ];
   return items
     .filter((i) => !opts.type || i.type === opts.type)

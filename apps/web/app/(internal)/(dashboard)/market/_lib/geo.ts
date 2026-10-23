@@ -1,59 +1,10 @@
-// GEO 화면의 계산 (AI 없음). 같은 질의를 여러 번 돌린 경우(run_index) 엔진×질의 칸마다 먼저 평균을 내고, 칸들을 다시 평균한다
+// 시장 트렌드 > AI 검색 핵심 포인트(GEO)의 계산 (AI 없음). 여러 답변을 모아 반복해서 나오는 추천 사유·인용 출처·자사 Gap만 센다
 import type { Product } from "@/lib/schemas/product";
 import type { GeoSnap } from "@/lib/schemas/geo";
 import { fold } from "@/lib/ai/appeal-normalize";
 import { attributeKeyword, domainType, isIngredientKeyword, KEYWORD_DICTIONARY, sentenceHas, splitSentences } from "@/lib/external/geo-terms";
 
-export type GeoCell<T extends GeoSnap = GeoSnap> = { engine: GeoSnap["engine"]; query: string; runs: T[] };
-
-export function geoCells<T extends GeoSnap>(snaps: T[]): GeoCell<T>[] {
-  const map = new Map<string, GeoCell<T>>();
-  for (const s of snaps) {
-    const key = `${s.engine}|${s.query}`;
-    const cell: GeoCell<T> = map.get(key) ?? { engine: s.engine, query: s.query, runs: [] };
-    cell.runs.push(s);
-    map.set(key, cell);
-  }
-  return [...map.values()];
-}
-
-/** 칸 하나에서 브랜드가 언급된 비율 (0~1) */
-export function cellMentionRate(cell: GeoCell, brand: string): number {
-  return cell.runs.filter((r) => r.brands_mentioned.includes(brand)).length / cell.runs.length;
-}
-
 const pct = (n: number) => Math.round(n * 100);
-const avg = (xs: number[]) => (xs.length === 0 ? null : Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10);
-
-/** Share of Model: 칸별 언급률의 평균(%) + 언급됐을 때의 평균 순위 */
-export function shareOfModel(snaps: GeoSnap[]) {
-  const cells = geoCells(snaps);
-  const brands = [...new Set(snaps.flatMap((s) => s.brands_mentioned))];
-  return brands
-    .map((brand) => {
-      const ranks = snaps.flatMap((s) => s.brand_mentions.filter((m) => m.brand === brand).map((m) => m.rank));
-      const viaLlm = snaps.some((s) => s.brand_mentions.some((m) => m.brand === brand && m.source === "llm"));
-      return {
-        brand,
-        share: cells.length === 0 ? 0 : pct(cells.reduce((sum, c) => sum + cellMentionRate(c, brand), 0) / cells.length),
-        avgRank: avg(ranks),
-        minRank: ranks.length ? Math.min(...ranks) : null,
-        maxRank: ranks.length ? Math.max(...ranks) : null,
-        viaLlm,
-      };
-    })
-    .toSorted((a, b) => b.share - a.share || (a.avgRank ?? 99) - (b.avgRank ?? 99));
-}
-
-/** 엔진별 자사 Share of Model (%) */
-export function engineShare(snaps: GeoSnap[], brand: string) {
-  const cells = geoCells(snaps);
-  const engines = [...new Set(cells.map((c) => c.engine))];
-  return engines.map((engine) => {
-    const mine = cells.filter((c) => c.engine === engine);
-    return { engine, share: pct(mine.reduce((s, c) => s + cellMentionRate(c, brand), 0) / mine.length), cells: mine.length };
-  });
-}
 
 /** 인용 도메인 점유: 그 도메인을 인용한 답변 수와 전체 인용 중 비율 */
 export function citationShare(snaps: GeoSnap[]) {
@@ -137,15 +88,4 @@ export function targetMedia(snaps: GeoSnap[], ownBrand: string, top = 5) {
     .map(([domain, e]) => ({ domain, ...domainType(domain), gapAnswers: e.gap, ownAnswers: e.own }))
     .toSorted((a, b) => b.gapAnswers - a.gapAnswers)
     .slice(0, top);
-}
-
-/**
- * 반복 안정성: 2회 이상 돌린 칸에서 자사 언급 여부가 매번 같았는지, 상위 3개 브랜드 구성이 매번 같았는지.
- * 값이 낮으면 답변이 흔들리는 질의라 정밀 모드(3회) 평균을 봐야 한다
- */
-export function repeatStability(snaps: GeoSnap[], ownBrand: string) {
-  const multi = geoCells(snaps).filter((c) => c.runs.length > 1);
-  const sameOwn = multi.filter((c) => new Set(c.runs.map((r) => r.brands_mentioned.includes(ownBrand))).size === 1).length;
-  const sameTop3 = multi.filter((c) => new Set(c.runs.map((r) => r.brands_mentioned.slice(0, 3).toSorted().join("|"))).size === 1).length;
-  return { cells: multi.length, sameOwn, sameTop3 };
 }
