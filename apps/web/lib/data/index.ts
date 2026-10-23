@@ -2,6 +2,7 @@
 // 화면은 lib/mock을 직접 import하지 않고 여기만 부른다. 나중에 같은 시그니처의 Supabase 쿼리로 바꾼다.
 import { mock } from "@/lib/mock";
 import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
+import { StageKey } from "@/lib/schemas/project";
 
 export async function getWorkspace() {
   return mock.workspace;
@@ -112,6 +113,17 @@ export async function getLibraryItems(opts: { type?: string; q?: string } = {}) 
     .filter((i) => !opts.type || i.type === opts.type)
     .filter((i) => !opts.q || i.title.includes(opts.q))
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+/** 홈 진행 현황판: 프로젝트(자사 제품 하나)마다 8단계를 업무 흐름 순서로, 담당자 이름과 함께 */
+export async function getProjects() {
+  return mock.projects.map((p) => ({
+    ...p,
+    stages: mock.projectStages
+      .filter((s) => s.project_id === p.id)
+      .toSorted((a, b) => StageKey.options.indexOf(a.stage) - StageKey.options.indexOf(b.stage))
+      .map((s) => ({ ...s, owner_name: mock.members.find((m) => m.user_id === s.owner_id)?.display_name ?? null })),
+  }));
 }
 
 export async function getActivity() {

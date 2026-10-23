@@ -1,6 +1,7 @@
 # Leafn 통합 DB 프레임 (초안)
 
 > 상태: 논의용 초안 · 2026-10-22 · 팀 합의 전. 합의 전까지 테이블 정의는 [CLAUDE.md](../CLAUDE.md) 5장이 기준이고, 작업 규칙은 [DB_RULES.md](DB_RULES.md)를 따른다
+> 확정된 절: 2장 "진출 실행" (2026-10-23). 확정된 절은 이 문서가 기준이다
 > 근거: `apps/web/lib/schemas` (Zod 11개), `docs/prototype-plan.md` 8장(스키마 제안 18개)·11장, `docs/CODING_RULES.md` 7장
 
 ## 0. 이 문서의 범위
@@ -67,13 +68,59 @@
 | `trend_snapshots` | **공용** | platform_id, category, captured_at, data `jsonb` {ranking[], ingredients[]} | 라쿠텐 랭킹은 공개 데이터라 팀마다 따로 모을 필요가 없음. 지금 Zod의 workspace_id는 빼는 쪽 |
 | `geo_snapshots` | 팀 | engine, query, answer, brands_mentioned `text[]`, captured_at, model | 자사 브랜드 질의라 팀 데이터 |
 
-### 진출 실행
+### 진출 실행 (확정 · 2026-10-23 · 총괄)
 
-| 테이블 | 범위 | 핵심 칸 | 비고 |
-| --- | --- | --- | --- |
-| `platform_notes` | 팀 | platform_id, strengths, audience, fees_note, status(`reviewing`·`preparing`·`live`), updated_by | `unique (workspace_id, platform_id)` |
-| `promo_events` | 팀 | platform_id (자사 캠페인이면 null 허용), kind, title, start_date, end_date, memo, source_url | |
-| `promo_milestones` | 팀 | promo_event_id, label, due_date, done | Zod의 `milestones[]` · `prep_due_date`를 표로. 캘린더에서 "이번 주 마감"을 조회하기 쉬움 |
+이 절의 테이블 3개는 확정이다. 마이그레이션 `..._launch.sql`은 이 정의를 그대로 따른다. 다른 절은 아직 초안이다.
+
+- **플랫폼 칸:** `platform_id text`로 두되, **지금은 FK를 걸지 않는다.** `platforms` 테이블과 slug 목록은 다른 탭의 DB가 나온 뒤 맞추기로 미뤘다 (2026-10-23 결정). 그때 새 마이그레이션에서 FK 제약만 추가한다 (칸 이름은 바뀌지 않는다).
+- **RLS:** 세 테이블 모두 기반 마이그레이션의 `is_member(workspace_id)`로 정책 4개 (4장 패턴).
+- **`prep_due_date`는 칸으로 두지 않는다.** 준비 마감은 모두 `promo_milestones`의 행이다. 화면의 "준비 마감"은 가장 이른 미완료 마감이다.
+
+**`platform_notes`** — 팀이 보는 플랫폼별 메모 (H)
+
+| 칸 | 타입 | 비고 |
+| --- | --- | --- |
+| `id`, `created_at`, `updated_at` | 공통 | |
+| `workspace_id` | `uuid not null` → workspaces, `on delete cascade` | 인덱스 |
+| `platform_id` | `text not null` | FK는 나중에 (위 참고) |
+| `status` | `text` · check `reviewing`·`preparing`·`live` | null = 아직 안 봄 |
+| `strengths`, `audience` | `text` | 샘플 문구는 화면에서 "샘플" 표시 |
+| `fees_note` | `text` | 공식 자료 확인 전에는 null |
+| `fees_source_url`, `fees_checked_at` | `text`, `date` | 틀리면 해가 되는 수치라 출처와 확인일을 함께 둔다 |
+| `memo` | `text` | 팀 메모 |
+| `updated_by` | `uuid` → profiles, `on delete set null` | |
+| | `unique (workspace_id, platform_id)` | 워크스페이스마다 플랫폼 하나에 메모 하나 |
+
+**`promo_events`** — 플랫폼 행사와 자사 캠페인 (I)
+
+| 칸 | 타입 | 비고 |
+| --- | --- | --- |
+| `id`, `created_at`, `updated_at` | 공통 | |
+| `workspace_id` | `uuid not null` → workspaces, `on delete cascade` | 인덱스 `(workspace_id, start_date)` |
+| `platform_id` | `text` | 자사 캠페인이면 null 허용 |
+| `kind` | `text not null` · check `platform_event`·`own_campaign` | |
+| `title` | `text not null` | |
+| `start_date`, `end_date` | `date not null` · check `end_date >= start_date` | |
+| `is_confirmed` | `boolean not null default false` | false = 과거 패턴으로 넣은 예상 일정 |
+| `source_url` | `text` | 공식 공지 링크 |
+| `memo` | `text` | |
+| `created_by` | `uuid` → profiles, `on delete set null` | |
+| | `unique (id, workspace_id)` | `promo_milestones`가 같은 워크스페이스의 행사에만 붙도록 복합 FK의 대상 |
+
+**`promo_milestones`** — 행사 하나의 준비 마감들 (참가 신청, 할인 설정, 입고, 문구 승인 등)
+
+| 칸 | 타입 | 비고 |
+| --- | --- | --- |
+| `id`, `created_at`, `updated_at` | 공통 | |
+| `workspace_id` | `uuid not null` → workspaces, `on delete cascade` | RLS를 단순하게. 인덱스 `(workspace_id, due_date)` |
+| `promo_event_id` | `uuid not null` | 인덱스. FK는 아래 복합 키로 건다 |
+| `label` | `text not null` | |
+| `due_date` | `date not null` | |
+| `done_at` | `timestamptz` | null = 미완료. 완료 시각도 남는다 |
+| | `foreign key (promo_event_id, workspace_id) references promo_events (id, workspace_id) on delete cascade` | 두 팀에 속한 사람이 다른 팀 행사에 마감을 붙이지 못하게 한다 (RLS는 `workspace_id`만 본다) |
+
+**다른 탭과의 연결 (이 절에서 만들지 않음)**
+- `ad_checks.promo_event_id` → promo_events (`on delete set null`): TAB 3 담당자 테이블. 담당자 안이 확정되면 그쪽 마이그레이션에서 추가한다.
 
 ### 소비자 설문
 
@@ -150,7 +197,7 @@ CODING_RULES 7장에 따라 새 파일로만 추가한다. 실제 파일은 `npx
 | `Review.source` = cosme·rakuten·qoo10·oliveyoung·csv | `platform_id` + `source`(scraper·api·csv·manual)로 분리 |
 | `ReviewAnalysis`, `ReviewTranslation`에 workspace_id 없음 | workspace_id 추가 |
 | `TrendSnapshot`에 workspace_id 있음 | 공용으로 빼고 `source` → `platform_id` |
-| `PromoEvent.prep_due_date`, `milestones[]` | `promo_milestones` 테이블 |
+| `PromoEvent.prep_due_date`, `milestones[]` | `promo_milestones` 테이블 (확정) |
 | `WorkspaceMember.display_name`, `title` | `profiles`로 이동 |
 | 설문 문항이 mock에만 있음 | `surveys.questions` |
 | ID가 문자열 (`p-own-1` 등) | uuid. mock은 그대로 둬도 됨 (Zod `Id`가 문자열이라 통과) |
