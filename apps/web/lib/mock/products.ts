@@ -1,9 +1,10 @@
 import type { PlatformId } from "@/lib/platforms";
 import { Product } from "@/lib/schemas/product";
+import { ownProductImage, ownProductName } from "@/lib/own-products";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 가상 브랜드. 가격은 세금 포함 총액(税込), 성분은 全成分 표기 순서를 흉내 낸 샘플
-// 자사 2(확정명, sub_main #20) + 경쟁 8 + Qoo10 랭킹 20. 자사 제품은 평점 정보가 없어 source_raw = null
+// 자사 2(이름·사진은 lib/own-products.ts) + 경쟁 8 + Qoo10 랭킹 20. 자사 제품은 평점 정보가 없어 source_raw = null
 // platform은 lib/platforms.ts의 slug. @cosme는 쓰지 않기로 해서 SampleC·SampleH는 楽天으로 옮기고 평점을 5점 척도로 환산했다 (2026-10-23)
 // source_raw는 상품 페이지 추출 원본을 흉내 낸 값. 평점·리뷰 수·행사가는 여기서만 꺼내 쓴다 (lib/schemas/product.ts readListing)
 // Qoo10 카테고리 랭킹 TOP10 (가상 브랜드). 순위는 수집 API가 주는 값이라 source_raw에 둔다 (DB_RULES 2.1)
@@ -62,6 +63,8 @@ type Seed = {
   ingredients: string[];
   features: string[];
   category: string;
+  /** 자사 제품 사진 (lib/own-products.ts ownProductImage) */
+  image_path?: string;
   listing?: { rating: number | null; rating_scale: number; review_count: number; sale_price_jpy: number | null; sale_label: string | null };
 };
 
@@ -70,7 +73,8 @@ const seeds: Seed[] = [
     id: "p-own-1",
     kind: "own",
     brand: "Leafn",
-    name: "Leaf& Dew Deep Skin",
+    name: ownProductName("deep-skin"),
+    image_path: ownProductImage("deep-skin"),
     platform: "qoo10",
     price_jpy: 2480,
     volume_ml: 200,
@@ -82,7 +86,8 @@ const seeds: Seed[] = [
     id: "p-own-2",
     kind: "own",
     brand: "Leafn",
-    name: "Leaf& Dew Core Essence",
+    name: ownProductName("core-essence"),
+    image_path: ownProductImage("core-essence"),
     platform: "qoo10",
     price_jpy: 2980,
     volume_ml: 50,

@@ -1,4 +1,5 @@
 import { SurveyProductLine, SurveyQuestion } from "@/lib/schemas/survey";
+import { ownProductImage, ownProductName } from "@/lib/own-products";
 import { parseAll } from "./helpers";
 
 // 문항·점수는 자체 기준 (설계 정리 문서). 일본어는 원어민 검수 전
@@ -117,14 +118,15 @@ export const surveyQuestions = parseAll(
   "surveyQuestions",
 );
 
-// 제품명은 가칭. 추천 문구는 약기법 검토 전 (광고 검토 담당과 합칠 예정)
+// 제품명은 lib/own-products.ts (docs/Product.md 기준). 추천 문구는 약기법 검토 전 (광고 검토 담당과 합칠 예정)
 export const surveyProductLines = parseAll(
   SurveyProductLine,
   [
     {
       id: "moisture-skin",
-      name_ja: "Leaf& モイスチャースキン（仮称）",
-      name_ko: "Leaf& 모이스처 스킨",
+      name_ja: ownProductName("deep-skin"),
+      name_ko: ownProductName("deep-skin"),
+      image_path: ownProductImage("deep-skin"),
       ingredients_ja: "ヒアルロン酸・グリセリン・パンテノール",
       status: "on_sale",
       // 중성: 팀 결정(2026-10-23)으로 건성 라인 스킨 + 지성 라인(출시 알림)
@@ -132,24 +134,27 @@ export const surveyProductLines = parseAll(
     },
     {
       id: "moisture-essence",
-      name_ja: "Leaf& モイスチャーエッセンス（仮称）",
-      name_ko: "Leaf& 모이스처 에센스",
+      name_ja: ownProductName("core-essence"),
+      name_ko: ownProductName("core-essence"),
+      image_path: ownProductImage("core-essence"),
       ingredients_ja: "ヒアルロン酸・セラミド・コレステロール・脂肪酸",
       status: "on_sale",
       for_types: ["dry", "inner_dry"],
     },
     {
       id: "combo-line",
-      name_ja: "Leaf& 混合肌ライン（仮称）",
-      name_ko: "Leaf& 복합성 라인",
+      name_ja: `${ownProductName("mild-skin")} / ${ownProductName("mild-emulsion")}`,
+      name_ko: `${ownProductName("mild-skin")} / ${ownProductName("mild-emulsion")}`,
+      image_path: ownProductImage("mild-skin"),
       ingredients_ja: "ヒアルロン酸・グリセリン・ベタイン",
       status: "in_development",
       for_types: ["combo", "inner_dry"],
     },
     {
       id: "oily-line",
-      name_ja: "Leaf& 脂性肌ライン（仮称）",
-      name_ko: "Leaf& 지성 라인",
+      name_ja: `${ownProductName("tea-pure-skin")} / ${ownProductName("tea-pure-calming-ampoule")}`,
+      name_ko: `${ownProductName("tea-pure-skin")} / ${ownProductName("tea-pure-calming-ampoule")}`,
+      image_path: ownProductImage("tea-pure-skin"),
       ingredients_ja: "ヒアルロン酸・パンテノール・緑茶エキス",
       status: "in_development",
       for_types: ["oily", "normal"],

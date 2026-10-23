@@ -1,8 +1,9 @@
-// Leaf & 제품 4종 (가상 데이터). 출처: 팀이 만든 leaf_and_japan_marketing_test_data.csv
+// Leaf& Dew 제품 4종 (가상 데이터). 이름은 lib/own-products.ts (docs/Product.md 기준). 출처: 팀이 만든 leaf_and_japan_marketing_test_data.csv
 // 공용 products(TAB 2 담당)를 건드리지 않으려고 탭 안에 둔다.
 // products 테이블이 생기면 TAB 2 담당자와 합의해 lib/mock/products.ts(또는 DB)로 옮긴다.
 import { z } from "zod";
 import { ProductCategory } from "@/lib/schemas/ad-check";
+import { ownProductName } from "@/lib/own-products";
 
 export const LabIngredient = z.object({
   ko: z.string(),
@@ -28,8 +29,8 @@ export type LabProduct = z.infer<typeof LabProduct>;
 export const LAB_PRODUCTS: unknown[] = [
   {
     id: "leaf-dry-skin",
-    name_ko: "Leaf & 모이스트 밸런스 스킨",
-    name_ja: "リーフアンド モイストバランスローション",
+    name_ko: ownProductName("deep-skin"),
+    name_ja: ownProductName("deep-skin"),
     line: "건성 스킨",
     launch_status: "live",
     product_category: null,
@@ -54,8 +55,8 @@ export const LAB_PRODUCTS: unknown[] = [
   },
   {
     id: "leaf-dry-essence",
-    name_ko: "Leaf & 모이스트 리페어 에센스",
-    name_ja: "リーフアンド モイストリペアエッセンス",
+    name_ko: ownProductName("core-essence"),
+    name_ja: ownProductName("core-essence"),
     line: "건성 에센스",
     launch_status: "live",
     product_category: null,
@@ -82,8 +83,8 @@ export const LAB_PRODUCTS: unknown[] = [
   },
   {
     id: "leaf-oily-skin",
-    name_ko: "Leaf & 프레시 밸런스 스킨",
-    name_ja: "リーフアンド フレッシュバランスローション",
+    name_ko: ownProductName("tea-pure-skin"),
+    name_ja: ownProductName("tea-pure-skin"),
     line: "지성 스킨",
     launch_status: "developing",
     product_category: null,
@@ -97,8 +98,8 @@ export const LAB_PRODUCTS: unknown[] = [
   },
   {
     id: "leaf-combo-skin",
-    name_ko: "Leaf & 하이드로 밸런스 스킨",
-    name_ja: "リーフアンド ハイドロバランスローション",
+    name_ko: ownProductName("mild-skin"),
+    name_ja: ownProductName("mild-skin"),
     line: "복합성 스킨",
     launch_status: "developing",
     product_category: null,
