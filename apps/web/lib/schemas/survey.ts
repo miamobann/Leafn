@@ -40,17 +40,37 @@ export type SkinType = z.infer<typeof SkinType>;
 export const SurveyAnswer = z.union([z.string(), z.array(z.string())]);
 export type SurveyAnswer = z.infer<typeof SurveyAnswer>;
 
+/** 유입 경로. 링크의 ?src= 값이거나, 없으면 시작 전에 고른 값 */
+export const SurveySource = z.enum(["instagram", "x", "line", "rakuten", "qoo10", "friend", "search", "other"]);
+export type SurveySource = z.infer<typeof SurveySource>;
+
+/** surveys 테이블 (supabase/migrations/20261023020717_survey.sql) */
+export const Survey = WorkspaceRow.extend({
+  public_slug: z.string().regex(/^[a-z0-9-]{2,40}$/),
+  title_ja: z.string(),
+  questions: z.array(SurveyQuestion),
+  is_open: z.boolean(),
+});
+export type Survey = z.infer<typeof Survey>;
+
+/** survey_responses 테이블. 18세 이상 · 동의한 응답만 저장한다 */
 export const SkinSurveyResponse = WorkspaceRow.extend({
+  survey_id: z.string(),
   answers: z.record(z.string(), SurveyAnswer),
+  age_group: z.enum(["18-19", "20s", "30s", "40s", "50plus"]),
   skin_type: SkinType,
+  is_sensitive: z.boolean(),
+  score_t_zone_oil: z.number().int().nonnegative(),
+  score_cheek_oil: z.number().int().nonnegative(),
+  score_dryness: z.number().int().nonnegative(),
+  score_sensitivity: z.number().int().nonnegative(),
+  concerns: z.array(z.string()),
+  concern_other: z.string().max(50).nullable(),
+  source: SurveySource.nullable(),
+  source_other: z.string().max(50).nullable(),
   consent_at: Timestamp,
+  consent_version: z.string(),
   locale: z.string(),
-  // 제안: 설문 테이블 합의 전 (docs/db-frame.md 소비자 설문). 합의 후 nullable로 옮긴다
-  age_group: z.string().optional(),
-  scores: Scores.optional(),
-  is_sensitive: z.boolean().optional(),
-  concern_other: z.string().max(50).optional(),
-  consent_version: z.string().optional(),
 });
 export type SkinSurveyResponse = z.infer<typeof SkinSurveyResponse>;
 
@@ -61,6 +81,8 @@ export const SurveySession = z.object({
   /** 18세 이상이 동의한 시각. 18세 미만은 동의 단계를 건너뛰므로 null */
   consent_at: Timestamp.nullable(),
   consent_version: z.string().nullable(),
+  source: SurveySource.nullable(),
+  source_other: z.string().max(50),
 });
 export type SurveySession = z.infer<typeof SurveySession>;
 
@@ -82,6 +104,7 @@ export const SurveySummary = z.object({
   /** 18세 미만 참여 수. 답 없이 숫자만 기록하며 total에 포함하지 않는다 */
   under18_count: z.number().int().nonnegative(),
   sensitive_count: z.number().int().nonnegative(),
+  by_source: z.array(z.object({ source: SurveySource, count: z.number().int().nonnegative() })),
   by_skin_type: z.array(z.object({ skin_type: SkinType, count: z.number().int().nonnegative() })),
   /** 연령대 × 고민 (복수 선택이라 합이 응답 수보다 클 수 있다) */
   age_by_concern: z.array(z.object({ age_group: z.string(), counts: z.record(z.string(), z.number().int().nonnegative()) })),
@@ -102,6 +125,7 @@ export const SurveySummary = z.object({
       skin_type: SkinType,
       is_sensitive: z.boolean(),
       concerns: z.array(z.string()),
+      source: SurveySource.nullable(),
       consent_version: z.string(),
     }),
   ),

@@ -127,7 +127,8 @@ export const surveyProductLines = parseAll(
       name_ko: "Leaf& 모이스처 스킨",
       ingredients_ja: "ヒアルロン酸・グリセリン・パンテノール",
       status: "on_sale",
-      for_types: ["dry", "inner_dry"],
+      // 중성: 팀 결정(2026-10-23)으로 건성 라인 스킨 + 지성 라인(출시 알림)
+      for_types: ["dry", "inner_dry", "normal"],
     },
     {
       id: "moisture-essence",
@@ -151,7 +152,7 @@ export const surveyProductLines = parseAll(
       name_ko: "Leaf& 지성 라인",
       ingredients_ja: "ヒアルロン酸・パンテノール・緑茶エキス",
       status: "in_development",
-      for_types: ["oily"],
+      for_types: ["oily", "normal"],
     },
   ],
   "surveyProductLines",
@@ -162,6 +163,16 @@ export const surveySummary = SurveySummary.parse({
   recent_7d: 18,
   under18_count: 7,
   sensitive_count: 46,
+  by_source: [
+    { source: "instagram", count: 41 },
+    { source: "line", count: 18 },
+    { source: "rakuten", count: 15 },
+    { source: "x", count: 12 },
+    { source: "friend", count: 10 },
+    { source: "qoo10", count: 9 },
+    { source: "search", count: 8 },
+    { source: "other", count: 7 },
+  ],
   by_skin_type: [
     { skin_type: "dry", count: 36 },
     { skin_type: "combo", count: 29 },
@@ -182,19 +193,19 @@ export const surveySummary = SurveySummary.parse({
     { text_ja: "肌のごわつき", text_ko: "피부가 거칠고 뻣뻣함", date: "2026-10-20" },
     { text_ja: "毛穴の黒ずみ", text_ko: "모공 속 블랙헤드", date: "2026-10-19" },
   ],
-  // 추천 본 사람 = 해당 결과 유형 응답 수 (건성 36 + 속건조 14, 복합성 29 + 속건조 14, 지성 19)
+  // 추천 본 사람 = 해당 결과 유형 응답 수 (스킨: 건성 36 + 속건조 14 + 중성 22, 복합성 라인: 복합성 29 + 속건조 14, 지성 라인: 지성 19 + 중성 22)
   product_lines: [
-    { line_id: "moisture-skin", shown: 50, clicks: 21 },
+    { line_id: "moisture-skin", shown: 72, clicks: 27 },
     { line_id: "combo-line", shown: 43, notify_email: 7, notify_line: 11 },
-    { line_id: "oily-line", shown: 19, notify_email: 5, notify_line: 4 },
+    { line_id: "oily-line", shown: 41, notify_email: 8, notify_line: 7 },
   ],
   recent: [
-    { at: ts("2026-10-21", "14:05"), age_group: "20s", skin_type: "combo", is_sensitive: false, concerns: ["shine", "acne"], consent_version: "v0.1" },
-    { at: ts("2026-10-21", "11:48"), age_group: "30s", skin_type: "dry", is_sensitive: false, concerns: ["dryness"], consent_version: "v0.1" },
-    { at: ts("2026-10-20", "22:17"), age_group: "20s", skin_type: "dry", is_sensitive: true, concerns: ["redness"], consent_version: "v0.1" },
-    { at: ts("2026-10-20", "19:02"), age_group: "40s", skin_type: "dry", is_sensitive: false, concerns: ["firmness", "dullness", "other"], consent_version: "v0.1" },
-    { at: ts("2026-10-20", "08:30"), age_group: "18-19", skin_type: "oily", is_sensitive: false, concerns: ["acne"], consent_version: "v0.1" },
-    { at: ts("2026-10-19", "23:41"), age_group: "30s", skin_type: "normal", is_sensitive: false, concerns: ["dullness"], consent_version: "v0.1" },
-    { at: ts("2026-10-19", "13:12"), age_group: "50plus", skin_type: "inner_dry", is_sensitive: true, concerns: ["firmness"], consent_version: "v0.1" },
+    { at: ts("2026-10-21", "14:05"), age_group: "20s", skin_type: "combo", is_sensitive: false, concerns: ["shine", "acne"], source: "instagram", consent_version: "v0.1" },
+    { at: ts("2026-10-21", "11:48"), age_group: "30s", skin_type: "dry", is_sensitive: false, concerns: ["dryness"], source: "rakuten", consent_version: "v0.1" },
+    { at: ts("2026-10-20", "22:17"), age_group: "20s", skin_type: "dry", is_sensitive: true, concerns: ["redness"], source: "line", consent_version: "v0.1" },
+    { at: ts("2026-10-20", "19:02"), age_group: "40s", skin_type: "dry", is_sensitive: false, concerns: ["firmness", "dullness", "other"], source: "x", consent_version: "v0.1" },
+    { at: ts("2026-10-20", "08:30"), age_group: "18-19", skin_type: "oily", is_sensitive: false, concerns: ["acne"], source: "instagram", consent_version: "v0.1" },
+    { at: ts("2026-10-19", "23:41"), age_group: "30s", skin_type: "normal", is_sensitive: false, concerns: ["dullness"], source: "search", consent_version: "v0.1" },
+    { at: ts("2026-10-19", "13:12"), age_group: "50plus", skin_type: "inner_dry", is_sensitive: true, concerns: ["firmness"], source: "friend", consent_version: "v0.1" },
   ],
 });
