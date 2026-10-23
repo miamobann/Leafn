@@ -3,6 +3,7 @@ import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
 import type { PromoHookType, RankingItem, SkinConcern, TrendSnapshot } from "@/lib/schemas/trend";
 import { classifySuggestion } from "@/lib/external/search-terms";
+import { matchIngredient } from "@/lib/ai/appeal-normalize";
 
 export const OWN_BRAND = "Leafn";
 export const MARKET_CATEGORIES = ["化粧水", "美容液", "クリーム"] as const;
@@ -148,13 +149,12 @@ export function compareHeroStats(rakuten: HeroIngredientStat[], qoo10: HeroIngre
     .toSorted((a, b) => (b.rakuten?.count ?? 0) + (b.qoo10?.count ?? 0) - ((a.rakuten?.count ?? 0) + (a.qoo10?.count ?? 0)));
 }
 
-export type SearchTermKind = "ingredient" | "concern" | "new";
+export type SearchTermKind = "concern" | "new";
 export type SearchTermStatus = "new" | "up" | "flat" | "down";
 export type SearchTermStat = {
   key: string;
   kind: SearchTermKind;
   label: string;
-  series: { week: string; score: number }[];
   latest: number;
   /** 비교 기준 (COMPARE_WEEKS 주 전, 기록이 짧으면 첫 주) */
   base: number;
@@ -166,10 +166,11 @@ const COMPARE_WEEKS = 4;
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
- * 자동완성 점수 = 시드마다 그 말이 나온 순위의 가중치 합 (1위 1.0 … 10위 0.1).
- * 수집일(날짜)별로 묶어 주별 점수를 만든다. 사전에 없는 말은 "new"로 그대로 센다
+ * 자동완성(google_autocomplete)에서 피부 고민·사전에 없는 새 검색어의 추세.
+ * 점수 = 시드마다 그 말이 나온 순위의 가중치 합 (1위 1.0 … 10위 0.1). 성분 순위는 Google Trends(ingredientInterestRanking)로 본다
  */
-export function searchTrendStats(snaps: SearchSnap[]) {
+export function searchTrendStats(all: SearchSnap[]) {
+  const snaps = all.filter((s) => s.engine === "google_autocomplete");
   const dates = [...new Set(snaps.map((s) => s.captured_at.slice(0, 10)))].toSorted();
   const scores = new Map<string, { kind: SearchTermKind; label: string; byDate: Map<string, number> }>();
   const add = (key: string, kind: SearchTermKind, label: string, date: string, w: number) => {
@@ -182,7 +183,6 @@ export function searchTrendStats(snaps: SearchSnap[]) {
     for (const sug of snap.suggestions) {
       const w = (11 - Math.min(sug.position, 10)) / 10;
       const terms = classifySuggestion(sug.value);
-      for (const ing of new Set(terms.ingredients)) add(`ingredient:${ing}`, "ingredient", ing, date, w);
       for (const c of new Set(terms.concerns)) add(`concern:${c}`, "concern", SKIN_CONCERN_LABEL[c], date, w);
       for (const u of new Set(terms.unknown)) add(`new:${u}`, "new", u, date, w);
     }
@@ -194,23 +194,45 @@ export function searchTrendStats(snaps: SearchSnap[]) {
     const base = round1(baseDate ? (e.byDate.get(baseDate) ?? 0) : 0);
     const delta = round1(latest - base);
     const status: SearchTermStatus = base === 0 && latest > 0 ? "new" : delta >= 0.5 ? "up" : delta <= -0.5 ? "down" : "flat";
-    return {
-      key,
-      kind: e.kind,
-      label: e.label,
-      series: dates.map((d) => ({ week: weekLabel(`${d}T00:00:00+09:00`), score: round1(e.byDate.get(d) ?? 0) })),
-      latest,
-      base,
-      delta,
-      status,
-    };
+    return { key, kind: e.kind, label: e.label, latest, base, delta, status };
   });
   const byMomentum = (a: SearchTermStat, b: SearchTermStat) => b.delta - a.delta || b.latest - a.latest;
   return {
     weeks: dates.length,
     compareWeeks: Math.min(COMPARE_WEEKS, Math.max(0, dates.length - 1)),
-    ingredients: stats.filter((s) => s.kind === "ingredient" && s.latest > 0).toSorted(byMomentum),
+    lastCaptured: snaps.map((s) => s.captured_at).toSorted().at(-1) ?? null,
     concerns: stats.filter((s) => s.kind === "concern" && s.latest > 0).toSorted(byMomentum),
     newTerms: stats.filter((s) => s.kind === "new" && s.latest > 0 && s.status === "new").toSorted(byMomentum),
   };
+}
+
+export type InterestRow = {
+  rank: number;
+  /** 검색어에서 카테고리를 뺀 성분 표기 (例: シカ) */
+  term: string;
+  /** 성분 사전 이름 (例: ツボクサエキス). 사전에 없으면 null */
+  canonical: string | null;
+  /** 검색 관심도 0~100 (1위 = 100) */
+  interest: number;
+  /** 직전 수집의 순위 (처음이면 null) */
+  prevRank: number | null;
+};
+
+/** 카테고리의 최신 Google Trends 성분 순위 + 직전 수집 대비 순위 변화 */
+export function ingredientInterestRanking(all: SearchSnap[], category: string) {
+  const list = all.filter((s) => s.engine === "google_trends" && s.seed === category).toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
+  const latest = list.at(-1);
+  const prev = list.at(-2);
+  const termOf = (value: string) => value.replace(new RegExp(`^${category}\\s*`), "").trim();
+  const rows: InterestRow[] = (latest?.suggestions ?? []).map((s) => {
+    const term = termOf(s.value);
+    return {
+      rank: s.position,
+      term,
+      canonical: matchIngredient(term),
+      interest: s.relevance ?? 0,
+      prevRank: prev?.suggestions.find((p) => termOf(p.value) === term)?.position ?? null,
+    };
+  });
+  return { rows, capturedAt: latest?.captured_at ?? null, hasPrev: Boolean(prev) };
 }

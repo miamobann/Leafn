@@ -6,6 +6,42 @@ import type { SkinConcern } from "@/lib/schemas/trend";
 export const AUTOCOMPLETE_SEEDS = ["化粧水 ", "化粧水 成分 ", "美容液 ", "韓国 化粧水 "];
 export const AUTOCOMPLETE_REGION = { gl: "jp", hl: "ja" } as const;
 
+/** 성분 검색 관심도(Google Trends): 카테고리마다 「카테고리 + 성분」 검색어를 비교한다 · 일본, 최근 3개월 평균 */
+export const TRENDS_CATEGORIES = ["化粧水", "美容液", "クリーム", "日焼け止め"] as const;
+export const TRENDS_REGION = { geo: "JP", hl: "ja", date: "today 3-m" } as const;
+/** 소비자가 실제로 치는 표기 (シカ, ビタミンC처럼). 화면에서는 성분 사전 이름으로 보여 준다 */
+export const TRENDS_INGREDIENT_TERMS = [
+  "ヒアルロン酸", "セラミド", "ナイアシンアミド", "レチノール", "ビタミンC", "シカ",
+  "ドクダミ", "パンテノール", "トラネキサム酸", "スクワラン", "PDRN", "アゼライン酸",
+];
+
+/**
+ * 5개씩 나눈 Google Trends 결과를 한 저울로 맞춘다.
+ * 첫 묶음에서 가장 높은 말을 기준어로 삼아 다음 묶음마다 같이 넣고, 기준어 값의 비율로 환산한 뒤 1위 = 100으로 다시 맞춘다
+ */
+export async function collectOnOneScale(
+  queries: string[],
+  fetchBatch: (batch: string[]) => Promise<Record<string, number>>,
+  batchSize = 5,
+): Promise<{ query: string; interest: number }[]> {
+  const first = queries.slice(0, batchSize);
+  const base = await fetchBatch(first);
+  const values = new Map(first.map((q) => [q, base[q] ?? 0]));
+  const anchor = first.reduce((best, q) => ((base[q] ?? 0) > (base[best] ?? 0) ? q : best), first[0]);
+  const anchorBase = base[anchor] ?? 0;
+  for (let i = batchSize; i < queries.length; i += batchSize - 1) {
+    const chunk = queries.slice(i, i + batchSize - 1);
+    const r = await fetchBatch([anchor, ...chunk]);
+    // 기준어가 0이면 비율을 낼 수 없어 그 묶음은 0으로 둔다 (검색량이 아주 적은 카테고리)
+    const factor = anchorBase > 0 && (r[anchor] ?? 0) > 0 ? anchorBase / r[anchor] : 0;
+    for (const q of chunk) values.set(q, (r[q] ?? 0) * factor);
+  }
+  const max = Math.max(0, ...values.values());
+  return [...values]
+    .map(([query, v]) => ({ query, interest: max > 0 ? Math.round((v / max) * 100) : 0 }))
+    .toSorted((a, b) => b.interest - a.interest);
+}
+
 const CONCERN_WORDS: [SkinConcern, string[]][] = [
   ["pores", ["毛穴"]],
   ["acne", ["ニキビ", "肌荒れ", "肌あれ"]],

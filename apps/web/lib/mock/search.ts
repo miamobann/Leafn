@@ -1,5 +1,5 @@
 import { SearchSnapshot } from "@/lib/schemas/search";
-import { AUTOCOMPLETE_REGION, AUTOCOMPLETE_SEEDS } from "@/lib/external/search-terms";
+import { AUTOCOMPLETE_REGION, AUTOCOMPLETE_SEEDS, TRENDS_CATEGORIES, TRENDS_INGREDIENT_TERMS } from "@/lib/external/search-terms";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // Google 자동완성(일본) 화면의 항목 구성을 흉내 낸 합성 시계열 (샘플)
@@ -37,7 +37,7 @@ const TERMS: [string, number, number, number][] = [
   ["アゼライン酸", 2.5, 0.6, 4],
 ];
 
-export const searchSnapshots = parseAll(
+const autocompleteSnapshots = parseAll(
   SearchSnapshot,
   WEEKS.flatMap((date, w) =>
     AUTOCOMPLETE_SEEDS.map((seed, s) => {
@@ -60,3 +60,42 @@ export const searchSnapshots = parseAll(
   ),
   "searchSnapshots",
 );
+
+// Google Trends 성분 검색 관심도 (샘플): 카테고리 4개 × 2주. 「카테고리 + 성분」 검색어의 상대 관심도 (1위 = 100)
+// [기준 관심도, 2주 사이 변화] · 순서는 TRENDS_INGREDIENT_TERMS와 같다
+const TRENDS_BASE: [number, number][] = [
+  [100, -6], [82, 2], [64, 9], [58, 14], [52, -3], [47, -8], [40, 6], [31, 3], [28, 0], [18, -1], [9, 11], [5, 6],
+];
+const TRENDS_WEEKS = ["2026-10-12", "2026-10-19"];
+const CATEGORY_SHIFT: Record<string, number> = { "化粧水": 0, "美容液": 3, "クリーム": 5, "日焼け止め": 7 };
+
+const trendsSnapshots = parseAll(
+  SearchSnapshot,
+  TRENDS_CATEGORIES.flatMap((category, c) =>
+    TRENDS_WEEKS.map((date, w) => {
+      const raw = TRENDS_INGREDIENT_TERMS.map((term, i) => {
+        const [base, change] = TRENDS_BASE[(i + CATEGORY_SHIFT[category]) % TRENDS_BASE.length];
+        return { value: `${category} ${term}`, v: Math.max(0, base + change * w + wiggle(c * 50 + i) * 3) };
+      });
+      const max = Math.max(...raw.map((r) => r.v));
+      const suggestions = raw
+        .map((r) => ({ value: r.value, interest: Math.round((r.v / max) * 100) }))
+        .toSorted((a, b) => b.interest - a.interest)
+        .map((r, i) => ({ value: r.value, position: i + 1, relevance: r.interest }));
+      return {
+        id: `st-${c + 1}-${w + 1}`,
+        workspace_id: WORKSPACE_ID,
+        created_at: ts(date, "08:30"),
+        engine: "google_trends",
+        seed: category,
+        gl: "jp",
+        hl: "ja",
+        captured_at: ts(date, "08:30"),
+        suggestions,
+      };
+    }),
+  ),
+  "trendsSnapshots",
+);
+
+export const searchSnapshots = [...autocompleteSnapshots, ...trendsSnapshots];
