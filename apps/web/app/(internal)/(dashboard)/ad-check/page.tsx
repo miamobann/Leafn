@@ -3,16 +3,15 @@ import { AiDisclaimer } from "@/components/common/ai";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/format";
-import { WORKSPACE_ID } from "@/lib/mock/helpers";
 import { ActionBadge, ReviewStateBadge, USAGE_LABEL } from "./_components/ad-badges";
 import { ReviewWorkspace } from "./_components/review-workspace";
-import { getAdChecks, getProducts } from "@/lib/data";
+import { getAdChecks, getProducts, getWorkspace } from "@/lib/data";
 import { PRODUCTS } from "./_lib/products";
 
 const RECENT = 3;
 
 export default async function AdCheckPage() {
-  const [checks, shared] = await Promise.all([getAdChecks(), getProducts()]);
+  const [checks, shared, workspace] = await Promise.all([getAdChecks(), getProducts(), getWorkspace()]);
   const recent = [...checks].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, RECENT);
   const names = new Map([...shared.map((p) => [p.id, p.name] as const), ...PRODUCTS.map((p) => [p.id, p.name_ko] as const)]);
   const productName = (id: string | undefined) => names.get(id ?? "") ?? "—";
@@ -25,7 +24,7 @@ export default async function AdCheckPage() {
         AI 판정(정밀 등급) · 아직 저장되지 않음 · 「내부 검토 완료」는 법적 승인이 아닙니다
       </p>
       <div className="mt-4">
-        <ReviewWorkspace products={PRODUCTS} workspaceId={WORKSPACE_ID} />
+        <ReviewWorkspace products={PRODUCTS} workspaceId={workspace.id} />
       </div>
 
       <Card className="mt-8">
