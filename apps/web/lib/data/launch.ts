@@ -1,6 +1,7 @@
 // 진출 실행 탭(플랫폼별 강점, 프로모션 캘린더)이 부르는 읽기·쓰기 함수.
 // 화면은 아래 View 타입만 안다. 테이블 구조(slug, platforms FK, promo_milestones)가 바뀌면 이 파일만 고친다.
 import { mock } from "@/lib/mock";
+import { PROTOTYPE_TODAY } from "@/lib/mock/helpers";
 import type { ReviewStatus } from "@/lib/schemas/common";
 import { getMemberName } from "./index";
 
@@ -76,6 +77,11 @@ export async function getPromoEventViews(opts: { platformKey?: string } = {}): P
         adCheck: check ? { id: check.id, status: check.review_status } : null,
       };
     });
+}
+
+/** 캘린더의 "오늘". 프로토타입은 샘플 날짜에 맞춘 고정값, DB 연결 후 실제 오늘 */
+export async function getToday(): Promise<string> {
+  return PROTOTYPE_TODAY;
 }
 
 /** 가장 이른 미완료 마감 (화면의 "준비 마감") */

@@ -14,25 +14,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PromoEventView } from "@/lib/data/launch";
 import { setMilestoneDone } from "@/lib/data/launch-actions";
 import { dDay } from "@/lib/format";
-import { PROTOTYPE_TODAY } from "@/lib/mock/helpers";
 import { NewEventForm } from "./new-event-form";
 
 const nextDay = (d: string) => new Date(Date.parse(d) + 86_400_000).toISOString().slice(0, 10);
 const COLOR = { platform_event: "var(--sentiment-positive)", own_campaign: "var(--risk-low)", milestone: "var(--risk-high)" };
 
-export function PromoCalendar({ events: initial, platformKeys }: { events: PromoEventView[]; platformKeys: string[] }) {
+export function PromoCalendar({
+  events: initial,
+  platformKeys,
+  today,
+}: {
+  events: PromoEventView[];
+  platformKeys: string[];
+  today: string;
+}) {
   const [events, setEvents] = useState(initial);
   const [platform, setPlatform] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("event"));
   const [adding, setAdding] = useState(false);
   const [, startTransition] = useTransition();
 
-  const visible = events.filter((e) => !platform || e.platformKey === platform);
   const selected = events.find((e) => e.id === selectedId) ?? null;
 
   const calendarEvents = useMemo<EventInput[]>(
     () =>
-      visible.flatMap((e) => [
+      events.filter((e) => !platform || e.platformKey === platform).flatMap((e) => [
         { id: e.id, title: `${e.platformName} · ${e.title}`, start: e.startDate, end: nextDay(e.endDate), allDay: true, color: COLOR[e.kind] },
         ...e.milestones.map((m) => ({
           id: m.id,
@@ -44,7 +50,7 @@ export function PromoCalendar({ events: initial, platformKeys }: { events: Promo
           color: m.done ? "var(--muted-foreground)" : COLOR.milestone,
         })),
       ]),
-    [visible],
+    [events, platform],
   );
 
   // 체크는 화면에 먼저 반영하고 저장을 뒤따라 부른다
@@ -95,8 +101,8 @@ export function PromoCalendar({ events: initial, platformKeys }: { events: Promo
           plugins={[dayGridPlugin, listPlugin, interactionPlugin]}
           locale={koLocale}
           initialView="dayGridMonth"
-          initialDate={selected?.startDate ?? PROTOTYPE_TODAY}
-          now={PROTOTYPE_TODAY}
+          initialDate={selected?.startDate ?? today}
+          now={today}
           headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,listMonth" }}
           height={640}
           events={calendarEvents}
