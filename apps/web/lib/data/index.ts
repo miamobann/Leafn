@@ -97,6 +97,10 @@ export async function getSurveySummary() {
   return mock.surveySummary;
 }
 
+export async function getSurveyProductLines() {
+  return mock.surveyProductLines;
+}
+
 export type LibraryItem = { id: string; type: string; title: string; href: string; created_at: string };
 
 /** 모든 모듈의 결과를 자료실 한 표로 (파생 데이터) */
