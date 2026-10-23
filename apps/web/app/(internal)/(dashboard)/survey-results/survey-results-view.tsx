@@ -277,7 +277,7 @@ export function SurveyResultsView({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>라인 (가칭)</TableHead>
+                  <TableHead>라인</TableHead>
                   <TableHead>상태</TableHead>
                   <TableHead>추천 대상</TableHead>
                   <TableHead className="text-right">추천 본 사람</TableHead>
