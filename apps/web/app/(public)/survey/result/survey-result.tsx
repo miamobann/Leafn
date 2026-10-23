@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -239,13 +240,25 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
               {recos.map((line) => (
                 <div key={line.id} className="space-y-3 rounded-lg border p-3">
                   <div className="flex gap-3">
-                    <div
-                      role="img"
-                      aria-label={`${line.name_ja} ${COPY.productImage}`}
-                      className="flex size-20 shrink-0 items-center justify-center rounded-md border border-dashed bg-muted text-xs text-muted-foreground"
-                    >
-                      {COPY.productImage}
-                    </div>
+                    {line.image_path ? (
+                      <div className="relative size-20 shrink-0 overflow-hidden rounded-md border bg-muted">
+                        <Image
+                          src={line.image_path}
+                          alt={`${line.name_ja} ${COPY.productImage}`}
+                          fill
+                          sizes="80px"
+                          className="object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        role="img"
+                        aria-label={`${line.name_ja} ${COPY.productImage}`}
+                        className="flex size-20 shrink-0 items-center justify-center rounded-md border border-dashed bg-muted text-xs text-muted-foreground"
+                      >
+                        {COPY.productImage}
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold">{line.name_ja}</p>
