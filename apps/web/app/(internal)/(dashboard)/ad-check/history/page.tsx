@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmptyState } from "@/components/common/states";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTableTemplate } from "@/components/templates";
 import { buttonVariants } from "@/components/ui/button";
@@ -36,45 +37,49 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
           새 검토
         </Link>
       </div>
-      <DataTableTemplate
-        emptyAction="새 검토 시작하기"
-        filters={
-          <HistoryFilters products={productOptions} statuses={ReviewStatus.options.map((v) => ({ value: v, label: STATUS_LABEL[v] }))} />
-        }
-        columns={[
-          { key: "text", label: "문구" },
-          { key: "product", label: "제품 · 사용처" },
-          { key: "action", label: "판정" },
-          { key: "status", label: "상태" },
-          { key: "reviewer", label: "검토자" },
-          { key: "date", label: "요청일" },
-        ]}
-        rows={checks.map((c) => {
-          const [first, ...rest] = c.input_text.split("\n");
-          return {
-            id: c.id,
-            href: `/ad-check/${c.id}`,
-            cells: {
-              text: (
-                // 긴 문구는 한 줄로 자르고 전체는 title로 보여준다
-                <span lang={c.input_lang} title={c.input_text} className="flex max-w-80 gap-1">
-                  <span className="truncate">{first}</span>
-                  {rest.length > 0 && <span className="shrink-0 text-muted-foreground">외 {rest.length}줄</span>}
-                </span>
-              ),
-              product: (
-                <span className="block max-w-56 truncate" title={productName(c.product_id)}>
-                  {productName(c.product_id)} · {c.usage ? USAGE_LABEL[c.usage] : "—"}
-                </span>
-              ),
-              action: c.overall_action ? <ActionBadge action={c.overall_action} /> : "—",
-              status: <ReviewStateBadge status={c.review_status} expertRequested={c.is_expert_review_requested} />,
-              reviewer: memberName(c.reviewer_id),
-              date: formatDate(c.created_at),
-            },
-          };
-        })}
-      />
+      {/* 결과가 없을 때도 필터를 남겨 다른 조건으로 바꿀 수 있게, 필터는 표 템플릿 밖에 둔다 */}
+      <div className="mb-4">
+        <HistoryFilters products={productOptions} statuses={ReviewStatus.options.map((v) => ({ value: v, label: STATUS_LABEL[v] }))} />
+      </div>
+      {checks.length === 0 ? (
+        <EmptyState message="조건에 맞는 검토 내역이 없습니다" action="필터를 바꾸거나 「전체」를 골라 보세요" />
+      ) : (
+        <DataTableTemplate
+          columns={[
+            { key: "text", label: "문구" },
+            { key: "product", label: "제품 · 사용처" },
+            { key: "action", label: "판정" },
+            { key: "status", label: "상태" },
+            { key: "reviewer", label: "검토자" },
+            { key: "date", label: "요청일" },
+          ]}
+          rows={checks.map((c) => {
+            const [first, ...rest] = c.input_text.split("\n");
+            return {
+              id: c.id,
+              href: `/ad-check/${c.id}`,
+              cells: {
+                text: (
+                  // 긴 문구는 한 줄로 자르고 전체는 title로 보여준다
+                  <span lang={c.input_lang} title={c.input_text} className="flex max-w-80 gap-1">
+                    <span className="truncate">{first}</span>
+                    {rest.length > 0 && <span className="shrink-0 text-muted-foreground">외 {rest.length}줄</span>}
+                  </span>
+                ),
+                product: (
+                  <span className="block max-w-56 truncate" title={productName(c.product_id)}>
+                    {productName(c.product_id)} · {c.usage ? USAGE_LABEL[c.usage] : "—"}
+                  </span>
+                ),
+                action: c.overall_action ? <ActionBadge action={c.overall_action} /> : "—",
+                status: <ReviewStateBadge status={c.review_status} expertRequested={c.is_expert_review_requested} />,
+                reviewer: memberName(c.reviewer_id),
+                date: formatDate(c.created_at),
+              },
+            };
+          })}
+        />
+      )}
     </>
   );
 }
