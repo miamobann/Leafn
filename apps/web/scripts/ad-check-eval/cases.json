@@ -1,0 +1,211 @@
+{
+  "_comment": "A01~A20 시험 문구(가상). 문구 출처: leaf_and_japan_marketing_test_data.csv. intent는 정답이 아니라 작성 의도(가설). products는 ad-check/_lib/products.ts에서 복사함 (2026-10-23).",
+  "products": [
+    {
+      "id": "p-leaf-deep-skin",
+      "name": "Leaf& Dew Deep Skin",
+      "product_category": "general_cosmetic",
+      "ingredients": [
+        "히알루론산나트륨 (ヒアルロン酸Na)",
+        "글리세린 (グリセリン)",
+        "판테놀 (パンテノール)",
+        "정제수 (水)",
+        "부틸렌글라이콜 (BG)",
+        "프로판다이올 (プロパンジオール)",
+        "베타인 (ベタイン)",
+        "알란토인 (アラントイン)",
+        "하이드록시에틸셀룰로오스 (ヒドロキシエチルセルロース)",
+        "다이소듐이디티에이 (EDTA-2Na)",
+        "페녹시에탄올 (フェノキシエタノール)",
+        "에틸헥실글리세린 (エチルヘキシルグリセリン)",
+        "시트릭애씨드 (クエン酸)",
+        "소듐시트레이트 (クエン酸Na)"
+      ]
+    },
+    {
+      "id": "p-leaf-core-essence",
+      "name": "Leaf& Dew Core Essence",
+      "product_category": "general_cosmetic",
+      "ingredients": [
+        "히알루론산나트륨 (ヒアルロン酸Na)",
+        "세라마이드 NP (セラミドNP)",
+        "콜레스테롤 (コレステロール)",
+        "스테아릭애씨드 (ステアリン酸)",
+        "글리세린 (グリセリン)",
+        "정제수 (水)",
+        "부틸렌글라이콜 (BG)",
+        "프로판다이올 (プロパンジオール)",
+        "스쿠알란 (スクワラン)",
+        "카프릴릭/카프릭트라이글리세라이드 (トリ（カプリル酸／カプリン酸）グリセリル)",
+        "하이드로제네이티드레시틴 (水添レシチン)",
+        "카보머 (カルボマー)",
+        "아르기닌 (アルギニン)",
+        "다이소듐이디티에이 (EDTA-2Na)",
+        "페녹시에탄올 (フェノキシエタノール)",
+        "에틸헥실글리세린 (エチルヘキシルグリセリン)"
+      ]
+    },
+    {
+      "id": "p-leaf-tea-pure-skin",
+      "name": "Leaf& Dew Tea-Pure Skin",
+      "product_category": "general_cosmetic",
+      "ingredients": [
+        "히알루론산나트륨 (ヒアルロン酸Na)",
+        "판테놀 (パンテノール)",
+        "녹차추출물 (チャ葉エキス)"
+      ]
+    },
+    {
+      "id": "p-leaf-mild-skin",
+      "name": "Leaf& Dew Mild Skin",
+      "product_category": "general_cosmetic",
+      "ingredients": [
+        "히알루론산나트륨 (ヒアルロン酸Na)",
+        "글리세린 (グリセリン)",
+        "베타인 (ベタイン)"
+      ]
+    }
+  ],
+  "copies": [
+    {
+      "id": "A01",
+      "product_id": "p-leaf-deep-skin",
+      "usage": "detail_page",
+      "ko": "히알루론산과 글리세린으로 피부를 촉촉하게 가꿔주는 데일리 스킨",
+      "intent": "safe"
+    },
+    {
+      "id": "A02",
+      "product_id": "p-leaf-core-essence",
+      "usage": "sns",
+      "ko": "세라마이드와 콜레스테롤을 담아 건조한 피부를 위한 보습 케어",
+      "intent": "safe"
+    },
+    {
+      "id": "A03",
+      "product_id": "p-leaf-deep-skin",
+      "usage": "banner",
+      "ko": "매일 아침저녁, 촉촉한 피부를 위한 첫 번째 습관",
+      "intent": "safe"
+    },
+    {
+      "id": "A04",
+      "product_id": "p-leaf-core-essence",
+      "usage": "detail_page",
+      "ko": "히알루론산과 피부 보습 성분으로 매끄러운 피부결을 가꿔보세요",
+      "intent": "safe"
+    },
+    {
+      "id": "A05",
+      "product_id": "p-leaf-tea-pure-skin",
+      "usage": "sns",
+      "ko": "판테놀과 녹차추출물을 담은 산뜻한 스킨케어, 곧 만나요",
+      "intent": "safe"
+    },
+    {
+      "id": "A06",
+      "product_id": "p-leaf-mild-skin",
+      "usage": "notify_button",
+      "ko": "히알루론산과 베타인을 담은 신제품 소식 가장 먼저 받기",
+      "intent": "safe"
+    },
+    {
+      "id": "A07",
+      "product_id": "p-leaf-core-essence",
+      "usage": "detail_page",
+      "ko": "한 번의 사용으로 건조함을 완전히 해결하는 집중 에센스",
+      "intent": "borderline"
+    },
+    {
+      "id": "A08",
+      "product_id": "p-leaf-deep-skin",
+      "usage": "sns",
+      "ko": "히알루론산이 피부 속 깊이 스며들어 수분을 꽉 채워줍니다",
+      "intent": "borderline"
+    },
+    {
+      "id": "A09",
+      "product_id": "p-leaf-core-essence",
+      "usage": "banner",
+      "ko": "피부 장벽을 강화하는 세라마이드 보습 솔루션",
+      "intent": "borderline"
+    },
+    {
+      "id": "A10",
+      "product_id": "p-leaf-deep-skin",
+      "usage": "survey_result",
+      "ko": "응답자의 95%가 사용 후 촉촉함에 만족했다고 답했습니다",
+      "intent": "borderline"
+    },
+    {
+      "id": "A11",
+      "product_id": "p-leaf-mild-skin",
+      "usage": "detail_page",
+      "ko": "번들거림은 줄이고 수분은 채워주는 복합성 피부 맞춤 케어",
+      "intent": "borderline"
+    },
+    {
+      "id": "A12",
+      "product_id": "p-leaf-core-essence",
+      "usage": "sns",
+      "ko": "세라마이드와 지방산이 무너진 피부 장벽을 되살리는 데 도움을 줍니다",
+      "intent": "borderline"
+    },
+    {
+      "id": "A13",
+      "product_id": "p-leaf-core-essence",
+      "usage": "detail_page",
+      "ko": "단 3일 만에 손상된 피부 장벽을 완벽하게 복구합니다",
+      "intent": "risky"
+    },
+    {
+      "id": "A14",
+      "product_id": "p-leaf-deep-skin",
+      "usage": "banner",
+      "ko": "일본 보습 스킨 판매 1위! 건조함을 끝내는 단 하나의 선택",
+      "intent": "risky"
+    },
+    {
+      "id": "A15",
+      "product_id": "p-leaf-core-essence",
+      "usage": "sns",
+      "ko": "피부과 전문의가 강력 추천하는 피부 장벽 재생 에센스",
+      "intent": "risky"
+    },
+    {
+      "id": "A16",
+      "product_id": "p-leaf-deep-skin",
+      "usage": "detail_page",
+      "ko": "무자극 테스트 완료! 누구나 부작용 걱정 없이 사용할 수 있습니다",
+      "intent": "risky"
+    },
+    {
+      "id": "A17",
+      "product_id": "p-leaf-core-essence",
+      "usage": "banner",
+      "ko": "단 한 번의 사용으로 피부 속 세포부터 되살리는 기적의 에센스",
+      "intent": "risky"
+    },
+    {
+      "id": "A18",
+      "product_id": "p-leaf-deep-skin",
+      "usage": "survey_result",
+      "ko": "실제 사용자의 100%가 피부 트러블이 사라졌다고 증언했습니다",
+      "intent": "risky"
+    },
+    {
+      "id": "A19",
+      "product_id": "p-leaf-tea-pure-skin",
+      "usage": "sns",
+      "ko": "개발 중인 신제품으로 과도한 피지를 완벽하게 억제하고 여드름까지 치료하세요",
+      "intent": "risky"
+    },
+    {
+      "id": "A20",
+      "product_id": "p-leaf-mild-skin",
+      "usage": "notify_button",
+      "ko": "곧 출시! 모공을 완전히 닫고 유수분 밸런스를 영구적으로 정상화하는 신제품",
+      "intent": "risky"
+    }
+  ]
+}
