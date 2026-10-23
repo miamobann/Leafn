@@ -1,11 +1,14 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AiDisclaimer, AiResultMeta } from "@/components/common/ai";
 import { PageHeader } from "@/components/layout/page-header";
 import { DetailTemplate } from "@/components/templates";
+import { buttonVariants } from "@/components/ui/button";
 import { getAdCheck, getAdChecks, getMemberName, getProduct } from "@/lib/data";
 import { formatDate } from "@/lib/format";
 import { ActionBadge, ReviewStateBadge, USAGE_LABEL } from "../_components/ad-badges";
 import { LineResultCard } from "../_components/line-result-card";
+import { ResultSummary } from "../_components/result-summary";
 
 export async function generateStaticParams() {
   return (await getAdChecks()).map((a) => ({ checkId: a.id }));
@@ -42,6 +45,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
               title: "줄별 판정",
               content: (
                 <div className="space-y-4">
+                  <ResultSummary check={check} />
                   {(check.line_results ?? []).map((line) => (
                     <LineResultCard
                       key={line.line_index}
@@ -55,6 +59,14 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
             },
           ]}
         />
+      </div>
+      <div className="mt-6 flex flex-wrap gap-2">
+        <Link href="/ad-check/history" className={buttonVariants({ variant: "outline" })}>
+          검토 내역 목록으로
+        </Link>
+        <Link href={`/ad-check?from=${check.id}`} className={buttonVariants()}>
+          이 내용으로 새 검토
+        </Link>
       </div>
     </>
   );

@@ -27,7 +27,7 @@ export type LabProduct = z.infer<typeof LabProduct>;
 
 export const LAB_PRODUCTS: unknown[] = [
   {
-    id: "leaf-dry-skin",
+    id: "p-leaf-deep-skin",
     name_ko: "Leaf& Dew Deep Skin",
     name_ja: "Leaf& Dew Deep Skin",
     line: "건성 스킨",
@@ -53,7 +53,7 @@ export const LAB_PRODUCTS: unknown[] = [
     ],
   },
   {
-    id: "leaf-dry-essence",
+    id: "p-leaf-core-essence",
     name_ko: "Leaf& Dew Core Essence",
     name_ja: "Leaf& Dew Core Essence",
     line: "건성 에센스",
@@ -81,7 +81,7 @@ export const LAB_PRODUCTS: unknown[] = [
     ],
   },
   {
-    id: "leaf-oily-skin",
+    id: "p-leaf-tea-pure-skin",
     name_ko: "Leaf& Dew Tea-Pure Skin",
     name_ja: "Leaf& Dew Tea-Pure Skin",
     line: "지성 스킨",
@@ -96,7 +96,7 @@ export const LAB_PRODUCTS: unknown[] = [
     ],
   },
   {
-    id: "leaf-combo-skin",
+    id: "p-leaf-mild-skin",
     name_ko: "Leaf& Dew Mild Skin",
     name_ja: "Leaf& Dew Mild Skin",
     line: "복합성 스킨",
