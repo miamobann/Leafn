@@ -3,7 +3,7 @@ import { getProducts, getTrendSnapshots } from "@/lib/data";
 import { TrendsReport } from "@/app/(internal)/(dashboard)/market/_components/trends-report";
 
 export default async function MarketTrendsPage() {
-  const [snapshots, products] = await Promise.all([getTrendSnapshots(), getProducts()]);
+  const [snapshots, products] = await Promise.all([getTrendSnapshots({ source: "rakuten_ranking" }), getProducts()]);
 
   return (
     <>

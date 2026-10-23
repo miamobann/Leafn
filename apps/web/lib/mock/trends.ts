@@ -1,4 +1,5 @@
 import { TrendSnapshot } from "@/lib/schemas/trend";
+import { findBanner, qoo10Banners, sampleAppeal } from "./appeal-samples";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 楽天ランキング 화면의 항목 구성을 흉내 낸 합성 시계열 (샘플)
@@ -91,7 +92,16 @@ const INGREDIENTS: [string, number, number][] = [
 ];
 const CATEGORY_SCALE: Record<string, number> = { "化粧水": 1, "美容液": 0.85, "クリーム": 0.55 };
 
-export const trendSnapshots = parseAll(
+// 상세 이미지 분석 샘플은 化粧水 최신 주 상위 10개에만 붙인다 (문구: ranking-banners.json)
+const APPEAL_CATEGORY = "化粧水";
+const APPEAL_TOP_N = 10;
+
+function appealFor(brand: string, name: string, capturedAt: string) {
+  const banner = findBanner("rakuten_ranking", brand, name);
+  return banner ? sampleAppeal(banner, capturedAt) : undefined;
+}
+
+const rakutenSnapshots = parseAll(
   TrendSnapshot,
   Object.entries(CANDIDATES).flatMap(([category, candidates], c) =>
     weeks.map((date, w) => {
@@ -112,6 +122,10 @@ export const trendSnapshots = parseAll(
           price_jpy: item.price_jpy,
           review_count: item.review_count,
           is_kbeauty: item.is_kbeauty,
+          appeal:
+            category === APPEAL_CATEGORY && w === WEEK_COUNT - 1 && r < APPEAL_TOP_N
+              ? appealFor(item.brand, item.name, ts(date, "06:00"))
+              : undefined,
         }));
       const ingredients = INGREDIENTS.map(([ingredient, start, growth], i) => ({
         ingredient,
@@ -130,3 +144,34 @@ export const trendSnapshots = parseAll(
   ),
   "trendSnapshots",
 );
+
+// Qoo10 化粧水 최신 주 1회분 (더미 크롤링 결과). 楽天과 같은 제품이 있어도 합치지 않는다
+const LAST_WEEK = weeks[WEEK_COUNT - 1];
+const qoo10Snapshots = parseAll(
+  TrendSnapshot,
+  [
+    {
+      id: "ts-qoo10-1",
+      workspace_id: WORKSPACE_ID,
+      created_at: ts(LAST_WEEK, "07:00"),
+      captured_at: ts(LAST_WEEK, "07:00"),
+      source: "qoo10_ranking",
+      category: APPEAL_CATEGORY,
+      data: {
+        ranking: qoo10Banners.map((b) => ({
+          rank: b.rank,
+          name: b.name,
+          brand: b.brand,
+          price_jpy: b.price_jpy,
+          review_count: b.review_count,
+          is_kbeauty: b.is_kbeauty,
+          appeal: b.rank <= APPEAL_TOP_N ? sampleAppeal(b, ts(LAST_WEEK, "07:00")) : undefined,
+        })),
+        ingredients: [],
+      },
+    },
+  ],
+  "qoo10Snapshots",
+);
+
+export const trendSnapshots = [...rakutenSnapshots, ...qoo10Snapshots];

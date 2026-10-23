@@ -8,7 +8,7 @@ import { ReportTemplate } from "@/components/templates";
 import { formatDate, formatJpy } from "@/lib/format";
 import type { Product } from "@/lib/schemas/product";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
-import { kbeautyShare, latestRanking, MARKET_CATEGORIES, OWN_BRAND, TOP_N, weekLabel, type RankRow } from "@/app/(internal)/(dashboard)/market/_lib/market";
+import { kbeautyShare, latestRanking, MARKET_CATEGORIES, OWN_BRAND, PROMO_HOOK_LABEL, TOP_N, weekLabel, type RankRow } from "@/app/(internal)/(dashboard)/market/_lib/market";
 import { TrendLineChart, type LineSeries } from "@/app/(internal)/(dashboard)/market/_components/charts";
 import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/toggle-group";
 
@@ -27,6 +27,25 @@ function Change({ row }: { row: RankRow }) {
   if (d > 0) return <span className="text-xs font-medium text-risk-low">▲ {d}</span>;
   if (d < 0) return <span className="text-xs font-medium text-risk-high">▼ {-d}</span>;
   return <span className="text-xs text-muted-foreground">–</span>;
+}
+
+/** 상세 이미지에서 뽑은 소구 성분·프로모션 (분석 전이면 —). 배지에 마우스를 올리면 원문 문구 */
+function Appeal({ row }: { row: RankRow }) {
+  if (!row.appeal) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <span className="inline-flex flex-wrap gap-1">
+      {row.appeal.hero_ingredients.map((h) => (
+        <Badge key={h.canonical} variant="outline" title={h.evidence_ja}>
+          <span lang="ja">{h.name_ja}</span>
+        </Badge>
+      ))}
+      {row.appeal.promo_hooks.map((h) => (
+        <Badge key={h.text_ja} variant="secondary" title={h.text_ja}>
+          {PROMO_HOOK_LABEL[h.type]}
+        </Badge>
+      ))}
+    </span>
+  );
 }
 
 function ProductName({ row }: { row: RankRow }) {
@@ -85,13 +104,14 @@ export function TrendsReport({ snapshots, products }: { snapshots: TrendSnapshot
           title: `이번 주 랭킹 TOP ${TOP_N} · ${category}`,
           content: (
             <>
-              <p className="mb-2 text-xs text-muted-foreground">{latest ? `${formatDate(latest.captured_at)} 기준` : "—"} · 제품 이름을 누르면 제품 상세</p>
+              <p className="mb-2 text-xs text-muted-foreground">{latest ? `${formatDate(latest.captured_at)} 기준` : "—"} · 제품 이름을 누르면 제품 상세 · 소구 포인트 = 상세 이미지 분석 (샘플, 化粧水만)</p>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>순위</TableHead>
                     <TableHead>변동</TableHead>
                     <TableHead>제품</TableHead>
+                    <TableHead>소구 포인트</TableHead>
                     <TableHead className="text-right">税込</TableHead>
                     <TableHead className="text-right">리뷰</TableHead>
                   </TableRow>
@@ -109,6 +129,9 @@ export function TrendsReport({ snapshots, products }: { snapshots: TrendSnapshot
                           {r.brand === OWN_BRAND && <Badge>자사</Badge>}
                           {r.is_kbeauty && <Badge variant="secondary">K-뷰티</Badge>}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        <Appeal row={r} />
                       </TableCell>
                       <TableCell className="text-right">{formatJpy(r.price_jpy)}</TableCell>
                       <TableCell className="text-right">{r.review_count.toLocaleString("ko-KR")}</TableCell>

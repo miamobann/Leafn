@@ -3,6 +3,7 @@
 import { mock } from "@/lib/mock";
 import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
 import { StageKey } from "@/lib/schemas/project";
+import type { TrendSource } from "@/lib/schemas/trend";
 
 export async function getWorkspace() {
   return mock.workspace;
@@ -62,14 +63,25 @@ export async function getAdCheck(id: string) {
   return mock.adChecks.find((a) => a.id === id) ?? null;
 }
 
-/** category를 빼면 모든 카테고리. captured_at 오름차순 */
-export async function getTrendSnapshots(opts: { category?: string } = {}) {
+/** source는 필수 (楽天·Qoo10 시계열이 섞이지 않게). category를 빼면 모든 카테고리. captured_at 오름차순 */
+export async function getTrendSnapshots(opts: { source: TrendSource; category?: string }) {
   return mock.trendSnapshots
+    .filter((t) => t.source === opts.source)
     .filter((t) => !opts.category || t.category === opts.category)
     .toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
 }
 
-export async function getIngredientInterest(opts: { category: string }) {
+/** 이미지 분석의 입력 (크롤러 결과). 지금은 더미, 크롤러가 생기면 DB에서 읽는다 */
+export async function getRankingSources(opts: { source: TrendSource; category: string }) {
+  return mock.rankingSources.filter((r) => r.source === opts.source && r.category === opts.category).toSorted((a, b) => a.rank - b.rank);
+}
+
+/** 검색 자동완성 스냅샷 (미래 트렌드). captured_at 오름차순 */
+export async function getSearchSnapshots() {
+  return mock.searchSnapshots.toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
+}
+
+export async function getIngredientInterest(opts: { source: TrendSource; category: string }) {
   const latest = (await getTrendSnapshots(opts)).at(-1);
   return latest?.data.ingredients ?? [];
 }

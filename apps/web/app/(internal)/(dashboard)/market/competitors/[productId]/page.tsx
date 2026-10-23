@@ -12,7 +12,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const product = await getProduct((await params).productId);
   if (!product) notFound();
 
-  const [own, snapshots, geo] = await Promise.all([getProducts({ kind: "own" }), getTrendSnapshots(), getGeoSnapshots()]);
+  const [own, snapshots, geo] = await Promise.all([getProducts({ kind: "own" }), getTrendSnapshots({ source: "rakuten_ranking" }), getGeoSnapshots()]);
   const ownIngredients = new Set(own.filter((p) => p.id !== product.id).flatMap((p) => p.ingredients));
   const sharedWithOwn = product.ingredients.filter((x) => ownIngredients.has(x) && !COMMON_INGREDIENTS.has(x));
 
