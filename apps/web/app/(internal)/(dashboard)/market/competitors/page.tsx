@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { DataTableTemplate } from "@/components/templates";
 import { getProducts } from "@/lib/data";
 import { formatJpy } from "@/lib/format";
+import { platformLabel } from "@/lib/platforms";
 import { pricePerMl } from "@/lib/schemas/product";
 
 export default async function MarketCompetitorsPage() {
@@ -33,7 +34,7 @@ export default async function MarketCompetitorsPage() {
                 {p.brand} {p.name}
               </span>
             ),
-            platform: p.platform,
+            platform: platformLabel(p.platform),
             price: formatJpy(p.price_jpy),
             volume: p.volume_ml ? `${p.volume_ml}ml` : "—",
             perMl: pricePerMl(p) != null ? `¥${pricePerMl(p)}` : "—",
