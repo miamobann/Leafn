@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { StartLink } from "./start-link";
 
 // 일본어 문구는 원어민 검수 전. 미성년자 사전 고지는 개인정보 안내 v0.1과 맞춘다
 const COPY = {
@@ -32,9 +31,7 @@ export default function SurveyPage() {
         ))}
       </dl>
       <p className="text-xs leading-relaxed text-muted-foreground">{COPY.minorNotice}</p>
-      <Link href="/survey/questions" className={cn(buttonVariants({ size: "lg" }), "h-12 w-full text-base")}>
-        {COPY.start}
-      </Link>
+      <StartLink label={COPY.start} />
       <Link href="/survey/privacy" className="text-center text-sm underline underline-offset-4">
         {COPY.privacyLink}
       </Link>

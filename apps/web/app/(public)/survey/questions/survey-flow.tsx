@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import type { SurveyAnswer, SurveyQuestion } from "@/lib/schemas/survey";
+import { SurveySource, type SurveyAnswer, type SurveyQuestion } from "@/lib/schemas/survey";
 import { isUnder18 } from "../_lib/judge";
 import { saveSession } from "../_lib/session";
 import { submitSurvey } from "../_lib/submit";
@@ -23,12 +23,18 @@ const COPY = {
   otherLabel: "その他のお悩みをご記入ください",
   otherPlaceholder: "例：目の下のクマ",
   otherHint: "お名前や連絡先など、個人を特定できる内容は記入しないでください。（50文字まで）",
+  source: {
+    title: "この診断を何で知りましたか？",
+    placeholder: "選択してください",
+    otherLabel: "具体的にご記入ください",
+    otherPlaceholder: "例：雑誌",
+  },
   consent: {
     title: "個人情報の取扱いについて",
     items: [
-      { label: "収集する情報", text: "年代、肌質・肌の悩みに関するアンケート回答（氏名・メールアドレスなどは収集しません）" },
+      { label: "収集する情報", text: "年代、肌質・肌の悩みに関するアンケート回答、この診断を知ったきっかけ（氏名・メールアドレスなどは収集しません）" },
       { label: "利用目的", text: "診断結果とおすすめ製品の表示、個人を特定しない統計データとしての製品企画・マーケティング分析" },
-      { label: "管理", text: "回答データは大韓民国の事業者（Leaf&）が管理します" },
+      { label: "管理", text: "回答データは大韓民国の事業者（Leaf&）が管理し、3年間保存したのち削除します" },
     ],
     readAll: "全文を読む（新しいタブ）",
     checkbox: "[必須] 個人情報の取扱いについて同意します",
@@ -36,19 +42,43 @@ const COPY = {
   },
 };
 
-type Step = { kind: "question"; index: number } | { kind: "consent" };
+// 유입 경로 선택지. 값은 SurveySource와 같다
+const SOURCE_LABELS: Record<SurveySource, string> = {
+  instagram: "Instagram",
+  x: "X（旧Twitter）",
+  line: "LINE",
+  rakuten: "楽天市場",
+  qoo10: "Qoo10",
+  friend: "友人・知人の紹介",
+  search: "検索",
+  other: "その他",
+};
+
+type Step = { kind: "source" } | { kind: "question"; index: number } | { kind: "consent" };
+
+const noop = () => () => {};
 
 export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
   const router = useRouter();
+  // 공유 링크의 ?src=로 유입 경로를 알면 묻지 않는다. 서버 렌더에서는 null(아직 모름)
+  const search = useSyncExternalStore(noop, () => window.location.search, () => null);
   const [answers, setAnswers] = useState<Record<string, SurveyAnswer>>({});
   const [otherText, setOtherText] = useState("");
+  const [picked, setPicked] = useState<SurveySource | null>(null);
+  const [sourceOther, setSourceOther] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [consentAt, setConsentAt] = useState<string | null>(null);
   const [pos, setPos] = useState(0);
 
-  // 나이 → (18세 이상만) 동의 → 나머지 문항. 18세 미만은 저장하지 않으므로 동의를 받지 않는다
+  if (search === null) return null;
+  const linkSource = SurveySource.safeParse(new URLSearchParams(search).get("src"));
+  const knownSource = linkSource.success ? linkSource.data : null;
+
+  // (링크에 경로가 없을 때만) 유입 경로 → 나이 → (18세 이상만) 동의 → 나머지 문항.
+  // 18세 미만은 저장하지 않으므로 동의를 받지 않는다
   const under18 = isUnder18(questions, answers);
   const steps: Step[] = [
+    ...(knownSource ? [] : [{ kind: "source" } as const]),
     { kind: "question", index: 0 },
     ...(under18 ? [] : [{ kind: "consent" } as const]),
     ...questions.slice(1).map((_, i) => ({ kind: "question", index: i + 1 }) as const),
@@ -57,15 +87,17 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
   const isLast = pos >= steps.length - 1;
 
   const q = step.kind === "question" ? questions[step.index] : null;
-  const picked = q ? answers[q.id] : undefined;
-  const pickedList = picked === undefined ? [] : Array.isArray(picked) ? picked : [picked];
+  const answer = q ? answers[q.id] : undefined;
+  const pickedList = answer === undefined ? [] : Array.isArray(answer) ? answer : [answer];
   const otherOption = q?.options.find((o) => o.is_other);
   const otherOn = !!otherOption && pickedList.includes(otherOption.value);
 
   const canNext =
-    step.kind === "consent"
-      ? agreed
-      : pickedList.length > 0 && (!otherOn || otherText.trim() !== "");
+    step.kind === "source"
+      ? picked !== null && (picked !== "other" || sourceOther.trim() !== "")
+      : step.kind === "consent"
+        ? agreed
+        : pickedList.length > 0 && (!otherOn || otherText.trim() !== "");
 
   function pick(question: SurveyQuestion, value: string) {
     setAnswers((prev) => {
@@ -91,11 +123,14 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
       setPos((p) => p + 1);
       return;
     }
+    const source = knownSource ?? picked;
     const session = {
       answers,
       other_text: otherOn ? otherText.trim().slice(0, 50) : "",
       consent_at: under18 ? null : (consentAt ?? new Date().toISOString()),
       consent_version: under18 ? null : CONSENT_VERSION,
+      source,
+      source_other: source === "other" && !knownSource ? sourceOther.trim().slice(0, 50) : "",
     };
     saveSession(session);
     await submitSurvey(session, under18);
@@ -103,7 +138,7 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
   }
 
   function goBack() {
-    if (pos === 0) router.push("/survey");
+    if (pos === 0) router.push(`/survey${search}`);
     else setPos((p) => p - 1);
   }
 
@@ -113,6 +148,47 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
         <Progress value={((pos + 1) / steps.length) * 100} aria-label={COPY.progress(pos + 1, steps.length)} />
         <p className="text-right text-xs text-muted-foreground">{COPY.progress(pos + 1, steps.length)}</p>
       </div>
+
+      {step.kind === "source" && (
+        <section className="space-y-3">
+          <label htmlFor="source" className="block text-lg leading-relaxed font-semibold">
+            {COPY.source.title}
+          </label>
+          <select
+            id="source"
+            value={picked ?? ""}
+            onChange={(e) => {
+              const parsed = SurveySource.safeParse(e.target.value);
+              setPicked(parsed.success ? parsed.data : null);
+            }}
+            className="h-12 w-full rounded-lg border bg-background px-3 text-base"
+          >
+            <option value="" disabled>
+              {COPY.source.placeholder}
+            </option>
+            {SurveySource.options.map((s) => (
+              <option key={s} value={s}>
+                {SOURCE_LABELS[s]}
+              </option>
+            ))}
+          </select>
+          {picked === "other" && (
+            <div className="space-y-1.5">
+              <label htmlFor="source-other" className="text-sm font-medium">
+                {COPY.source.otherLabel}
+              </label>
+              <Input
+                id="source-other"
+                value={sourceOther}
+                maxLength={50}
+                placeholder={COPY.source.otherPlaceholder}
+                onChange={(e) => setSourceOther(e.target.value)}
+                className="h-11"
+              />
+            </div>
+          )}
+        </section>
+      )}
 
       {q && (
         <fieldset className="space-y-3">

@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { ScoreKey, SkinType, SurveyProductLine, SurveyQuestion } from "@/lib/schemas/survey";
-import { calcScores, isUnder18, judge, maxScores, RULE } from "../_lib/judge";
+import type { Scores, SkinType, SurveyProductLine, SurveyQuestion } from "@/lib/schemas/survey";
+import { calcScores, isUnder18, judge, maxScores } from "../_lib/judge";
 import { clearSession, parseSession, readSessionRaw, subscribeSession } from "../_lib/session";
+import { trackReco } from "../_lib/submit";
 
 // 일본어 문구는 원어민 검수 전, 결과 · 추천 문구는 약기법 검토 전 가안
 const TYPES: Record<SkinType, { name: string; desc: string; reason: string; tips: string[] }> = {
@@ -45,12 +46,34 @@ const TYPES: Record<SkinType, { name: string; desc: string; reason: string; tips
   },
 };
 
-// 막대: [이름, 점수 키, "ふつう" 시작점, "高め" 시작점(판정 기준)]
-const METERS: { label: string; key: ScoreKey; mid: number; high: number }[] = [
-  { label: "Tゾーンの皮脂（おでこ・鼻）", key: "t", mid: 3, high: RULE.tOil },
-  { label: "頬の皮脂", key: "c", mid: 2, high: RULE.cOil },
-  { label: "乾燥", key: "d", mid: 2, high: RULE.dry },
-  { label: "敏感", key: "s", mid: 2, high: RULE.sens },
+// MBTI처럼 반대되는 두 성향을 한 막대에 놓고 합 100점으로 나눈다 (팀 결정 2026-10-23)
+type Pole = { code: string; label: string };
+type Axis = { title: string; left: Pole; right: Pole; leftPoints: (sc: Scores, max: Scores) => number };
+
+// 두 비율을 합 100점으로 나눈다. 둘 다 0이면 50 : 50
+function split(a: number, b: number) {
+  return a + b === 0 ? 50 : Math.round((a / (a + b)) * 100);
+}
+
+const AXES: Axis[] = [
+  {
+    title: "オイリー型 vs ドライ型",
+    left: { code: "O", label: "オイリー" },
+    right: { code: "D", label: "ドライ" },
+    leftPoints: (sc, max) => split((sc.t + sc.c) / (max.t + max.c || 1), sc.d / (max.d || 1)),
+  },
+  {
+    title: "敏感型 vs 安定型",
+    left: { code: "S", label: "敏感" },
+    right: { code: "R", label: "安定" },
+    leftPoints: (sc, max) => Math.round((sc.s / (max.s || 1)) * 100),
+  },
+  {
+    title: "Tゾーン型 vs 顔全体型（皮脂が出やすい場所）",
+    left: { code: "T", label: "Tゾーン" },
+    right: { code: "A", label: "顔全体" },
+    leftPoints: (sc, max) => split(sc.t / (max.t || 1), sc.c / (max.c || 1)),
+  },
 ];
 
 const COPY = {
@@ -61,8 +84,9 @@ const COPY = {
   tabs: { reco: "おすすめ製品", detail: "くわしく", tips: "ケアのポイント" },
   detailTitle: "肌の状態をくわしく見る",
   reasonTitle: "判定の理由",
-  levels: { high: "高め", mid: "ふつう", low: "低め" },
-  devScore: (n: number, max: number) => `（検証用 ${n}/${max}）`,
+  points: (n: number) => `${n}点`,
+  lean: (label: string) => `${label}寄り`,
+  even: "どちらとも言えない",
   tipsTitle: "毎日のケアのポイント",
   concerns: "気になる悩み：",
   recoTitle: "この肌タイプにおすすめのLeaf&製品",
@@ -75,7 +99,7 @@ const COPY = {
   notifyOpen: "発売のお知らせを受け取る",
   notifyMinor: "18歳未満の方はお申し込みいただけません",
   notifyDone: (via: string) => `発売のお知らせを申し込みました（${via}）`,
-  noReco: "普通肌のおすすめ製品は準備中です。",
+  noReco: "この肌タイプのおすすめ製品は準備中です。",
   sensitiveUse: "はじめて使うときは、腕の内側で試してからお使いください。",
   notify: {
     title: (name: string) => `「${name}」発売のお知らせ`,
@@ -147,6 +171,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
   const canSubmit = notifyAgree && (via === "line" || EMAIL_PATTERN.test(email.trim()));
 
   function openNotify(lineId: string) {
+    trackReco({ event: "notify_open", lineId, skinType, under18 });
     setNotifyLine(lineId);
     setEmail("");
     setNotifyAgree(false);
@@ -202,6 +227,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
           <Card>
             <CardContent className="space-y-4">
               <h2 className="font-semibold">{COPY.recoTitle}</h2>
+              <TrackShown lineIds={recos.map((l) => l.id)} skinType={skinType} under18={under18} />
               <div
                 role="img"
                 aria-label={COPY.poster}
@@ -232,7 +258,13 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
                     </div>
                   </div>
                   {line.status === "on_sale" && (
-                    <Button onClick={() => setBought(true)} className="h-11 w-full">
+                    <Button
+                      onClick={() => {
+                        trackReco({ event: "buy_click", lineId: line.id, skinType, under18 });
+                        setBought(true);
+                      }}
+                      className="h-11 w-full"
+                    >
                       {COPY.buy}
                     </Button>
                   )}
@@ -315,32 +347,42 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
           <Card>
             <CardContent className="space-y-4">
               <h2 className="font-semibold">{COPY.detailTitle}</h2>
-              {METERS.map((m) => {
-                const value = scores[m.key];
-                const level = value >= m.high ? "high" : value >= m.mid ? "mid" : "low";
+              {AXES.map((axis) => {
+                const left = axis.leftPoints(scores, max);
+                const right = 100 - left;
+                const leftWins = left > right;
+                const rightWins = right > left;
+                const pole = (p: Pole, wins: boolean) => (
+                  <div className={cn("text-center", wins ? "text-primary" : "text-muted-foreground")}>
+                    <p className={cn("text-2xl leading-none", wins ? "font-bold" : "font-semibold")}>{p.code}</p>
+                    <p className="mt-1 text-xs">{p.label}</p>
+                  </div>
+                );
                 return (
-                  <div key={m.key} className="space-y-1.5">
-                    <div className="flex items-baseline justify-between text-sm">
-                      <span>{m.label}</span>
-                      <span className="font-semibold">
-                        {COPY.levels[level]}
-                        {process.env.NODE_ENV !== "production" && (
-                          <span className="ml-1 text-xs font-normal text-muted-foreground">
-                            {COPY.devScore(value, max[m.key])}
-                          </span>
-                        )}
-                      </span>
+                  <div key={axis.title} className="space-y-2">
+                    <p className="inline-block rounded bg-foreground px-2 py-0.5 text-xs font-semibold text-background">
+                      {axis.title}
+                    </p>
+                    <div className="grid grid-cols-[3.5rem_1fr_3.5rem] items-center gap-2">
+                      {pole(axis.left, leftWins)}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className={leftWins ? "font-semibold" : "text-muted-foreground"}>{COPY.points(left)}</span>
+                          <span className={rightWins ? "font-semibold" : "text-muted-foreground"}>{COPY.points(right)}</span>
+                        </div>
+                        <div className="relative h-3 overflow-hidden rounded-full bg-muted">
+                          {/* 이긴 쪽에서부터 채운다. 길이는 점수 비율이라 인라인 스타일이 불가피하다 */}
+                          <div
+                            className={cn("absolute inset-y-0 rounded-full bg-primary", rightWins ? "right-0" : "left-0")}
+                            style={{ width: `${rightWins ? right : left}%` }}
+                          />
+                        </div>
+                      </div>
+                      {pole(axis.right, rightWins)}
                     </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                      {/* 막대 길이는 점수 비율이라 인라인 스타일이 불가피하다 */}
-                      <div
-                        className={cn(
-                          "h-full rounded-full",
-                          level === "high" ? "bg-primary" : level === "mid" ? "bg-primary/60" : "bg-primary/30",
-                        )}
-                        style={{ width: `${max[m.key] ? (value / max[m.key]) * 100 : 0}%` }}
-                      />
-                    </div>
+                    <p className={cn("text-xs text-muted-foreground", rightWins && "text-right")}>
+                      {leftWins ? COPY.lean(axis.left.label) : rightWins ? COPY.lean(axis.right.label) : COPY.even}
+                    </p>
                   </div>
                 );
               })}
@@ -384,4 +426,13 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
       </Link>
     </div>
   );
+}
+
+/** 결과 화면에 추천이 보였을 때 한 번 기록한다 (연결 전이라 지금은 보내지 않음) */
+function TrackShown({ lineIds, skinType, under18 }: { lineIds: string[]; skinType: SkinType; under18: boolean }) {
+  const key = lineIds.join(",");
+  useEffect(() => {
+    for (const lineId of key.split(",").filter(Boolean)) trackReco({ event: "shown", lineId, skinType, under18 });
+  }, [key, skinType, under18]);
+  return null;
 }
