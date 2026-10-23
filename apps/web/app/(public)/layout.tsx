@@ -13,7 +13,8 @@ export default function PublicRootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="ja">
       <body className={`${notoJp.variable} font-sans antialiased`}>
-        <main className="mx-auto min-h-screen max-w-md px-5 py-8">{children}</main>
+        {/* 각 화면이 폭을 정한다: 문항 화면은 휴대폰 폭, 결과 화면은 PC에서 넓게 */}
+        <main className="mx-auto min-h-screen w-full max-w-5xl px-5 py-8">{children}</main>
       </body>
     </html>
   );

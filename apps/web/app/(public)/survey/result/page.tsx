@@ -1,18 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getSurveyProductLines, getSurveyQuestions } from "@/lib/data";
+import { SurveyResult } from "./survey-result";
 
-// 결과 문구에 제품 추천이 들어가면 광고이므로 약기법 검토 대상이다 (CLAUDE.md 11장)
-export default function SurveyResultPage() {
-  return (
-    <>
-      <h1 className="mb-4 text-xl font-semibold">診断結果</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>乾燥肌タイプ (サンプル)</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm">
-          <p>うるおいを保つスキンケアがおすすめです。(サンプル文言)</p>
-        </CardContent>
-      </Card>
-    </>
-  );
+// 결과 문구 · 추천 문구는 광고이므로 약기법 검토 대상이다 (CLAUDE.md 11장). 광고 검토 담당 결과를 받아 합친다
+export default async function SurveyResultPage() {
+  const [questions, lines] = await Promise.all([getSurveyQuestions(), getSurveyProductLines()]);
+  return <SurveyResult questions={questions} lines={lines} />;
 }

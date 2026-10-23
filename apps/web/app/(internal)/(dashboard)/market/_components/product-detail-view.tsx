@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { platformLabel } from "@/lib/platforms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +18,7 @@ const COPY = {
   apply: "적용",
   unsaved: "수정됨 · 저장 안 됨",
   editNote: "적용한 값은 이 화면에서만 바뀌고 저장되지 않아요",
-  noRank: "楽天 랭킹에 없는 제품이에요 (Qoo10·@cosme 판매 제품은 楽天 랭킹에 나오지 않아요)",
+  noRank: "楽天 랭킹에 없는 제품이에요 (Qoo10 판매 제품은 楽天 랭킹에 나오지 않아요)",
   ingredientsNote: "표기 순서 · 진한 칸 = 자사 제품에도 있는 성분 (물·BG·글리세린·보존제 제외)",
 };
 
@@ -116,7 +117,7 @@ export function ProductDetailView({
         badges={
           <>
             <Badge>{p.kind === "own" ? "자사" : "경쟁"}</Badge>
-            <Badge variant="secondary">{p.platform}</Badge>
+            <Badge variant="secondary">{platformLabel(p.platform)}</Badge>
             {p.category && (
               <Badge variant="outline">
                 <span lang="ja">{p.category}</span>

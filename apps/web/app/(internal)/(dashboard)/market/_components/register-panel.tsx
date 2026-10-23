@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { PLATFORMS } from "@/lib/platforms";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,13 +14,12 @@ import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/tog
 // 경쟁제품 등록: URL 또는 이미지 → 추출 결과(샘플) → 사람이 고치는 폼 (TECH_STACK 13장 4번, prototype-plan P3)
 // 실제 추출(POST /api/products/extract)은 아직 없어서 고정된 샘플 값을 보여준다. 추가한 제품은 저장되지 않는다.
 const MODES = ["상품 URL", "상품 이미지"] as const;
-const PLATFORMS = ["Qoo10", "楽天市場", "@cosme SHOPPING", "Amazon.co.jp"] as const;
 
 const SAMPLE_EXTRACT = {
   brand: "SampleNew",
   name: "セラミドクリーム",
   category: "クリーム",
-  platform: "Qoo10",
+  platform: "qoo10",
   price: "2580",
   volume: "50",
   ingredients: "水、グリセリン、BG、セラミドNP、スクワラン、パンテノール、ヒアルロン酸Na、フェノキシエタノール",
@@ -135,7 +135,9 @@ export function RegisterPanel({ onAdd, onClose, nextIndex }: { onAdd: (p: Produc
                 판매 플랫폼
                 <select className={SELECT} value={form.platform} onChange={set("platform")}>
                   {PLATFORMS.map((p) => (
-                    <option key={p}>{p}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
                   ))}
                 </select>
               </label>

@@ -5,7 +5,7 @@
 import type { AppealAiOutput, AppealAnalysis } from "@/lib/schemas/trend";
 
 /** 통일 이름 → 이미지·상품명에 나오는 표기. 키는 성분 관심도(market/_lib INGREDIENT_MATCH)와 같은 이름을 쓴다 */
-const INGREDIENT_ALIASES: Record<string, string[]> = {
+export const INGREDIENT_ALIASES: Record<string, string[]> = {
   "ドクダミエキス": ["ドクダミ"],
   "ツボクサエキス": ["ツボクサ", "CICA", "シカ"],
   "ナイアシンアミド": ["ナイアシンアミド"],

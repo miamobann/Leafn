@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { platformLabel } from "@/lib/platforms";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTableTemplate } from "@/components/templates";
@@ -164,7 +165,7 @@ export function CompetitorsView({ products }: { products: Product[] }) {
                   </span>
                 </span>
               ),
-              platform: p.platform,
+              platform: platformLabel(p.platform),
               price: <Price p={p} />,
               volume: p.volume_ml ? `${p.volume_ml}ml` : "—",
               perMl: <span className="font-medium">{pricePerMl(p) != null ? `¥${pricePerMl(p)}` : "—"}</span>,
@@ -213,7 +214,7 @@ export function CompetitorsView({ products }: { products: Product[] }) {
                     </p>
                     <dl className="space-y-1">
                       {[
-                        ["판매 플랫폼", p.platform],
+                        ["판매 플랫폼", platformLabel(p.platform)],
                         ["税込 가격", <Price key="p" p={p} />],
                         ["용량 · ml당", `${p.volume_ml ?? "—"}ml · ${pricePerMl(p) != null ? `¥${pricePerMl(p)}` : "—"}`],
                         ["주요 성분", <span key="i" lang="ja">{keyIngredients(p).join("、") || "—"}</span>],

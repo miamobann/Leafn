@@ -1,15 +1,17 @@
+import type { PlatformId } from "@/lib/platforms";
 import { Product } from "@/lib/schemas/product";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 가상 브랜드. 가격은 세금 포함 총액(税込), 성분은 全成分 표기 순서를 흉내 낸 샘플
 // 자사 3 + 경쟁 8 (prototype-plan P3). p-own-2·3의 제품명과 성분은 팀 가상 데이터(Suyeon 브랜치 mock-products.ts) 기준
+// platform은 lib/platforms.ts의 slug. @cosme는 쓰지 않기로 해서 SampleC·SampleH는 楽天으로 옮기고 평점을 5점 척도로 환산했다 (2026-10-23)
 // source_raw는 상품 페이지 추출 원본을 흉내 낸 값. 평점·리뷰 수·행사가는 여기서만 꺼내 쓴다 (lib/schemas/product.ts readListing)
 type Seed = {
   id: string;
   kind: "own" | "competitor";
   brand: string;
   name: string;
-  platform: string;
+  platform: PlatformId;
   price_jpy: number;
   volume_ml: number;
   ingredients: string[];
@@ -24,7 +26,7 @@ const seeds: Seed[] = [
     kind: "own",
     brand: "Leafn",
     name: "시카 수분 토너",
-    platform: "Qoo10",
+    platform: "qoo10",
     price_jpy: 2480,
     volume_ml: 200,
     ingredients: ["水", "ツボクサエキス", "グリセリン", "ナイアシンアミド"],
@@ -37,7 +39,7 @@ const seeds: Seed[] = [
     kind: "own",
     brand: "Leafn",
     name: "모이스트 밸런스 스킨",
-    platform: "Qoo10",
+    platform: "qoo10",
     price_jpy: 2480,
     volume_ml: 150,
     ingredients: ["水", "BG", "グリセリン", "プロパンジオール", "ベタイン", "パンテノール", "ヒアルロン酸Na", "アラントイン", "ヒドロキシエチルセルロース", "クエン酸", "クエン酸Na", "EDTA-2Na", "エチルヘキシルグリセリン", "フェノキシエタノール"],
@@ -50,7 +52,7 @@ const seeds: Seed[] = [
     kind: "own",
     brand: "Leafn",
     name: "모이스트 리페어 에센스",
-    platform: "楽天市場",
+    platform: "rakuten",
     price_jpy: 2980,
     volume_ml: 30,
     ingredients: ["水", "グリセリン", "BG", "プロパンジオール", "スクワラン", "トリ(カプリル酸/カプリン酸)グリセリル", "セラミドNP", "コレステロール", "ステアリン酸", "ヒアルロン酸Na", "水添レシチン", "カルボマー", "アルギニン", "EDTA-2Na", "エチルヘキシルグリセリン", "フェノキシエタノール"],
@@ -63,7 +65,7 @@ const seeds: Seed[] = [
     kind: "competitor",
     brand: "SampleA",
     name: "ドクダミ化粧水",
-    platform: "楽天市場",
+    platform: "rakuten",
     price_jpy: 1980,
     volume_ml: 250,
     ingredients: ["水", "ドクダミエキス", "BG"],
@@ -76,7 +78,7 @@ const seeds: Seed[] = [
     kind: "competitor",
     brand: "SampleB",
     name: "セラミドトナー",
-    platform: "Qoo10",
+    platform: "qoo10",
     price_jpy: 2750,
     volume_ml: 150,
     ingredients: ["水", "セラミドNP", "グリセリン"],
@@ -89,20 +91,20 @@ const seeds: Seed[] = [
     kind: "competitor",
     brand: "SampleC",
     name: "ビタCトナー",
-    platform: "@cosme SHOPPING",
+    platform: "rakuten",
     price_jpy: 3300,
     volume_ml: 120,
     ingredients: ["水", "アスコルビン酸", "BG"],
     features: ["톤 정돈"],
     category: "化粧水",
-    listing: { rating: 5.2, rating_scale: 7, review_count: 864, sale_price_jpy: null, sale_label: null },
+    listing: { rating: 3.7, rating_scale: 5, review_count: 864, sale_price_jpy: null, sale_label: null },
   },
   {
     id: "p-comp-4",
     kind: "competitor",
     brand: "SampleD",
     name: "セラミドアンプル",
-    platform: "Qoo10",
+    platform: "qoo10",
     price_jpy: 2640,
     volume_ml: 50,
     ingredients: ["水", "グリセリン", "セラミドNP", "セラミドAP", "フィトスフィンゴシン", "コレステロール", "スクワラン", "パンテノール", "フェノキシエタノール"],
@@ -115,7 +117,7 @@ const seeds: Seed[] = [
     kind: "competitor",
     brand: "SampleE",
     name: "ナイアシンアミド美容液",
-    platform: "楽天市場",
+    platform: "rakuten",
     price_jpy: 3300,
     volume_ml: 30,
     ingredients: ["水", "ナイアシンアミド", "BG", "グリセリン", "ヒアルロン酸Na", "トラネキサム酸", "アラントイン", "フェノキシエタノール"],
@@ -128,7 +130,7 @@ const seeds: Seed[] = [
     kind: "competitor",
     brand: "SampleF",
     name: "レチノールセラム",
-    platform: "Qoo10",
+    platform: "qoo10",
     price_jpy: 2890,
     volume_ml: 30,
     ingredients: ["水", "スクワラン", "レチノール", "トコフェロール", "BG", "グリセリン", "セラミドNP", "フェノキシエタノール"],
@@ -141,7 +143,7 @@ const seeds: Seed[] = [
     kind: "competitor",
     brand: "SampleG",
     name: "ヒアルロン酸ローション",
-    platform: "楽天市場",
+    platform: "rakuten",
     price_jpy: 1650,
     volume_ml: 200,
     ingredients: ["水", "グリセリン", "BG", "ヒアルロン酸Na", "パンテノール", "ベタイン", "アラントイン", "フェノキシエタノール"],
@@ -154,13 +156,13 @@ const seeds: Seed[] = [
     kind: "competitor",
     brand: "SampleH",
     name: "ビタミンC美容液",
-    platform: "@cosme SHOPPING",
+    platform: "rakuten",
     price_jpy: 3850,
     volume_ml: 20,
     ingredients: ["水", "3-O-エチルアスコルビン酸", "アスコルビルグルコシド", "BG", "グリセリン", "ユズ果実エキス", "フェノキシエタノール"],
     features: ["일본 브랜드", "비타민C 유도체 2종", "20ml 소용량"],
     category: "美容液",
-    listing: { rating: 5.6, rating_scale: 7, review_count: 402, sale_price_jpy: null, sale_label: null },
+    listing: { rating: 4.0, rating_scale: 5, review_count: 402, sale_price_jpy: null, sale_label: null },
   },
 ];
 

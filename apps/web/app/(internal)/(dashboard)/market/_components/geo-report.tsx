@@ -5,94 +5,210 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportTemplate } from "@/components/templates";
-import type { GeoSnapshot } from "@/lib/schemas/geo";
+import { GEO_ENGINE_LABEL, type GeoSnapshot } from "@/lib/schemas/geo";
+import type { Product } from "@/lib/schemas/product";
 import { OWN_BRAND } from "@/app/(internal)/(dashboard)/market/_lib/market";
+import {
+  cellMentionRate,
+  citationShare,
+  engineShare,
+  geoCells,
+  keywordGap,
+  keywordStats,
+  shareOfModel,
+  targetMedia,
+  type GapStatus,
+  type GeoCell,
+} from "@/app/(internal)/(dashboard)/market/_lib/geo";
 import { HorizontalBarChart } from "@/app/(internal)/(dashboard)/market/_components/charts";
 
-type Mention = "own" | "competitor" | "none";
+type Mark = { text: string; kind: "own" | "competitor" | "keyword" };
 
-function mention(g: GeoSnapshot): Mention {
-  if (g.brands_mentioned.includes(OWN_BRAND)) return "own";
-  return g.brands_mentioned.length > 0 ? "competitor" : "none";
-}
+const MARK_CLASS: Record<Mark["kind"], string> = {
+  own: "rounded bg-primary px-0.5 text-primary-foreground",
+  competitor: "rounded bg-muted px-0.5 font-medium text-foreground",
+  keyword: "underline decoration-2 underline-offset-4",
+};
 
-// 색만으로 구분하지 않고 기호·글자를 같이 쓴다
-const MENTION_LABEL: Record<Mention, string> = { own: "● 자사 언급", competitor: "○ 경쟁만", none: "– 언급 없음" };
-
-/** 답변 원문에서 브랜드 이름을 표시한다 (긴 이름부터 찾는다) */
-function Highlighted({ text, brands }: { text: string; brands: string[] }) {
-  if (brands.length === 0) return <>{text}</>;
-  const sorted = brands.toSorted((a, b) => b.length - a.length);
-  const pattern = new RegExp(`(${sorted.map((b) => b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "g");
+/** 답변 원문에서 브랜드(배경)와 결정 키워드(밑줄)를 표시한다. 긴 표기부터 찾는다 */
+function Highlighted({ text, marks }: { text: string; marks: Mark[] }) {
+  if (marks.length === 0) return <>{text}</>;
+  const sorted = marks.toSorted((a, b) => b.text.length - a.text.length);
+  const pattern = new RegExp(`(${sorted.map((m) => m.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "g");
   return (
     <>
-      {text.split(pattern).map((part, i) =>
-        brands.includes(part) ? (
-          <mark key={i} className={part === OWN_BRAND ? "rounded bg-primary px-0.5 text-primary-foreground" : "rounded bg-muted px-0.5 font-medium text-foreground"}>
+      {text.split(pattern).map((part, i) => {
+        const m = sorted.find((x) => x.text === part);
+        return m ? (
+          <mark key={i} className={MARK_CLASS[m.kind]}>
             {part}
           </mark>
         ) : (
           <span key={i}>{part}</span>
-        ),
-      )}
+        );
+      })}
     </>
   );
 }
 
-export function GeoReport({ snapshots }: { snapshots: GeoSnapshot[] }) {
+// 색만으로 구분하지 않고 기호·글자를 같이 쓴다
+function cellLabel(cell: GeoCell): { label: string; variant: "default" | "secondary" | "outline" } {
+  const own = cellMentionRate(cell, OWN_BRAND);
+  const runs = cell.runs.length;
+  if (own > 0) return { label: `● 자사${runs > 1 ? ` ${Math.round(own * runs)}/${runs}` : " 언급"}`, variant: "default" };
+  if (cell.runs.some((r) => r.brands_mentioned.length > 0)) return { label: "○ 경쟁만", variant: "secondary" };
+  return { label: "– 언급 없음", variant: "outline" };
+}
+
+const GAP_LABEL: Record<GapStatus, { badge: string; variant: "default" | "secondary" | "outline"; action: (k: string) => string }> = {
+  missing: { badge: "누락", variant: "default", action: (k) => `근거가 있다면 상세페이지·보도자료에 「${k}」를 명시` },
+  ingredient: { badge: "미배합 성분", variant: "outline", action: (k) => `자사 제품에 「${k}」가 없음 → 문구로 넣지 말고, 대체 성분·사용감 비교로 대응` },
+  weak: { badge: "노출 부족", variant: "secondary", action: (k) => `제품엔 있으나 AI가 자사와 연결하지 못함 → 일본어 상세페이지·FAQ에 「${k}」 문구 추가` },
+  linked: { badge: "연결됨", variant: "outline", action: () => "유지 (AI가 이미 자사와 함께 언급)" },
+};
+
+export function GeoReport({ snapshots, ownProducts }: { snapshots: GeoSnapshot[]; ownProducts: Product[] }) {
+  const cells = geoCells(snapshots);
   const queries = [...new Set(snapshots.map((g) => g.query))];
   const engines = [...new Set(snapshots.map((g) => g.engine))];
+  const maxRuns = Math.max(0, ...cells.map((c) => c.runs.length));
   const [selectedId, setSelectedId] = useState(snapshots[0]?.id ?? "");
   const selected = snapshots.find((g) => g.id === selectedId) ?? null;
+  const selectedCell = selected ? cells.find((c) => c.engine === selected.engine && c.query === selected.query) : undefined;
 
-  const total = snapshots.length;
-  const ownCount = snapshots.filter((g) => mention(g) === "own").length;
-  const counts = new Map<string, number>();
-  for (const g of snapshots) for (const b of g.brands_mentioned) counts.set(b, (counts.get(b) ?? 0) + 1);
-  const shares = [...counts.entries()].toSorted((a, b) => b[1] - a[1]);
+  const som = shareOfModel(snapshots);
+  const own = som.find((s) => s.brand === OWN_BRAND);
+  const domains = citationShare(snapshots);
+  const keywords = keywordStats(snapshots, OWN_BRAND).filter((k) => k.competitor > 0).slice(0, 8);
+  const gap = keywordGap(snapshots, ownProducts, OWN_BRAND);
+  const media = targetMedia(snapshots, OWN_BRAND);
 
   return (
     <ReportTemplate
-      state={total === 0 ? "empty" : undefined}
+      state={snapshots.length === 0 ? "empty" : undefined}
       cards={[
         {
-          title: `${OWN_BRAND} 언급률`,
+          title: `${OWN_BRAND} Share of Model`,
           content: (
             <div className="space-y-3 text-sm">
               <p>
-                <span className="text-3xl font-semibold">{total === 0 ? 0 : Math.round((ownCount / total) * 100)}%</span>
-                <span className="ml-2 text-muted-foreground">
-                  답변 {total}건 중 {ownCount}건
-                </span>
+                <span className="text-3xl font-semibold">{own?.share ?? 0}%</span>
+                <span className="ml-2 text-muted-foreground">언급됐을 때 평균 {own?.avgRank ?? "—"}번째</span>
               </p>
               <ul className="space-y-1">
-                {engines.map((e) => {
-                  const rows = snapshots.filter((g) => g.engine === e);
-                  return (
-                    <li key={e} className="flex justify-between">
-                      <span>{e}</span>
-                      <span className="text-muted-foreground">
-                        질의 {rows.length}개 중 <span className="font-medium text-foreground">{rows.filter((g) => mention(g) === "own").length}</span>개
-                      </span>
-                    </li>
-                  );
-                })}
+                {engineShare(snapshots, OWN_BRAND).map((e) => (
+                  <li key={e.engine} className="flex justify-between">
+                    <span>{GEO_ENGINE_LABEL[e.engine]}</span>
+                    <span className="text-muted-foreground">
+                      질의 {e.cells}개 평균 <span className="font-medium text-foreground">{e.share}%</span>
+                    </span>
+                  </li>
+                ))}
               </ul>
-              <p className="text-xs text-muted-foreground">질의 {queries.length}개 × 엔진 {engines.length}개 · 측정 {selected?.captured_at.slice(0, 10) ?? "—"} (샘플)</p>
+              <p className="text-xs text-muted-foreground">
+                Share of Model = 엔진×질의 칸마다 자사가 나온 비율의 평균 · 질의 {queries.length}개 × 엔진 {engines.length}개 · 칸당 최대 {maxRuns}회 반복 · 측정{" "}
+                {snapshots[0]?.captured_at.slice(0, 10) ?? "—"} (샘플)
+              </p>
             </div>
           ),
         },
         {
-          title: "브랜드별 언급 점유",
+          title: "브랜드별 Share of Model",
           content: (
             <>
               <HorizontalBarChart
-                items={shares.map(([b, n]) => ({ id: b, label: b === OWN_BRAND ? `★ ${b}` : b, value: n, highlight: b === OWN_BRAND }))}
-                unit="건"
-                labelWidth={100}
+                items={som.map((s) => ({
+                  id: s.brand,
+                  label: `${s.brand === OWN_BRAND ? "★ " : ""}${s.brand}${s.viaLlm ? " ＋" : ""} · 평균 ${s.avgRank ?? "—"}위`,
+                  value: s.share,
+                  highlight: s.brand === OWN_BRAND,
+                }))}
+                unit="%"
+                labelWidth={170}
               />
-              <p className="mt-2 text-xs text-muted-foreground">답변 {total}건 중 해당 브랜드가 나온 답변 수 · ★ 진한 막대 = 자사</p>
+              <p className="mt-2 text-xs text-muted-foreground">★ 진한 막대 = 자사 · ＋ = 사전에 없어 LLM이 찾은 브랜드 (원문 대조 통과)</p>
             </>
+          ),
+        },
+        {
+          title: "AI가 인용한 출처 도메인",
+          content: (
+            <>
+              <HorizontalBarChart items={domains.map((d) => ({ id: d.domain, label: d.label, value: d.answers }))} unit="건" labelWidth={200} />
+              <p className="mt-2 text-xs text-muted-foreground">그 도메인을 출처로 단 답변 수 · 출처는 엔진 API의 인용 칸에서만 가져와요</p>
+            </>
+          ),
+        },
+        {
+          title: "결정 키워드 · 경쟁사 추천 문장",
+          content: (
+            <>
+              <HorizontalBarChart
+                items={keywords.map((k) => ({ id: k.keyword, label: `${k.keyword}${k.viaLlm ? " ＋" : ""}`, value: k.competitor }))}
+                unit="문장"
+                labelWidth={200}
+              />
+              <p className="mt-2 text-xs text-muted-foreground">경쟁 브랜드와 같은 문장에 나온 횟수 · ＋ = 사전에 없어 LLM이 찾은 말 (원문 대조 통과)</p>
+            </>
+          ),
+        },
+        {
+          title: `${OWN_BRAND} Gap 액션 플랜`,
+          wide: true,
+          content: (
+            <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+              <div>
+                <p className="mb-2 text-sm font-medium">보강할 키워드 (경쟁사 추천 사유 Top {gap.length})</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>키워드</TableHead>
+                      <TableHead className="text-right">경쟁 추천</TableHead>
+                      <TableHead>자사 제품 정보</TableHead>
+                      <TableHead>상태</TableHead>
+                      <TableHead>할 일</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {gap.map((k) => (
+                      <TableRow key={k.keyword}>
+                        <TableCell>
+                          <span lang="ja">{k.keyword}</span>
+                          {k.ko && k.ko !== k.keyword && <span className="block text-xs text-muted-foreground">{k.ko}</span>}
+                        </TableCell>
+                        <TableCell className="text-right">{k.competitor}문장</TableCell>
+                        <TableCell>{k.inProduct ? "있음" : <span className="text-muted-foreground">없음</span>}</TableCell>
+                        <TableCell>
+                          <Badge variant={GAP_LABEL[k.status].variant}>{GAP_LABEL[k.status].badge}</Badge>
+                        </TableCell>
+                        <TableCell className="whitespace-normal text-xs">{GAP_LABEL[k.status].action(k.keyword)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  자사 제품 정보 = 등록된 자사 제품의 이름·특징·全成分 · 「〜テスト済み」 같은 표기는 실제 시험 근거가 있을 때만 쓰고, 광고 검토(약기법)를 거쳐 주세요
+                </p>
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-medium">타겟 매체 (경쟁사만 나온 답변이 인용한 곳)</p>
+                {media.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">없어요</p>
+                ) : (
+                  <ul className="space-y-2 text-sm">
+                    {media.map((m) => (
+                      <li key={m.domain} className="rounded-md border p-2">
+                        <p className="flex items-center justify-between gap-2">
+                          <span className="font-medium">{m.label}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">경쟁만 {m.gapAnswers}건 · 자사 {m.ownAnswers}건</span>
+                        </p>
+                        <p className="mt-1 text-xs">→ {m.action}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
           ),
         },
         {
@@ -100,14 +216,14 @@ export function GeoReport({ snapshots }: { snapshots: GeoSnapshot[] }) {
           wide: true,
           content: (
             <>
-              <p className="mb-2 text-xs text-muted-foreground">칸을 누르면 아래에 답변 원문이 열려요</p>
+              <p className="mb-2 text-xs text-muted-foreground">칸을 누르면 아래에 답변 원문이 열려요 · 여러 번 돌린 칸은 자사가 나온 횟수/반복 수</p>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>질의 (일본어)</TableHead>
                     {engines.map((e) => (
                       <TableHead key={e} className="text-center">
-                        {e}
+                        {GEO_ENGINE_LABEL[e]}
                       </TableHead>
                     ))}
                   </TableRow>
@@ -117,19 +233,14 @@ export function GeoReport({ snapshots }: { snapshots: GeoSnapshot[] }) {
                     <TableRow key={q}>
                       <TableCell lang="ja">{q}</TableCell>
                       {engines.map((e) => {
-                        const g = snapshots.find((x) => x.query === q && x.engine === e);
-                        if (!g) return <TableCell key={e} className="text-center text-muted-foreground">미측정</TableCell>;
-                        const m = mention(g);
+                        const cell = cells.find((c) => c.query === q && c.engine === e);
+                        if (!cell) return <TableCell key={e} className="text-center text-muted-foreground">미측정</TableCell>;
+                        const { label, variant } = cellLabel(cell);
+                        const active = cell === selectedCell;
                         return (
                           <TableCell key={e} className="text-center">
-                            <Button
-                              size="sm"
-                              variant={m === "own" ? "default" : m === "competitor" ? "secondary" : "outline"}
-                              aria-pressed={g.id === selectedId}
-                              className={g.id === selectedId ? "ring-2 ring-ring" : undefined}
-                              onClick={() => setSelectedId(g.id)}
-                            >
-                              {MENTION_LABEL[m]}
+                            <Button size="sm" variant={variant} aria-pressed={active} className={active ? "ring-2 ring-ring" : undefined} onClick={() => setSelectedId(cell.runs[0].id)}>
+                              {label}
                             </Button>
                           </TableCell>
                         );
@@ -147,17 +258,79 @@ export function GeoReport({ snapshots }: { snapshots: GeoSnapshot[] }) {
           content: selected ? (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant="outline">{selected.engine}</Badge>
+                <Badge variant="outline">{GEO_ENGINE_LABEL[selected.engine]}</Badge>
                 <span lang="ja" className="font-medium">
                   {selected.query}
                 </span>
-                <span className="text-xs text-muted-foreground">측정 {selected.captured_at.slice(0, 16).replace("T", " ")} JST</span>
+                <span className="text-xs text-muted-foreground">
+                  {selected.model} · 측정 {selected.captured_at.slice(0, 16).replace("T", " ")} JST
+                </span>
+                {selectedCell && selectedCell.runs.length > 1 && (
+                  <span role="group" aria-label="반복 회차" className="flex gap-1">
+                    {selectedCell.runs.map((r) => (
+                      <Button key={r.id} size="xs" variant={r.id === selected.id ? "default" : "outline"} aria-pressed={r.id === selected.id} onClick={() => setSelectedId(r.id)}>
+                        {r.run_index}회
+                      </Button>
+                    ))}
+                  </span>
+                )}
               </div>
               <p lang="ja" className="rounded-md border p-4 leading-relaxed">
-                <Highlighted text={selected.answer} brands={selected.brands_mentioned} />
+                <Highlighted
+                  text={selected.answer}
+                  marks={[
+                    ...selected.brand_mentions.map((m) => ({ text: m.matched_text, kind: m.brand === OWN_BRAND ? ("own" as const) : ("competitor" as const) })),
+                    ...selected.keywords.map((k) => ({ text: k.matched_text, kind: "keyword" as const })),
+                  ]}
+                />
               </p>
+              <div className="grid gap-4 text-sm sm:grid-cols-3">
+                <div>
+                  <p className="mb-1 font-medium">언급 순서</p>
+                  {selected.brand_mentions.length === 0 ? (
+                    <p className="text-muted-foreground">없음</p>
+                  ) : (
+                    <ol className="space-y-1">
+                      {selected.brand_mentions.map((m) => (
+                        <li key={m.brand}>
+                          {m.rank}. {m.brand} {m.source === "llm" && <Badge variant="outline">LLM</Badge>}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+                <div>
+                  <p className="mb-1 font-medium">결정 키워드</p>
+                  <div className="flex flex-wrap gap-1">
+                    {selected.keywords.length === 0 && <span className="text-muted-foreground">없음</span>}
+                    {selected.keywords.map((k) => (
+                      <Badge key={k.keyword} variant={k.source === "llm" ? "outline" : "secondary"}>
+                        <span lang="ja">{k.keyword}</span>
+                        {k.source === "llm" && " · LLM"}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 font-medium">인용 출처</p>
+                  {selected.citations.length === 0 ? (
+                    <p className="text-muted-foreground">없음</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {selected.citations.map((c) => (
+                        <li key={c.url}>
+                          <a href={c.url} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
+                            {c.title ?? c.domain}
+                          </a>{" "}
+                          <span className="text-xs text-muted-foreground">{c.domain}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground">
-                언급 브랜드: {selected.brands_mentioned.length > 0 ? selected.brands_mentioned.join(", ") : "없음"} · 샘플 답변이며 실제 AI 엔진 응답이 아니에요. GEO 해석은 팀 확인이 필요해요 (CLAUDE.md 11장)
+                배경 = 브랜드 (진한 색 = 자사) · 밑줄 = 결정 키워드 · 샘플 답변이며 실제 AI 엔진 응답이 아니에요 (인용 URL도 가짜 주소). GEO 해석은 팀 확인이 필요해요 (CLAUDE.md 11장)
               </p>
             </div>
           ) : (
