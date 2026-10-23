@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   // 서버 함수가 fs로 읽는 파일 (프롬프트 원문, 더미 이미지)을 배포 번들에 넣는다
   outputFileTracingIncludes: {
     "/api/trends/appeal": ["./prompts/**/*", "./public/mock/appeal/**/*"],
+    "/api/geo/run": ["./prompts/**/*"],
   },
 };
 

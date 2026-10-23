@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportTemplate } from "@/components/templates";
-import { GEO_ENGINE_LABEL, type GeoSnapshot } from "@/lib/schemas/geo";
+import { GEO_CATEGORIES } from "@/lib/external/geo-terms";
+import { GEO_ENGINE_LABEL, GeoRunResult, type GeoEngine, type GeoSnap } from "@/lib/schemas/geo";
 import type { Product } from "@/lib/schemas/product";
 import { OWN_BRAND } from "@/app/(internal)/(dashboard)/market/_lib/market";
 import {
@@ -15,12 +16,27 @@ import {
   geoCells,
   keywordGap,
   keywordStats,
+  repeatStability,
   shareOfModel,
   targetMedia,
   type GapStatus,
   type GeoCell,
 } from "@/app/(internal)/(dashboard)/market/_lib/geo";
 import { HorizontalBarChart } from "@/app/(internal)/(dashboard)/market/_components/charts";
+import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/toggle-group";
+
+/** 화면에서 다루는 행: DB 행이면 id가 있고, 방금 실행한 결과는 id를 만들어 붙인다 */
+type GeoRow = GeoSnap & { id: string };
+type RunState = { status: "idle" } | { status: "running" } | { status: "done"; result: GeoRunResult } | { status: "error"; message: string };
+
+const CATEGORY_OPTIONS = GEO_CATEGORIES.map((c) => c.category);
+/** 지금 실행할 수 있는 엔진 (Gemini·Perplexity는 키 준비 후) */
+const RUNNABLE: { engine: GeoEngine; ready: boolean }[] = [
+  { engine: "chatgpt", ready: true },
+  { engine: "claude", ready: true },
+  { engine: "gemini", ready: false },
+  { engine: "perplexity", ready: false },
+];
 
 type Mark = { text: string; kind: "own" | "competitor" | "keyword" };
 
@@ -52,7 +68,7 @@ function Highlighted({ text, marks }: { text: string; marks: Mark[] }) {
 }
 
 // 색만으로 구분하지 않고 기호·글자를 같이 쓴다
-function cellLabel(cell: GeoCell): { label: string; variant: "default" | "secondary" | "outline" } {
+function cellLabel(cell: GeoCell<GeoRow>): { label: string; variant: "default" | "secondary" | "outline" } {
   const own = cellMentionRate(cell, OWN_BRAND);
   const runs = cell.runs.length;
   if (own > 0) return { label: `● 자사${runs > 1 ? ` ${Math.round(own * runs)}/${runs}` : " 언급"}`, variant: "default" };
@@ -67,13 +83,18 @@ const GAP_LABEL: Record<GapStatus, { badge: string; variant: "default" | "second
   linked: { badge: "연결됨", variant: "outline", action: () => "유지 (AI가 이미 자사와 함께 언급)" },
 };
 
-export function GeoReport({ snapshots, ownProducts }: { snapshots: GeoSnapshot[]; ownProducts: Product[] }) {
+export function GeoReport({ initial, ownProducts }: { initial: GeoRow[]; ownProducts: Product[] }) {
+  const [all, setAll] = useState(initial);
+  const [category, setCategory] = useState<string>(CATEGORY_OPTIONS[0]);
+  const [precise, setPrecise] = useState(false);
+  const [runs, setRuns] = useState<Partial<Record<GeoEngine, RunState>>>({});
+  const snapshots = all.filter((g) => g.category === category);
   const cells = geoCells(snapshots);
   const queries = [...new Set(snapshots.map((g) => g.query))];
   const engines = [...new Set(snapshots.map((g) => g.engine))];
   const maxRuns = Math.max(0, ...cells.map((c) => c.runs.length));
-  const [selectedId, setSelectedId] = useState(snapshots[0]?.id ?? "");
-  const selected = snapshots.find((g) => g.id === selectedId) ?? null;
+  const [selectedId, setSelectedId] = useState("");
+  const selected = snapshots.find((g) => g.id === selectedId) ?? snapshots[0] ?? null;
   const selectedCell = selected ? cells.find((c) => c.engine === selected.engine && c.query === selected.query) : undefined;
 
   const som = shareOfModel(snapshots);
@@ -82,10 +103,65 @@ export function GeoReport({ snapshots, ownProducts }: { snapshots: GeoSnapshot[]
   const keywords = keywordStats(snapshots, OWN_BRAND).filter((k) => k.competitor > 0).slice(0, 8);
   const gap = keywordGap(snapshots, ownProducts, OWN_BRAND);
   const media = targetMedia(snapshots, OWN_BRAND);
+  const stability = repeatStability(snapshots, OWN_BRAND);
+
+  async function run(engine: GeoEngine) {
+    setRuns((r) => ({ ...r, [engine]: { status: "running" } }));
+    try {
+      const res = await fetch("/api/geo/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, engine, precise }),
+      });
+      const body: unknown = await res.json();
+      if (!res.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string" ? body.error : `오류 (${res.status})`;
+        setRuns((r) => ({ ...r, [engine]: { status: "error", message } }));
+        return;
+      }
+      const result = GeoRunResult.parse(body);
+      // 같은 엔진·카테고리의 이전 결과는 화면에서 새 결과로 바꾼다 (DB에는 측정 시각별로 쌓인다)
+      const fresh = result.snapshots.map((s) => ({ ...s, id: `run-${s.engine}-${s.captured_at}-${s.query}-${s.run_index}` }));
+      setAll((prev) => [...prev.filter((g) => !(g.engine === engine && g.category === category)), ...fresh]);
+      setRuns((r) => ({ ...r, [engine]: { status: "done", result } }));
+    } catch (e) {
+      setRuns((r) => ({ ...r, [engine]: { status: "error", message: e instanceof Error ? e.message : "요청 실패" } }));
+    }
+  }
 
   return (
     <ReportTemplate
       state={snapshots.length === 0 ? "empty" : undefined}
+      filters={
+        <div className="flex flex-wrap items-start gap-4">
+          <ToggleGroup label="카테고리" options={CATEGORY_OPTIONS} value={category} onChange={setCategory} />
+          <div className="space-y-1 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              {RUNNABLE.map(({ engine, ready }) => (
+                <Button key={engine} size="sm" variant="outline" disabled={!ready || runs[engine]?.status === "running"} onClick={() => run(engine)}>
+                  {!ready ? `${GEO_ENGINE_LABEL[engine]} (키 준비 후)` : runs[engine]?.status === "running" ? `${GEO_ENGINE_LABEL[engine]} 질의 중…` : `${GEO_ENGINE_LABEL[engine]}에 질의`}
+                </Button>
+              ))}
+              <label className="flex items-center gap-1">
+                <input type="checkbox" checked={precise} onChange={(e) => setPrecise(e.target.checked)} />
+                정밀 모드 (질의마다 3회)
+              </label>
+            </div>
+            {RUNNABLE.map(({ engine }) => {
+              const st = runs[engine];
+              if (!st || st.status === "idle" || st.status === "running") return null;
+              return (
+                <p key={engine} className={st.status === "error" ? "text-risk-high" : "text-muted-foreground"}>
+                  {GEO_ENGINE_LABEL[engine]}:{" "}
+                  {st.status === "error"
+                    ? st.message
+                    : `답변 ${st.result.snapshots.length}건 (${st.result.repeatCount}회 반복) · ${st.result.saved ? "저장됨" : `저장 안 됨: ${st.result.saveError}`}${st.result.failures.length ? ` · 실패 ${st.result.failures.length}건` : ""}`}
+                </p>
+              );
+            })}
+          </div>
+        </div>
+      }
       cards={[
         {
           title: `${OWN_BRAND} Share of Model`,
@@ -105,6 +181,11 @@ export function GeoReport({ snapshots, ownProducts }: { snapshots: GeoSnapshot[]
                   </li>
                 ))}
               </ul>
+              {stability.cells > 0 && (
+                <p className="text-xs">
+                  반복 안정성: 여러 번 돌린 칸 {stability.cells}개 중 자사 언급이 매번 같았던 칸 {stability.sameOwn}개 · 상위 3개 브랜드가 매번 같았던 칸 {stability.sameTop3}개
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 Share of Model = 엔진×질의 칸마다 자사가 나온 비율의 평균 · 질의 {queries.length}개 × 엔진 {engines.length}개 · 칸당 최대 {maxRuns}회 반복 · 측정{" "}
                 {snapshots[0]?.captured_at.slice(0, 10) ?? "—"} (샘플)
@@ -119,14 +200,14 @@ export function GeoReport({ snapshots, ownProducts }: { snapshots: GeoSnapshot[]
               <HorizontalBarChart
                 items={som.map((s) => ({
                   id: s.brand,
-                  label: `${s.brand === OWN_BRAND ? "★ " : ""}${s.brand}${s.viaLlm ? " ＋" : ""} · 평균 ${s.avgRank ?? "—"}위`,
+                  label: `${s.brand === OWN_BRAND ? "★ " : ""}${s.brand}${s.viaLlm ? " ＋" : ""} · ${s.minRank !== null && s.minRank !== s.maxRank ? `${s.minRank}~${s.maxRank}위` : `${s.avgRank ?? "—"}위`}`,
                   value: s.share,
                   highlight: s.brand === OWN_BRAND,
                 }))}
                 unit="%"
                 labelWidth={170}
               />
-              <p className="mt-2 text-xs text-muted-foreground">★ 진한 막대 = 자사 · ＋ = 사전에 없어 LLM이 찾은 브랜드 (원문 대조 통과)</p>
+              <p className="mt-2 text-xs text-muted-foreground">★ 진한 막대 = 자사 · ＋ = 사전에 없어 LLM이 찾은 브랜드 (원문 대조 통과) · 「1~3위」 = 답변마다 순위가 흔들린 범위</p>
             </>
           ),
         },
@@ -330,7 +411,7 @@ export function GeoReport({ snapshots, ownProducts }: { snapshots: GeoSnapshot[]
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                배경 = 브랜드 (진한 색 = 자사) · 밑줄 = 결정 키워드 · 샘플 답변이며 실제 AI 엔진 응답이 아니에요 (인용 URL도 가짜 주소). GEO 해석은 팀 확인이 필요해요 (CLAUDE.md 11장)
+                배경 = 브랜드 (진한 색 = 자사) · 밑줄 = 결정 키워드 · {selected.id.startsWith("run-") ? "방금 API로 받은 실제 답변이에요" : "샘플 답변이며 실제 AI 엔진 응답이 아니에요 (인용 URL도 가짜 주소)"}. GEO 해석은 팀 확인이 필요해요 (CLAUDE.md 11장)
               </p>
             </div>
           ) : (

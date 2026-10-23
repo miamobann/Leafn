@@ -8,8 +8,10 @@ import { products } from "./products";
 // brand_mentions·keywords는 실제 분석과 같은 사전 함수로 답변에서 뽑는다. llm = 사전에 없어 LLM이 뽑았다고 가정한 말 (원문 대조 통과)
 // 인용 URL은 형식만 흉내 낸 가짜 주소 (sample-…)
 
-const MODEL: Record<GeoEngine, string> = { chatgpt: "gpt-4o-search-preview", gemini: "gemini-2.5-flash", perplexity: "sonar" };
-const ENGINE_TIMES: Record<GeoEngine, string> = { chatgpt: "09:00", gemini: "09:04", perplexity: "09:07" };
+const MODEL: Record<GeoEngine, string> = { chatgpt: "gpt-4o", claude: "claude-sonnet-5-5", gemini: "gemini-2.5-flash", perplexity: "sonar" };
+const ENGINE_TIMES: Record<GeoEngine, string> = { chatgpt: "09:00", claude: "09:02", gemini: "09:04", perplexity: "09:07" };
+/** 질의 → 카테고리 (美容液 질의 1개, 나머지는 化粧水) */
+const CATEGORY_OF = (query: string) => (query === Q_PORES ? "美容液" : "化粧水");
 
 type Row = {
   engine: GeoEngine;
@@ -197,6 +199,7 @@ export const geoSnapshots = parseAll(
       engine: r.engine,
       model: MODEL[r.engine],
       prompt_version: hasLlm ? "geo-extract.v1" : null,
+      category: CATEGORY_OF(r.query),
       query: r.query,
       query_concern: r.concern,
       run_index: r.run ?? 1,
@@ -204,7 +207,7 @@ export const geoSnapshots = parseAll(
       brands_mentioned: brand_mentions.map((m) => m.brand),
       brand_mentions,
       citations: r.citations.map(([url, title]) => ({ url, domain: domainOf(url), title })),
-      keywords: [...detectKeywords(r.answer), ...(r.llmKeywords ?? []).map((k) => ({ keyword: k, matched_text: k, source: "llm" as const }))],
+      keywords: [...detectKeywords(r.answer, CATEGORY_OF(r.query)), ...(r.llmKeywords ?? []).map((k) => ({ keyword: k, matched_text: k, source: "llm" as const }))],
       captured_at: ts("2026-10-20", ENGINE_TIMES[r.engine]),
     };
   }),

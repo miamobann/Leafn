@@ -1,16 +1,16 @@
 // GEO 화면의 계산 (AI 없음). 같은 질의를 여러 번 돌린 경우(run_index) 엔진×질의 칸마다 먼저 평균을 내고, 칸들을 다시 평균한다
 import type { Product } from "@/lib/schemas/product";
-import type { GeoSnapshot } from "@/lib/schemas/geo";
+import type { GeoSnap } from "@/lib/schemas/geo";
 import { fold } from "@/lib/ai/appeal-normalize";
 import { attributeKeyword, domainType, isIngredientKeyword, KEYWORD_DICTIONARY, sentenceHas, splitSentences } from "@/lib/external/geo-terms";
 
-export type GeoCell = { engine: GeoSnapshot["engine"]; query: string; runs: GeoSnapshot[] };
+export type GeoCell<T extends GeoSnap = GeoSnap> = { engine: GeoSnap["engine"]; query: string; runs: T[] };
 
-export function geoCells(snaps: GeoSnapshot[]): GeoCell[] {
-  const map = new Map<string, GeoCell>();
+export function geoCells<T extends GeoSnap>(snaps: T[]): GeoCell<T>[] {
+  const map = new Map<string, GeoCell<T>>();
   for (const s of snaps) {
     const key = `${s.engine}|${s.query}`;
-    const cell = map.get(key) ?? { engine: s.engine, query: s.query, runs: [] };
+    const cell: GeoCell<T> = map.get(key) ?? { engine: s.engine, query: s.query, runs: [] };
     cell.runs.push(s);
     map.set(key, cell);
   }
@@ -26,7 +26,7 @@ const pct = (n: number) => Math.round(n * 100);
 const avg = (xs: number[]) => (xs.length === 0 ? null : Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10);
 
 /** Share of Model: 칸별 언급률의 평균(%) + 언급됐을 때의 평균 순위 */
-export function shareOfModel(snaps: GeoSnapshot[]) {
+export function shareOfModel(snaps: GeoSnap[]) {
   const cells = geoCells(snaps);
   const brands = [...new Set(snaps.flatMap((s) => s.brands_mentioned))];
   return brands
@@ -37,6 +37,8 @@ export function shareOfModel(snaps: GeoSnapshot[]) {
         brand,
         share: cells.length === 0 ? 0 : pct(cells.reduce((sum, c) => sum + cellMentionRate(c, brand), 0) / cells.length),
         avgRank: avg(ranks),
+        minRank: ranks.length ? Math.min(...ranks) : null,
+        maxRank: ranks.length ? Math.max(...ranks) : null,
         viaLlm,
       };
     })
@@ -44,7 +46,7 @@ export function shareOfModel(snaps: GeoSnapshot[]) {
 }
 
 /** 엔진별 자사 Share of Model (%) */
-export function engineShare(snaps: GeoSnapshot[], brand: string) {
+export function engineShare(snaps: GeoSnap[], brand: string) {
   const cells = geoCells(snaps);
   const engines = [...new Set(cells.map((c) => c.engine))];
   return engines.map((engine) => {
@@ -54,7 +56,7 @@ export function engineShare(snaps: GeoSnapshot[], brand: string) {
 }
 
 /** 인용 도메인 점유: 그 도메인을 인용한 답변 수와 전체 인용 중 비율 */
-export function citationShare(snaps: GeoSnapshot[]) {
+export function citationShare(snaps: GeoSnap[]) {
   const total = snaps.reduce((s, r) => s + new Set(r.citations.map((c) => c.domain)).size, 0);
   const counts = new Map<string, number>();
   for (const r of snaps) for (const d of new Set(r.citations.map((c) => c.domain))) counts.set(d, (counts.get(d) ?? 0) + 1);
@@ -71,7 +73,7 @@ function keywordAliases(keyword: string, matched: string[]): string[] {
  * 결정 키워드: 경쟁 브랜드 / 자사의 추천 사유로 몇 번 나왔는지.
  * 같은 문장에서 키워드 바로 앞(없으면 바로 뒤)에 나온 브랜드의 사유로 센다 (attributeKeyword)
  */
-export function keywordStats(snaps: GeoSnapshot[], ownBrand: string) {
+export function keywordStats(snaps: GeoSnap[], ownBrand: string) {
   const byKeyword = new Map<string, { matched: Set<string>; viaLlm: boolean }>();
   for (const s of snaps)
     for (const k of s.keywords) {
@@ -105,7 +107,7 @@ export function keywordStats(snaps: GeoSnapshot[], ownBrand: string) {
 export type GapStatus = "missing" | "ingredient" | "weak" | "linked";
 
 /** 자사 Gap: 경쟁 추천 문장의 결정 키워드 Top N을 자사 제품 정보·자사 언급 문장과 대조 */
-export function keywordGap(snaps: GeoSnapshot[], ownProducts: Product[], ownBrand: string, top = 5) {
+export function keywordGap(snaps: GeoSnap[], ownProducts: Product[], ownBrand: string, top = 5) {
   const ownText = fold(ownProducts.flatMap((p) => [p.name, ...p.features, ...p.ingredients]).join(" "));
   return keywordStats(snaps, ownBrand)
     .filter((k) => k.competitor > 0)
@@ -118,7 +120,7 @@ export function keywordGap(snaps: GeoSnapshot[], ownProducts: Product[], ownBran
 }
 
 /** 타겟 매체: 경쟁사는 나오고 자사는 안 나온 답변이 인용한 도메인 */
-export function targetMedia(snaps: GeoSnapshot[], ownBrand: string, top = 5) {
+export function targetMedia(snaps: GeoSnap[], ownBrand: string, top = 5) {
   const counts = new Map<string, { gap: number; own: number }>();
   for (const s of snaps) {
     const hasOwn = s.brands_mentioned.includes(ownBrand);
@@ -135,4 +137,15 @@ export function targetMedia(snaps: GeoSnapshot[], ownBrand: string, top = 5) {
     .map(([domain, e]) => ({ domain, ...domainType(domain), gapAnswers: e.gap, ownAnswers: e.own }))
     .toSorted((a, b) => b.gapAnswers - a.gapAnswers)
     .slice(0, top);
+}
+
+/**
+ * 반복 안정성: 2회 이상 돌린 칸에서 자사 언급 여부가 매번 같았는지, 상위 3개 브랜드 구성이 매번 같았는지.
+ * 값이 낮으면 답변이 흔들리는 질의라 정밀 모드(3회) 평균을 봐야 한다
+ */
+export function repeatStability(snaps: GeoSnap[], ownBrand: string) {
+  const multi = geoCells(snaps).filter((c) => c.runs.length > 1);
+  const sameOwn = multi.filter((c) => new Set(c.runs.map((r) => r.brands_mentioned.includes(ownBrand))).size === 1).length;
+  const sameTop3 = multi.filter((c) => new Set(c.runs.map((r) => r.brands_mentioned.slice(0, 3).toSorted().join("|"))).size === 1).length;
+  return { cells: multi.length, sameOwn, sameTop3 };
 }

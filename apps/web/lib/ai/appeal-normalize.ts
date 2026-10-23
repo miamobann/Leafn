@@ -25,9 +25,9 @@ export const INGREDIENT_ALIASES: Record<string, string[]> = {
 /** 마케팅 소구가 아닌 기제·보존제 */
 const BASE_INGREDIENTS = ["水", "精製水", "BG", "DPG", "グリセリン", "フェノキシエタノール", "ペンチレングリコール", "エタノール"];
 
-/** 전각·반각, 공백 차이로 대조가 틀리지 않게 맞춘다 */
+/** 전각·반각, 공백, 굽은 따옴표(’) 차이로 대조가 틀리지 않게 맞춘다 */
 export function fold(s: string): string {
-  return s.normalize("NFKC").toUpperCase().replace(/\s+/g, "");
+  return s.normalize("NFKC").replace(/[‘’`´]/g, "'").toUpperCase().replace(/\s+/g, "");
 }
 
 /** 사전에 있는 성분이면 통일 이름, 없으면 null (검색 자동완성 분류에도 쓴다) */
