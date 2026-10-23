@@ -1,4 +1,4 @@
-// Leaf & 제품 4종 (가상 데이터). 출처: 팀이 만든 leaf_and_japan_marketing_test_data.csv
+// Leaf& Dew 제품 4종. 제품명·제품 구분(一般化粧品)은 2026-10-23 확정, 전성분·용량은 가상 데이터. 출처: 팀이 만든 leaf_and_japan_marketing_test_data.csv
 // 공용 products(TAB 2 담당)를 건드리지 않으려고 탭 안에 둔다.
 // products 테이블이 생기면 TAB 2 담당자와 합의해 lib/mock/products.ts(또는 DB)로 옮긴다.
 import { z } from "zod";
@@ -28,11 +28,11 @@ export type LabProduct = z.infer<typeof LabProduct>;
 export const LAB_PRODUCTS: unknown[] = [
   {
     id: "leaf-dry-skin",
-    name_ko: "Leaf & 모이스트 밸런스 스킨",
-    name_ja: "リーフアンド モイストバランスローション",
+    name_ko: "Leaf& Dew Deep Skin",
+    name_ja: "Leaf& Dew Deep Skin",
     line: "건성 스킨",
     launch_status: "live",
-    product_category: null,
+    product_category: "general_cosmetic",
     volume: "가상 150 ml",
     container: "플라스틱 통형",
     ingredients: [
@@ -54,11 +54,11 @@ export const LAB_PRODUCTS: unknown[] = [
   },
   {
     id: "leaf-dry-essence",
-    name_ko: "Leaf & 모이스트 리페어 에센스",
-    name_ja: "リーフアンド モイストリペアエッセンス",
+    name_ko: "Leaf& Dew Core Essence",
+    name_ja: "Leaf& Dew Core Essence",
     line: "건성 에센스",
     launch_status: "live",
-    product_category: null,
+    product_category: "general_cosmetic",
     volume: "가상 30 ml",
     container: "유리 펌프형",
     ingredients: [
@@ -82,11 +82,11 @@ export const LAB_PRODUCTS: unknown[] = [
   },
   {
     id: "leaf-oily-skin",
-    name_ko: "Leaf & 프레시 밸런스 스킨",
-    name_ja: "リーフアンド フレッシュバランスローション",
+    name_ko: "Leaf& Dew Tea-Pure Skin",
+    name_ja: "Leaf& Dew Tea-Pure Skin",
     line: "지성 스킨",
     launch_status: "developing",
-    product_category: null,
+    product_category: "general_cosmetic",
     volume: "가상 150 ml (예정)",
     container: "미정",
     ingredients: [
@@ -97,11 +97,11 @@ export const LAB_PRODUCTS: unknown[] = [
   },
   {
     id: "leaf-combo-skin",
-    name_ko: "Leaf & 하이드로 밸런스 스킨",
-    name_ja: "リーフアンド ハイドロバランスローション",
+    name_ko: "Leaf& Dew Mild Skin",
+    name_ja: "Leaf& Dew Mild Skin",
     line: "복합성 스킨",
     launch_status: "developing",
-    product_category: null,
+    product_category: "general_cosmetic",
     volume: "가상 150 ml (예정)",
     container: "미정",
     ingredients: [
