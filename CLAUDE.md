@@ -34,11 +34,11 @@
 - DB 변경은 반드시 `supabase/migrations/`에 새 SQL 파일로 만든다. 기존 마이그레이션을 고치지 않는다.
 - DB·`lib/schemas`·`lib/mock`·`lib/data`·`collectors/`를 건드리는 작업은 시작 전에 `docs/DB_RULES.md`를 읽고, 그 문서의 PR 체크리스트를 PR 본문에 붙인다.
 - 새 테이블에는 `workspace_id`와 RLS 정책을 함께 만든다 (예외: 5장에 적힌 것만. 지금은 없음).
-- AI 호출은 `lib/ai/`에서만, 프롬프트 원문은 `prompts/`에만 둔다. 컴포넌트나 Route Handler에 프롬프트 문자열을 직접 쓰지 않는다.
+- AI 호출은 `lib/ai/`에서만, 프롬프트 원문은 `prompts/`에만 둔다. 컴포넌트나 Route Handler에 프롬프트 문자열을 직접 쓰지 않는다. 제공사(OpenAI·Anthropic)는 2장 규칙대로 `lib/ai/` 안에서만 고른다.
 - AI 응답과 API 입력은 `lib/schemas/`의 Zod 스키마로 검증한다.
 
 **보안**
-- `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`는 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`는 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
 - 키, `.env` 파일, 실제 리뷰 원문 대량 데이터를 커밋하지 않는다.
 
 **Git** (자세한 약속은 `docs/CODING_RULES.md` 1~3장)
@@ -105,7 +105,7 @@
 | UI | Tailwind CSS + shadcn/ui | 화면 부품 |
 | 차트 | Recharts | 감성 비율, 키워드 빈도, 트렌드 추이 |
 | CSV | Papa Parse | 리뷰 CSV 업로드 파싱 (E) |
-| AI SDK | Anthropic SDK (`@anthropic-ai/sdk`) | Claude 호출 |
+| AI SDK | OpenAI SDK (`openai`, 기본) · Anthropic SDK (`@anthropic-ai/sdk`, 선택) | AI 호출. 둘 중 하나를 `AI_PROVIDER`로 고른다 |
 | 검증 | Zod | AI 응답과 API 입력 검증 |
 | DB/인증/파일 | Supabase (PostgreSQL, Auth, Storage, RLS) | 모든 데이터, 로그인, CSV/이미지 보관 |
 | 수집 | Playwright (Py), requests + BeautifulSoup, pandas | 쇼핑몰 리뷰·랭킹 수집과 정리 |
@@ -115,13 +115,18 @@
 
 ### AI 모델 사용 규칙
 
-| 작업 | 모델 | 이유 |
-| --- | --- | --- |
-| 약기법 위험 판단, 대체 표현, 페인포인트 요약 | Claude Sonnet 계열 (`claude-sonnet-5-5`) | 긴 규제 문서 이해, 미묘한 일본어 판단 |
-| 리뷰 감성 분류, 키워드, 상품 이미지에서 성분·용량 추출, (참조) 번역 | Claude Haiku 계열 (`claude-haiku-5-5`) | 대량 반복 작업, 속도·비용 |
+**제공사 (2026-10-23 결정, 총괄):** OpenAI 또는 Anthropic 중에서 고른다. 기본은 OpenAI다 (약기법 프롬프트 v4를 OpenAI로 시험함). 다른 제공사(Gemini 등)는 0장 규칙대로 먼저 합의한다.
 
-- 대체 가능: Gemini, GPT. 호출 코드를 `lib/ai/` 한곳에 모아 교체 비용을 낮춘다.
-- 모델 ID는 환경 변수나 설정 파일 한곳에서 관리한다. 시작 시점의 최신 버전으로 갱신.
+작업은 모델 이름 대신 **등급**으로 부른다. 등급마다 제공사별 모델을 하나씩 정한다.
+
+| 등급 | 작업 | OpenAI (기본) | Anthropic (선택) | 이유 |
+| --- | --- | --- | --- | --- |
+| 정밀 | 약기법 위험 판단, 대체 표현, 페인포인트 요약 | `gpt-4.1-mini` (v4 시험 모델) | Claude Sonnet 계열 (`claude-sonnet-5-5`) | 긴 규제 문서 이해, 미묘한 일본어 판단 |
+| 대량 | 리뷰 감성 분류, 키워드, 상품 이미지에서 성분·용량 추출, (참조) 번역 | `gpt-4.1-mini` | Claude Haiku 계열 (`claude-haiku-5-5`) | 대량 반복 작업, 속도·비용 |
+
+- 호출은 `lib/ai/`의 함수 하나로 모은다. 화면·Route Handler는 등급(정밀·대량)만 넘기고, 어느 제공사를 쓸지는 모른다. 제공사는 환경 변수 `AI_PROVIDER`(`openai` · `anthropic`, 기본 `openai`)로 바꾼다.
+- 모델 ID는 `lib/ai/` 안의 설정 파일 한곳에서 관리한다. 바꾸고 싶으면 `AI_MODEL_PRECISE`, `AI_MODEL_BULK`로 덮어쓴다. 시작 시점의 최신 버전으로 갱신.
+- 제공사·모델을 바꾸면 결과가 달라질 수 있으므로, AI 결과 행의 `model`에는 실제로 부른 모델 ID를 그대로 남긴다 (5장 규칙).
 
 ### 참조 기능을 만들 때 추가
 
@@ -158,7 +163,7 @@
       Backend: Next.js Route Handler (Vercel)
          │  인증 확인 · 입력 검증(Zod) · 라쿠텐 API 호출
                        ↓
-      AI: Claude API
+      AI: OpenAI API (기본) 또는 Anthropic API
          │  약기법 검토 · 리뷰 분석 · 번역 · 상품 정보 추출
          │  (약기법 기준 문서는 프롬프트에 포함)
                        ↓
@@ -245,13 +250,13 @@
 
 | 메서드 · 경로 | 하는 일 | 모델 |
 | --- | --- | --- |
-| `POST /api/ad-check` | 문구 → 위험 표현, 사유, 대체 표현 (JSON) → `ad_checks` 저장 | Sonnet |
+| `POST /api/ad-check` | 문구 → 위험 표현, 사유, 대체 표현 (JSON) → `ad_checks` 저장 | 정밀 |
 | `PATCH /api/ad-check/:id` | 담당자 검토 결과 저장 | - |
 | `POST /api/reviews/upload` | CSV 업로드 → `reviews` 저장 | - |
-| `POST /api/reviews/analyze` | 리뷰 묶음(예: 50건) 분석 → `review_analyses` | Haiku |
-| `POST /api/reviews/insights` | 분석 결과 집계 + 페인포인트 요약 → `review_insights` | Sonnet |
-| `POST /api/reviews/translate` | (참조 F) 선택 리뷰 일본어 번역 → 자동으로 ad-check 실행 | Haiku + Sonnet |
-| `POST /api/products/extract` | 상품 페이지/이미지에서 가격·용량·성분 추출 | Haiku |
+| `POST /api/reviews/analyze` | 리뷰 묶음(예: 50건) 분석 → `review_analyses` | 대량 |
+| `POST /api/reviews/insights` | 분석 결과 집계 + 페인포인트 요약 → `review_insights` | 정밀 |
+| `POST /api/reviews/translate` | (참조 F) 선택 리뷰 일본어 번역 → 자동으로 ad-check 실행 | 대량 + 정밀 |
+| `POST /api/products/extract` | 상품 페이지/이미지에서 가격·용량·성분 추출 | 대량 |
 | `GET /api/trends/rakuten` | 라쿠텐 랭킹·상품 검색 프록시 (키는 서버에만) | - |
 | `POST /api/survey` | (참조 G) 설문 응답 저장 (공개) | - |
 
@@ -265,7 +270,8 @@
 2. **프롬프트는 `prompts/`에 파일로** 두고 버전을 붙인다 (`ad-check.v1.md`). 코드에 문자열로 흩어 두지 않는다.
 3. **예시(Few-shot)와 판단 단계**를 프롬프트에 넣는다. 예: "1) 효능 범위 56항목 안인지 2) 의약품적 표현인지 3) 최상급·보증 표현인지 → 판정".
 4. **약기법 기준 자료는 MVP에서 프롬프트에 통째로** 넣는다 (`knowledge/yakkiho/`). Vector DB는 자료가 커지면 도입.
-5. 약기법 결과 화면에는 "법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 한다"는 문구를 표시한다.
+5. **결과를 파일로 저장하지 않는다.** 캐시가 필요하면 DB(또는 Supabase Storage)에 둔다. Vercel 서버는 홈 폴더 등 디스크에 쓸 수 없다.
+6. 약기법 결과 화면에는 "법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 한다"는 문구를 표시한다.
 
 약기법 검토 응답 예시 (초안)
 
@@ -317,7 +323,10 @@
 
 | 이름 | 사용처 | 비고 |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | web 서버 | 브라우저 노출 금지 |
+| `AI_PROVIDER` | web 서버 | `openai`(기본) 또는 `anthropic` |
+| `OPENAI_API_KEY` | web 서버 | 브라우저 노출 금지. `AI_PROVIDER=openai`일 때 필요 |
+| `ANTHROPIC_API_KEY` | web 서버 | 브라우저 노출 금지. `AI_PROVIDER=anthropic`일 때 필요 |
+| `AI_MODEL_PRECISE`, `AI_MODEL_BULK` | web 서버 | 선택. 비우면 `lib/ai/` 설정 파일의 기본 모델 |
 | `NEXT_PUBLIC_SUPABASE_URL` | web | 공개 가능 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | 공개 가능 (RLS가 보호) |
 | `SUPABASE_SERVICE_ROLE_KEY` | collectors, 서버 전용 작업 | RLS 우회 키. 절대 브라우저/커밋 금지 |
@@ -400,7 +409,7 @@ supabase/migrations에 SQL로 만들어줘. 로그인하지 않으면 (dashboard
 ```
 5장의 products, reviews, review_analyses 테이블을 만들어줘. reviews.lang은 ko와 ja를 모두 허용해줘.
 리뷰 분석 탭에서 CSV(컬럼: 상품명, 평점, 본문, 작성일)를 업로드하면 Papa Parse로 읽어 reviews에 저장하고,
-POST /api/reviews/analyze가 50건씩 Haiku로 감성·키워드·페인포인트·재구매 요인을 분석하게 해줘.
+POST /api/reviews/analyze가 50건씩 대량 등급 모델(2장)로 감성·키워드·페인포인트·재구매 요인을 분석하게 해줘.
 진행률을 화면에 보여줘.
 ```
 
@@ -423,7 +432,7 @@ collectors/에 Python 수집기를 만들어줘. 우선 sources/oliveyoung.py �
 ```
 5장의 ad_checks 테이블을 만들고, 7장 규칙대로 POST /api/ad-check를 구현해줘.
 - 프롬프트: prompts/ad-check.v1.md (knowledge/yakkiho/ 자료를 포함, 판단 단계와 예시 3개)
-- 모델: Sonnet 계열, 응답은 7장의 약기법 JSON 예시 모양으로 고정하고 Zod로 검증
+- 모델: 정밀 등급(2장, `lib/ai/`에서 제공사 선택), 응답은 7장의 약기법 JSON 예시 모양으로 고정하고 Zod로 검증
 - 결과는 ad_checks에 model, prompt_version과 함께 저장
 화면은 다음 단계에서 만들 거니까 API와 스키마만 해줘.
 ```
@@ -455,7 +464,7 @@ GET /api/trends/rakuten으로 라쿠텐 랭킹/상품 검색을 서버에서 호
 **리뷰 번역 → 상세페이지 (F)**
 ```
 분석된 한국어 리뷰를 골라 "일본어로 번역" 버튼을 누르면 POST /api/reviews/translate가
-Haiku로 번역한 뒤 자동으로 ad-check를 실행하게 해줘. 위험 표현이 있으면 승인 전까지 내보내기를 막아줘.
+대량 등급 모델로 번역한 뒤 자동으로 ad-check를 실행하게 해줘. 위험 표현이 있으면 승인 전까지 내보내기를 막아줘.
 승인된 리뷰는 상세페이지에 붙일 HTML 블록으로 복사할 수 있게 해줘.
 ```
 
