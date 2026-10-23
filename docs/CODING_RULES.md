@@ -65,7 +65,7 @@ Leafn_main   배포 기준. 직접 push하지 않는다
 - import는 별칭 `@/`를 쓴다 (`@/components/common/states`). `../../..` 금지.
 - 화면은 `lib/mock/`을 직접 import하지 않고 `lib/data/`의 함수만 부른다.
 - 데이터 모양은 `lib/schemas/`의 Zod 스키마에서 `z.infer`로 타입을 만든다. 같은 타입을 따로 선언하지 않는다.
-- AI 호출은 `lib/ai/`에서만, 프롬프트 원문은 `prompts/`에만.
+- AI 호출은 `lib/ai/`에서만, 프롬프트 원문은 `prompts/`에만. 제공사(OpenAI 기본·Anthropic 선택)는 `lib/ai/` 안에서 `AI_PROVIDER`로 고르고, 화면은 제공사를 모른다 (CLAUDE.md 2장).
 
 ## 6. 화면 (Tailwind · shadcn/ui)
 
@@ -82,7 +82,7 @@ Leafn_main   배포 기준. 직접 push하지 않는다
 
 - 테이블·RLS 변경은 새 마이그레이션 파일로만. 파일은 Supabase CLI로 만든다: `npx supabase migration new <설명>` → `supabase/migrations/<YYYYMMDDHHMMSS>_<설명>.sql` (14자리 시각). 손으로 이름을 지으면 자릿수가 달라져 적용 순서가 꼬일 수 있다.
 - 새 업무 테이블에는 `workspace_id`와 RLS 정책을 같이 만든다.
-- 브라우저에서는 anon 키만. `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `RAKUTEN_APPLICATION_ID`는 서버 코드에서만 쓰고 `NEXT_PUBLIC_`을 붙이지 않는다.
+- 브라우저에서는 anon 키만. `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `RAKUTEN_APPLICATION_ID`는 서버 코드에서만 쓰고 `NEXT_PUBLIC_`을 붙이지 않는다.
 - 필요한 환경 변수는 `apps/web/.env.example`에 이름만 적는다. 실제 값은 그 파일을 복사한 `apps/web/.env.local`(로컬), Vercel 환경 변수, GitHub Actions Secrets에만 넣는다 (연동 방법: `docs/SUPABASE_SETUP.md`).
 
 ## 8. Python 수집기 (`collectors/`)

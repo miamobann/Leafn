@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { PlatformId } from "../platforms";
 import { WorkspaceRow } from "./common";
 
 export const Product = WorkspaceRow.extend({
   kind: z.enum(["own", "competitor"]),
   brand: z.string(),
   name: z.string(),
-  platform: z.string(),
+  platform: PlatformId, // platforms의 slug (DB_RULES 4.2)
   url: z.string().url().nullable(),
   price_jpy: z.number().int().nonnegative().nullable(),
   volume_ml: z.number().positive().nullable(),
