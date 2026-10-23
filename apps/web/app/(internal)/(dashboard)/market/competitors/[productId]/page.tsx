@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { DetailTemplate } from "@/components/templates";
 import { getProduct, getProducts } from "@/lib/data";
 import { formatJpy } from "@/lib/format";
+import { platformLabel } from "@/lib/platforms";
 import { pricePerMl } from "@/lib/schemas/product";
 
 export async function generateStaticParams() {
@@ -21,7 +22,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         badges={
           <>
             <Badge>{product.kind === "own" ? "자사" : "경쟁"}</Badge>
-            <Badge variant="secondary">{product.platform}</Badge>
+            <Badge variant="secondary">{platformLabel(product.platform)}</Badge>
           </>
         }
         attributes={[
