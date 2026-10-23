@@ -5,7 +5,19 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fillProduct, GUIDE_CHANNELS, X_CHAR_LIMIT, type GuideBlock, type GuideChannel, type GuideDraft } from "../_lib/content-guide-samples";
+import {
+  fillProduct,
+  GUIDE_CHANNELS,
+  IG_MAX_SLIDES,
+  POST_TYPES,
+  X_CHAR_LIMIT,
+  X_CHAR_RECOMMENDED,
+  X_MAX_HASHTAGS,
+  type GuideBlock,
+  type GuideChannel,
+  type GuideDraft,
+  type PostType,
+} from "../_lib/content-guide-samples";
 import type { LabProduct } from "../_lib/products";
 
 const LABEL = "mb-1 block text-sm font-medium";
@@ -33,6 +45,56 @@ function ImageSlot({ className = "aspect-video" }: { className?: string }) {
   );
 }
 
+/** 인스타그램: 4:5 세로형 캐러셀. 넘겨 보기 + 캡션·해시태그 */
+function InstagramPreview({ blocks, hashtags, productName }: { blocks: GuideBlock[]; hashtags: string[]; productName: string }) {
+  const slides = blocks.filter((b) => b.key.startsWith("slide"));
+  const caption = blocks.find((b) => b.key === "caption");
+  const [index, setIndex] = useState(0);
+  const at = Math.min(index, slides.length - 1);
+  const slide = slides[at];
+  const fill = (t: string) => fillProduct(t, productName);
+
+  return (
+    <div className="mx-auto max-w-sm rounded-md border">
+      <p className="border-b px-3 py-2 text-sm font-semibold">leafand_official</p>
+      {slide && (
+        <div className="relative">
+          <div className="flex aspect-[4/5] flex-col items-center justify-center gap-2 border-b-2 border-dashed p-6 text-center">
+            <span className="text-xs text-muted-foreground">사진 자리 (업로드 준비 중)</span>
+            <p className="whitespace-pre-line text-lg font-semibold" lang="ja">
+              {fill(slide.options[0].text_ja)}
+            </p>
+            <p className="whitespace-pre-line text-xs text-muted-foreground">{fill(slide.options[0].text_ko)}</p>
+          </div>
+          {slides.length > 1 && (
+            <div className="flex items-center justify-between px-3 py-2 text-xs">
+              <Button type="button" variant="ghost" size="sm" disabled={at === 0} onClick={() => setIndex(at - 1)}>
+                이전
+              </Button>
+              <span aria-live="polite">
+                {at + 1} / {slides.length}
+              </span>
+              <Button type="button" variant="ghost" size="sm" disabled={at === slides.length - 1} onClick={() => setIndex(at + 1)}>
+                다음
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="space-y-1 p-3 text-sm">
+        <p className="whitespace-pre-line" lang="ja">
+          {caption ? fill(caption.options[0].text_ja) : ""}
+        </p>
+        <p className="text-blue-600 dark:text-blue-400" lang="ja">
+          {hashtags.join(" ")}
+        </p>
+        <p className="text-xs text-muted-foreground">해시태그 {hashtags.length}개 (권장 10~18개)</p>
+        <p className="whitespace-pre-line pt-1 text-xs text-muted-foreground">{caption ? fill(caption.options[0].text_ko) : ""}</p>
+      </div>
+    </div>
+  );
+}
+
 function Preview({ channel, blocks, hashtags, productName }: { channel: GuideChannel; blocks: GuideBlock[]; hashtags: string[]; productName: string }) {
   const text = (b: GuideBlock | undefined) => (b ? fillProduct(b.options[0].text_ja, productName) : "");
   const ko = (b: GuideBlock | undefined) => (b ? fillProduct(b.options[0].text_ko, productName) : "");
@@ -56,22 +118,7 @@ function Preview({ channel, blocks, hashtags, productName }: { channel: GuideCha
   }
 
   if (channel === "instagram") {
-    const caption = find("caption");
-    return (
-      <div className="mx-auto max-w-sm rounded-md border">
-        <p className="border-b px-3 py-2 text-sm font-semibold">leafand_official</p>
-        <ImageSlot className="aspect-square rounded-none border-x-0" />
-        <div className="space-y-1 p-3 text-sm">
-          <p className="whitespace-pre-line" lang="ja">
-            {text(caption)}
-          </p>
-          <p className="text-blue-600 dark:text-blue-400" lang="ja">
-            {hashtags.join(" ")}
-          </p>
-          <p className="whitespace-pre-line pt-1 text-xs text-muted-foreground">{ko(caption)}</p>
-        </div>
-      </div>
-    );
+    return <InstagramPreview blocks={blocks} hashtags={hashtags} productName={productName} />;
   }
 
   if (channel === "x") {
@@ -90,9 +137,21 @@ function Preview({ channel, blocks, hashtags, productName }: { channel: GuideCha
               {body}
             </p>
             {find("image") && <ImageSlot />}
-            <p className={`text-right text-xs ${length > X_CHAR_LIMIT ? "text-destructive" : "text-muted-foreground"}`}>
-              {length}/{X_CHAR_LIMIT}자
+            <p className={`text-right text-xs ${length > X_CHAR_LIMIT ? "text-destructive" : length > X_CHAR_RECOMMENDED ? "text-risk-medium" : "text-muted-foreground"}`}>
+              {length}/{X_CHAR_LIMIT}자 (권장 {X_CHAR_RECOMMENDED}자 이내)
             </p>
+            {hashtags.length > X_MAX_HASHTAGS && (
+              <p className="text-xs text-risk-medium">해시태그가 {X_MAX_HASHTAGS}개를 넘으면 노출이 줄어요</p>
+            )}
+            <p className="text-xs text-muted-foreground">외부 링크는 본문이 아니라 첫 답글에 달아요</p>
+            {find("terms") && (
+              <div className="rounded-md border border-dashed p-2 text-xs">
+                <p className="mb-1 text-muted-foreground">첫 답글 (응모 조건)</p>
+                <p className="whitespace-pre-line" lang="ja">
+                  {text(find("terms"))}
+                </p>
+              </div>
+            )}
             <p className="whitespace-pre-line text-xs text-muted-foreground">{ko(post)}</p>
           </div>
         </div>
@@ -127,14 +186,24 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
   const [productId, setProductId] = useState(products[0].id);
   const [channel, setChannel] = useState<GuideChannel>("qoo10_detail");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [postType, setPostType] = useState<PostType>("general");
+  const [slideCount, setSlideCount] = useState(IG_MAX_SLIDES);
 
   const product = products.find((p) => p.id === productId) ?? products[0];
   const material = materials[product.id] ?? { hasReviews: false, appeals: [], keywords: [] };
   // 가장 추천을 맨 앞에 둔다
-  const list = drafts.filter((d) => d.channel === channel).toSorted((a, b) => Number(b.recommended) - Number(a.recommended));
+  const hasPostType = channel === "instagram" || channel === "x";
+  const list = drafts
+    .filter((d) => d.channel === channel && (!hasPostType || d.post_type === postType))
+    .toSorted((a, b) => Number(b.recommended) - Number(a.recommended));
   const current = list.find((d) => d.id === selectedId) ?? list[0];
   // 리뷰가 없는 제품(개발 중)은 리뷰 블록을 뺀다
-  const blocks = (current?.blocks ?? []).filter((b) => !b.needs_reviews || material.hasReviews);
+  const blocks = (current?.blocks ?? []).filter(
+    (b) =>
+      (!b.needs_reviews || material.hasReviews) &&
+      // 인스타그램은 고른 장 수까지만 (1장 = 단일 게시물, 2~5장 = 캐러셀)
+      (channel !== "instagram" || !b.key.startsWith("slide") || Number(b.key.slice(5)) <= slideCount),
+  );
   const fill = (text: string) => fillProduct(text, product.name_ko);
 
   return (
@@ -171,6 +240,44 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
               </button>
             ))}
           </div>
+          {hasPostType && (
+            <div className="flex flex-wrap gap-4">
+              <div className="w-64">
+                <label htmlFor="guide-post-type" className={LABEL}>
+                  게시물 종류
+                </label>
+                <select
+                  id="guide-post-type"
+                  className={SELECT}
+                  value={postType}
+                  onChange={(e) => {
+                    setPostType(POST_TYPES.find((t) => t.id === e.target.value)?.id ?? "general");
+                    setSelectedId(null);
+                  }}
+                >
+                  {POST_TYPES.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {channel === "instagram" && (
+                <div className="w-48">
+                  <label htmlFor="guide-slides" className={LABEL}>
+                    사진 장 수
+                  </label>
+                  <select id="guide-slides" className={SELECT} value={slideCount} onChange={(e) => setSlideCount(Number(e.target.value))}>
+                    {Array.from({ length: IG_MAX_SLIDES }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>
+                        {n === 1 ? "1장 (단일)" : `${n}장 (여러 장)`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
           <dl className="grid gap-1 rounded-md bg-muted p-3 text-sm sm:grid-cols-[7rem_1fr]">
             <dt className="font-medium">리뷰 소구점</dt>
             <dd>{material.hasReviews ? material.appeals.join(" · ") || "소구점 후보 없음" : "리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다"}</dd>
@@ -221,7 +328,7 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
             <CardTitle>미리보기</CardTitle>
           </CardHeader>
           <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`} role="region" aria-label="결과물 미리보기" tabIndex={0}>
-            {current && <Preview channel={channel} blocks={blocks} hashtags={current.hashtags} productName={product.name_ko} />}
+            {current && <Preview key={`${current.id}-${slideCount}`} channel={channel} blocks={blocks} hashtags={current.hashtags} productName={product.name_ko} />}
           </CardContent>
         </Card>
       </div>
