@@ -68,6 +68,8 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
   const [sourceOther, setSourceOther] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [consentAt, setConsentAt] = useState<string | null>(null);
+  // 마지막 답을 보내는 중 (두 번 눌러 응답이 두 건 저장되지 않게)
+  const [sending, setSending] = useState(false);
   const [pos, setPos] = useState(0);
 
   if (search === null) return null;
@@ -132,6 +134,7 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
       source,
       source_other: source === "other" && !knownSource ? sourceOther.trim().slice(0, 50) : "",
     };
+    setSending(true);
     saveSession(session);
     await submitSurvey(session, under18);
     router.push("/survey/result");
@@ -257,7 +260,7 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
         <Button variant="outline" onClick={goBack} className="h-12 flex-1">
           {COPY.back}
         </Button>
-        <Button onClick={goNext} disabled={!canNext} className="h-12 flex-[2]">
+        <Button onClick={goNext} disabled={!canNext || sending} className="h-12 flex-[2]">
           {step.kind === "consent" ? COPY.consent.next : isLast ? COPY.finish : COPY.next}
         </Button>
       </div>

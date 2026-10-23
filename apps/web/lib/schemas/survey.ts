@@ -74,7 +74,11 @@ export const SkinSurveyResponse = WorkspaceRow.extend({
 });
 export type SkinSurveyResponse = z.infer<typeof SkinSurveyResponse>;
 
-/** 문항 화면 → 결과 화면으로 넘기는 브라우저 세션 값 (sessionStorage). 서버에는 보내지 않는다 */
+/** survey_responses에 넣는 값. id · created_at은 DB가, workspace_id · survey_id는 서버가 공개 설문에서 채운다 */
+export const SurveyResponseInsert = SkinSurveyResponse.omit({ id: true, created_at: true, workspace_id: true, survey_id: true });
+export type SurveyResponseInsert = z.infer<typeof SurveyResponseInsert>;
+
+/** 문항 화면 → 결과 화면으로 넘기는 브라우저 세션 값 (sessionStorage). 18세 이상 · 동의한 응답만 저장용으로 서버에 보낸다 */
 export const SurveySession = z.object({
   answers: z.record(z.string(), SurveyAnswer),
   other_text: z.string().max(50),
