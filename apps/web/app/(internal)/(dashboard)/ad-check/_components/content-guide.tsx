@@ -3,7 +3,7 @@
 // 콘텐츠 제작 가이드: 제품·채널(·게시물 종류)을 고르면 제목 추천 3개(좌)·채널 양식 미리보기(우)·본문 추천(아래)을 보여준다.
 // 화면 뼈대라 샘플 데이터만 쓴다. AI 호출·사진 업로드·저장·PDF 출력은 아직 없다.
 // 사진 칸에는 어떤 사진이 들어갈지 설명만 보여 준다.
-import { Bell, ChevronLeft, Heart, Search, ShoppingCart, Store } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Heart, Search, ShoppingCart, Store } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +69,83 @@ function HashtagChips({ tags }: { tags: string[] }) {
   );
 }
 
+/** 넘기기 화살표 (칸의 양 끝 가운데에 겹쳐 둔다) */
+function PagerArrow({ side, label, disabled, onClick }: { side: "left" | "right"; label: string; disabled: boolean; onClick: () => void }) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`absolute top-1/2 ${side === "left" ? "left-2" : "right-2"} flex size-8 -translate-y-1/2 items-center justify-center rounded-full border bg-background/90 shadow disabled:opacity-0`}
+    >
+      <Icon className="size-5" aria-hidden />
+    </button>
+  );
+}
+
+function PagerDots({ count, at }: { count: number; at: number }) {
+  return (
+    <div className="flex justify-center gap-1 py-2" aria-hidden>
+      {Array.from({ length: count }, (_, i) => (
+        <span key={i} className={`size-1.5 rounded-full ${i === at ? "bg-primary" : "bg-muted-foreground/40"}`} />
+      ))}
+    </div>
+  );
+}
+
+/** 본문 추천: 블록을 한 장씩 옆으로 넘기며 본다 (블록이 많은 상세페이지·여러 장 SNS가 길어지지 않게) */
+function BodyPager({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
+  const [index, setIndex] = useState(0);
+  const at = Math.min(index, blocks.length - 1);
+  const b = blocks[at];
+  if (!b) return null;
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1" role="tablist" aria-label="본문 블록">
+        {blocks.map((x, i) => (
+          <button
+            key={x.key}
+            type="button"
+            role="tab"
+            aria-selected={i === at}
+            onClick={() => setIndex(i)}
+            className={`rounded-full border px-2 py-0.5 text-xs ${i === at ? "border-foreground bg-muted font-medium" : "text-muted-foreground hover:bg-muted"}`}
+          >
+            {i + 1}. {x.heading}
+          </button>
+        ))}
+      </div>
+      <div className="relative rounded-md border px-12 py-4">
+        <p className="font-semibold">
+          {at + 1}/{blocks.length} · {b.heading}
+        </p>
+        {b.image && <p className="mt-1 text-xs text-muted-foreground">사진: {b.image}</p>}
+        {b.options
+          .filter((o) => o.text_ja)
+          .map((o, j) => (
+            <div key={o.text_ja} className={`mt-2 ${j === 0 ? "" : "border-t pt-2"}`}>
+              <p className="mb-1">{j === 0 ? <span className={RECOMMENDED}>가장 추천</span> : <span className="text-xs text-muted-foreground">다른 안</span>}</p>
+              <p className="whitespace-pre-line" lang="ja">
+                {fill(o.text_ja)}
+              </p>
+              <p className="whitespace-pre-line text-muted-foreground">한국어: {fill(o.text_ko)}</p>
+            </div>
+          ))}
+        <p className="mt-2 text-xs text-muted-foreground">추천 이유: {b.reason}</p>
+        {blocks.length > 1 && (
+          <>
+            <PagerArrow side="left" label="이전 블록" disabled={at === 0} onClick={() => setIndex(at - 1)} />
+            <PagerArrow side="right" label="다음 블록" disabled={at === blocks.length - 1} onClick={() => setIndex(at + 1)} />
+          </>
+        )}
+      </div>
+      {blocks.length > 1 && <PagerDots count={blocks.length} at={at} />}
+    </div>
+  );
+}
+
 /** 인스타그램: 4:5 세로형 캐러셀. 넘겨 보기 + 캡션·해시태그 */
 function InstagramPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; hashtags: string[]; fill: Fill }) {
   const slides = blocks.filter((b) => b.key.startsWith("slide"));
@@ -84,26 +161,24 @@ function InstagramPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; ha
       </div>
       {slide && (
         <div>
-          <div className="flex aspect-[4/5] flex-col items-center justify-center gap-3 border-b p-6 text-center">
+          <div className="relative flex aspect-[4/5] flex-col items-center justify-center gap-3 border-b p-6 text-center">
             <ImageSlot image={slide.image} className="w-full flex-1" />
             <p className="whitespace-pre-line text-lg font-semibold" lang="ja">
               {fill(slide.options[0].text_ja)}
             </p>
             <p className="whitespace-pre-line text-xs text-muted-foreground">{fill(slide.options[0].text_ko)}</p>
+            {slides.length > 1 && (
+              <>
+                {/* 인스타그램처럼 사진 양 끝 화살표로 넘긴다 */}
+                <PagerArrow side="left" label="이전 사진" disabled={at === 0} onClick={() => setIndex(at - 1)} />
+                <PagerArrow side="right" label="다음 사진" disabled={at === slides.length - 1} onClick={() => setIndex(at + 1)} />
+                <span className="absolute top-2 right-2 rounded-full bg-foreground/70 px-2 py-0.5 text-[0.65rem] text-background" aria-live="polite">
+                  {at + 1}/{slides.length}
+                </span>
+              </>
+            )}
           </div>
-          {slides.length > 1 && (
-            <div className="flex items-center justify-between px-3 py-2 text-xs">
-              <Button type="button" variant="ghost" size="sm" disabled={at === 0} onClick={() => setIndex(at - 1)}>
-                이전
-              </Button>
-              <span aria-live="polite">
-                {at + 1} / {slides.length}
-              </span>
-              <Button type="button" variant="ghost" size="sm" disabled={at === slides.length - 1} onClick={() => setIndex(at + 1)}>
-                다음
-              </Button>
-            </div>
-          )}
+          {slides.length > 1 && <PagerDots count={slides.length} at={at} />}
         </div>
       )}
       <div className="space-y-2 p-3 text-sm">
@@ -340,6 +415,7 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
     "역할: 신뢰·학습 (왜 사야 하는가를 설득)",
     "캡션 8~15줄, 더보기 전 첫 2줄에 핵심",
     "첫 줄 스타일: 마침표 1줄 선언형(기본) · 【NEW】【お知らせ】(공지) · [ ] 또는 | |(매거진풍) · 감성 스토리텔링 문장. ＼〜／는 쓰지 않아요",
+    "말투는 친근하게(〜してね), 이모지 4~8개를 톤에 맞게 (수분 💧🫧 · 계절 ❄️🌸). 상세페이지는 진지한 톤",
     "해시태그 5개 (브랜드 1 · 성분·제형 1 · 고민·트렌드 2 · 검색어 1)",
     "사진 4:5 세로, 1~5장 (제품 35% · 제형 30% · 피부 25%)",
     "링크는 프로필 링크로, 약기법 각주(*浸透：角質層まで 등) 필수",
@@ -349,6 +425,7 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
     "역할: 속도·확산 (지금 알리기)",
     "3~4줄, 100~130자",
     "첫 줄 스타일: 마침표 1줄 선언형 · 【NEW】【特報】(공지). ＼〜／는 쓰지 않아요",
+    "말투는 친근하게, 이모지 1~2개",
     "해시태그 1~3개 (브랜드 1 + 캠페인·제품 1)",
     "이미지 16:9 1장, 외부 링크는 첫 답글",
     "각주가 필요한 표현(浸透 등)은 피하고 짧게",
@@ -549,29 +626,7 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
                 <CardTitle>본문 추천</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                <ol className="space-y-3">
-                  {blocks.map((b, i) => (
-                    <li key={b.key} className="rounded-md border p-3">
-                      <p className="font-semibold">
-                        {blocks.length > 1 ? `${i + 1}. ` : ""}
-                        {b.heading}
-                      </p>
-                      {b.image && <p className="mt-1 text-xs text-muted-foreground">사진: {b.image}</p>}
-                      {b.options
-                        .filter((o) => o.text_ja)
-                        .map((o, j) => (
-                          <div key={o.text_ja} className={`mt-2 ${j === 0 ? "" : "border-t pt-2"}`}>
-                            <p className="mb-1">{j === 0 ? <span className={RECOMMENDED}>가장 추천</span> : <span className="text-xs text-muted-foreground">다른 안</span>}</p>
-                            <p className="whitespace-pre-line" lang="ja">
-                              {fill(o.text_ja)}
-                            </p>
-                            <p className="whitespace-pre-line text-muted-foreground">한국어: {fill(o.text_ko)}</p>
-                          </div>
-                        ))}
-                      <p className="mt-1 text-xs text-muted-foreground">추천 이유: {b.reason}</p>
-                    </li>
-                  ))}
-                </ol>
+                <BodyPager key={`${current.id}-${slideCount}`} blocks={blocks} fill={fill} />
 
                 {hasPostType && hashtags.length > 0 && (
                   <section className="space-y-3 rounded-md border p-3">
@@ -594,10 +649,6 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
                   </section>
                 )}
 
-                <section className="rounded-md bg-muted p-3">
-                  <h3 className="mb-1 font-semibold">AI에 넣을 프롬프트 가이드</h3>
-                  <p className="whitespace-pre-line">{current.prompt_guide}</p>
-                </section>
               </CardContent>
             </Card>
           )}
