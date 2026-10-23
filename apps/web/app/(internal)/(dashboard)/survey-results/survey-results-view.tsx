@@ -88,7 +88,7 @@ export function SurveyResultsView({
   const share = (n: number) => `${Math.round((n / summary.total) * 100)}%`;
 
   const stats = [
-    { label: "총 응답", value: `${summary.total}건`, sub: "18세 이상 · 동의한 응답" },
+    { label: "총 응답", value: `${summary.total}건`, sub: `18세 이상 · 동의한 응답 · 18세 미만 ${summary.under18_count}명 별도` },
     { label: "최근 7일", value: `${summary.recent_7d}건`, sub: "" },
     { label: "가장 많은 피부타입", value: topType ? SKIN[topType.skin_type].ko : "—", sub: topType ? `${topType.count}건 · ${share(topType.count)}` : "" },
   ];
