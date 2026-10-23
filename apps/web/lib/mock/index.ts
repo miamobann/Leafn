@@ -3,6 +3,7 @@ import { adChecks } from "./ad-checks";
 import { geoSnapshots } from "./geo";
 import { platforms } from "./platforms";
 import { products } from "./products";
+import { projectStages, projects } from "./projects";
 import { promoEvents } from "./promo-events";
 import { reviewAnalyses } from "./review-analyses";
 import { reviewInsights } from "./review-insights";
@@ -11,6 +12,7 @@ import { reviews } from "./reviews";
 import { surveyQuestions, surveySummary } from "./survey";
 import { trendSnapshots } from "./trends";
 import { members, workspace } from "./workspace";
+import { StageKey } from "@/lib/schemas/project";
 
 // 교차 참조 검사: 가리키는 ID가 모두 존재해야 한다. 실패하면 빌드가 멈춘다.
 function checkRefs() {
@@ -43,6 +45,17 @@ function checkRefs() {
   }
   for (const p of platforms) expect(userIds.has(p.updated_by), `platforms ${p.id}.updated_by`);
   for (const a of activity) expect(userIds.has(a.actor_id), `activity ${a.id}.actor_id`);
+  const projectIds = ids(projects);
+  for (const p of projects) {
+    if (p.product_id) expect(productIds.has(p.product_id), `projects ${p.id}.product_id`);
+    // 현황판 칸이 비지 않도록 프로젝트마다 8단계가 하나씩 있어야 한다
+    const stages = new Set(projectStages.filter((s) => s.project_id === p.id).map((s) => s.stage));
+    expect(StageKey.options.every((k) => stages.has(k)), `projects ${p.id} 단계 누락`);
+  }
+  for (const s of projectStages) {
+    expect(projectIds.has(s.project_id), `projectStages ${s.id}.project_id`);
+    if (s.owner_id) expect(userIds.has(s.owner_id), `projectStages ${s.id}.owner_id`);
+  }
 
   if (errors.length > 0) {
     throw new Error(`교차 참조 검사 실패:\n${errors.join("\n")}`);
@@ -67,4 +80,6 @@ export const mock = {
   surveyQuestions,
   surveySummary,
   activity,
+  projects,
+  projectStages,
 };
