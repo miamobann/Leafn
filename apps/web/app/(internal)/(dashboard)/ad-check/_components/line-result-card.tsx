@@ -90,23 +90,28 @@ export function LineResultCard({ line, findings, mismatchProductName, selectedSu
         </section>
       )}
 
-      <section className="mt-4 text-sm">
-        <h3 className="mb-1 font-semibold">성분 확인</h3>
-        <p className="text-muted-foreground">{line.ingredient_check}</p>
-      </section>
+      {/* AI 판정의 문제없음 줄은 내용이 없을 수 있어 빈 제목은 숨긴다 */}
+      {line.ingredient_check && (
+        <section className="mt-4 text-sm">
+          <h3 className="mb-1 font-semibold">성분 확인</h3>
+          <p className="text-muted-foreground">{line.ingredient_check}</p>
+        </section>
+      )}
 
-      <section className="mt-4 text-sm">
-        <h3 className="mb-2 font-semibold">현지화</h3>
-        {line.translated_text && (
-          <dl className="mb-2 grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1">
-            <dt className="text-muted-foreground">일본어 번역</dt>
-            <dd lang="ja">{line.translated_text}</dd>
-            <dt className="text-muted-foreground">한국어 역번역</dt>
-            <dd>{line.back_translation_ko}</dd>
-          </dl>
-        )}
-        <p className="text-muted-foreground">{line.localized_note}</p>
-      </section>
+      {(line.translated_text || line.localized_note) && (
+        <section className="mt-4 text-sm">
+          <h3 className="mb-2 font-semibold">현지화</h3>
+          {line.translated_text && (
+            <dl className="mb-2 grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1">
+              <dt className="text-muted-foreground">일본어 번역</dt>
+              <dd lang="ja">{line.translated_text}</dd>
+              <dt className="text-muted-foreground">한국어 역번역</dt>
+              <dd>{line.back_translation_ko}</dd>
+            </dl>
+          )}
+          {line.localized_note && <p className="text-muted-foreground">{line.localized_note}</p>}
+        </section>
+      )}
     </article>
   );
 }
