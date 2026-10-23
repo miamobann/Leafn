@@ -8,11 +8,11 @@ import { ViewStateGate } from "@/components/common/view-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdCheck, AdUsage } from "@/lib/schemas/ad-check";
 import type { ReviewStatus } from "@/lib/schemas/common";
-import { countByAction, countLines } from "../_lib/lines";
+import { countLines } from "../_lib/lines";
 import type { LabProduct } from "../_lib/products";
 import { requestAdCheck, type AiMeta } from "../_lib/request";
-import { ACTION_TONE, ActionBadge } from "./ad-badges";
 import { LineResultCard } from "./line-result-card";
+import { ResultSummary } from "./result-summary";
 import { ReviewBar } from "./review-bar";
 import { ReviewForm } from "./review-form";
 
@@ -25,12 +25,16 @@ const COPY = {
 type ReviewWorkspaceProps = {
   products: LabProduct[];
   workspaceId: string;
+  /** 검토 내역의 「이 내용으로 새 검토」에서 넘어온 값. 자동으로 판정하지 않는다 (비용) */
+  initial?: { productId?: string; usage?: z.infer<typeof AdUsage>; text?: string };
 };
 
-export function ReviewWorkspace({ products, workspaceId }: ReviewWorkspaceProps) {
-  const [productId, setProductId] = useState(products[0].id);
-  const [usage, setUsage] = useState<z.infer<typeof AdUsage>>("detail_page");
-  const [text, setText] = useState("");
+export function ReviewWorkspace({ products, workspaceId, initial }: ReviewWorkspaceProps) {
+  const [productId, setProductId] = useState(
+    initial?.productId && products.some((p) => p.id === initial.productId) ? initial.productId : products[0].id,
+  );
+  const [usage, setUsage] = useState<z.infer<typeof AdUsage>>(initial?.usage ?? "detail_page");
+  const [text, setText] = useState(initial?.text ?? "");
   const [submittedText, setSubmittedText] = useState<string | null>(null);
   const [check, setCheck] = useState<AdCheck | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +48,6 @@ export function ReviewWorkspace({ products, workspaceId }: ReviewWorkspaceProps)
   const requestId = useRef(0);
 
   const lines = check?.line_results ?? [];
-  const counts = countByAction(lines);
   const finalText = lines.map((l) => selected[l.line_index] ?? l.original).join("\n");
 
   function resetReview() {
@@ -103,25 +106,7 @@ export function ReviewWorkspace({ products, workspaceId }: ReviewWorkspaceProps)
     return (
       <div className="space-y-4">
         {submittedText !== text && <p className="text-sm text-muted-foreground">{COPY.stale}</p>}
-        {aiMeta && (
-          <div className="space-y-0.5">
-            <AiResultMeta model={check.model} promptVersion={check.prompt_version} createdAt={check.created_at} />
-            <p className="text-xs text-muted-foreground">
-              입력 {aiMeta.usage.input.toLocaleString("en-US")}(캐시 {aiMeta.usage.cached.toLocaleString("en-US")}) · 출력{" "}
-              {aiMeta.usage.output.toLocaleString("en-US")} 토큰{aiMeta.attempts > 1 ? ` · 재시도 ${aiMeta.attempts - 1}회` : ""}
-            </p>
-          </div>
-        )}
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm">
-          <span className="font-semibold">전체 판정</span>
-          {check.overall_action && <ActionBadge action={check.overall_action} />}
-          <span className="text-muted-foreground">총 {lines.length}줄</span>
-          {(Object.keys(counts) as (keyof typeof counts)[]).map((a) => (
-            <span key={a}>
-              {ACTION_TONE[a].label} {counts[a]}
-            </span>
-          ))}
-        </div>
+        <ResultSummary check={check} />
         {lines.map((line) => (
           <LineResultCard
             key={line.line_index}
@@ -131,6 +116,15 @@ export function ReviewWorkspace({ products, workspaceId }: ReviewWorkspaceProps)
             onSelect={(s) => selectSuggestion(line.line_index, s)}
           />
         ))}
+        {aiMeta && (
+          <div className="space-y-0.5">
+            <AiResultMeta model={check.model} promptVersion={check.prompt_version} createdAt={check.created_at} />
+            <p className="text-xs text-muted-foreground">
+              입력 {aiMeta.usage.input.toLocaleString("en-US")}(캐시 {aiMeta.usage.cached.toLocaleString("en-US")}) · 출력{" "}
+              {aiMeta.usage.output.toLocaleString("en-US")} 토큰{aiMeta.attempts > 1 ? ` · 재시도 ${aiMeta.attempts - 1}회` : ""}
+            </p>
+          </div>
+        )}
       </div>
     );
   }

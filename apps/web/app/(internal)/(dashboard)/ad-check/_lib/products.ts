@@ -1,6 +1,5 @@
-// Leaf& Dew 제품 4종 (가상 데이터). 이름은 lib/own-products.ts (docs/Product.md 기준). 출처: 팀이 만든 leaf_and_japan_marketing_test_data.csv
-// 공용 products(TAB 2 담당)를 건드리지 않으려고 탭 안에 둔다.
-// products 테이블이 생기면 TAB 2 담당자와 합의해 lib/mock/products.ts(또는 DB)로 옮긴다.
+// Leaf& Dew 제품 4종. 이름은 lib/own-products.ts (docs/Product.md 기준), 제품 구분(一般化粧品)은 2026-10-23 확정, 전성분·용량은 가상 데이터. 출처: 팀이 만든 leaf_and_japan_marketing_test_data.csv
+// id는 공용 products(lib/mock/products.ts)의 자사 제품 id와 같다. 광고 검토에 필요한 전성분(한국어·INCI·일본어)·용기는 여기에만 있다.
 import { z } from "zod";
 import { ProductCategory } from "@/lib/schemas/ad-check";
 import { ownProductName } from "@/lib/own-products";
@@ -28,12 +27,12 @@ export type LabProduct = z.infer<typeof LabProduct>;
 
 export const LAB_PRODUCTS: unknown[] = [
   {
-    id: "leaf-dry-skin",
+    id: "p-own-1",
     name_ko: ownProductName("deep-skin"),
     name_ja: ownProductName("deep-skin"),
     line: "건성 스킨",
     launch_status: "live",
-    product_category: null,
+    product_category: "general_cosmetic",
     volume: "가상 150 ml",
     container: "플라스틱 통형",
     ingredients: [
@@ -54,12 +53,12 @@ export const LAB_PRODUCTS: unknown[] = [
     ],
   },
   {
-    id: "leaf-dry-essence",
+    id: "p-own-2",
     name_ko: ownProductName("core-essence"),
     name_ja: ownProductName("core-essence"),
     line: "건성 에센스",
     launch_status: "live",
-    product_category: null,
+    product_category: "general_cosmetic",
     volume: "가상 30 ml",
     container: "유리 펌프형",
     ingredients: [
@@ -82,12 +81,12 @@ export const LAB_PRODUCTS: unknown[] = [
     ],
   },
   {
-    id: "leaf-oily-skin",
+    id: "p-own-3",
     name_ko: ownProductName("tea-pure-skin"),
     name_ja: ownProductName("tea-pure-skin"),
     line: "지성 스킨",
     launch_status: "developing",
-    product_category: null,
+    product_category: "general_cosmetic",
     volume: "가상 150 ml (예정)",
     container: "미정",
     ingredients: [
@@ -97,12 +96,12 @@ export const LAB_PRODUCTS: unknown[] = [
     ],
   },
   {
-    id: "leaf-combo-skin",
+    id: "p-own-4",
     name_ko: ownProductName("mild-skin"),
     name_ja: ownProductName("mild-skin"),
     line: "복합성 스킨",
     launch_status: "developing",
-    product_category: null,
+    product_category: "general_cosmetic",
     volume: "가상 150 ml (예정)",
     container: "미정",
     ingredients: [

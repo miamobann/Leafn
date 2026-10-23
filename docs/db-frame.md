@@ -69,7 +69,7 @@
 | `line_results` | `jsonb` [{line_index, original, action, ingredient_check, translated_text, back_translation_ko, localized_note}] | 여러 줄 입력의 줄별 판정 |
 | `is_expert_review_requested` | boolean | 전문가 확인 요청 여부. `review_status`(pending·approved·rejected)는 공용 값 그대로 두고, 화면에서 approved를 "내부 검토 완료"로 표시한다 |
 | `usage` 선택지 | text check | `notify_button`(알림받기 버튼) 추가 |
-| `findings[]` 안 | jsonb 항목 | `line_index`, `action`, `basis_status`(`confirmed`·`needs_check`), `suggestion_rechecks` [{text, recheck(`pass`·`needs_rework`), recheck_reason}] 추가. 기존 `suggestions`(문자열 목록)는 유지 |
+| `findings[]` 안 | jsonb 항목 | `line_index`, `action`, `basis_status`(`confirmed`·`needs_check`), `suggestion_rechecks` [{text, text_ko, recheck(`pass`·`needs_rework`), recheck_reason}] 추가. `text`는 일본어 대체 표현, `text_ko`는 그 한국어 번역(2026-10-23 추가, 프롬프트 v5). 기존 `suggestions`(문자열 목록)는 유지 |
 
 판정 근거 자료: `knowledge/yakkiho/`. 마이그레이션 SQL은 프레임 합의 후 `..._ad_checks.sql`로 만든다.
 

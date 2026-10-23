@@ -23,9 +23,10 @@ function wiggle(seed: number): number {
 
 const weeks = Array.from({ length: WEEK_COUNT }, (_, w) => addDays(FIRST_MONDAY, w * 7));
 
-// [brand, name, price_jpy, 기준 리뷰 수, K-뷰티 여부, 기준 점수, 주별 기울기]
+// [brand, name, price_jpy, 기준 리뷰 수, K-뷰티 여부, 기준 점수, 주별 기울기, (선택) 처음 나오는 주]
 // 자사·경쟁 제품(lib/mock/products.ts)과 brand·name이 같으면 제품 상세에서 순위 추이로 이어진다
-type Candidate = [string, string, number, number, boolean, number, number];
+// 각 카테고리 뒤쪽 후보는 Top 20 경계(15~26위)를 오가는 하위권·신제품 (랭킹 역동성 카드용). 化粧水는 이미지 분석 샘플이 있는 상위 10을 침범하지 않게 점수를 낮게 둔다
+type Candidate = [string, string, number, number, boolean, number, number, number?];
 
 const CANDIDATES: Record<string, Candidate[]> = {
   "化粧水": [
@@ -44,6 +45,17 @@ const CANDIDATES: Record<string, Candidate[]> = {
     ["SampleT", "敏感肌用化粧水", 2090, 1300, false, 79, 0],
     ["SampleU", "ビタミントナー", 2420, 480, true, 70, 0.8],
     ["SampleV", "導入化粧水", 2970, 760, false, 76, 0.2],
+    ["SampleBA", "アゼライン酸トナー", 2380, 120, true, 62, 1.1, 3],
+    ["SampleBB", "PDRNトナー", 2680, 90, true, 60, 1.4, 5],
+    ["SampleBC", "酵素化粧水", 1480, 800, false, 71, -0.3],
+    ["SampleBD", "グリーンティートナー", 1650, 600, true, 69, 0.1],
+    ["SampleBE", "ハトムギローション", 990, 2500, false, 72, -0.4],
+    ["SampleBF", "ガラクトミセストナー", 2200, 300, true, 66, 0.4],
+    ["SampleBG", "ペプチドトナー", 2900, 150, true, 58, 1.2, 6],
+    ["SampleBH", "弱酸性化粧水", 1320, 900, false, 70, -0.2],
+    ["SampleBI", "ミルクトナー", 1890, 400, true, 64, 0.6, 2],
+    ["SampleBJ", "オイルインローション", 2100, 500, false, 68, 0],
+    ["SampleBK", "ブライトニングトナー", 2480, 200, true, 61, 0.9, 4],
   ],
   "美容液": [
     ["Leafn", ownProductName("core-essence"), 2980, 380, true, 66, 1.6],
@@ -61,6 +73,17 @@ const CANDIDATES: Record<string, Candidate[]> = {
     ["SampleAD", "毛穴美容液", 2750, 1100, false, 80, -0.1],
     ["SampleAE", "美容オイル", 3300, 600, false, 72, 0.1],
     ["SampleAF", "ヒアルロン酸アンプル", 2290, 760, true, 75, 0.6],
+    ["SampleCA", "グルタチオン美容液", 3300, 140, true, 63, 1.0, 2],
+    ["SampleCB", "エクソソームアンプル", 4200, 80, true, 58, 1.5, 4],
+    ["SampleCC", "スクワランオイル", 2200, 900, false, 70, -0.2],
+    ["SampleCD", "トラネキサム酸美容液", 2750, 700, false, 69, 0.2],
+    ["SampleCE", "ナイアシン導入液", 2480, 300, true, 65, 0.5],
+    ["SampleCF", "ビタミンAセラム", 3100, 250, false, 67, 0.3],
+    ["SampleCG", "発酵エッセンス", 2600, 500, true, 68, -0.1],
+    ["SampleCH", "アゼライン酸セラム", 2640, 120, true, 60, 1.2, 5],
+    ["SampleCI", "マイクロニードル美容液", 3800, 90, true, 57, 1.6, 6],
+    ["SampleCJ", "保湿ブースター", 1980, 1100, false, 71, -0.3],
+    ["SampleCK", "ハーブアンプル", 2300, 200, true, 62, 0.4],
   ],
   "クリーム": [
     ["SampleK", "保湿クリーム", 1980, 6020, false, 97, -0.1],
@@ -75,6 +98,20 @@ const CANDIDATES: Record<string, Candidate[]> = {
     ["SampleB", "バリアクリーム", 2290, 760, true, 76, 0.8],
     ["SampleT", "敏感肌クリーム", 2640, 900, false, 79, 0],
     ["SampleU", "ビタミンクリーム", 2860, 420, true, 72, 0.4],
+    ["SampleDA", "PDRNクリーム", 3200, 100, true, 60, 1.3, 3],
+    ["SampleDB", "ペプチドクリーム", 3600, 200, true, 63, 0.8],
+    ["SampleDC", "ドクダミクリーム", 2200, 600, true, 68, 0.3],
+    ["SampleDD", "尿素クリーム", 980, 3000, false, 74, -0.3],
+    ["SampleDE", "ジェルクリーム", 1650, 900, false, 71, 0],
+    ["SampleDF", "ナイアシンクリーム", 2480, 300, true, 65, 0.5],
+    ["SampleDG", "スクワランバーム", 2750, 400, false, 67, 0.1],
+    ["SampleDH", "トーンアップクリーム", 2900, 500, true, 66, 0.4],
+    ["SampleDI", "レチノールクリーム", 3300, 250, false, 64, 0.6, 2],
+    ["SampleDJ", "アイクリーム", 3850, 700, false, 70, -0.2],
+    ["SampleDK", "ハンドバーム", 1200, 1500, false, 69, -0.1],
+    ["SampleDL", "エクソソームクリーム", 4400, 60, true, 56, 1.7, 5],
+    ["SampleDM", "ミルククリーム", 1980, 800, true, 62, 0.5],
+    ["SampleDN", "グリーンティークリーム", 2100, 350, true, 61, 0.7, 4],
   ],
 };
 
@@ -107,14 +144,17 @@ const rakutenSnapshots = parseAll(
   Object.entries(CANDIDATES).flatMap(([category, candidates], c) =>
     weeks.map((date, w) => {
       const ranking = candidates
-        .map(([brand, name, price_jpy, reviews, is_kbeauty, base, slope], i) => ({
+        .map(([brand, name, price_jpy, reviews, is_kbeauty, base, slope, start = 0], i) => ({
           brand,
           name,
           price_jpy,
           review_count: Math.round(reviews * (1 + 0.02 * w)),
           is_kbeauty,
+          start,
           score: base + slope * w + wiggle(c * 1000 + i * 37 + w) * 1.5,
         }))
+        // 신제품은 출시 주부터 랭킹에 나온다 (흔들림 seed는 원래 순서 i로 고정해 기존 후보 순위가 바뀌지 않게)
+        .filter((item) => w >= item.start)
         .toSorted((a, b) => b.score - a.score)
         .map((item, r) => ({
           rank: r + 1,

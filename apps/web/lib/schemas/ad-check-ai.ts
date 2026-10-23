@@ -24,7 +24,8 @@ export const AdCheckRequest = z.object({
 export type AdCheckRequest = z.infer<typeof AdCheckRequest>;
 
 export const AiSuggestion = z.object({
-  text: z.string(),
+  text: z.string(), // 일본어 (프롬프트 v5)
+  text_ko: z.string().nullable().optional(),
   recheck: SuggestionRecheck.shape.recheck,
   recheck_reason: z.string(),
 });
