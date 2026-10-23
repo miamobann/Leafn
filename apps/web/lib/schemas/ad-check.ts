@@ -11,6 +11,8 @@ export const BasisStatus = z.enum(["confirmed", "needs_check"]);
 // 대체 표현도 같은 기준으로 다시 검토한 결과
 export const SuggestionRecheck = z.object({
   text: z.string(),
+  // TAB 3 안 (2026-10-23): 대체 표현(일본어)의 한국어 번역. 담당자 확인용
+  text_ko: z.string().nullable(),
   recheck: z.enum(["pass", "needs_rework"]),
   recheck_reason: z.string(),
 });

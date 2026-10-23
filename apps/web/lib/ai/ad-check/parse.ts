@@ -16,7 +16,7 @@ function toJudgedLine(raw: AiLine, original: string, warnings: string[]): Judged
       end: at >= 0 ? at + f.text.length : undefined,
       action: f.action,
       basis_status: f.basis_status,
-      suggestion_rechecks: f.suggestions,
+      suggestion_rechecks: f.suggestions.map((s) => ({ text: s.text, text_ko: s.text_ko ?? null, recheck: s.recheck, recheck_reason: s.recheck_reason })),
     };
   });
   return {
