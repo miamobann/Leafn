@@ -5,7 +5,6 @@ import Link from "next/link";
 // 수집하지 않는 쿠키 · 접속 기기 정보는 적지 않는다 (분석 도구를 넣을 때 추가)
 const COPY = {
   title: "個人情報の取扱いについて",
-  draft: "掲載している文言は専門家による確認前の案です。",
   sections: [
     { heading: "1. 事業者", body: ["事業者名：Leaf&", "所在地：大韓民国 ソウル特別市 江南区 テヘラン路 123 リーフビル5階", "代表者：キム・ハヌル"] },
     {
@@ -71,7 +70,6 @@ export default function SurveyPrivacyPage() {
         ← {COPY.back}
       </Link>
       <h1 className="text-2xl font-semibold">{COPY.title}</h1>
-      <p className="rounded-lg border border-dashed bg-muted px-4 py-3 text-sm">{COPY.draft}</p>
       <div className="space-y-6 rounded-lg border p-5 text-sm leading-relaxed">
         {COPY.sections.map((s) => (
           <section key={s.heading} className="space-y-1.5">
