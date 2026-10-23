@@ -91,8 +91,6 @@ export function SurveyResultsView({
     { label: "총 응답", value: `${summary.total}건`, sub: "18세 이상 · 동의한 응답" },
     { label: "최근 7일", value: `${summary.recent_7d}건`, sub: "" },
     { label: "가장 많은 피부타입", value: topType ? SKIN[topType.skin_type].ko : "—", sub: topType ? `${topType.count}건 · ${share(topType.count)}` : "" },
-    { label: "민감 경향 있음", value: `${summary.sensitive_count}건`, sub: `피부타입과 별도 표시 · ${share(summary.sensitive_count)}` },
-    { label: "18세 미만 참여", value: `${summary.under18_count}건`, sub: "숫자만 기록 · 총 응답에 미포함" },
   ];
 
   async function copyLink(path: string) {
@@ -126,7 +124,7 @@ export function SurveyResultsView({
 
       {tab === "summary" && (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-3">
             {stats.map((s) => (
               <Card key={s.label}>
                 <CardContent>
