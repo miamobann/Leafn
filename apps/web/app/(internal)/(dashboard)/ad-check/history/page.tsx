@@ -52,12 +52,13 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
             { key: "status", label: "상태" },
             { key: "reviewer", label: "검토자" },
             { key: "date", label: "요청일" },
+            { key: "detail", label: "" },
           ]}
           rows={checks.map((c) => {
             const [first, ...rest] = c.input_text.split("\n");
             return {
               id: c.id,
-              href: `/ad-check/${c.id}`,
+              href: `/ad-check?from=${c.id}`, // 문구를 누르면 새 검토로 불러와 고친다. 상세는 맨 끝 칸
               cells: {
                 text: (
                   // 긴 문구는 한 줄로 자르고 전체는 title로 보여준다
@@ -75,6 +76,11 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
                 status: <ReviewStateBadge status={c.review_status} expertRequested={c.is_expert_review_requested} />,
                 reviewer: memberName(c.reviewer_id),
                 date: formatDate(c.created_at),
+                detail: (
+                  <Link href={`/ad-check/${c.id}`} className="text-xs text-muted-foreground underline underline-offset-4">
+                    상세
+                  </Link>
+                ),
               },
             };
           })}
