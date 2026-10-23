@@ -13,7 +13,7 @@ import { calcScores, isUnder18, judge, maxScores } from "@/lib/survey/judge";
 import { clearSession, parseSession, readSessionRaw, subscribeSession } from "../_lib/session";
 import { trackReco } from "../_lib/submit";
 
-// 일본어 문구는 원어민 검수 전, 결과 · 추천 문구는 약기법 검토 전 가안
+// 일본어 문구는 원어민 검수 전. 결과 · 추천 문구는 약기법 기준 자료(knowledge/yakkiho)와 대조해 고침 (2026-10-23, 법률 판정 아님)
 const TYPES: Record<SkinType, { name: string; desc: string; reason: string; tips: string[] }> = {
   dry: {
     name: "乾燥肌",
@@ -93,7 +93,7 @@ const COPY = {
   recoTitle: "この肌タイプにおすすめのLeaf&製品",
   poster: "広告ポスター（準備中）",
   productImage: "商品画像",
-  ingredients: "主な成分：",
+  ingredients: "保湿成分：",
   status: { on_sale: "発売中", in_development: "開発中" },
   buy: "購入する",
   buyDemo: "デモ版のため、実際のショップには移動しません。",
