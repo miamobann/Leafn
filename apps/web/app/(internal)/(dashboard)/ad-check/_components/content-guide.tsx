@@ -117,7 +117,9 @@ function BodyPager({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
           </button>
         ))}
       </div>
-      <div className="relative rounded-md border px-12 py-4">
+      {/* 높이를 고정해 넘길 때 칸·화살표가 위아래로 움직이지 않게 한다. 글이 길면 칸 안에서 스크롤 */}
+      <div className="relative h-80 rounded-md border">
+        <div className="h-full overflow-y-auto px-12 py-4" role="region" aria-label="본문 블록 내용" tabIndex={0}>
         <p className="font-semibold">
           {at + 1}/{blocks.length} · {b.heading}
         </p>
@@ -134,6 +136,7 @@ function BodyPager({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
             </div>
           ))}
         <p className="mt-2 text-xs text-muted-foreground">추천 이유: {b.reason}</p>
+        </div>
         {blocks.length > 1 && (
           <>
             <PagerArrow side="left" label="이전 블록" disabled={at === 0} onClick={() => setIndex(at - 1)} />

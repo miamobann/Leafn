@@ -223,7 +223,9 @@ const igDraft = (
   title_ko: title[1],
   recommended,
   reason,
+  // 본문 추천에서는 캡션을 맨 앞에 둔다 (미리보기는 사진 → 캡션 순서 그대로)
   blocks: [
+    { key: "caption", heading: "캡션", options: [c(caption[0], caption[1])], reason: "첫 줄 훅 → POINT → 행동 유도 → 약기법 각주 순서예요. 더보기 전 첫 2줄에 핵심을 담았어요." },
     ...slides.slice(0, IG_MAX_SLIDES).map(([ja, ko, image], i) => ({
       key: `slide${i + 1}`,
       heading: `슬라이드 ${i + 1} · ${SLIDE_ROLES[i]}`,
@@ -231,7 +233,6 @@ const igDraft = (
       reason: i === 0 ? "커버는 2줄 이내로 스크롤을 멈추게 해요." : "슬라이드마다 한 가지 메시지만 담았어요.",
       image,
     })),
-    { key: "caption", heading: "캡션", options: [c(caption[0], caption[1])], reason: "첫 줄 훅 → POINT → 행동 유도 → 약기법 각주 순서예요. 더보기 전 첫 2줄에 핵심을 담았어요." },
   ],
   hashtags: { brand: BRAND_TAGS, ...tags },
 });
