@@ -105,6 +105,7 @@
 | `source_url` | `text` | 공식 공지 링크 |
 | `memo` | `text` | |
 | `created_by` | `uuid` → profiles, `on delete set null` | |
+| | `unique (id, workspace_id)` | `promo_milestones`가 같은 워크스페이스의 행사에만 붙도록 복합 FK의 대상 |
 
 **`promo_milestones`** — 행사 하나의 준비 마감들 (참가 신청, 할인 설정, 입고, 문구 승인 등)
 
@@ -112,10 +113,11 @@
 | --- | --- | --- |
 | `id`, `created_at`, `updated_at` | 공통 | |
 | `workspace_id` | `uuid not null` → workspaces, `on delete cascade` | RLS를 단순하게. 인덱스 `(workspace_id, due_date)` |
-| `promo_event_id` | `uuid not null` → promo_events, `on delete cascade` | 인덱스 |
+| `promo_event_id` | `uuid not null` | 인덱스. FK는 아래 복합 키로 건다 |
 | `label` | `text not null` | |
 | `due_date` | `date not null` | |
 | `done_at` | `timestamptz` | null = 미완료. 완료 시각도 남는다 |
+| | `foreign key (promo_event_id, workspace_id) references promo_events (id, workspace_id) on delete cascade` | 두 팀에 속한 사람이 다른 팀 행사에 마감을 붙이지 못하게 한다 (RLS는 `workspace_id`만 본다) |
 
 **다른 탭과의 연결 (이 절에서 만들지 않음)**
 - `ad_checks.promo_event_id` → promo_events (`on delete set null`): TAB 3 담당자 테이블. 담당자 안이 확정되면 그쪽 마이그레이션에서 추가한다.
