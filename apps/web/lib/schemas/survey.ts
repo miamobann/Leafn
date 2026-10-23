@@ -93,6 +93,8 @@ export const SurveyProductLine = z.object({
   name_ko: z.string(),
   ingredients_ja: z.string(),
   status: z.enum(["on_sale", "in_development"]),
+  /** public/ 아래 제품 사진 경로. 없으면 자리표시 */
+  image_path: z.string().nullable().default(null),
   for_types: z.array(SkinType),
 });
 export type SurveyProductLine = z.infer<typeof SurveyProductLine>;

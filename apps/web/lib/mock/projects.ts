@@ -1,13 +1,14 @@
 import { Project, ProjectStage } from "@/lib/schemas/project";
+import { ownProductName } from "@/lib/own-products";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
-// 프로젝트 하나 = 자사 제품 하나. 두 번째 제품(수분 크림)은 products에 아직 등록되지 않은 것으로 둔다.
+// 프로젝트 하나 = 자사 제품 하나. 두 번째 제품(Mild Skin, 개발중)은 products에 아직 등록되지 않은 것으로 둔다.
 // products에 넣으면 리뷰 분석·경쟁제품 비교 같은 다른 탭 화면에도 나타나기 때문이다.
 export const projects = parseAll(
   Project,
   [
-    { id: "prj-1", name: "Leaf& Dew Deep Skin", platform: "Qoo10", product_id: "p-own-1" },
-    { id: "prj-2", name: "수분 크림", platform: "楽天市場", product_id: null },
+    { id: "prj-1", name: ownProductName("deep-skin"), platform: "Qoo10", product_id: "p-own-1" },
+    { id: "prj-2", name: ownProductName("mild-skin"), platform: "楽天市場", product_id: null },
   ].map((p) => ({ ...p, workspace_id: WORKSPACE_ID, created_at: ts("2026-09-20") })),
   "projects",
 );

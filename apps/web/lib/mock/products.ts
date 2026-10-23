@@ -1,4 +1,5 @@
 import { Product } from "@/lib/schemas/product";
+import { ownProductImage, ownProductName } from "@/lib/own-products";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // Qoo10 카테고리 랭킹 TOP10 (가상 브랜드). 순위는 수집 API가 주는 값이라 source_raw에 둔다 (DB_RULES 2.1)
@@ -54,7 +55,8 @@ export const products = parseAll(
       id: "p-own-1",
       kind: "own",
       brand: "Leafn",
-      name: "Leaf& Dew Deep Skin",
+      name: ownProductName("deep-skin"),
+      image_path: ownProductImage("deep-skin"),
       platform: "qoo10",
       price_jpy: 2480,
       volume_ml: 200,
@@ -66,7 +68,8 @@ export const products = parseAll(
       id: "p-own-2",
       kind: "own",
       brand: "Leafn",
-      name: "Leaf& Dew Core Essence",
+      name: ownProductName("core-essence"),
+      image_path: ownProductImage("core-essence"),
       platform: "qoo10",
       price_jpy: 2980,
       volume_ml: 50,
