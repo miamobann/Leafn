@@ -82,7 +82,7 @@ Leafn_main   배포 기준. 직접 push하지 않는다
 
 - 테이블·RLS 변경은 새 마이그레이션 파일로만. 파일은 Supabase CLI로 만든다: `npx supabase migration new <설명>` → `supabase/migrations/<YYYYMMDDHHMMSS>_<설명>.sql` (14자리 시각). 손으로 이름을 지으면 자릿수가 달라져 적용 순서가 꼬일 수 있다.
 - 새 업무 테이블에는 `workspace_id`와 RLS 정책을 같이 만든다.
-- 브라우저에서는 anon 키만. `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `RAKUTEN_APPLICATION_ID`는 서버 코드에서만 쓰고 `NEXT_PUBLIC_`을 붙이지 않는다.
+- 브라우저에서는 anon 키만. `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`는 서버 코드에서만 쓰고 `NEXT_PUBLIC_`을 붙이지 않는다.
 - 필요한 환경 변수는 `apps/web/.env.example`에 이름만 적는다. 실제 값은 그 파일을 복사한 `apps/web/.env.local`(로컬), Vercel 환경 변수, GitHub Actions Secrets에만 넣는다 (연동 방법: `docs/SUPABASE_SETUP.md`).
 
 ## 8. Python 수집기 (`collectors/`)

@@ -3,7 +3,7 @@ import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 광고 검토 이력 샘플 6건. 판정 모양은 프롬프트 v4·v5 출력과 같고, 근거 번호는 knowledge/yakkiho/ 에 실제로 있는 항목이다.
 // 법적 판정이 아니므로 실제 문구는 기준 자료 원문과 대조해야 한다 (prototype-plan 10.4).
-// ac-1·ac-2 는 리뷰 번역(review-translations)과 이어진 검토라 TAB 2 제품(p-own-1)을 가리킨다.
+// ac-1·ac-2 는 리뷰 번역(review-translations)과 이어진 검토다 (p-own-1 Deep Skin 리뷰).
 // 검토 중(pending)인 건은 아직 검토자가 없으므로 reviewer_id·reviewer_note 는 null, reviewed_at 은 없다.
 export const adChecks = parseAll(
   AdCheck,
@@ -140,7 +140,7 @@ export const adChecks = parseAll(
       reviewer_note: "No.1 근거 자료가 없어 반려. 메가와리 배너용으로 다시 작성",
       reviewed_at: ts("2026-10-19", "11:00"),
       usage: "banner",
-      product_id: "p-leaf-deep-skin",
+      product_id: "p-own-1",
       promo_event_id: "pe-1",
       line_results: [
         {
@@ -178,7 +178,7 @@ export const adChecks = parseAll(
       reviewer_id: null,
       reviewer_note: null,
       usage: "sns",
-      product_id: "p-leaf-core-essence",
+      product_id: "p-own-2",
       promo_event_id: "pe-2",
       line_results: [
         {
@@ -251,7 +251,7 @@ export const adChecks = parseAll(
       reviewer_note: "대체 표현 2개로 바꿔 SNS 게시용으로 확정",
       reviewed_at: ts("2026-10-21", "16:00"),
       usage: "sns",
-      product_id: "p-leaf-core-essence",
+      product_id: "p-own-2",
       line_results: [
         {
           line_index: 1,
@@ -331,7 +331,7 @@ export const adChecks = parseAll(
       reviewer_id: null,
       reviewer_note: null,
       usage: "notify_button",
-      product_id: "p-leaf-tea-pure-skin",
+      product_id: "p-own-3",
       line_results: [
         {
           line_index: 1,

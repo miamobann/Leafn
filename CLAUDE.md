@@ -38,7 +38,7 @@
 - AI 응답과 API 입력은 `lib/schemas/`의 Zod 스키마로 검증한다.
 
 **보안**
-- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`는 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`는 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
 - 키, `.env` 파일, 실제 리뷰 원문 대량 데이터를 커밋하지 않는다.
 
 **Git** (자세한 약속은 `docs/CODING_RULES.md` 1~3장)
@@ -110,6 +110,7 @@
 | DB/인증/파일 | Supabase (PostgreSQL, Auth, Storage, RLS) | 모든 데이터, 로그인, CSV/이미지 보관 |
 | 수집 | Playwright (Py), requests + BeautifulSoup, pandas | 쇼핑몰 리뷰·랭킹 수집과 정리 |
 | 외부 API | 라쿠텐 시장 API (상품 검색, 랭킹) | 트렌드·경쟁사 데이터 (B, C) |
+| 외부 API | SerpApi (Google 자동완성 · Google Trends) | 성분 관심도 "미래 트렌드" (B 확장). 2026-10-23 총괄 허용. SDK 없이 서버에서 `fetch` |
 | 배포 | Vercel | Next.js 배포, PR별 미리보기 |
 | 스케줄러 | GitHub Actions (cron) | Python 수집기 정기 실행 |
 
@@ -125,6 +126,7 @@
 | 대량 | 리뷰 감성 분류, 키워드, 상품 이미지에서 성분·용량 추출, (참조) 번역 | `gpt-4.1-mini` | Claude Haiku 계열 (`claude-haiku-5-5`) | 대량 반복 작업, 속도·비용 |
 
 - 호출은 `lib/ai/`의 함수 하나로 모은다. 화면·Route Handler는 등급(정밀·대량)만 넘기고, 어느 제공사를 쓸지는 모른다. 제공사는 환경 변수 `AI_PROVIDER`(`openai` · `anthropic`, 기본 `openai`)로 바꾼다.
+- **표준 위치 (2026-10-23 결정, 총괄):** 설정은 `lib/ai/config.ts`(`resolveProvider`, `resolveModel`), 호출은 `lib/ai/client.ts`의 `callAi` 하나다. 다른 파일에서 `new OpenAI()`·`new Anthropic()`을 만들거나 config를 새로 만들지 않는다. 이미지 입력·구조화 출력·Anthropic 연결처럼 모자란 기능은 `callAi`를 넓히는 PR로 추가한다. 기능별 코드는 `lib/ai/<기능>/`(예: `lib/ai/ad-check/`)에 둔다.
 - 모델 ID는 `lib/ai/` 안의 설정 파일 한곳에서 관리한다. 바꾸고 싶으면 `AI_MODEL_PRECISE`, `AI_MODEL_BULK`로 덮어쓴다. 시작 시점의 최신 버전으로 갱신.
 - 제공사·모델을 바꾸면 결과가 달라질 수 있으므로, AI 결과 행의 `model`에는 실제로 부른 모델 ID를 그대로 남긴다 (5장 규칙).
 
@@ -194,7 +196,7 @@
 │  │  └─ api/                    # Route Handler (5장) — 프로토타입 단계에서는 만들지 않음
 │  ├─ components/                # shadcn/ui 기반 공통 컴포넌트 (ui/, layout/, common/, templates/)
 │  ├─ lib/
-│  │  ├─ ai/                     # Claude 클라이언트, 작업별 호출 함수
+│  │  ├─ ai/                     # config.ts(제공사·모델), client.ts(callAi), <기능>/ 작업별 호출 함수
 │  │  ├─ schemas/                # Zod 스키마 (데이터 모양, AI 응답, API 입력)
 │  │  ├─ supabase/               # 브라우저/서버용 클라이언트
 │  │  ├─ mock/                   # (프로토타입) 가짜 데이터. 불러올 때 Zod로 검증
@@ -331,6 +333,8 @@
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | 공개 가능 (RLS가 보호) |
 | `SUPABASE_SERVICE_ROLE_KEY` | collectors, 서버 전용 작업 | RLS 우회 키. 절대 브라우저/커밋 금지 |
 | `RAKUTEN_APPLICATION_ID` | web 서버, collectors | |
+| `SERPAPI_API_KEY` | web 서버 | 브라우저 노출 금지. 유료 호출이라 수집 버튼·예약 실행에서만 부른다 |
+| `GEO_MODEL_CHATGPT`, `GEO_MODEL_CLAUDE`, `GEO_REPEAT_COUNT` | web 서버 | 선택. GEO가 측정하는 엔진의 모델과 반복 횟수(1~3). 키는 `OPENAI_API_KEY`·`ANTHROPIC_API_KEY`를 쓴다 |
 
 키는 Vercel 환경 변수와 GitHub Actions Secrets에만 넣는다. `.env*`는 `.gitignore`에 포함.
 

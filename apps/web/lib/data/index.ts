@@ -2,7 +2,10 @@
 // 화면은 lib/mock을 직접 import하지 않고 여기만 부른다. 나중에 같은 시그니처의 Supabase 쿼리로 바꾼다.
 import { mock } from "@/lib/mock";
 import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
+import type { Product } from "@/lib/schemas/product";
 import { StageKey } from "@/lib/schemas/project";
+import type { TrendSource } from "@/lib/schemas/trend";
+import { AppealTopic } from "@/lib/schemas/review";
 
 export async function getWorkspace() {
   return mock.workspace;
@@ -40,12 +43,72 @@ export async function getReviewReport(productId: string) {
   return { reviews, insights, sentiment };
 }
 
-/** 국내 리뷰의 칭찬(자사)과 일본 리뷰의 불만(경쟁)을 나란히 (소구점 찾기) */
-export async function getAppealCandidates() {
-  const own = mock.products.filter((p) => p.kind === "own").map((p) => p.id);
+// 소구점 후보 판정 기준 (팀 합의 전 시안)
+const APPEAL_RULE = { minComplaints: 3, minPraises: 3, praiseToComplaintRatio: 2 } as const;
+
+function qoo10Rank(p: Product): number | null {
+  const rank = p.source_raw?.qoo10_rank;
+  return typeof rank === "number" ? rank : null;
+}
+
+/**
+ * 소구점 찾기: 같은 카테고리 Qoo10 랭킹 TOP10의 낮은 평점 리뷰 불만(일본) vs 자사 제품의 칭찬(국내)을 주제별로 비교.
+ * 경쟁 불만이 많고 + 자사 칭찬이 많고 + 자사 불만이 적은 주제가 소구점 후보다.
+ */
+export async function getAppealComparison(ownProductId: string, opts: { maxRating?: number } = {}) {
+  const maxRating = opts.maxRating ?? 3;
+  const own = mock.products.find((p) => p.id === ownProductId && p.kind === "own");
+  if (!own) return null;
+
+  const competitors = mock.products
+    .flatMap((p) => {
+      const rank = qoo10Rank(p);
+      return p.kind === "competitor" && p.platform === "qoo10" && p.category === own.category && rank !== null
+        ? [{ ...p, rank }]
+        : [];
+    })
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 10);
+  const competitorIds = new Set(competitors.map((p) => p.id));
+
+  const all = await getReviews();
+  const ownReviews = all.filter((r) => r.product_id === own.id && r.lang === "ko");
+  const lowReviews = all.filter((r) => competitorIds.has(r.product_id) && r.rating <= maxRating);
+  const has = (r: (typeof all)[number], topic: AppealTopic, polarity: "positive" | "negative") =>
+    r.analysis?.topics?.some((t) => t.topic === topic && t.polarity === polarity) ?? false;
+
+  const topics = AppealTopic.options
+    .map((topic) => {
+      const complaints = lowReviews.filter((r) => has(r, topic, "negative"));
+      const praises = ownReviews.filter((r) => has(r, topic, "positive"));
+      const ownComplaints = ownReviews.filter((r) => has(r, topic, "negative"));
+      const complaintShare = lowReviews.length ? complaints.length / lowReviews.length : 0;
+      const praiseShare = ownReviews.length ? praises.length / ownReviews.length : 0;
+      return {
+        topic,
+        complaints,
+        praises,
+        ownComplaints,
+        complaintShare,
+        praiseShare,
+        complaintProductCount: new Set(complaints.map((r) => r.product_id)).size,
+        isCandidate:
+          complaints.length >= APPEAL_RULE.minComplaints &&
+          praises.length >= APPEAL_RULE.minPraises &&
+          praises.length >= ownComplaints.length * APPEAL_RULE.praiseToComplaintRatio,
+        score: complaintShare * praiseShare,
+      };
+    })
+    .sort((a, b) => Number(b.isCandidate) - Number(a.isCandidate) || b.score - a.score);
+
   return {
-    strengths: mock.reviewInsights.filter((i) => own.includes(i.product_id) && i.kind === "repurchase_factor"),
-    complaints: mock.reviewInsights.filter((i) => !own.includes(i.product_id) && i.kind === "pain_point"),
+    own,
+    competitors: competitors.map((p) => ({ ...p, lowReviewCount: lowReviews.filter((r) => r.product_id === p.id).length })),
+    ownReviewCount: ownReviews.length,
+    lowReviewCount: lowReviews.length,
+    maxRating,
+    rule: APPEAL_RULE,
+    topics,
   };
 }
 
@@ -62,11 +125,25 @@ export async function getAdCheck(id: string) {
   return mock.adChecks.find((a) => a.id === id) ?? null;
 }
 
-export async function getTrendSnapshots(opts: { category: string }) {
-  return mock.trendSnapshots.filter((t) => t.category === opts.category);
+/** source는 필수 (楽天·Qoo10 시계열이 섞이지 않게). category를 빼면 모든 카테고리. captured_at 오름차순 */
+export async function getTrendSnapshots(opts: { source: TrendSource; category?: string }) {
+  return mock.trendSnapshots
+    .filter((t) => t.source === opts.source)
+    .filter((t) => !opts.category || t.category === opts.category)
+    .toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
 }
 
-export async function getIngredientInterest(opts: { category: string }) {
+/** 이미지 분석의 입력 (크롤러 결과). 지금은 더미, 크롤러가 생기면 DB에서 읽는다 */
+export async function getRankingSources(opts: { source: TrendSource; category: string }) {
+  return mock.rankingSources.filter((r) => r.source === opts.source && r.category === opts.category).toSorted((a, b) => a.rank - b.rank);
+}
+
+/** 검색 자동완성 스냅샷 (미래 트렌드). captured_at 오름차순 */
+export async function getSearchSnapshots() {
+  return mock.searchSnapshots.toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
+}
+
+export async function getIngredientInterest(opts: { source: TrendSource; category: string }) {
   const latest = (await getTrendSnapshots(opts)).at(-1);
   return latest?.data.ingredients ?? [];
 }
@@ -108,7 +185,7 @@ export async function getLibraryItems(opts: { type?: string; q?: string } = {}) 
   const items: LibraryItem[] = [
     ...mock.adChecks.map((a) => ({ id: a.id, type: "광고 검토", title: a.input_text, href: `/ad-check/${a.id}`, created_at: a.created_at })),
     ...mock.products.map((p) => ({ id: p.id, type: "제품", title: `${p.brand} ${p.name}`, href: `/market/competitors/${p.id}`, created_at: p.created_at })),
-    ...mock.geoSnapshots.map((g) => ({ id: g.id, type: "GEO 측정", title: `${g.engine} · ${g.query}`, href: "/market/geo", created_at: g.created_at })),
+    ...mock.geoSnapshots.map((g) => ({ id: g.id, type: "GEO 측정", title: `${g.engine} · ${g.query}`, href: "/market/trends", created_at: g.created_at })),
   ];
   return items
     .filter((i) => !opts.type || i.type === opts.type)

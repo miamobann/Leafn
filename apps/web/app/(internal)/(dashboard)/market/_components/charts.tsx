@@ -1,0 +1,109 @@
+"use client";
+
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+// 팀 테마(globals.css)의 무채색 차트 색을 쓴다. 색만으로 구분하지 않도록 선 모양(실선·점선)과 범례·라벨을 같이 쓴다.
+const AXIS = { fontSize: 11, fill: "var(--muted-foreground)" };
+const TOOLTIP_STYLE = {
+  background: "var(--popover)",
+  color: "var(--popover-foreground)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius)",
+  fontSize: 12,
+};
+
+export type LineSeries = { key: string; label: string; color: string; dash?: string; emphasis?: boolean };
+
+export function TrendLineChart({
+  data,
+  series,
+  unit = "",
+  reversed = false,
+  domain,
+  height = 260,
+}: {
+  data: Record<string, string | number | null>[];
+  series: LineSeries[];
+  unit?: string;
+  /** 순위처럼 작은 값이 위로 가야 할 때 */
+  reversed?: boolean;
+  domain?: [number, number];
+  height?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke="var(--border)" vertical={false} />
+        <XAxis dataKey="week" tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--border)" }} />
+        <YAxis
+          tick={AXIS}
+          tickLine={false}
+          axisLine={false}
+          width={44}
+          reversed={reversed}
+          domain={domain ?? ["auto", "auto"]}
+          allowDecimals={false}
+          tickFormatter={(v: number) => `${v}${unit}`}
+        />
+        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => `${v}${unit}`} />
+        {series.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
+        {series.map((s) => (
+          <Line
+            key={s.key}
+            type="monotone"
+            dataKey={s.key}
+            name={s.label}
+            stroke={s.color}
+            strokeWidth={s.emphasis ? 3 : 2}
+            strokeDasharray={s.dash}
+            dot={{ r: s.emphasis ? 3 : 2, fill: s.color }}
+            activeDot={{ r: 5 }}
+            isAnimationActive={false}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+export type BarItem = { id: string; label: string; value: number; highlight?: boolean; selected?: boolean };
+
+/** 가로 막대. highlight = 자사(진한 색), selected = 선택 표시(테두리) */
+export function HorizontalBarChart({
+  items,
+  unit = "",
+  onSelect,
+  labelWidth = 120,
+}: {
+  items: BarItem[];
+  unit?: string;
+  onSelect?: (id: string) => void;
+  labelWidth?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={items.length * 30 + 16}>
+      <BarChart data={items} layout="vertical" margin={{ top: 0, right: 48, bottom: 0, left: 0 }} barCategoryGap={6}>
+        <XAxis type="number" hide domain={[0, "dataMax"]} />
+        <YAxis type="category" dataKey="label" tick={AXIS} tickLine={false} axisLine={false} width={labelWidth} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)" }} formatter={(v) => `${v}${unit}`} />
+        <Bar
+          dataKey="value"
+          radius={[0, 4, 4, 0]}
+          isAnimationActive={false}
+          onClick={onSelect ? (_d, index) => onSelect(items[index].id) : undefined}
+          className={onSelect ? "cursor-pointer" : undefined}
+        >
+          {items.map((it) => (
+            <Cell
+              key={it.id}
+              fill={it.highlight ? "var(--primary)" : "var(--chart-2)"}
+              stroke={it.selected ? "var(--foreground)" : "none"}
+              strokeWidth={it.selected ? 2 : 0}
+            />
+          ))}
+          <LabelList dataKey="value" position="right" style={AXIS} formatter={(v) => `${v}${unit}`} />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}

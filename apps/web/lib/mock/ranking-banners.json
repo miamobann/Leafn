@@ -1,0 +1,32 @@
+{
+  "_comment": "더미 크롤링 결과 (가상 브랜드). 楽天·Qoo10 상세 배너의 표기 패턴만 따라 새로 쓴 문구. public/mock/appeal/*.png 더미 이미지에 같은 문구가 그려져 있다",
+  "rakuten": [
+    { "image": "rakuten-01", "brand": "SampleA", "name": "ドクダミ化粧水", "heroes": [["ドクダミ", "ドクダミエキス77%配合"]], "concerns": [["sensitivity", "ゆらぎ肌を落ち着かせる"], ["pores", "毛穴まわりをすっきり"]], "hooks": [["bundle", "2本セットでお得"], ["limited", "メガ割限定セット"]] },
+    { "image": "rakuten-02", "brand": "SampleJ", "name": "薬用ローション", "heroes": [["トラネキサム酸", "有効成分トラネキサム酸"]], "concerns": [["dullness", "透明感のある肌へ"]], "hooks": [["discount", "初回20%OFF"]] },
+    { "image": "rakuten-03", "brand": "SampleB", "name": "セラミドトナー", "heroes": [["セラミド", "5種のセラミド配合"], ["ヒアルロン酸", "ヒアルロン酸でうるおい"]], "concerns": [["dryness", "乾燥肌のための高保湿"]], "hooks": [["bundle", "1+1"], ["limited", "メガ割限定"]] },
+    { "image": "rakuten-04", "brand": "SampleG", "name": "ヒアルロン酸ローション", "heroes": [["ヒアルロン酸", "8種のヒアルロン酸"]], "concerns": [["dryness", "インナードライに"]], "hooks": [["gift", "ミニサイズおまけ付き"]] },
+    { "image": "rakuten-05", "brand": "SampleK", "name": "高保湿化粧水", "heroes": [["セラミド", "セラミド機能成分配合"]], "concerns": [["dryness", "高保湿"]], "hooks": [["award", "ランキング1位獲得"]] },
+    { "image": "rakuten-06", "brand": "SampleL", "name": "拭き取り化粧水", "heroes": [["PHA", "PHA配合でつるん肌"]], "concerns": [["pores", "毛穴の汚れをオフ"], ["dullness", "ごわつき肌に"]], "hooks": [["discount", "期間限定30%OFF"]] },
+    { "image": "rakuten-07", "brand": "SampleM", "name": "パンテノールトナー", "heroes": [["パンテノール", "パンテノール5%"], ["CICA", "CICA配合"]], "concerns": [["sensitivity", "敏感肌テスト済み"], ["redness", "赤みが気になる肌に"]], "hooks": [["bundle", "1+1"]] },
+    { "image": "rakuten-08", "brand": "SampleN", "name": "ライストナー", "heroes": [["米発酵液", "米発酵液配合"], ["ナイアシンアミド", "ナイアシンアミド配合"]], "concerns": [["dullness", "くすみケア"]], "hooks": [["bundle", "1+1"], ["limited", "メガ割限定"]] },
+    { "image": "rakuten-09", "brand": "SampleP", "name": "うるおいローション", "heroes": [["ヒアルロン酸", "ヒアルロン酸配合"]], "concerns": [["dryness", "たっぷりうるおう"]], "hooks": [["discount", "大容量でお得"]] },
+    { "image": "rakuten-10", "brand": "SampleQ", "name": "毛穴ケアトナー", "heroes": [["ナイアシンアミド", "ナイアシンアミド配合"], ["ドクダミ", "ドクダミエキス配合"]], "concerns": [["pores", "毛穴目立ちに"], ["oiliness", "皮脂バランスを整える"]], "hooks": [["limited", "メガ割限定"], ["gift", "コットン付き"]] },
+    { "image": "rakuten-11", "brand": "SampleR", "name": "しっとり化粧水", "heroes": [["スクワラン", "スクワラン配合"]], "concerns": [["dryness", "しっとりタイプ"]], "hooks": [] },
+    { "image": "rakuten-12", "brand": "SampleS", "name": "シカトナー", "heroes": [["CICA", "CICA(ツボクサエキス)配合"]], "concerns": [["sensitivity", "ゆらぎ肌に"], ["acne", "肌あれを防ぐ"]], "hooks": [["bundle", "2本セット"]] },
+    { "image": "rakuten-13", "brand": "SampleT", "name": "敏感肌用化粧水", "heroes": [["セラミド", "セラミド配合"]], "concerns": [["sensitivity", "敏感肌用"]], "hooks": [] },
+    { "image": "rakuten-14", "brand": "SampleU", "name": "ビタミントナー", "heroes": [["ビタミンC誘導体", "ビタミンC誘導体配合"]], "concerns": [["dullness", "透明感"]], "hooks": [["limited", "メガ割限定"]] },
+    { "image": "rakuten-15", "brand": "SampleV", "name": "導入化粧水", "heroes": [["レチノール", "ピュアレチノール配合"]], "concerns": [["aging", "ハリ不足に"]], "hooks": [["gift", "サンプル付き"]] }
+  ],
+  "qoo10": [
+    { "image": "qoo10-01", "rank": 1, "brand": "SampleA", "name": "ドクダミ化粧水", "price_jpy": 1780, "review_count": 5200, "is_kbeauty": true, "heroes": [["ドクダミ", "ドクダミエキス77%配合"]], "concerns": [["sensitivity", "ゆらぎ肌を落ち着かせる"]], "hooks": [["limited", "メガ割限定"], ["bundle", "1+1"]] },
+    { "image": "qoo10-02", "rank": 2, "brand": "SampleQ", "name": "毛穴ケアトナー", "price_jpy": 1590, "review_count": 3100, "is_kbeauty": true, "heroes": [["ナイアシンアミド", "ナイアシンアミド5%"]], "concerns": [["pores", "毛穴目立ちに"]], "hooks": [["limited", "メガ割限定"], ["gift", "コットン付き"]] },
+    { "image": "qoo10-03", "rank": 3, "brand": "SampleAI", "name": "PDRNトナー", "price_jpy": 2380, "review_count": 1900, "is_kbeauty": true, "heroes": [["PDRN", "サーモンPDRN配合"]], "concerns": [["aging", "ハリ・ツヤケア"]], "hooks": [["limited", "メガ割限定"]] },
+    { "image": "qoo10-04", "rank": 4, "brand": "SampleM", "name": "パンテノールトナー", "price_jpy": 1650, "review_count": 1700, "is_kbeauty": true, "heroes": [["パンテノール", "パンテノール5%"], ["CICA", "CICA配合"]], "concerns": [["sensitivity", "敏感肌テスト済み"]], "hooks": [["bundle", "1+1"]] },
+    { "image": "qoo10-05", "rank": 5, "brand": "SampleAJ", "name": "ニードルトナー", "price_jpy": 2980, "review_count": 1500, "is_kbeauty": true, "heroes": [["マイクロニードル", "マイクロニードル配合"], ["CICA", "シカ配合"]], "concerns": [["pores", "毛穴ケア"]], "hooks": [["discount", "メガ割で45%OFF"]] },
+    { "image": "qoo10-06", "rank": 6, "brand": "SampleB", "name": "セラミドトナー", "price_jpy": 2480, "review_count": 1400, "is_kbeauty": true, "heroes": [["セラミド", "5種のセラミド配合"]], "concerns": [["dryness", "乾燥肌のための高保湿"]], "hooks": [["bundle", "2本セット"]] },
+    { "image": "qoo10-07", "rank": 7, "brand": "SampleN", "name": "ライストナー", "price_jpy": 1880, "review_count": 1250, "is_kbeauty": true, "heroes": [["米発酵液", "米発酵液配合"]], "concerns": [["dullness", "くすみケア"]], "hooks": [["limited", "メガ割限定"]] },
+    { "image": "qoo10-08", "rank": 8, "brand": "SampleAK", "name": "ドクダミパッドトナー", "price_jpy": 2190, "review_count": 980, "is_kbeauty": true, "heroes": [["ドクダミ", "ドクダミ70%"]], "concerns": [["acne", "肌あれを防ぐ"], ["oiliness", "皮脂ケア"]], "hooks": [["gift", "パッド10枚おまけ"]] },
+    { "image": "qoo10-09", "rank": 9, "brand": "SampleU", "name": "ビタミントナー", "price_jpy": 2290, "review_count": 760, "is_kbeauty": true, "heroes": [["ビタミンC誘導体", "ビタミンC誘導体配合"]], "concerns": [["dullness", "透明感"]], "hooks": [["discount", "クーポンで20%OFF"]] },
+    { "image": "qoo10-10", "rank": 10, "brand": "SampleK", "name": "高保湿化粧水", "price_jpy": 1280, "review_count": 2400, "is_kbeauty": false, "heroes": [["セラミド", "セラミド機能成分配合"]], "concerns": [["dryness", "高保湿"]], "hooks": [["award", "Qoo10ランキング1位"]] }
+  ]
+}

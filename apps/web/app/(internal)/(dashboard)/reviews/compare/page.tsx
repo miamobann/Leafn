@@ -1,42 +1,24 @@
+import { ViewStateGate } from "@/components/common/view-state";
 import { PageHeader } from "@/components/layout/page-header";
-import { ReportTemplate } from "@/components/templates";
-import { getAppealCandidates } from "@/lib/data";
+import { getAppealComparison, getProducts } from "@/lib/data";
+import { AppealCompare, type AppealComparison } from "./appeal-compare";
 
 export default async function ReviewsComparePage() {
-  const { strengths, complaints } = await getAppealCandidates();
+  const own = await getProducts({ kind: "own" });
+  const comparisons = (await Promise.all(own.map((p) => getAppealComparison(p.id)))).filter(
+    (c): c is AppealComparison => c !== null,
+  );
 
   return (
     <>
-      <PageHeader title="소구점 찾기" description="국내 리뷰의 강점(자사)과 일본 리뷰의 불만(경쟁) 비교" featureId="E" />
-      <ReportTemplate
-        cards={[
-          {
-            title: "국내 강점 (자사)",
-            content: (
-              <ul className="space-y-1 text-sm">
-                {strengths.map((s) => (
-                  <li key={s.id}>
-                    {s.label} <span className="text-muted-foreground">· 근거 {s.evidence_review_ids.length}건</span>
-                  </li>
-                ))}
-              </ul>
-            ),
-          },
-          {
-            title: "일본 불만 (경쟁)",
-            content: (
-              <ul className="space-y-1 text-sm">
-                {complaints.map((c) => (
-                  <li key={c.id}>
-                    <span lang="ja">{c.label}</span> {c.label_ko && <span>({c.label_ko})</span>}{" "}
-                    <span className="text-muted-foreground">· 근거 {c.evidence_review_ids.length}건</span>
-                  </li>
-                ))}
-              </ul>
-            ),
-          },
-        ]}
+      <PageHeader
+        title="소구점 찾기"
+        description="일본 경쟁 제품의 낮은 평점 불만 중 우리 제품의 강점과 맞닿는 주제를 찾아요"
+        featureId="E"
       />
+      <ViewStateGate state={comparisons.length === 0 ? "empty" : "ready"} emptyAction="리뷰 CSV 올리기">
+        <AppealCompare comparisons={comparisons} />
+      </ViewStateGate>
     </>
   );
 }
