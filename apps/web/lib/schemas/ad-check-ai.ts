@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { AdAction, AdFinding, BasisStatus, ProductCategory, SuggestionRecheck } from "./ad-check";
-import { Risk } from "./common";
+import { AdAction, AdFinding, AdUsage, BasisStatus, ProductCategory, SuggestionRecheck } from "./ad-check";
+import { Id, Risk } from "./common";
 
 // 광고 검토 AI가 내는 JSON의 모양 (prompts/ad-check.v4.md 9장). 검증에 통과해야 화면·DB 모양(AdFinding 등)으로 바뀐다.
 // ok 줄은 line_index, action, 번역, 역번역, findings(빈 배열)만 낸다. 그 밖의 칸은 코드가 채운다.
@@ -12,6 +12,16 @@ export const AdCheckProductInput = z.object({
   ingredients: z.array(z.string().min(1)).min(1), // 전성분 표시명. 한국어(일본어) 병기도 문자열 그대로 넘기면 된다
 });
 export type AdCheckProductInput = z.infer<typeof AdCheckProductInput>;
+
+/** POST /api/ad-check 요청 본문. 저장 단계(ad_checks) 전까지 workspace_id 는 호출하는 쪽이 넘기고, 저장 단계에서 서버가 로그인 정보로 정한다 */
+export const AD_CHECK_MAX_TEXT_CHARS = 4000;
+export const AdCheckRequest = z.object({
+  workspace_id: Id,
+  product: AdCheckProductInput,
+  usage: AdUsage,
+  text: z.string().min(1).max(AD_CHECK_MAX_TEXT_CHARS), // 한 줄 = 한 문구
+});
+export type AdCheckRequest = z.infer<typeof AdCheckRequest>;
 
 export const AiSuggestion = z.object({
   text: z.string(),
