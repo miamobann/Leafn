@@ -61,8 +61,11 @@ export async function getAdCheck(id: string) {
   return mock.adChecks.find((a) => a.id === id) ?? null;
 }
 
-export async function getTrendSnapshots(opts: { category: string }) {
-  return mock.trendSnapshots.filter((t) => t.category === opts.category);
+/** category를 빼면 모든 카테고리. captured_at 오름차순 */
+export async function getTrendSnapshots(opts: { category?: string } = {}) {
+  return mock.trendSnapshots
+    .filter((t) => !opts.category || t.category === opts.category)
+    .toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
 }
 
 export async function getIngredientInterest(opts: { category: string }) {

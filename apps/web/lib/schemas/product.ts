@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { WorkspaceRow } from "./common";
+import { Timestamp, WorkspaceRow } from "./common";
 
 export const Product = WorkspaceRow.extend({
   kind: z.enum(["own", "competitor"]),
@@ -18,6 +18,25 @@ export const Product = WorkspaceRow.extend({
   category: z.string().optional(),
 });
 export type Product = z.infer<typeof Product>;
+
+/**
+ * source_raw 중 경쟁제품 비교·제품 상세가 꺼내 쓰는 값 (DB_RULES 2.1: 한 화면에서만 쓰는 수집 값은 raw에 둔다).
+ * 수집기마다 모양이 달라질 수 있어 화면은 readListing()으로만 읽는다. 평점 척도는 플랫폼마다 다르다 (@cosme 7점은 확인 필요).
+ */
+export const ProductListing = z.object({
+  rating: z.number().nonnegative().nullable(),
+  rating_scale: z.number().int().positive(),
+  review_count: z.number().int().nonnegative(),
+  sale_price_jpy: z.number().int().nonnegative().nullable(),
+  sale_label: z.string().nullable(),
+  captured_at: Timestamp,
+});
+export type ProductListing = z.infer<typeof ProductListing>;
+
+export function readListing(p: Pick<Product, "source_raw">): ProductListing | null {
+  const parsed = ProductListing.safeParse(p.source_raw);
+  return parsed.success ? parsed.data : null;
+}
 
 /** ml당 가격은 저장하지 않고 화면에서 계산한다 (8장 11번) */
 export function pricePerMl(p: Pick<Product, "price_jpy" | "volume_ml">): number | null {
