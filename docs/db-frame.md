@@ -61,6 +61,18 @@
 | --- | --- | --- | --- |
 | `ad_checks` | 팀 | input_text, input_lang, findings `jsonb`, overall_risk, review_status, reviewer_id → profiles, reviewed_at, product_id → products, promo_event_id → promo_events, model, prompt_version | 나머지(final_text, usage, product_category, 번역·역번역 등)는 TAB 3 담당자 안 확정 후 추가 |
 
+**TAB 3 담당자 안 (2026-10-22, 팀 합의 전)** — 기존 칸은 바꾸지 않고 열만 추가한다. Zod는 `lib/schemas/ad-check.ts`에 `.nullable()`로 반영함.
+
+| 칸 | 타입 | 내용 |
+| --- | --- | --- |
+| `overall_action` | text check (`must_fix`·`should_fix`·`expert`·`ok`) | 행동 기준 4단계 전체 판정. `overall_risk`는 그대로 둔다 |
+| `line_results` | `jsonb` [{line_index, original, action, ingredient_check, translated_text, back_translation_ko, localized_note}] | 여러 줄 입력의 줄별 판정 |
+| `is_expert_review_requested` | boolean | 전문가 확인 요청 여부. `review_status`(pending·approved·rejected)는 공용 값 그대로 두고, 화면에서 approved를 "내부 검토 완료"로 표시한다 |
+| `usage` 선택지 | text check | `notify_button`(알림받기 버튼) 추가 |
+| `findings[]` 안 | jsonb 항목 | `line_index`, `action`, `basis_status`(`confirmed`·`needs_check`), `suggestion_rechecks` [{text, recheck(`pass`·`needs_rework`), recheck_reason}] 추가. 기존 `suggestions`(문자열 목록)는 유지 |
+
+판정 근거 자료: `knowledge/yakkiho/`. 마이그레이션 SQL은 프레임 합의 후 `..._ad_checks.sql`로 만든다.
+
 ### TAB 1 시장
 
 | 테이블 | 범위 | 핵심 칸 | 비고 |
