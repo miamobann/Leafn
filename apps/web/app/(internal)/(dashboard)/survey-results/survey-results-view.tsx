@@ -56,34 +56,12 @@ const TABS = [
   { key: "skin", label: "피부타입 · 고민" },
   { key: "product", label: "제품 · 알림" },
   { key: "recent", label: "최근 응답" },
-  { key: "fields", label: "저장 항목" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
 // 설문 테이블 합의 전 제안안 (docs/db-frame.md "소비자 설문"과 함께 확정)
-// supabase/migrations/20261023020717_survey.sql과 같은 칸 (적용은 DB 관리자)
-const RESPONSE_FIELDS = [
-  ["workspace_id · survey_id", "Leaf& · leafn", "어느 회사 · 어느 설문 응답인지. 공개 링크(surveys.public_slug)로 정해진다"],
-  ["created_at", "2026-10-21 14:05", "제출 시각. 3년 보관 후 삭제"],
-  ["consent_at · consent_version", "14:03 · v0.1", "언제 어떤 동의 문구에 동의했는지 (18세 이상만)"],
-  ["age_group", "20s", "연령대 (18세 이상 값만 허용)"],
-  ["skin_type · is_sensitive", "combo · false", "판정 결과"],
-  ["score_t_zone_oil · score_cheek_oil · score_dryness · score_sensitivity", "5 · 1 · 3 · 2", "점수 4개"],
-  ["concerns · concern_other", "{shine, other} · 目の下のクマ", "고민(복수)과 기타 직접 입력 (최대 50자)"],
-  ["source · source_other", "instagram · (비어 있음)", "유입 경로. 링크 꼬리표 또는 시작 전 선택"],
-  ["answers", "문항별 선택값", "원래 답. 판정 기준을 바꿔도 다시 분류할 수 있다"],
-] as const;
-const OTHER_TABLE_FIELDS = [
-  ["survey_minor_counts", "2026-10-21 · 3", "18세 미만 날짜별 참여 수. 익명은 record_survey_minor() 함수로만 +1"],
-  ["survey_reco_events", "combo-line · shown · combo", "추천 노출(shown) · 구매 클릭(buy_click) · 알림 열기(notify_open). 18세 이상만 기록"],
-] as const;
-const NOTIFY_FIELDS = [
-  ["workspace_id", "Leaf& (고정)", "어느 회사의 신청인지"],
-  ["product_line", "combo-line", "알림받을 라인"],
-  ["channel · contact", "line · (자동 식별값)", "이메일 주소 또는 LINE 친구 추가 때 받는 식별값. 대시보드에 표시하지 않음"],
-  ["consent_at · consent_version", "14:07 · v0.1", "마케팅 수신 동의 근거 (일본 特定電子メール法)"],
-  ["unsubscribed_at", "(비어 있음)", "수신 거부 시각. 거부하면 연락처 삭제"],
-] as const;
+// "최근 응답"은 기간이 아니라 최신 건수로 보여 준다. 응답이 뜸해도 비지 않고, 방금 들어온 응답을 바로 확인할 수 있다
+const RECENT_LIMIT = 10;
 
 export function SurveyResultsView({
   summary,
@@ -106,6 +84,7 @@ export function SurveyResultsView({
   const topConcern = concernTotals.toSorted((a, b) => b.count - a.count)[0];
   const cellMax = Math.max(1, ...summary.age_by_concern.flatMap((row) => Object.values(row.counts)));
   const normalCount = summary.by_skin_type.find((s) => s.skin_type === "normal")?.count ?? 0;
+  const recent = summary.recent.toSorted((a, b) => b.at.localeCompare(a.at)).slice(0, RECENT_LIMIT);
   const share = (n: number) => `${Math.round((n / summary.total) * 100)}%`;
 
   const stats = [
@@ -347,7 +326,7 @@ export function SurveyResultsView({
       {tab === "recent" && (
         <Card>
           <CardHeader>
-            <CardTitle>최근 응답</CardTitle>
+            <CardTitle>최근 응답 (최신 {RECENT_LIMIT}건까지)</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -363,7 +342,7 @@ export function SurveyResultsView({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {summary.recent.map((r) => (
+                {recent.map((r) => (
                   <TableRow key={r.at}>
                     <TableCell className="whitespace-nowrap">{`${r.at.slice(0, 10)} ${r.at.slice(11, 16)}`}</TableCell>
                     <TableCell>{AGE_KO[r.age_group] ?? r.age_group}</TableCell>
@@ -380,42 +359,6 @@ export function SurveyResultsView({
         </Card>
       )}
 
-      {tab === "fields" && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[
-            { title: "설문 응답 1건 (survey_responses)", note: "이름 · 이메일은 저장하지 않습니다. 18세 미만은 아래 항목을 하나도 저장하지 않고 참여 수만 셉니다.", rows: RESPONSE_FIELDS },
-            { title: "참여 수 · 추천 기록 (별도 표)", note: "개인을 알 수 있는 값은 없습니다.", rows: OTHER_TABLE_FIELDS },
-            { title: "출시 알림 신청 1건 (추후 구현, 제안)", note: "설문과 별도로 저장하고 피부 진단 결과와 연결하지 않습니다. 18세 미만은 신청할 수 없습니다.", rows: NOTIFY_FIELDS },
-          ].map((block) => (
-            <Card key={block.title}>
-              <CardHeader>
-                <CardTitle>{block.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-xs text-muted-foreground">{block.note}</p>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>항목</TableHead>
-                      <TableHead>예시</TableHead>
-                      <TableHead>설명</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {block.rows.map(([name, example, desc]) => (
-                      <TableRow key={name}>
-                        <TableCell className="font-mono text-xs whitespace-nowrap">{name}</TableCell>
-                        <TableCell className="whitespace-nowrap">{example}</TableCell>
-                        <TableCell className="whitespace-normal">{desc}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
