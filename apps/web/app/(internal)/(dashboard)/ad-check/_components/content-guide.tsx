@@ -5,6 +5,7 @@
 // 사진 칸에는 어떤 사진이 들어갈지 설명만 보여 준다.
 import { Bell, ChevronLeft, ChevronRight, Heart, Search, ShoppingCart, Store } from "lucide-react";
 import { useRef, useState } from "react";
+import { EmptyState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -570,9 +571,9 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
       </Card>
 
       {detailBlocked ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          개발 중인 제품은 아직 상세페이지를 만들지 않아요. 출시된 스킨·에센스를 고르거나 다른 채널을 골라 주세요.
-        </div>
+        <EmptyState message="개발 중인 제품은 아직 상세페이지를 만들지 않아요" action="출시된 스킨·에센스를 고르거나 다른 채널을 골라 주세요" />
+      ) : !current ? (
+        <EmptyState message="이 조합의 샘플 문구가 아직 없어요" action="다른 채널이나 게시물 종류를 골라 보세요" />
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
