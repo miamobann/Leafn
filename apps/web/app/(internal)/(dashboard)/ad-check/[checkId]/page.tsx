@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AiDisclaimer, AiResultMeta } from "@/components/common/ai";
+import { AiResultMeta } from "@/components/common/ai";
 import { PageHeader } from "@/components/layout/page-header";
 import { DetailTemplate } from "@/components/templates";
 import { buttonVariants } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/format";
 import { ActionBadge, ReviewStateBadge, USAGE_LABEL } from "../_components/ad-badges";
 import { LineResultCard } from "../_components/line-result-card";
 import { ResultSummary } from "../_components/result-summary";
+import { AdDisclaimer } from "../_components/ad-disclaimer";
 
 export async function generateStaticParams() {
   return (await getAdChecks()).map((a) => ({ checkId: a.id }));
@@ -32,7 +33,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
           </Link>
         </div>
       </div>
-      <AiDisclaimer />
+      <AdDisclaimer />
       <div className="mt-4">
         <DetailTemplate
           badges={

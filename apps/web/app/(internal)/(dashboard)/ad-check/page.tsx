@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { AiDisclaimer } from "@/components/common/ai";
 import { PageHeader } from "@/components/layout/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { getAdCheck, getWorkspace } from "@/lib/data";
 import { ReviewWorkspace } from "./_components/review-workspace";
 import { PRODUCTS } from "./_lib/products";
+import { AdDisclaimer } from "./_components/ad-disclaimer";
 
 type AdCheckPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -24,7 +24,7 @@ export default async function AdCheckPage({ searchParams }: AdCheckPageProps) {
           검토 내역
         </Link>
       </div>
-      <AiDisclaimer />
+      <AdDisclaimer />
       <p className="mt-2 text-xs text-muted-foreground">
         AI 판정(정밀 등급) · 아직 저장되지 않음 · 「내부 검토 완료」는 법적 승인이 아닙니다
       </p>

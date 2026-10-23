@@ -1,10 +1,12 @@
-import { AiDisclaimer } from "@/components/common/ai";
+import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { getAppealComparison, getSearchSnapshots } from "@/lib/data";
 import { APPEAL_TOPICS } from "@/lib/schemas/review";
 import { ContentGuide, type GuideMaterials } from "../_components/content-guide";
 import { GUIDE_DRAFTS } from "../_lib/content-guide-samples";
 import { PRODUCTS } from "../_lib/products";
+import { AdDisclaimer } from "../_components/ad-disclaimer";
 
 const MAX_KEYWORDS = 5;
 
@@ -26,12 +28,17 @@ export default async function ContentGuidePage() {
 
   return (
     <>
-      <PageHeader
-        title="콘텐츠 제작 가이드"
-        description="리뷰 소구점과 검색어를 반영해 채널별로 약기법에 맞는 일본어 문구를 추천합니다"
-        featureId="A"
-      />
-      <AiDisclaimer />
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <PageHeader
+          title="콘텐츠 제작 가이드"
+          description="리뷰 소구점과 검색어를 반영해 채널별로 약기법에 맞는 일본어 문구를 추천합니다"
+          featureId="A"
+        />
+        <Link href="/ad-check" className={`${buttonVariants({ variant: "outline" })} border-foreground/40!`}>
+          새 검토
+        </Link>
+      </div>
+      <AdDisclaimer />
       <p className="mt-2 text-xs text-muted-foreground">샘플 데이터 · AI 미연결 · 게시 전에는 새 검토로 다시 확인하세요</p>
       <div className="mt-4">
         <ContentGuide products={PRODUCTS} drafts={GUIDE_DRAFTS} materials={materials} />

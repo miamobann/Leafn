@@ -1,7 +1,8 @@
 "use client";
 
-// 콘텐츠 제작 가이드: 제품·채널을 고르면 제목 추천 3개(좌)·채널 양식 미리보기(우)·본문 추천(아래)을 보여준다.
+// 콘텐츠 제작 가이드: 제품·채널(·게시물 종류)을 고르면 제목 추천 3개(좌)·채널 양식 미리보기(우)·본문 추천(아래)을 보여준다.
 // 화면 뼈대라 샘플 데이터만 쓴다. AI 호출·사진 업로드·저장·PDF 출력은 아직 없다.
+// 사진 칸에는 어떤 사진이 들어갈지 설명만 보여 준다.
 import { Bell, ChevronLeft, Heart, Search, ShoppingCart, Store } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -9,14 +10,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   fillProduct,
   GUIDE_CHANNELS,
+  HASHTAG_GROUPS,
+  IG_HASHTAG_LIMIT,
   IG_MAX_SLIDES,
+  keywordToHashtag,
   POST_TYPES,
+  SNS_ACCOUNTS,
   X_CHAR_LIMIT,
   X_CHAR_RECOMMENDED,
   X_MAX_HASHTAGS,
   type GuideBlock,
   type GuideChannel,
   type GuideDraft,
+  type Hashtags,
   type PostType,
 } from "../_lib/content-guide-samples";
 import type { LabProduct } from "../_lib/products";
@@ -27,6 +33,8 @@ const SELECT = "h-9 w-full rounded-md border border-input bg-transparent px-3 te
 // 좌(제목)·우(미리보기) 칸의 세로 길이를 같게 둔다. 내용이 길면 칸 안에서 스크롤한다
 const PANEL_HEIGHT = "h-[32rem]";
 const RECOMMENDED = "rounded px-1.5 text-xs bg-risk-low/15 text-risk-low";
+/** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
+const KEYWORD_TAGS = 1;
 
 /** 제품별로 반영한 재료 (리뷰 소구점 · 검색어 순위). 가짜 데이터 */
 export type GuideMaterials = Record<string, { hasReviews: boolean; appeals: string[]; keywords: string[] }>;
@@ -37,18 +45,31 @@ type ContentGuideProps = {
   materials: GuideMaterials;
 };
 
-/** 사진 자리. 업로드는 보류라 표시만 한다 */
-function ImageSlot({ className = "aspect-video" }: { className?: string }) {
+type Fill = (text: string) => string;
+
+/** 사진 칸. 업로드는 보류라 「어떤 사진이 들어갈지」 설명만 보여 준다 */
+function ImageSlot({ image, className = "aspect-video" }: { image?: string | null; className?: string }) {
   return (
-    <div className={`flex items-center justify-center rounded-md border-2 border-dashed text-xs text-muted-foreground ${className}`}>
-      사진 자리 (업로드 준비 중)
+    <div className={`flex flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed p-3 text-center text-xs text-muted-foreground ${className}`}>
+      <span className="font-medium">사진</span>
+      <span>{image ?? "사진 자리"}</span>
     </div>
   );
 }
 
-/** 인스타그램: 4:5 세로형 캐러셀. 넘겨 보기 + 캡션·해시태그 */
-type Fill = (text: string) => string;
+function HashtagChips({ tags }: { tags: string[] }) {
+  return (
+    <ul className="flex flex-wrap gap-1" lang="ja">
+      {tags.map((t) => (
+        <li key={t} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+          {t}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
+/** 인스타그램: 4:5 세로형 캐러셀. 넘겨 보기 + 캡션·해시태그 */
 function InstagramPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; hashtags: string[]; fill: Fill }) {
   const slides = blocks.filter((b) => b.key.startsWith("slide"));
   const caption = blocks.find((b) => b.key === "caption");
@@ -57,11 +78,14 @@ function InstagramPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; ha
   const slide = slides[at];
   return (
     <div className="mx-auto max-w-sm rounded-md border">
-      <p className="border-b px-3 py-2 text-sm font-semibold">leafand_official</p>
+      <div className="flex items-center gap-2 border-b px-3 py-2">
+        <span className="size-7 rounded-full bg-muted" aria-hidden />
+        <span className="text-sm font-semibold">{SNS_ACCOUNTS.instagram.handle}</span>
+      </div>
       {slide && (
-        <div className="relative">
-          <div className="flex aspect-[4/5] flex-col items-center justify-center gap-2 border-b-2 border-dashed p-6 text-center">
-            <span className="text-xs text-muted-foreground">사진 자리 (업로드 준비 중)</span>
+        <div>
+          <div className="flex aspect-[4/5] flex-col items-center justify-center gap-3 border-b p-6 text-center">
+            <ImageSlot image={slide.image} className="w-full flex-1" />
             <p className="whitespace-pre-line text-lg font-semibold" lang="ja">
               {fill(slide.options[0].text_ja)}
             </p>
@@ -82,15 +106,16 @@ function InstagramPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; ha
           )}
         </div>
       )}
-      <div className="space-y-1 p-3 text-sm">
-        <p className="whitespace-pre-line" lang="ja">
-          {caption ? fill(caption.options[0].text_ja) : ""}
+      <div className="space-y-2 p-3 text-sm">
+        <p>
+          <span className="mr-1 font-semibold">{SNS_ACCOUNTS.instagram.handle}</span>
+          <span className="whitespace-pre-line" lang="ja">
+            {caption ? fill(caption.options[0].text_ja) : ""}
+          </span>
         </p>
-        <p className="text-primary" lang="ja">
-          {hashtags.join(" ")}
-        </p>
-        <p className="text-xs text-muted-foreground">해시태그 {hashtags.length}개 (권장 10~18개)</p>
-        <p className="whitespace-pre-line pt-1 text-xs text-muted-foreground">{caption ? fill(caption.options[0].text_ko) : ""}</p>
+        <HashtagChips tags={hashtags} />
+        <p className="text-xs text-muted-foreground">해시태그 {hashtags.length}개 (기준 {IG_HASHTAG_LIMIT}개)</p>
+        <p className="whitespace-pre-line border-t pt-2 text-xs text-muted-foreground">{caption ? fill(caption.options[0].text_ko) : ""}</p>
       </div>
     </div>
   );
@@ -107,7 +132,7 @@ function DetailSlices({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
             <div className="rounded-md border-2 border-dashed p-4 text-xs text-muted-foreground">{fill(b.options[0].text_ko)}</div>
           ) : (
             <>
-              {b.has_image && <ImageSlot />}
+              {b.image && <ImageSlot image={b.image} />}
               <p className="whitespace-pre-line font-medium" lang="ja">
                 {fill(b.options[0].text_ja)}
               </p>
@@ -139,14 +164,15 @@ function PriceBox() {
 
 /** Qoo10 모바일 앱 상품 페이지 틀 (팀이 만든 목업 기준) */
 function Qoo10Mobile({ blocks, fill, productName, category }: Qoo10Props) {
-  const banner = blocks.find((b) => b.key === "hook")?.options[0].text_ja.split("\n").filter((l) => !l.startsWith("*")).join(" ").replaceAll("*", "") ?? "";
+  const hook = blocks.find((b) => b.key === "hook");
+  const banner = hook?.options[0].text_ja.split("\n").filter((l) => !l.startsWith("*")).join(" ").replaceAll("*", "") ?? "";
   return (
     <div className="mx-auto max-w-sm overflow-hidden rounded-[1.5rem] border-[6px] border-foreground/80 bg-background text-sm" lang="ja">
       <div className="flex h-11 items-center justify-between border-b px-3">
         <span className="flex items-center gap-2 font-bold">
           <ChevronLeft className="size-5" aria-hidden />
           <Store className="size-4" aria-hidden />
-          Leaf& Official
+          Leaf& 公式ショップ
         </span>
         <span className="flex gap-3" aria-hidden>
           <Bell className="size-5" />
@@ -155,7 +181,7 @@ function Qoo10Mobile({ blocks, fill, productName, category }: Qoo10Props) {
         </span>
       </div>
       <div className="relative">
-        <ImageSlot className="aspect-square rounded-none border-x-0 border-t-0" />
+        <ImageSlot image="썸네일: 제품 단독 컷 (1:1, 흰 배경)" className="aspect-square rounded-none border-x-0 border-t-0" />
         <span className="absolute right-3 bottom-9 rounded-full bg-foreground/70 px-2 py-0.5 text-[0.65rem] text-background">1 / 5</span>
         <p className="absolute inset-x-0 bottom-0 truncate bg-primary px-3 py-1.5 text-center text-xs font-bold text-primary-foreground">{fill(banner)}</p>
       </div>
@@ -196,7 +222,7 @@ function Qoo10Pc({ blocks, fill, productName, category }: Qoo10Props) {
         <span className="text-xs text-muted-foreground">ホーム &gt; スキンケア &gt; 基礎化粧品 &gt; {category}</span>
       </div>
       <div className="flex gap-6 border-b p-5">
-        <ImageSlot className="aspect-square w-72 shrink-0" />
+        <ImageSlot image="썸네일: 제품 단독 컷 (1:1, 흰 배경)" className="aspect-square w-72 shrink-0" />
         <div className="flex-1 space-y-3">
           <span className="inline-block rounded-sm bg-primary px-1.5 text-xs font-bold text-primary-foreground">公式ショップ</span>
           <p className="text-lg font-bold">
@@ -254,93 +280,81 @@ function Qoo10Preview(props: Qoo10Props) {
   );
 }
 
-function Preview({
-  channel,
-  blocks,
-  hashtags,
-  fill,
-  productName,
-  category,
-}: {
-  channel: GuideChannel;
-  blocks: GuideBlock[];
-  hashtags: string[];
-  fill: Fill;
-  productName: string;
-  category: string;
-}) {
-  const text = (b: GuideBlock | undefined) => (b ? fill(b.options[0].text_ja) : "");
-  const ko = (b: GuideBlock | undefined) => (b ? fill(b.options[0].text_ko) : "");
-  const find = (key: string) => blocks.find((b) => b.key === key);
-
-  if (channel === "qoo10_detail") {
-    return <Qoo10Preview blocks={blocks} fill={fill} productName={productName} category={category} />;
-  }
-
-  if (channel === "instagram") {
-    return <InstagramPreview blocks={blocks} hashtags={hashtags} fill={fill} />;
-  }
-
-  if (channel === "x") {
-    const post = find("post");
-    const body = [text(post), ...hashtags.filter((h) => !text(post).includes(h))].join(" ").trim();
-    const length = [...body].length;
-    return (
-      <div className="mx-auto max-w-md rounded-md border p-3">
-        <div className="flex gap-3">
-          <div className="size-10 shrink-0 rounded-full bg-muted" aria-hidden />
-          <div className="min-w-0 flex-1 space-y-2 text-sm">
-            <p className="font-semibold">
-              Leaf& <span className="font-normal text-muted-foreground">@leafand_jp</span>
-            </p>
-            <p className="whitespace-pre-line" lang="ja">
-              {body}
-            </p>
-            {find("image") && <ImageSlot />}
-            <p className={`text-right text-xs ${length > X_CHAR_LIMIT ? "text-destructive" : length > X_CHAR_RECOMMENDED ? "text-risk-medium" : "text-muted-foreground"}`}>
-              {length}/{X_CHAR_LIMIT}자 (권장 {X_CHAR_RECOMMENDED}자 이내)
-            </p>
-            {hashtags.length > X_MAX_HASHTAGS && (
-              <p className="text-xs text-risk-medium">해시태그가 {X_MAX_HASHTAGS}개를 넘으면 노출이 줄어요</p>
-            )}
-            <p className="text-xs text-muted-foreground">외부 링크는 본문이 아니라 첫 답글에 달아요</p>
-            {find("terms") && (
-              <div className="rounded-md border border-dashed p-2 text-xs">
-                <p className="mb-1 text-muted-foreground">첫 답글 (응모 조건)</p>
-                <p className="whitespace-pre-line" lang="ja">
-                  {text(find("terms"))}
-                </p>
-              </div>
-            )}
-            <p className="whitespace-pre-line text-xs text-muted-foreground">{ko(post)}</p>
-          </div>
+function XPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; hashtags: string[]; fill: Fill }) {
+  const post = blocks.find((b) => b.key === "post");
+  const image = blocks.find((b) => b.key === "image");
+  const text = post ? fill(post.options[0].text_ja) : "";
+  const body = [text, hashtags.join(" ")].join("\n").trim();
+  const length = [...body].length;
+  return (
+    <div className="mx-auto max-w-md rounded-md border p-3">
+      <div className="flex gap-3">
+        <div className="size-10 shrink-0 rounded-full bg-muted" aria-hidden />
+        <div className="min-w-0 flex-1 space-y-2 text-sm">
+          <p className="font-semibold">
+            {SNS_ACCOUNTS.x.name} <span className="font-normal text-muted-foreground">{SNS_ACCOUNTS.x.handle}</span>
+          </p>
+          <p className="whitespace-pre-line" lang="ja">
+            {text}
+          </p>
+          <HashtagChips tags={hashtags} />
+          {image && <ImageSlot image={image.image} />}
+          <p className={`text-right text-xs ${length > X_CHAR_LIMIT ? "text-destructive" : length > X_CHAR_RECOMMENDED ? "text-risk-medium" : "text-muted-foreground"}`}>
+            {length}/{X_CHAR_LIMIT}자 (권장 {X_CHAR_RECOMMENDED}자 이내)
+          </p>
+          {hashtags.length > X_MAX_HASHTAGS && <p className="text-xs text-risk-medium">해시태그가 {X_MAX_HASHTAGS}개를 넘으면 노출이 줄어요</p>}
+          <p className="text-xs text-muted-foreground">외부 링크는 본문이 아니라 첫 답글에 달아요</p>
+          <p className="whitespace-pre-line border-t pt-2 text-xs text-muted-foreground">{post ? fill(post.options[0].text_ko) : ""}</p>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // banner: 가로형 한 종류 (어느 배너 광고에도 쓸 수 있게)
-  const copy = find("copy");
-  const sub = find("sub");
+function BannerPreview({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
+  const copy = blocks.find((b) => b.key === "copy");
+  const sub = blocks.find((b) => b.key === "sub");
   return (
     <div className="space-y-2">
-      <div className="relative flex aspect-[3/1] items-center rounded-md border-2 border-dashed p-6">
-        <span className="absolute top-2 right-3 text-xs text-muted-foreground">사진 자리 (업로드 준비 중)</span>
-        <div>
+      <div className="flex aspect-[3/1] items-center gap-4 rounded-md border p-4">
+        <div className="flex-1">
           <p className="text-xl font-semibold" lang="ja">
-            {text(copy)}
+            {copy ? fill(copy.options[0].text_ja) : ""}
           </p>
           <p className="mt-1 text-sm" lang="ja">
-            {text(sub)}
+            {sub ? fill(sub.options[0].text_ja) : ""}
           </p>
         </div>
+        <ImageSlot image={copy?.image} className="h-full w-2/5" />
       </div>
       <p className="text-xs text-muted-foreground">
-        {ko(copy)} · {ko(sub)}
+        {copy ? fill(copy.options[0].text_ko) : ""} · {sub ? fill(sub.options[0].text_ko) : ""}
       </p>
     </div>
   );
 }
+
+/** SNS 가이드(보고서)를 바탕으로 정한 채널 운영 기준 */
+const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
+  instagram: [
+    "역할: 신뢰·학습 (왜 사야 하는가를 설득)",
+    "캡션 8~15줄, 더보기 전 첫 2줄에 핵심",
+    "첫 줄 스타일: 마침표 1줄 선언형(기본) · 【NEW】【お知らせ】(공지) · [ ] 또는 | |(매거진풍) · 감성 스토리텔링 문장. ＼〜／는 쓰지 않아요",
+    "해시태그 5개 (브랜드 1 · 성분·제형 1 · 고민·트렌드 2 · 검색어 1)",
+    "사진 4:5 세로, 1~5장 (제품 35% · 제형 30% · 피부 25%)",
+    "링크는 프로필 링크로, 약기법 각주(*浸透：角質層まで 등) 필수",
+    "올리는 시간: 점심 11:45~12:45, 저녁 19:30~21:30 (일본 시간)",
+  ],
+  x: [
+    "역할: 속도·확산 (지금 알리기)",
+    "3~4줄, 100~130자",
+    "첫 줄 스타일: 마침표 1줄 선언형 · 【NEW】【特報】(공지). ＼〜／는 쓰지 않아요",
+    "해시태그 1~3개 (브랜드 1 + 캠페인·제품 1)",
+    "이미지 16:9 1장, 외부 링크는 첫 답글",
+    "각주가 필요한 표현(浸透 등)은 피하고 짧게",
+    "올리는 시간: 점심 11:45~12:45, 저녁 19:30~21:30 (일본 시간)",
+  ],
+};
 
 export function ContentGuide({ products, drafts, materials }: ContentGuideProps) {
   const [productId, setProductId] = useState(products[0].id);
@@ -351,22 +365,37 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
 
   const product = products.find((p) => p.id === productId) ?? products[0];
   const material = materials[product.id] ?? { hasReviews: false, appeals: [], keywords: [] };
-  // 가장 추천을 맨 앞에 둔다
   const hasPostType = channel === "instagram" || channel === "x";
+  // 가장 추천을 맨 앞에 둔다
   const list = drafts
     .filter((d) => d.channel === channel && (!hasPostType || d.post_type === postType))
     .toSorted((a, b) => Number(b.recommended) - Number(a.recommended));
   const current = list.find((d) => d.id === selectedId) ?? list[0];
-  // 리뷰가 없는 제품(개발 중)은 리뷰 블록을 뺀다
   const blocks = (current?.blocks ?? []).filter(
     (b) =>
+      // 리뷰가 없는 제품(개발 중)은 리뷰 블록을 뺀다
       (!b.needs_reviews || material.hasReviews) &&
-      // 인스타그램은 고른 장 수까지만 (1장 = 단일 게시물, 2~5장 = 캐러셀)
+      // 인스타그램은 고른 장 수까지만 (1장 = 단일 게시물, 2~5장 = 여러 장)
       (channel !== "instagram" || !b.key.startsWith("slide") || Number(b.key.slice(5)) <= slideCount),
   );
   const fill = (text: string) => fillProduct(text, product.name_ko, product.ingredients);
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
   const detailBlocked = channel === "qoo10_detail" && product.launch_status === "developing";
+
+  // 해시태그: 인스타그램은 시장 분석 검색어 상위 태그를 고민·트렌드에 덧붙인다 (X는 1~3개라 덧붙이지 않는다)
+  const keywordTags = channel === "instagram" ? material.keywords.slice(0, KEYWORD_TAGS).map(keywordToHashtag) : [];
+  // 인스타그램은 5개: 브랜드 1 + 성분·제형 1 + 고민·트렌드 2 + 검색어 1
+  const groups: Hashtags = !current
+    ? { brand: [], ingredient: [], trend: [] }
+    : channel === "instagram"
+      ? {
+          brand: current.hashtags.brand.slice(0, 1),
+          ingredient: current.hashtags.ingredient.slice(0, 1),
+          trend: [...new Set([...current.hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 2 - KEYWORD_TAGS), ...keywordTags])],
+        }
+      : current.hashtags;
+  const hashtags = [...groups.brand, ...groups.ingredient, ...groups.trend];
+  const category = product.line.includes("에센스") ? "美容液" : "化粧水";
 
   return (
     <div className="space-y-4">
@@ -404,7 +433,7 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
           </div>
           {hasPostType && (
             <div className="flex flex-wrap gap-4">
-              <div className="w-64">
+              <div className="w-56">
                 <label htmlFor="guide-post-type" className={LABEL}>
                   게시물 종류
                 </label>
@@ -447,6 +476,16 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
             <dd lang="ja">{material.keywords.map((k, i) => `${i + 1}. ${k}`).join("  ")}</dd>
             <dd className="text-xs text-muted-foreground sm:col-start-2">리뷰 분석·시장 분석의 가짜 데이터를 읽어 옵니다</dd>
           </dl>
+          {CHANNEL_RULES[channel] && (
+            <details className="rounded-md border p-3 text-sm">
+              <summary className="cursor-pointer font-medium">채널 운영 기준 (SNS 가이드 분석)</summary>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                {CHANNEL_RULES[channel].map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </details>
+          )}
         </CardContent>
       </Card>
 
@@ -456,87 +495,112 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
         </div>
       ) : (
         <>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>제목 추천</CardTitle>
-            </CardHeader>
-            <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`}>
-              <ol className="space-y-2">
-                {list.map((d, i) => {
-                  const selected = d.id === current?.id;
-                  return (
-                    <li key={d.id}>
-                      <button
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => setSelectedId(d.id)}
-                        className={`w-full rounded-md border p-3 text-left text-sm hover:bg-muted ${selected ? "border-foreground bg-muted" : ""}`}
-                      >
-                        <span className="flex flex-wrap items-center gap-2">
-                          {d.recommended && <span className={RECOMMENDED}>가장 추천</span>}
-                          <span className="font-medium" lang="ja">
-                            {i + 1}. {d.title_ja}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>제목 추천</CardTitle>
+              </CardHeader>
+              <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`}>
+                <ol className="space-y-2">
+                  {list.map((d, i) => {
+                    const selected = d.id === current?.id;
+                    return (
+                      <li key={d.id}>
+                        <button
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => setSelectedId(d.id)}
+                          className={`w-full rounded-md border p-3 text-left text-sm hover:bg-muted ${selected ? "border-foreground bg-muted" : ""}`}
+                        >
+                          <span className="flex flex-wrap items-center gap-2">
+                            {d.recommended && <span className={RECOMMENDED}>가장 추천</span>}
+                            <span className="font-medium" lang="ja">
+                              {i + 1}. {d.title_ja}
+                            </span>
                           </span>
-                        </span>
-                        <span className="mt-1 block text-muted-foreground">{d.title_ko}</span>
-                        <span className="mt-2 block border-t pt-2 text-xs text-muted-foreground">
-                          {d.recommended ? "추천 이유" : "참고"}: {d.reason}
-                        </span>
-                      </button>
+                          <span className="mt-1 block text-muted-foreground">{d.title_ko}</span>
+                          <span className="mt-2 block border-t pt-2 text-xs text-muted-foreground">
+                            {d.recommended ? "추천 이유" : "참고"}: {d.reason}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>미리보기</CardTitle>
+              </CardHeader>
+              <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`} role="region" aria-label="결과물 미리보기" tabIndex={0}>
+                {current && channel === "qoo10_detail" && <Qoo10Preview blocks={blocks} fill={fill} productName={product.name_ko} category={category} />}
+                {current && channel === "instagram" && <InstagramPreview key={`${current.id}-${slideCount}`} blocks={blocks} hashtags={hashtags} fill={fill} />}
+                {current && channel === "x" && <XPreview blocks={blocks} hashtags={hashtags} fill={fill} />}
+                {current && channel === "banner" && <BannerPreview blocks={blocks} fill={fill} />}
+              </CardContent>
+            </Card>
+          </div>
+
+          {current && (
+            <Card>
+              <CardHeader>
+                <CardTitle>본문 추천</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                <ol className="space-y-3">
+                  {blocks.map((b, i) => (
+                    <li key={b.key} className="rounded-md border p-3">
+                      <p className="font-semibold">
+                        {blocks.length > 1 ? `${i + 1}. ` : ""}
+                        {b.heading}
+                      </p>
+                      {b.image && <p className="mt-1 text-xs text-muted-foreground">사진: {b.image}</p>}
+                      {b.options
+                        .filter((o) => o.text_ja)
+                        .map((o, j) => (
+                          <div key={o.text_ja} className={`mt-2 ${j === 0 ? "" : "border-t pt-2"}`}>
+                            <p className="mb-1">{j === 0 ? <span className={RECOMMENDED}>가장 추천</span> : <span className="text-xs text-muted-foreground">다른 안</span>}</p>
+                            <p className="whitespace-pre-line" lang="ja">
+                              {fill(o.text_ja)}
+                            </p>
+                            <p className="whitespace-pre-line text-muted-foreground">한국어: {fill(o.text_ko)}</p>
+                          </div>
+                        ))}
+                      <p className="mt-1 text-xs text-muted-foreground">추천 이유: {b.reason}</p>
                     </li>
-                  );
-                })}
-              </ol>
-            </CardContent>
-          </Card>
+                  ))}
+                </ol>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>미리보기</CardTitle>
-            </CardHeader>
-            <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`} role="region" aria-label="결과물 미리보기" tabIndex={0}>
-              {current && (
-                <Preview key={`${current.id}-${slideCount}`} channel={channel} blocks={blocks} hashtags={current.hashtags} fill={fill} productName={product.name_ko} category={product.line.includes("에센스") ? "美容液" : "化粧水"} />
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {current && (
-          <Card>
-            <CardHeader>
-              <CardTitle>본문 추천</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <ol className="space-y-3">
-                {blocks.map((b, i) => (
-                  <li key={b.key} className="rounded-md border p-3">
-                    <p className="font-semibold">
-                      {blocks.length > 1 ? `${i + 1}. ` : ""}
-                      {b.heading}
-                    </p>
-                    {b.options.map((o, j) => (
-                      <div key={o.text_ja} className={`mt-2 ${j === 0 ? "" : "border-t pt-2"}`}>
-                        <p className="mb-1">{j === 0 ? <span className={RECOMMENDED}>가장 추천</span> : <span className="text-xs text-muted-foreground">다른 안</span>}</p>
-                        <p className="whitespace-pre-line" lang="ja">
-                          {fill(o.text_ja)}
-                        </p>
-                        <p className="whitespace-pre-line text-muted-foreground">한국어: {fill(o.text_ko)}</p>
-                        {j === 0 && <p className="mt-1 text-xs text-muted-foreground">추천 이유: {b.reason}</p>}
+                {hasPostType && hashtags.length > 0 && (
+                  <section className="space-y-3 rounded-md border p-3">
+                    <h3 className="font-semibold">
+                      해시태그 추천 ({hashtags.length}개 · 기준 {channel === "x" ? `1~${X_MAX_HASHTAGS}` : IG_HASHTAG_LIMIT}개)
+                    </h3>
+                    {HASHTAG_GROUPS.filter((g) => groups[g.key].length > 0).map((g) => (
+                      <div key={g.key} className="space-y-1">
+                        <p className="text-xs font-medium">{g.label}</p>
+                        <HashtagChips tags={groups[g.key]} />
+                        <p className="text-xs text-muted-foreground">{g.reason}</p>
                       </div>
                     ))}
-                  </li>
-                ))}
-              </ol>
-              <section className="rounded-md bg-muted p-3">
-                <h3 className="mb-1 font-semibold">AI에 넣을 프롬프트 가이드</h3>
-                <p className="whitespace-pre-line">{current.prompt_guide}</p>
-              </section>
-            </CardContent>
-          </Card>
-        )}
+                    {keywordTags.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        검색어에서 뽑은 태그: {keywordTags.join(" ")} (시장 분석 검색어 1위)
+                      </p>
+                    )}
+                    {channel === "x" && <p className="text-xs text-muted-foreground">X는 해시태그가 3개를 넘으면 노출이 줄어서 브랜드 1개 + 캠페인·제품 1개만 써요.</p>}
+                  </section>
+                )}
 
+                <section className="rounded-md bg-muted p-3">
+                  <h3 className="mb-1 font-semibold">AI에 넣을 프롬프트 가이드</h3>
+                  <p className="whitespace-pre-line">{current.prompt_guide}</p>
+                </section>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
