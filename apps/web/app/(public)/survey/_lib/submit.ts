@@ -1,6 +1,6 @@
 import type { SkinType, SurveySession } from "@/lib/schemas/survey";
 
-// 저장 연결은 DB 관리자가 supabase/migrations/20261023020717_survey.sql을 적용한 뒤에 한다. 지금은 어디에도 보내지 않는다.
+// 저장 연결은 DB 관리자가 supabase/migrations/20261023030815_survey.sql을 적용한 뒤에 한다. 지금은 어디에도 보내지 않는다.
 // 연결할 때 지킬 분기:
 //  - 18세 미만: rpc("record_survey_minor", { p_slug })만 부른다. 답 · 나이 · 결과 · 유입 경로는 보내지 않는다
 //  - 18세 이상: consent_at이 있을 때만 survey_responses에 insert. 익명은 읽기 권한이 없으므로 insert 결과를 돌려받지 않는다

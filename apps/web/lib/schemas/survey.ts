@@ -44,7 +44,7 @@ export type SurveyAnswer = z.infer<typeof SurveyAnswer>;
 export const SurveySource = z.enum(["instagram", "x", "line", "rakuten", "qoo10", "friend", "search", "other"]);
 export type SurveySource = z.infer<typeof SurveySource>;
 
-/** surveys 테이블 (supabase/migrations/20261023020717_survey.sql) */
+/** surveys 테이블 (supabase/migrations/20261023030815_survey.sql) */
 export const Survey = WorkspaceRow.extend({
   public_slug: z.string().regex(/^[a-z0-9-]{2,40}$/),
   title_ja: z.string(),
