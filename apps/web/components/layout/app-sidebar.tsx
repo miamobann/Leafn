@@ -120,7 +120,10 @@ function NavGroupTree({
   );
 }
 
-const RAIL_BUTTON = "flex size-9 items-center justify-center rounded-md";
+// 접은 줄의 칸은 펼친 메뉴 한 줄과 같은 크기(높이 32px, 좌우 12px 여백)로 둔다.
+// 그래야 접고 펼 때 아이콘이 위아래·좌우로 움직이지 않는다 (아이콘 가운데 = 사이드바 왼쪽에서 32px).
+// 오른쪽 테두리 1px 때문에 아이콘 자리가 15px로 좁아지므로, 아이콘에 shrink-0을 줘서 16px 그대로 둔다
+const RAIL_BUTTON = "flex h-8 w-full items-center rounded-md px-3";
 
 /** 접은 사이드바의 아이콘 한 칸. 글자가 없으므로 aria-label과 title로 이름을 알린다 */
 function RailLink({ item, active }: { item: NavItem; active: boolean }) {
@@ -134,7 +137,7 @@ function RailLink({ item, active }: { item: NavItem; active: boolean }) {
       aria-current={active ? "page" : undefined}
       className={`${RAIL_BUTTON} ${active ? "bg-sidebar-accent" : "text-muted-foreground hover:bg-sidebar-accent"}`}
     >
-      <Icon aria-hidden className="size-4" />
+      <Icon aria-hidden className="size-4 shrink-0" />
     </Link>
   );
 }
@@ -182,7 +185,7 @@ export function AppSidebar() {
     <aside
       className={`flex shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar ${
         animateWidth ? "transition-[width] duration-200 ease-out motion-reduce:transition-none" : ""
-      } ${collapsed ? "w-14" : "w-60"}`}
+      } ${collapsed ? "w-16" : "w-60"}`}
     >
       <div className={`flex items-center py-4 ${collapsed ? "justify-center px-2" : "justify-between pr-3 pl-5"}`}>
         {!collapsed && <span className="text-lg font-semibold">Leafn</span>}
@@ -200,7 +203,7 @@ export function AppSidebar() {
       </div>
 
       {collapsed ? (
-        <nav id={NAV_ID} className="flex flex-1 flex-col items-center gap-1 overflow-y-auto px-2 pb-4">
+        <nav id={NAV_ID} className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-4">
           <RailLink item={HOME_ITEM} active={current === HOME_ITEM.href} />
           {NAV_GROUPS.map((group) => (
             <button
@@ -213,10 +216,10 @@ export function AppSidebar() {
                 currentGroup === group.label ? "bg-sidebar-accent" : "text-muted-foreground hover:bg-sidebar-accent"
               }`}
             >
-              <group.icon aria-hidden className="size-4" />
+              <group.icon aria-hidden className="size-4 shrink-0" />
             </button>
           ))}
-          <div className="mt-3 flex w-full flex-col items-center gap-1 border-t border-border pt-3">
+          <div className="mt-3 border-t border-border pt-3">
             {FOOTER_ITEMS.map((item) => (
               <RailLink key={item.href} item={item} active={current === item.href} />
             ))}
