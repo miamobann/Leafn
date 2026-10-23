@@ -1,32 +1,18 @@
-import { StatusBadge } from "@/components/common/badges";
 import { PageHeader } from "@/components/layout/page-header";
-import { CalendarTemplate } from "@/components/templates";
-import { getAdChecks, getPromoEvents } from "@/lib/data";
-import { dDay } from "@/lib/format";
+import { ViewStateGate } from "@/components/common/view-state";
+import { getPlatformViews, getPromoEventViews } from "@/lib/data/launch";
+import { CalendarClient } from "./calendar-client";
 
+// T5 캘린더: 월 보기·목록 보기 + 플랫폼 필터 + 일정 패널
 export default async function CalendarPage() {
-  const [events, checks] = await Promise.all([getPromoEvents(), getAdChecks()]);
+  const [events, platforms] = await Promise.all([getPromoEventViews(), getPlatformViews()]);
 
   return (
     <>
       <PageHeader title="프로모션 캘린더" description="행사 기간과 준비 마감 (날짜는 샘플)" featureId="I" />
-      <CalendarTemplate
-        events={events.map((e) => {
-          const check = checks.find((c) => c.promo_event_id === e.id);
-          return {
-            id: e.id,
-            title: `${e.platform} · ${e.title}`,
-            period: `${e.start_date} ~ ${e.end_date} · 준비 마감 ${e.prep_due_date}`,
-            due: dDay(e.prep_due_date),
-            meta: check ? (
-              <span className="flex items-center gap-1 text-xs">
-                행사용 문구 <StatusBadge status={check.review_status} />
-              </span>
-            ) : undefined,
-          };
-        })}
-      />
-      <p className="mt-2 text-xs text-muted-foreground">월 보기는 P6에서 FullCalendar로 연결</p>
+      <ViewStateGate state={events.length === 0 ? "empty" : "ready"}>
+        <CalendarClient events={events} platformKeys={platforms.map((p) => p.key)} />
+      </ViewStateGate>
     </>
   );
 }
