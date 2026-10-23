@@ -125,6 +125,7 @@
 | 대량 | 리뷰 감성 분류, 키워드, 상품 이미지에서 성분·용량 추출, (참조) 번역 | `gpt-4.1-mini` | Claude Haiku 계열 (`claude-haiku-5-5`) | 대량 반복 작업, 속도·비용 |
 
 - 호출은 `lib/ai/`의 함수 하나로 모은다. 화면·Route Handler는 등급(정밀·대량)만 넘기고, 어느 제공사를 쓸지는 모른다. 제공사는 환경 변수 `AI_PROVIDER`(`openai` · `anthropic`, 기본 `openai`)로 바꾼다.
+- **표준 위치 (2026-10-23 결정, 총괄):** 설정은 `lib/ai/config.ts`(`resolveProvider`, `resolveModel`), 호출은 `lib/ai/client.ts`의 `callAi` 하나다. 다른 파일에서 `new OpenAI()`·`new Anthropic()`을 만들거나 config를 새로 만들지 않는다. 이미지 입력·구조화 출력·Anthropic 연결처럼 모자란 기능은 `callAi`를 넓히는 PR로 추가한다. 기능별 코드는 `lib/ai/<기능>/`(예: `lib/ai/ad-check/`)에 둔다.
 - 모델 ID는 `lib/ai/` 안의 설정 파일 한곳에서 관리한다. 바꾸고 싶으면 `AI_MODEL_PRECISE`, `AI_MODEL_BULK`로 덮어쓴다. 시작 시점의 최신 버전으로 갱신.
 - 제공사·모델을 바꾸면 결과가 달라질 수 있으므로, AI 결과 행의 `model`에는 실제로 부른 모델 ID를 그대로 남긴다 (5장 규칙).
 
@@ -194,7 +195,7 @@
 │  │  └─ api/                    # Route Handler (5장) — 프로토타입 단계에서는 만들지 않음
 │  ├─ components/                # shadcn/ui 기반 공통 컴포넌트 (ui/, layout/, common/, templates/)
 │  ├─ lib/
-│  │  ├─ ai/                     # Claude 클라이언트, 작업별 호출 함수
+│  │  ├─ ai/                     # config.ts(제공사·모델), client.ts(callAi), <기능>/ 작업별 호출 함수
 │  │  ├─ schemas/                # Zod 스키마 (데이터 모양, AI 응답, API 입력)
 │  │  ├─ supabase/               # 브라우저/서버용 클라이언트
 │  │  ├─ mock/                   # (프로토타입) 가짜 데이터. 불러올 때 Zod로 검증
