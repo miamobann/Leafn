@@ -2,7 +2,8 @@
 
 // 콘텐츠 제작 가이드: 제품·채널을 고르면 제목 추천 3개(좌)·채널 양식 미리보기(우)·본문 추천(아래)을 보여준다.
 // 화면 뼈대라 샘플 데이터만 쓴다. AI 호출·사진 업로드·저장·PDF 출력은 아직 없다.
-import { useState } from "react";
+import { Bell, ChevronLeft, Heart, Search, ShoppingCart, Store } from "lucide-react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -95,76 +96,185 @@ function InstagramPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; ha
   );
 }
 
-/** 상세페이지(큐텐): Qoo10 상품 페이지 틀(헤더·썸네일·구매 박스·탭) 안에 블록을 세로로 이어 붙인다. 기본은 모바일 보기 */
-function Qoo10Preview({ blocks, fill, productName }: { blocks: GuideBlock[]; fill: Fill; productName: string }) {
-  const [mobile, setMobile] = useState(true);
+/** 상세페이지 블록을 위아래 틈 없이 이어 붙인다 (Qoo10 #div_inner_contents 처럼) */
+function DetailSlices({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
   return (
-    <div className="space-y-2">
-      <div className="flex justify-end">
-        <Button type="button" variant="outline" size="sm" onClick={() => setMobile((v) => !v)}>
-          {mobile ? "PC 보기" : "모바일 보기"}
-        </Button>
-      </div>
-      <div className={`mx-auto overflow-hidden bg-background text-sm ${mobile ? "max-w-sm rounded-[1.5rem] border-[6px] border-foreground/80" : "max-w-3xl rounded-md border"}`}>
-        <div className="flex items-center justify-between border-b-2 border-primary px-3 py-2">
-          <span className="text-lg font-black">Qoo10</span>
-          <span className="text-xs text-muted-foreground">미리보기 (가상)</span>
-        </div>
-        <div className={`gap-4 border-b p-3 ${mobile ? "space-y-3" : "flex"}`}>
-          <ImageSlot className={mobile ? "aspect-square" : "aspect-square w-64 shrink-0"} />
-          <div className="flex-1 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">Leaf& 公式ショップ</p>
-            <p className="font-bold" lang="ja">
-              {productName}
-            </p>
-            {/* 가격은 정가만 표시한다 (이중 가격 표시 X). 아직 정해지지 않아 価格未定 */}
-            <div className="rounded-md bg-muted p-2">
-              <p className="text-xs text-muted-foreground">価格</p>
-              <p className="text-lg font-bold" lang="ja">
-                価格未定
+    <div>
+      {blocks.map((b) => (
+        <section key={b.key} className={`space-y-2 px-4 py-5 text-center ${b.needs_evidence ? "bg-muted/50" : ""}`}>
+          <p className="text-[0.65rem] tracking-wide text-muted-foreground">{b.heading}</p>
+          {b.needs_evidence ? (
+            <div className="rounded-md border-2 border-dashed p-4 text-xs text-muted-foreground">{fill(b.options[0].text_ko)}</div>
+          ) : (
+            <>
+              {b.has_image && <ImageSlot />}
+              <p className="whitespace-pre-line font-medium" lang="ja">
+                {fill(b.options[0].text_ja)}
               </p>
-            </div>
-            <div className="flex gap-2">
-              <span className="flex-1 rounded border py-2 text-center text-xs">カートに入れる</span>
-              <span className="flex-1 rounded bg-primary py-2 text-center text-xs font-bold text-primary-foreground">今すぐ購入</span>
-            </div>
-          </div>
-        </div>
-        <div className="flex border-b-2 border-foreground/80 text-center text-xs font-semibold">
-          <span className="flex-1 bg-foreground/80 py-2 text-background">商品詳細</span>
-          <span className="flex-1 py-2 text-muted-foreground">レビュー</span>
-          <span className="flex-1 py-2 text-muted-foreground">Q&A</span>
-        </div>
-        <div className="space-y-0 divide-y">
-          {blocks.map((b) => (
-            <section key={b.key} className={`space-y-2 p-3 ${b.needs_evidence ? "bg-muted/50" : ""}`}>
-              <p className="text-[0.7rem] text-muted-foreground">{b.heading}</p>
-              {b.needs_evidence ? (
-                <div className="rounded-md border-2 border-dashed p-4 text-center text-xs text-muted-foreground">{fill(b.options[0].text_ko)}</div>
-              ) : (
-                <>
-                  {b.has_image && <ImageSlot />}
-                  <p className="whitespace-pre-line font-medium" lang="ja">
-                    {fill(b.options[0].text_ja)}
-                  </p>
-                  <p className="whitespace-pre-line text-xs text-muted-foreground">{fill(b.options[0].text_ko)}</p>
-                </>
-              )}
-            </section>
-          ))}
-        </div>
+              <p className="whitespace-pre-line text-xs text-muted-foreground">{fill(b.options[0].text_ko)}</p>
+            </>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** 제품명 앞의 브랜드(Leaf&)는 따로 강조해서 보여 주므로 뗀다 */
+const withoutBrand = (name: string) => name.replace(/^Leaf&\s*/, "");
+
+type Qoo10Props = { blocks: GuideBlock[]; fill: Fill; productName: string; category: string };
+
+/** 가격은 정가만 (이중 가격 표시 X). 아직 정해지지 않아 価格未定. 할인·쿠폰·送料無料·プレゼント 표시는 근거가 없어 넣지 않는다 */
+function PriceBox() {
+  return (
+    <div className="border-b pb-3">
+      <p className="text-xs text-muted-foreground">価格</p>
+      <p className="text-xl font-black" lang="ja">
+        価格未定
+      </p>
+    </div>
+  );
+}
+
+/** Qoo10 모바일 앱 상품 페이지 틀 (팀이 만든 목업 기준) */
+function Qoo10Mobile({ blocks, fill, productName, category }: Qoo10Props) {
+  const banner = blocks.find((b) => b.key === "hook")?.options[0].text_ja.split("\n").filter((l) => !l.startsWith("*")).join(" ").replaceAll("*", "") ?? "";
+  return (
+    <div className="mx-auto max-w-sm overflow-hidden rounded-[1.5rem] border-[6px] border-foreground/80 bg-background text-sm" lang="ja">
+      <div className="flex h-11 items-center justify-between border-b px-3">
+        <span className="flex items-center gap-2 font-bold">
+          <ChevronLeft className="size-5" aria-hidden />
+          <Store className="size-4" aria-hidden />
+          Leaf& Official
+        </span>
+        <span className="flex gap-3" aria-hidden>
+          <Bell className="size-5" />
+          <Search className="size-5" />
+          <ShoppingCart className="size-5" />
+        </span>
+      </div>
+      <div className="relative">
+        <ImageSlot className="aspect-square rounded-none border-x-0 border-t-0" />
+        <span className="absolute right-3 bottom-9 rounded-full bg-foreground/70 px-2 py-0.5 text-[0.65rem] text-background">1 / 5</span>
+        <p className="absolute inset-x-0 bottom-0 truncate bg-primary px-3 py-1.5 text-center text-xs font-bold text-primary-foreground">{fill(banner)}</p>
+      </div>
+      <div className="space-y-2 p-3">
+        <span className="inline-block rounded-sm bg-primary px-1.5 text-[0.65rem] font-bold text-primary-foreground">公式ショップ</span>
+        <p className="font-semibold">
+          <span className="mr-1 text-primary">Leaf&</span>
+          {withoutBrand(productName)}
+        </p>
+        <PriceBox />
+      </div>
+      <p className="bg-muted-foreground px-3 py-2 text-xs text-background">スキンケア &gt; 基礎化粧品 &gt; {category}</p>
+      <div className="flex border-b text-center text-xs">
+        <span className="flex-1 border-b-2 border-foreground py-3 font-bold">商品情報</span>
+        <span className="flex-1 py-3 text-muted-foreground">お知らせ・Q&A</span>
+        <span className="flex-1 py-3 text-muted-foreground">レビュー</span>
+      </div>
+      <div className="flex items-center justify-between px-3 py-3">
+        <span className="font-bold">商品説明</span>
+        <span className="text-[0.65rem] text-muted-foreground">商品番号 : 未定</span>
+      </div>
+      <DetailSlices blocks={blocks} fill={fill} />
+      <div className="sticky bottom-0 flex h-12 items-center gap-2 border-t bg-background px-2">
+        <Heart className="size-5 text-muted-foreground" aria-hidden />
+        <span className="flex-1 rounded border py-2 text-center text-xs font-bold">カート</span>
+        <span className="flex-[1.3] rounded bg-primary py-2 text-center text-xs font-bold text-primary-foreground">今すぐ購入</span>
       </div>
     </div>
   );
 }
 
-function Preview({ channel, blocks, hashtags, fill, productName }: { channel: GuideChannel; blocks: GuideBlock[]; hashtags: string[]; fill: Fill; productName: string }) {
+/** Qoo10 PC 상품 페이지 틀 (모달에서 크게 본다) */
+function Qoo10Pc({ blocks, fill, productName, category }: Qoo10Props) {
+  return (
+    <div className="mx-auto max-w-4xl overflow-hidden rounded-md border bg-background text-sm" lang="ja">
+      <div className="flex items-center justify-between border-b-2 border-primary px-4 py-2">
+        <span className="text-xl font-black">Qoo10</span>
+        <span className="text-xs text-muted-foreground">ホーム &gt; スキンケア &gt; 基礎化粧品 &gt; {category}</span>
+      </div>
+      <div className="flex gap-6 border-b p-5">
+        <ImageSlot className="aspect-square w-72 shrink-0" />
+        <div className="flex-1 space-y-3">
+          <span className="inline-block rounded-sm bg-primary px-1.5 text-xs font-bold text-primary-foreground">公式ショップ</span>
+          <p className="text-lg font-bold">
+            <span className="mr-1 text-primary">Leaf&</span>
+            {withoutBrand(productName)}
+          </p>
+          <PriceBox />
+          <div className="flex gap-2">
+            <span className="flex-1 rounded border py-3 text-center font-bold">カートに入れる</span>
+            <span className="flex-[1.5] rounded bg-primary py-3 text-center font-bold text-primary-foreground">今すぐ購入</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex border-b-2 border-foreground text-center font-bold">
+        <span className="flex-1 bg-foreground py-3 text-background">商品詳細</span>
+        <span className="flex-1 py-3 text-muted-foreground">レビュー</span>
+        <span className="flex-1 py-3 text-muted-foreground">Q&A</span>
+      </div>
+      <div className="mx-auto max-w-2xl">
+        <DetailSlices blocks={blocks} fill={fill} />
+      </div>
+    </div>
+  );
+}
+
+/** 상세페이지(큐텐): 칸 안에서는 모바일, 「PC로 크게 보기」를 누르면 모달로 PC 화면을 크게 본다 */
+function Qoo10Preview(props: Qoo10Props) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" size="sm" onClick={() => dialog.current?.showModal()}>
+          PC로 크게 보기
+        </Button>
+      </div>
+      <Qoo10Mobile {...props} />
+      <dialog
+        ref={dialog}
+        aria-label="PC 상세페이지 미리보기"
+        className="m-auto max-h-[90vh] w-[min(64rem,95vw)] overflow-y-auto rounded-lg bg-background p-4 text-foreground backdrop:bg-foreground/50"
+        // 바깥(배경)을 누르면 닫는다
+        onClick={(e) => {
+          if (e.target === e.currentTarget) e.currentTarget.close();
+        }}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="font-semibold">PC 상세페이지 미리보기 (가상)</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => dialog.current?.close()}>
+            닫기
+          </Button>
+        </div>
+        <Qoo10Pc {...props} />
+      </dialog>
+    </div>
+  );
+}
+
+function Preview({
+  channel,
+  blocks,
+  hashtags,
+  fill,
+  productName,
+  category,
+}: {
+  channel: GuideChannel;
+  blocks: GuideBlock[];
+  hashtags: string[];
+  fill: Fill;
+  productName: string;
+  category: string;
+}) {
   const text = (b: GuideBlock | undefined) => (b ? fill(b.options[0].text_ja) : "");
   const ko = (b: GuideBlock | undefined) => (b ? fill(b.options[0].text_ko) : "");
   const find = (key: string) => blocks.find((b) => b.key === key);
 
   if (channel === "qoo10_detail") {
-    return <Qoo10Preview blocks={blocks} fill={fill} productName={productName} />;
+    return <Qoo10Preview blocks={blocks} fill={fill} productName={productName} category={category} />;
   }
 
   if (channel === "instagram") {
@@ -387,7 +497,7 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
             </CardHeader>
             <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`} role="region" aria-label="결과물 미리보기" tabIndex={0}>
               {current && (
-                <Preview key={`${current.id}-${slideCount}`} channel={channel} blocks={blocks} hashtags={current.hashtags} fill={fill} productName={product.name_ko} />
+                <Preview key={`${current.id}-${slideCount}`} channel={channel} blocks={blocks} hashtags={current.hashtags} fill={fill} productName={product.name_ko} category={product.line.includes("에센스") ? "美容液" : "化粧水"} />
               )}
             </CardContent>
           </Card>
