@@ -3,6 +3,7 @@
 // {product} 자리에 화면이 제품 이름을 넣는다. 문구는 효능 범위 안의 표현(보습·사용감)만 쓰고, 게시 전에는 새 검토로 다시 확인한다.
 // 상세페이지 블록 구성은 Qoo10 상세페이지 분석 전의 가설이다 (분석 후 고친다).
 import { z } from "zod";
+import { ownProductName } from "@/lib/own-products";
 
 export const GUIDE_CHANNELS = [
   { id: "qoo10_detail", label: "상세페이지(큐텐)" },
@@ -37,6 +38,8 @@ export const GuideBlock = z.object({
   has_image: z.boolean(),
   /** 리뷰가 있어야 쓸 수 있는 블록. 리뷰 없는 제품(개발 중)에서는 뺀다 */
   needs_reviews: z.boolean().default(false),
+  /** 근거 자료가 있을 때만 채우는 칸 (랭킹·후기 수 등). 기본은 빈 칸으로 보여준다 */
+  needs_evidence: z.boolean().default(false),
 });
 export type GuideBlock = z.infer<typeof GuideBlock>;
 
@@ -60,61 +63,74 @@ export type GuideDraft = z.infer<typeof GuideDraft>;
 
 const c = (text_ja: string, text_ko: string) => ({ text_ja, text_ko });
 
-// 상세페이지 공통 블록 (고민 제기 ~ 제품 정보). 제목마다 메인 비주얼·소구점만 바꾼다
-const DETAIL_COMMON = [
+// 상세페이지(큐텐): Qoo10 상세페이지 분석 보고서(토너·에센스·마데카21)의 전환 흐름을 약기법에 맞게 고친 12블록.
+// 1위 배지·후기 수는 근거 자료가 있을 때만(F8.2), 고민은 건조만(질환 X), 연구소·비커 연출은 뺀다(E14).
+// 루틴·라인업은 출시 제품(스킨·에센스)만. 개발 중 라인은 상세페이지에 넣지 않는다.
+const SKIN = ownProductName("deep-skin");
+const ESSENCE = ownProductName("core-essence");
+
+const DETAIL_TAIL = [
   {
-    key: "concern",
-    heading: "고민 제기",
-    options: [c("乾燥が気になる季節、毎日のケアに迷っていませんか。", "건조함이 신경 쓰이는 계절, 매일의 케어에 고민하고 있지 않나요?"), c("洗顔後、すぐにつっぱる感じがする方へ。", "세안 후 금방 당기는 느낌이 드는 분께.")],
-    reason: "피부 질환이 아니라 「건조함이 신경 쓰인다」는 사용 장면으로 고민을 꺼내 치료로 읽히지 않아요.",
-    has_image: false,
+    key: "routine",
+    heading: "루틴 제안",
+    options: [c(`STEP1 ${SKIN} → STEP2 ${ESSENCE}\n洗顔後の2ステップで、うるおいケア`, `STEP1 ${SKIN} → STEP2 ${ESSENCE}\n세안 후 2단계로 보습 케어`), c(`${SKIN}で整えて、${ESSENCE}で仕上げる`, `${SKIN}로 정돈하고 ${ESSENCE}로 마무리`)],
+    reason: "스킨 → 에센스 2단계 루틴으로 함께 쓰는 방법을 보여 줘요. 효능을 더하는 말 없이 순서만 안내해요.",
+    has_image: true,
   },
   {
     key: "ingredient",
-    heading: "성분",
-    options: [c("保湿成分：ヒアルロン酸Na・グリセリン配合", "보습 성분: 히알루론산Na·글리세린 배합"), c("うるおいを与えるヒアルロン酸Na（保湿成分）", "수분을 주는 히알루론산Na(보습 성분)")],
-    reason: "성분을 내세울 때 배합 목적(保湿成分)을 함께 적어야 해요 (F5.5). 첫 번째 안이 목적을 앞에 둬서 더 분명해요.",
+    heading: "성분 (최대 4분할)",
+    options: [c("{ingredients_ja}\n*保湿成分", "{ingredients_ko}\n*보습 성분"), c("保湿成分*を配合したうるおい処方\n*{ingredients_ja_plain}", "보습 성분* 배합 처방\n*{ingredients_ko_plain}")],
+    reason: "제품의 주요 성분(전성분 앞쪽)을 최대 4개까지 타일로 보여 주고, 배합 목적(保湿成分)을 각주로 꼭 붙여요 (F5.5).",
     has_image: true,
   },
   {
     key: "texture",
-    heading: "사용감·제형",
-    options: [c("みずみずしく、べたつかないテクスチャー。", "촉촉하고 끈적이지 않는 제형."), c("さらっとなじんで、重ねづけもしやすい。", "산뜻하게 스며들어 여러 번 덧발라도 좋아요.")],
-    reason: "리뷰 소구점 「산뜻한 흡수」을 그대로 사용감 문구로 옮겼어요.",
+    heading: "제형",
+    options: [c("さっぱり、すーっとなじむ。\nべたつかないのに、しっとり。", "산뜻하게, 스르륵 스며들어요.\n끈적이지 않는데 촉촉하게."), c("みずみずしいテクスチャーで、重ねづけもOK", "촉촉한 제형이라 덧발라도 OK")],
+    reason: "일본 소비자가 반응하는 의태어(さっぱり·すーっと·しっとり)로 리뷰 소구점 「산뜻한 흡수」를 옮겼어요.",
     has_image: true,
   },
   {
     key: "howto",
-    heading: "사용법",
-    options: [c("洗顔後、適量を手に取り顔全体になじませてください。", "세안 후 적당량을 덜어 얼굴 전체에 발라 주세요."), c("コットンでも、手のひらでもお使いいただけます。", "화장솜으로도 손으로도 쓸 수 있어요.")],
-    reason: "사용 방법은 효능을 말하지 않아 위험이 낮아요. 첫 번째 안이 순서가 분명해요.",
-    has_image: false,
+    heading: "사용법 · 저자극",
+    options: [c("洗顔後、適量を手に取り顔全体になじませてください。\nパッチテスト済み*\n*すべての方に刺激が起こらないということではありません", "세안 후 적당량을 덜어 얼굴 전체에 발라 주세요.\n패치 테스트 완료*\n*모든 분에게 자극이 일어나지 않는다는 뜻은 아닙니다"), c("コットンでも、手のひらでも。", "화장솜으로도, 손으로도.")],
+    reason: "저자극 표시는 「모든 분에게 자극이 없다는 뜻은 아니다」 각주를 꼭 달아요 (F7.5). 시험 사실은 근거 자료가 있을 때만 써요.",
+    has_image: true,
   },
   {
     key: "review",
-    heading: "리뷰",
-    options: [c("「しっとりするのにべたつかない」", "「촉촉한데 끈적이지 않아요」"), c("「香りが控えめで毎日使いやすい」", "「향이 은은해서 매일 쓰기 좋아요」")],
-    reason: "사용감 후기만 골랐어요. 「트러블이 사라졌다」 같은 체험담은 효능 표현으로 봐서 빼요.",
+    heading: "리뷰 말풍선",
+    options: [c("「しっとりするのにべたつかない」\n「香りが控えめで毎日使いやすい」\n「メイク前にもなじみやすい」", "「촉촉한데 끈적이지 않아요」\n「향이 은은해서 매일 쓰기 좋아요」\n「메이크업 전에도 잘 스며들어요」"), c("「さっぱりなのに乾燥しにくい」", "「산뜻한데 잘 건조해지지 않아요」")],
+    reason: "사용감 후기만 골랐어요. 「여드름이 덜 나요」 같은 체험담은 효능 표현이라 빼요 (E8).",
     has_image: false,
     needs_reviews: true,
   },
   {
-    key: "for_whom",
-    heading: "추천 대상",
-    options: [c("こんな方に：乾燥が気になる方・べたつきが苦手な方", "이런 분께: 건조함이 신경 쓰이는 분·끈적임이 싫은 분"), c("朝のメイク前のスキンケアに。", "아침 메이크업 전 스킨케어로.")],
-    reason: "피부 질환 이름 대신 취향과 사용 장면으로 대상을 적었어요.",
-    has_image: false,
+    key: "lineup",
+    heading: "라인업",
+    options: [c(`${SKIN}（化粧水）｜ ${ESSENCE}（美容液）`, `${SKIN}(스킨) ｜ ${ESSENCE}(에센스)`)],
+    reason: "출시된 스킨·에센스만 넣어요. 개발 중 라인은 출시 후에 추가해요.",
+    has_image: true,
   },
   {
     key: "info",
-    heading: "제품 정보",
-    options: [c("内容量・全成分・使用上の注意は商品情報欄をご確認ください。", "용량·전성분·사용상 주의는 상품 정보란을 확인해 주세요.")],
-    reason: "전성분과 주의사항은 표시 의무 항목이라 빠짐없이 둬요.",
+    heading: "전성분 · 제조원",
+    options: [c("内容量・全成分・使用上の注意・製造販売元は商品情報欄をご確認ください。", "용량·전성분·사용상 주의·제조판매원은 상품 정보란을 확인해 주세요.")],
+    reason: "전성분과 주의사항, 제조판매원은 표시 의무 항목이에요.",
     has_image: false,
   },
 ];
 
-const detailDraft = (id: string, recommended: boolean, title: [string, string], reason: string, hero: [string, string][], points: [string, string][], prompt: string) => ({
+const detailDraft = (
+  id: string,
+  recommended: boolean,
+  title: [string, string],
+  reason: string,
+  hook: [string, string][],
+  concern: [string, string][],
+  points: [string, string][],
+) => ({
   id,
   channel: "qoo10_detail",
   title_ja: title[0],
@@ -122,16 +138,24 @@ const detailDraft = (id: string, recommended: boolean, title: [string, string], 
   recommended,
   reason,
   blocks: [
-    { key: "hero", heading: "메인 비주얼", options: hero.map(([ja, ko]) => c(ja, ko)), reason: "리뷰 소구점 1위 「오래가는 보습」을 캐치카피에 담았어요. 검색어 상위가 「韓国 化粧水」 계열이라 상품명 옆에 「化粧水」를 함께 쓰는 걸 권해요.", has_image: true },
-    DETAIL_COMMON[0],
-    { key: "points", heading: "소구점 3가지", options: points.map(([ja, ko]) => c(ja, ko)), reason: "리뷰 소구점(보습감·사용감)을 효능 범위 안의 표현으로 정리했어요.", has_image: true },
-    ...DETAIL_COMMON.slice(1),
+    { key: "hook", heading: "훅 (시즌·프로모션)", options: hook.map(([ja, ko]) => c(ja, ko)), reason: "첫 화면에 시즌 카피를 둬서 스크롤을 멈추게 해요. 근거 없는 1위·누적 판매 배지는 넣지 않아요 (F8.2).", has_image: true },
+    {
+      key: "proof",
+      heading: "사회적 증거",
+      options: [c("（ランキング・受賞・口コミ件数は根拠資料がある場合のみ記載）", "(랭킹·수상·후기 수는 근거 자료가 있을 때만 적어요)")],
+      reason: "조사 기관·기간·대상을 밝힐 수 있을 때만 채워요 (F8.2). 지금은 빈 칸이에요.",
+      has_image: true,
+      needs_evidence: true,
+    },
+    { key: "concern", heading: "고민 제기", options: concern.map(([ja, ko]) => c(ja, ko)), reason: "여드름·홍조처럼 질환으로 읽히는 고민은 빼고 「건조」만 다뤄요.", has_image: true },
+    DETAIL_TAIL[0],
+    { key: "hero", heading: "제품 히어로", options: [c("{product}", "{product}")], reason: "단색 배경 + 그림자로 제품 부피감을 보여 주는 컷이에요.", has_image: true },
+    { key: "points", heading: "특장점 3가지", options: points.map(([ja, ko]) => c(ja, ko)), reason: "리뷰 소구점(오래가는 보습·산뜻한 흡수)을 효능 범위 안의 표현으로 정리했어요.", has_image: true },
+    ...DETAIL_TAIL.slice(1),
   ],
-  prompt_guide: prompt,
+  prompt_guide:
+    "Qoo10 상세페이지 문구를 일본어로 써 줘. 블록 순서는 훅 → 사회적 증거(근거 있을 때만) → 고민(건조만) → 루틴(스킨 → 에센스) → 제품 히어로 → 특장점 3 → 성분 4분할 → 제형 → 사용법·저자극 → 리뷰 → 라인업 → 전성분. 블록마다 안을 2개 내고 첫 번째에 추천 이유를 붙여. 효능은 효능 범위 56항목 안(보습·피부결 정돈)만, 침투는 「角質層まで」, 성분에는 「*保湿成分」, 저자극에는 「*すべての方に刺激が起こらないということではありません」 각주. 1위·수치·의사·연구소 연출은 근거 없이 쓰지 마. 리뷰는 사용감만.",
 });
-
-const DETAIL_PROMPT =
-  "Qoo10 상세페이지 문구를 일본어로 써 줘. 블록 순서는 메인 비주얼 → 고민 제기 → 소구점 3가지 → 성분 → 사용감 → 사용법 → 리뷰 → 추천 대상 → 제품 정보. 블록마다 안을 2개 내고 첫 번째에 추천 이유를 붙여. 효능은 화장품 효능 범위 56항목 안(보습·피부결 정돈)만, 성분은 배합 목적(保湿成分 등)과 함께, 침투 표현은 「角質層まで」로만. 리뷰는 사용감 후기만 쓰고, 리뷰가 없는 제품은 리뷰 블록을 빼.";
 
 /** 인스타그램 캐러셀 최대 장 수 */
 export const IG_MAX_SLIDES = 5;
@@ -172,29 +196,29 @@ const RAW: unknown[] = [
   detailDraft(
     "dp-1",
     true,
-    ["毎日のうるおいを、角質層まで", "매일의 수분을, 각질층까지"],
-    "리뷰 소구점 1위 「오래가는 보습」을 제목에 담았어요. 「角質層まで」로 침투 범위를 밝혀 약기법에도 맞아요.",
-    [["{product}\n毎日のうるおいを、角質層まで。", "{product}\n매일의 수분을, 각질층까지."], ["{product}\nしっとり続く、毎日の保湿ケア。", "{product}\n촉촉함이 이어지는 매일의 보습 케어."]],
-    [["① 角質層までうるおう ② べたつかない ③ 毎日使いやすい", "① 각질층까지 촉촉 ② 끈적이지 않음 ③ 매일 쓰기 쉬움"], ["① しっとり ② さらっと ③ 香り控えめ", "① 촉촉 ② 산뜻 ③ 은은한 향"]],
-    DETAIL_PROMPT,
+    ["季節の変わり目に、毎日のうるおいを", "환절기에, 매일의 보습을"],
+    "리뷰 소구점 1위 「오래가는 보습」을 시즌 카피에 담았어요. 마데카21형 시즌 훅 구조를 따르되 1위 배지 없이 만들었어요.",
+    [["＼季節の変わり目に／\n毎日のうるおいを、角質層まで*\n*浸透：角質層まで", "＼환절기에／\n매일의 보습을, 각질층까지*\n*침투: 각질층까지"], ["＼乾燥が気になる季節に／\nしっとり続く、毎日の保湿ケア", "＼건조함이 신경 쓰이는 계절에／\n촉촉함이 이어지는 매일의 보습 케어"]],
+    [["洗顔後、すぐにつっぱる。\n乾燥が気になる季節、こんなお悩みありませんか？", "세안 후 금방 당긴다.\n건조함이 신경 쓰이는 계절, 이런 고민 없나요?"], ["乾燥で、メイクのりが気になる日に", "건조해서 화장이 잘 안 먹는 날에"]],
+    [["① 角質層まで*うるおう ② べたつかない ③ 毎日使いやすい\n*浸透：角質層まで", "① 각질층까지* 촉촉 ② 끈적이지 않음 ③ 매일 쓰기 쉬움\n*침투: 각질층까지"], ["① しっとり ② さっぱり ③ 香り控えめ", "① 촉촉 ② 산뜻 ③ 은은한 향"]],
   ),
   detailDraft(
     "dp-2",
     false,
-    ["肌のキメを整える、しっとりローション", "피부결을 정돈하는 촉촉한 로션"],
-    "「キメを整える」는 효능 범위 안의 표현이에요. 다만 검색어와의 연결은 1번보다 약해요.",
-    [["{product}\n肌のキメを整える、しっとりローション。", "{product}\n피부결을 정돈하는 촉촉한 로션."], ["{product}\nなめらかな肌へ、毎日のひと手間。", "{product}\n매끄러운 피부로, 매일의 한 단계."]],
-    [["① キメを整える ② しっとり ③ なじみやすい", "① 피부결 정돈 ② 촉촉 ③ 잘 스며듦"], ["① 洗顔後すぐ ② 朝晩使える ③ べたつかない", "① 세안 직후 ② 아침저녁 ③ 끈적이지 않음"]],
-    DETAIL_PROMPT,
+    ["肌のキメを整える、しっとり習慣", "피부결을 정돈하는 촉촉한 습관"],
+    "「キメを整える」는 효능 범위 안의 표현이에요. 아누아형 미니멀 구성에 맞지만 시즌 훅이 약해요.",
+    [["肌のキメを整える、\nしっとり習慣。", "피부결을 정돈하는\n촉촉한 습관."], ["なめらかな肌へ、毎日のひと手間。", "매끄러운 피부로, 매일의 한 단계."]],
+    [["乾燥で、肌がごわつく日に", "건조해서 피부가 거칠게 느껴지는 날에"], ["洗顔後のつっぱり感が気になる方へ", "세안 후 당김이 신경 쓰이는 분께"]],
+    [["① キメを整える ② しっとり ③ すーっとなじむ", "① 피부결 정돈 ② 촉촉 ③ 스르륵 스며듦"], ["① 洗顔後すぐ ② 朝晩使える ③ べたつかない", "① 세안 직후 ② 아침저녁 ③ 끈적이지 않음"]],
   ),
   detailDraft(
     "dp-3",
     false,
-    ["乾燥が気になる日の、うるおい習慣", "건조함이 신경 쓰이는 날의 보습 습관"],
-    "사용 장면이 분명해 공감을 얻기 좋아요. 제목에 제품 특징이 적어서 2번보다 뒤에 뒀어요.",
-    [["{product}\n乾燥が気になる日の、うるおい習慣。", "{product}\n건조함이 신경 쓰이는 날의 보습 습관."], ["{product}\n季節の変わり目も、しっとり。", "{product}\n환절기에도 촉촉하게."]],
-    [["① 乾燥する日に ② 朝晩のケアに ③ 重ねづけOK", "① 건조한 날에 ② 아침저녁 케어에 ③ 덧바르기 OK"], ["① しっとり ② やさしい使い心地 ③ 毎日続けやすい", "① 촉촉 ② 부드러운 사용감 ③ 매일 이어 쓰기 쉬움"]],
-    DETAIL_PROMPT,
+    ["＼Qoo10メガ割／2ステップのうるおいケア", "＼큐텐 메가와리／2단계 보습 케어"],
+    "프로모션(메가와리) 시기에 루틴(스킨 → 에센스)을 함께 소개해요. 할인율·한정 수량은 근거가 있을 때만 적어요.",
+    [["＼Qoo10メガ割／\n2ステップで、毎日のうるおいケア", "＼큐텐 메가와리／\n2단계로 매일의 보습 케어"], ["メガ割期間に、はじめるうるおい習慣", "메가와리 기간에 시작하는 보습 습관"]],
+    [["乾燥が気になる季節、ケアに迷っていませんか？", "건조함이 신경 쓰이는 계절, 케어에 고민하고 있지 않나요?"], ["洗顔後、すぐにつっぱる方へ", "세안 후 금방 당기는 분께"]],
+    [["① 2ステップでしっとり ② べたつかない ③ 朝晩使える", "① 2단계로 촉촉 ② 끈적이지 않음 ③ 아침저녁 사용"], ["① 化粧水で整える ② 美容液で仕上げる ③ 毎日続けやすい", "① 스킨으로 정돈 ② 에센스로 마무리 ③ 매일 이어 쓰기 쉬움"]],
   ),
   // 인스타그램: 캐러셀 최대 5장(4:5 세로형) + 5단계 캡션(훅 → POINT → 행동 유도 → 약기법 각주 → 해시태그)
   igDraft(
@@ -505,7 +529,13 @@ const RAW: unknown[] = [
 /** 불러올 때 Zod로 검증한다 */
 export const GUIDE_DRAFTS: GuideDraft[] = z.array(GuideDraft).parse(RAW);
 
-/** {product} 자리에 제품 이름을 넣는다 */
-export function fillProduct(text: string, productName: string): string {
-  return text.replaceAll("{product}", productName);
+/** {product}·{ingredients_*} 자리에 제품 정보를 넣는다. 성분은 주요 성분(전성분에서 정제수 앞, 최대 4개) */
+export function fillProduct(text: string, productName: string, ingredients: { ko: string; ja: string }[] = []): string {
+  const main = ingredients.slice(0, Math.max(0, ingredients.findIndex((i) => i.ja === "水")) || ingredients.length).slice(0, 4);
+  return text
+    .replaceAll("{product}", productName)
+    .replaceAll("{ingredients_ja}", main.map((i) => `${i.ja}*`).join(" ｜ "))
+    .replaceAll("{ingredients_ko}", main.map((i) => `${i.ko}*`).join(" ｜ "))
+    .replaceAll("{ingredients_ja_plain}", main.map((i) => i.ja).join("、"))
+    .replaceAll("{ingredients_ko_plain}", main.map((i) => i.ko).join(", "));
 }
