@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import type { SkinType, SurveyProductLine, SurveyQuestion, SurveySummary } from "@/lib/schemas/survey";
+import type { SkinType, SurveyProductLine, SurveyQuestion, SurveySource, SurveySummary } from "@/lib/schemas/survey";
 
 const SKIN: Record<SkinType, { ko: string; ja: string }> = {
   dry: { ko: "건성", ja: "乾燥肌" },
@@ -35,6 +35,22 @@ const CONCERN_KO: Record<string, string> = {
   other: "기타",
 };
 
+const SOURCE_KO: Record<SurveySource, string> = {
+  instagram: "Instagram",
+  x: "X",
+  line: "LINE",
+  rakuten: "라쿠텐",
+  qoo10: "Qoo10",
+  friend: "지인 소개",
+  search: "검색",
+  other: "기타",
+};
+// 공유 링크: 채널별 꼬리표(?src=). 마지막 줄은 꼬리표 없는 기본 링크
+const SOURCE_LINKS: { key: SurveySource | null; label: string }[] = [
+  ...(["instagram", "x", "line", "rakuten", "qoo10"] as const).map((key) => ({ key, label: SOURCE_KO[key] })),
+  { key: null, label: "기본 (경로를 묻는 링크)" },
+];
+
 const TABS = [
   { key: "summary", label: "요약" },
   { key: "skin", label: "피부타입 · 고민" },
@@ -45,15 +61,21 @@ const TABS = [
 type Tab = (typeof TABS)[number]["key"];
 
 // 설문 테이블 합의 전 제안안 (docs/db-frame.md "소비자 설문"과 함께 확정)
+// supabase/migrations/20261023020717_survey.sql과 같은 칸 (적용은 DB 관리자)
 const RESPONSE_FIELDS = [
-  ["workspace_id", "Leaf& (고정)", "어느 회사 응답인지. 공개 링크(surveys.public_slug)로 정해진다"],
-  ["created_at", "2026-10-21 14:05", "제출 시각"],
+  ["workspace_id · survey_id", "Leaf& · leafn", "어느 회사 · 어느 설문 응답인지. 공개 링크(surveys.public_slug)로 정해진다"],
+  ["created_at", "2026-10-21 14:05", "제출 시각. 3년 보관 후 삭제"],
   ["consent_at · consent_version", "14:03 · v0.1", "언제 어떤 동의 문구에 동의했는지 (18세 이상만)"],
-  ["age_group", "20代", "연령대"],
+  ["age_group", "20s", "연령대 (18세 이상 값만 허용)"],
+  ["skin_type · is_sensitive", "combo · false", "판정 결과"],
+  ["score_t_zone_oil · score_cheek_oil · score_dryness · score_sensitivity", "5 · 1 · 3 · 2", "점수 4개"],
+  ["concerns · concern_other", "{shine, other} · 目の下のクマ", "고민(복수)과 기타 직접 입력 (최대 50자)"],
+  ["source · source_other", "instagram · (비어 있음)", "유입 경로. 링크 꼬리표 또는 시작 전 선택"],
   ["answers", "문항별 선택값", "원래 답. 판정 기준을 바꿔도 다시 분류할 수 있다"],
-  ["scores", "T 5 · 볼 1 · 건조 3 · 민감 2", "점수"],
-  ["skin_type · is_sensitive", "混合肌 · 아니오", "판정 결과"],
-  ["concern_other", "目の下のクマ", "기타 직접 입력 (최대 50자)"],
+] as const;
+const OTHER_TABLE_FIELDS = [
+  ["survey_minor_counts", "2026-10-21 · 3", "18세 미만 날짜별 참여 수. 익명은 record_survey_minor() 함수로만 +1"],
+  ["survey_reco_events", "combo-line · shown · combo", "추천 노출(shown) · 구매 클릭(buy_click) · 알림 열기(notify_open). 18세 이상만 기록"],
 ] as const;
 const NOTIFY_FIELDS = [
   ["workspace_id", "Leaf& (고정)", "어느 회사의 신청인지"],
@@ -73,7 +95,7 @@ export function SurveyResultsView({
   lines: SurveyProductLine[];
 }) {
   const [tab, setTab] = useState<Tab>("summary");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   const concernKeys = questions.find((q) => q.id === "concerns")?.options.map((o) => o.value) ?? Object.keys(CONCERN_KO);
   const concernTotals = concernKeys.map((key) => ({
@@ -94,13 +116,13 @@ export function SurveyResultsView({
     { label: "18세 미만 참여", value: `${summary.under18_count}건`, sub: "숫자만 기록 · 총 응답에 미포함" },
   ];
 
-  async function copyLink() {
+  async function copyLink(path: string) {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/survey`);
+      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
     } catch {
       // 브라우저가 막으면 주소를 직접 복사하도록 둔다
     }
-    setCopied(true);
+    setCopied(path);
   }
 
   return (
@@ -136,18 +158,50 @@ export function SurveyResultsView({
               </Card>
             ))}
           </div>
-          <Card>
-            <CardContent className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="font-medium">설문 링크</span>
-              <code className="rounded bg-muted px-2 py-1">/survey</code>
-              <Button variant="outline" size="sm" onClick={copyLink}>
-                {copied ? "복사됨" : "링크 복사"}
-              </Button>
-              <Link href="/survey" target="_blank" className="underline-offset-4 hover:underline">
-                공개 설문 열기 ↗
-              </Link>
-            </CardContent>
-          </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>채널별 공유 링크</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  채널마다 다른 링크를 쓰면 유입 경로가 자동으로 기록됩니다. 꼬리표 없는 링크로 들어오면 설문 시작 전에 경로를 묻습니다.
+                </p>
+                <Table>
+                  <TableBody>
+                    {SOURCE_LINKS.map((s) => {
+                      const path = s.key ? `/survey?src=${s.key}` : "/survey";
+                      return (
+                        <TableRow key={path}>
+                          <TableCell className="font-medium">{s.label}</TableCell>
+                          <TableCell>
+                            <code className="rounded bg-muted px-2 py-1 text-xs">{path}</code>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm" onClick={() => copyLink(path)}>
+                              {copied === path ? "복사됨" : "복사"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <Link href="/survey" target="_blank" className="inline-block text-sm underline-offset-4 hover:underline">
+                  공개 설문 열기 ↗
+                </Link>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>유입 경로</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <BarList items={summary.by_source.map((s) => ({ label: SOURCE_KO[s.source], value: s.count }))} />
+                <p className="text-xs text-muted-foreground">링크 꼬리표 또는 시작 전 선택 기준. &apos;기타&apos;는 응답자가 직접 적은 내용입니다.</p>
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
 
@@ -283,8 +337,8 @@ export function SurveyResultsView({
               </TableBody>
             </Table>
             <p className="text-xs text-muted-foreground">
-              모이스처 스킨 · 에센스는 같은 사람에게 함께 추천되므로 한 줄로 셉니다. 중성 결과({normalCount}명)에 보여 줄 추천은 팀 회의 후
-              정합니다.
+              모이스처 스킨 · 에센스는 같은 사람에게 함께 추천되므로 한 줄로 셉니다. 중성 결과({normalCount}명)에는 모이스처 스킨과 지성 라인(출시
+              알림)을 추천합니다. 실제 수치는 survey_reco_events 기록이 연결되면 보입니다.
             </p>
           </CardContent>
         </Card>
@@ -304,6 +358,7 @@ export function SurveyResultsView({
                   <TableHead>피부타입</TableHead>
                   <TableHead>민감</TableHead>
                   <TableHead>고민</TableHead>
+                  <TableHead>유입 경로</TableHead>
                   <TableHead>동의 문구</TableHead>
                 </TableRow>
               </TableHeader>
@@ -315,6 +370,7 @@ export function SurveyResultsView({
                     <TableCell>{SKIN[r.skin_type].ko}</TableCell>
                     <TableCell>{r.is_sensitive ? "있음" : "—"}</TableCell>
                     <TableCell>{r.concerns.map((c) => CONCERN_KO[c] ?? c).join(", ")}</TableCell>
+                    <TableCell>{r.source ? SOURCE_KO[r.source] : "—"}</TableCell>
                     <TableCell>{r.consent_version}</TableCell>
                   </TableRow>
                 ))}
@@ -327,8 +383,9 @@ export function SurveyResultsView({
       {tab === "fields" && (
         <div className="grid gap-4 lg:grid-cols-2">
           {[
-            { title: "설문 응답 1건에 저장되는 항목 (제안)", note: "이름 · 이메일은 저장하지 않습니다. 18세 미만은 아래 항목을 하나도 저장하지 않고 참여 수만 셉니다.", rows: RESPONSE_FIELDS },
-            { title: "출시 알림 신청 1건 (설문과 별도 저장, 제안)", note: "피부 진단 결과와 연결하지 않습니다. 18세 미만은 신청할 수 없습니다.", rows: NOTIFY_FIELDS },
+            { title: "설문 응답 1건 (survey_responses)", note: "이름 · 이메일은 저장하지 않습니다. 18세 미만은 아래 항목을 하나도 저장하지 않고 참여 수만 셉니다.", rows: RESPONSE_FIELDS },
+            { title: "참여 수 · 추천 기록 (별도 표)", note: "개인을 알 수 있는 값은 없습니다.", rows: OTHER_TABLE_FIELDS },
+            { title: "출시 알림 신청 1건 (추후 구현, 제안)", note: "설문과 별도로 저장하고 피부 진단 결과와 연결하지 않습니다. 18세 미만은 신청할 수 없습니다.", rows: NOTIFY_FIELDS },
           ].map((block) => (
             <Card key={block.title}>
               <CardHeader>
