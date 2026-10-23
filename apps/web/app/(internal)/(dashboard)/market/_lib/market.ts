@@ -42,10 +42,51 @@ export function weekLabel(capturedAt: string): string {
   return `${+capturedAt.slice(5, 7)}/${+capturedAt.slice(8, 10)}`;
 }
 
-/** 상위 TOP_N 중 K-뷰티 비중 (%) */
-export function kbeautyShare(s: TrendSnapshot): number {
-  const top = s.data.ranking.filter((r) => r.rank <= TOP_N);
-  return top.length === 0 ? 0 : Math.round((top.filter((r) => r.is_kbeauty).length / top.length) * 100);
+/** 랭킹 역동성은 상위 20개로 본다 (Top 10보다 경계가 넓어 신제품 진입이 잘 보인다) */
+export const DYNAMICS_TOP_N = 20;
+
+export type DynamicsPoint = {
+  week: string;
+  /** 비교 기준 주보다 앞이라 계산할 수 없으면 null */
+  retained: number | null;
+  entered: number | null;
+  /** 신규 진입 비율 (%) */
+  churn: number | null;
+  /** 자리를 지킨 제품들의 평균 |순위 변동| (계단) */
+  avgShift: number | null;
+};
+
+/**
+ * 랭킹 역동성: 매주 상위 20개를 lag주 전 상위 20개와 비교해 자리를 지킨 제품(고인물)과 새로 들어온 제품(뉴페이스)을 센다.
+ * 제품은 brand·name으로 맞춘다 (랭킹 스냅샷에 상품 ID가 없어서)
+ */
+export function rankingDynamics(snapshots: TrendSnapshot[], category: string, lag: number): DynamicsPoint[] {
+  const list = snapshots.filter((s) => s.category === category).toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
+  const top = (s: TrendSnapshot) => s.data.ranking.filter((r) => r.rank <= DYNAMICS_TOP_N);
+  return list.map((s, i) => {
+    const week = weekLabel(s.captured_at);
+    const base = list[i - lag];
+    if (!base) return { week, retained: null, entered: null, churn: null, avgShift: null };
+    const prev = new Map(top(base).map((r) => [productKey(r.brand, r.name), r.rank]));
+    const cur = top(s);
+    const kept = cur.filter((r) => prev.has(productKey(r.brand, r.name)));
+    const shifts = kept.map((r) => Math.abs((prev.get(productKey(r.brand, r.name)) ?? r.rank) - r.rank));
+    return {
+      week,
+      retained: kept.length,
+      entered: cur.length - kept.length,
+      churn: cur.length === 0 ? 0 : Math.round(((cur.length - kept.length) / cur.length) * 100),
+      avgShift: shifts.length === 0 ? 0 : Math.round((shifts.reduce((a, b) => a + b, 0) / shifts.length) * 10) / 10,
+    };
+  });
+}
+
+/** 진입 여지 판정 (참고 기준, 팀 확인 전): 평균 교체율 20% 이상 = 열림, 10% 미만 = 고착 */
+export function entryWindow(points: DynamicsPoint[]): { avgChurn: number | null; label: "열림" | "보통" | "고착" | null } {
+  const values = points.map((p) => p.churn).filter((v): v is number => v !== null);
+  if (values.length === 0) return { avgChurn: null, label: null };
+  const avgChurn = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  return { avgChurn, label: avgChurn >= 20 ? "열림" : avgChurn < 10 ? "고착" : "보통" };
 }
 
 export function productKey(brand: string, name: string): string {

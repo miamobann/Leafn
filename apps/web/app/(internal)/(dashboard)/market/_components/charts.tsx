@@ -107,3 +107,46 @@ export function HorizontalBarChart({
     </ResponsiveContainer>
   );
 }
+
+export type StackSeries = { key: string; label: string; color: string };
+
+/**
+ * 세로 누적 막대 (주별 구성 비교). 아래 → 위 순서로 series를 쌓는다.
+ * 조각 사이는 카드 색 2px로 띄우고, 맨 위 조각만 끝을 둥글게 한다
+ */
+export function StackedBarChart({
+  data,
+  series,
+  unit = "",
+  height = 240,
+}: {
+  data: Record<string, string | number | null>[];
+  series: StackSeries[];
+  unit?: string;
+  height?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barCategoryGap="20%">
+        <CartesianGrid stroke="var(--border)" vertical={false} />
+        <XAxis dataKey="week" tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--border)" }} />
+        <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44} allowDecimals={false} tickFormatter={(v: number) => `${v}${unit}`} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)" }} formatter={(v) => (v === null ? "—" : `${v}${unit}`)} />
+        <Legend wrapperStyle={{ fontSize: 12 }} />
+        {series.map((s, i) => (
+          <Bar
+            key={s.key}
+            dataKey={s.key}
+            name={s.label}
+            stackId="stack"
+            fill={s.color}
+            stroke="var(--card)"
+            strokeWidth={2}
+            radius={i === series.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+            isAnimationActive={false}
+          />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
