@@ -37,7 +37,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "시장 트렌드", href: "/market/trends", featureId: "B" },
       { label: "성분 관심도", href: "/market/ingredients", featureId: "B" },
-      { label: "AI 검색 노출 (GEO)", href: "/market/geo", featureId: "GEO" },
       { label: "경쟁제품 비교", href: "/market/competitors", featureId: "C" },
     ],
   },

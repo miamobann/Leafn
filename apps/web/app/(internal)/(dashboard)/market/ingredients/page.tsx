@@ -1,33 +1,27 @@
 import { PageHeader } from "@/components/layout/page-header";
-import { BarList, ReportTemplate } from "@/components/templates";
-import { getIngredientInterest, getProducts } from "@/lib/data";
-
-const CATEGORY = "化粧水";
+import { getProducts, getSearchSnapshots, getTrendSnapshots } from "@/lib/data";
+import { AppealReport } from "@/app/(internal)/(dashboard)/market/_components/appeal-report";
+import { IngredientsReport } from "@/app/(internal)/(dashboard)/market/_components/ingredients-report";
 
 export default async function MarketIngredientsPage() {
-  const [ingredients, own] = await Promise.all([getIngredientInterest({ category: CATEGORY }), getProducts({ kind: "own" })]);
-  const ownIngredients = new Set(own.flatMap((p) => p.ingredients));
+  const [snapshots, qoo10, search, products] = await Promise.all([
+    getTrendSnapshots({ source: "rakuten_ranking" }),
+    getTrendSnapshots({ source: "qoo10_ranking", category: "化粧水" }),
+    getSearchSnapshots(),
+    getProducts(),
+  ]);
 
   return (
     <>
-      <PageHeader title="성분 관심도" description="랭킹 상품명·설명에 자주 등장하는 성분 (샘플)" featureId="B" />
-      <ReportTemplate
-        cards={[
-          {
-            title: `성분 빈도 · ${CATEGORY}`,
-            wide: true,
-            content: (
-              <BarList
-                items={ingredients.map((i) => ({
-                  label: ownIngredients.has(i.ingredient) ? `★ ${i.ingredient}` : i.ingredient,
-                  value: i.count,
-                }))}
-              />
-            ),
-          },
-        ]}
+      <PageHeader title="성분 관심도" description="현재 트렌드(楽天·Qoo10 상위 상품 이미지의 소구 성분) · 미래 트렌드(Google 자동완성) · 상품명·설명의 성분 언급 빈도 (샘플)" featureId="B" />
+      <AppealReport
+        initial={{ rakuten_ranking: snapshots.filter((s) => s.category === "化粧水").at(-1), qoo10_ranking: qoo10.at(-1) }}
+        searchInitial={search}
+        products={products}
       />
-      <p className="mt-2 text-xs text-muted-foreground">★ 자사 제품에 든 성분 · 성분을 누르면 상품 목록 패널은 P3에서 연결</p>
+      <div className="mt-6">
+        <IngredientsReport snapshots={snapshots} products={products} />
+      </div>
     </>
   );
 }

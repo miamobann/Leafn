@@ -4,6 +4,7 @@ import { mock } from "@/lib/mock";
 import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
 import type { Product } from "@/lib/schemas/product";
 import { StageKey } from "@/lib/schemas/project";
+import type { TrendSource } from "@/lib/schemas/trend";
 import { AppealTopic } from "@/lib/schemas/review";
 
 export async function getWorkspace() {
@@ -124,11 +125,25 @@ export async function getAdCheck(id: string) {
   return mock.adChecks.find((a) => a.id === id) ?? null;
 }
 
-export async function getTrendSnapshots(opts: { category: string }) {
-  return mock.trendSnapshots.filter((t) => t.category === opts.category);
+/** source는 필수 (楽天·Qoo10 시계열이 섞이지 않게). category를 빼면 모든 카테고리. captured_at 오름차순 */
+export async function getTrendSnapshots(opts: { source: TrendSource; category?: string }) {
+  return mock.trendSnapshots
+    .filter((t) => t.source === opts.source)
+    .filter((t) => !opts.category || t.category === opts.category)
+    .toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
 }
 
-export async function getIngredientInterest(opts: { category: string }) {
+/** 이미지 분석의 입력 (크롤러 결과). 지금은 더미, 크롤러가 생기면 DB에서 읽는다 */
+export async function getRankingSources(opts: { source: TrendSource; category: string }) {
+  return mock.rankingSources.filter((r) => r.source === opts.source && r.category === opts.category).toSorted((a, b) => a.rank - b.rank);
+}
+
+/** 검색 자동완성 스냅샷 (미래 트렌드). captured_at 오름차순 */
+export async function getSearchSnapshots() {
+  return mock.searchSnapshots.toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
+}
+
+export async function getIngredientInterest(opts: { source: TrendSource; category: string }) {
   const latest = (await getTrendSnapshots(opts)).at(-1);
   return latest?.data.ingredients ?? [];
 }
@@ -170,7 +185,7 @@ export async function getLibraryItems(opts: { type?: string; q?: string } = {}) 
   const items: LibraryItem[] = [
     ...mock.adChecks.map((a) => ({ id: a.id, type: "광고 검토", title: a.input_text, href: `/ad-check/${a.id}`, created_at: a.created_at })),
     ...mock.products.map((p) => ({ id: p.id, type: "제품", title: `${p.brand} ${p.name}`, href: `/market/competitors/${p.id}`, created_at: p.created_at })),
-    ...mock.geoSnapshots.map((g) => ({ id: g.id, type: "GEO 측정", title: `${g.engine} · ${g.query}`, href: "/market/geo", created_at: g.created_at })),
+    ...mock.geoSnapshots.map((g) => ({ id: g.id, type: "GEO 측정", title: `${g.engine} · ${g.query}`, href: "/market/trends", created_at: g.created_at })),
   ];
   return items
     .filter((i) => !opts.type || i.type === opts.type)

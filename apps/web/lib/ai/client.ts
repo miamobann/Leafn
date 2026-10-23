@@ -1,9 +1,22 @@
 // AI 호출의 입구. 화면·Route Handler 는 이 함수 하나만 부르고, 어느 제공사·모델을 쓰는지는 모른다 (CLAUDE.md 2장).
 // 키는 환경 변수에서만 읽는다. 오류 메시지와 로그에는 키·요청 내용·제공사 오류 원문을 넣지 않는다.
 import OpenAI from "openai";
+import { zodResponseFormat } from "openai/helpers/zod";
+import type { z } from "zod";
 import { AiConfigError, resolveModel, resolveProvider, type AiGrade, type AiProvider } from "./config";
 
-export type AiRequest = { grade: AiGrade; system: string; user: string };
+export type AiRequest = {
+  grade: AiGrade;
+  system: string;
+  user: string;
+  /** 선택: 이미지 입력 (https URL 또는 data URL). user 텍스트 뒤에 붙인다 */
+  images?: string[];
+  /**
+   * 선택: 구조화 출력. 있으면 JSON 모드 대신 이 Zod 스키마의 JSON 스키마로 출력 모양을 강제한다.
+   * 응답은 그대로 text(JSON 문자열)로 돌려주고, 호출하는 쪽이 같은 스키마로 검증한다 (CLAUDE.md 7장)
+   */
+  schema?: { name: string; zod: z.ZodType };
+};
 
 export type AiUsage = { input: number; cached: number; output: number };
 
@@ -46,9 +59,17 @@ export async function callAi(request: AiRequest, deps: Deps = {}): Promise<AiRep
       model,
       messages: [
         { role: "system", content: request.system },
-        { role: "user", content: request.user },
+        {
+          role: "user",
+          content: request.images?.length
+            ? [
+                { type: "text" as const, text: request.user },
+                ...request.images.map((url) => ({ type: "image_url" as const, image_url: { url, detail: "high" as const } })),
+              ]
+            : request.user,
+        },
       ],
-      response_format: { type: "json_object" },
+      response_format: request.schema ? zodResponseFormat(request.schema.zod, request.schema.name) : { type: "json_object" },
       ...(/^gpt-4/.test(model) ? { temperature: 0 } : {}),
     });
     return {
