@@ -6,7 +6,7 @@ import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 export const projects = parseAll(
   Project,
   [
-    { id: "prj-1", name: "시카 수분 토너", platform: "Qoo10", product_id: "p-own-1" },
+    { id: "prj-1", name: "Leaf& Dew Deep Skin", platform: "Qoo10", product_id: "p-own-1" },
     { id: "prj-2", name: "수분 크림", platform: "楽天市場", product_id: null },
   ].map((p) => ({ ...p, workspace_id: WORKSPACE_ID, created_at: ts("2026-09-20") })),
   "projects",
