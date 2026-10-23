@@ -1,5 +1,5 @@
 // GEO 1회 실행: 카테고리 × 피부 고민 질의를 한 엔진에 repeatCount번씩 묻고, 브랜드·키워드·인용을 뽑는다
-// 1차 사전 대조 → 2차 LLM 보조 추출(대량 등급) → 원문 대조(verifyInAnswer)를 통과한 것만 남긴다
+// 1차 사전 대조 → 2차 LLM 보조 추출(callAi 대량 등급) → 원문 대조(verifyInAnswer)를 통과한 것만 남긴다
 import {
   brandDictionary,
   buildGeoQueries,
@@ -12,9 +12,9 @@ import {
   verifyInAnswer,
 } from "@/lib/external/geo-terms";
 import { GeoExtraction, type GeoEngine, type GeoSnap } from "@/lib/schemas/geo";
-import { AiConfigError } from "../openai";
+import { callAi } from "../client";
+import { AiConfigError } from "../config";
 import { loadPrompt } from "../prompts";
-import { structuredCall } from "../structured";
 import { GEO_ENGINES } from "./engines";
 
 const CONCURRENCY = 3;
@@ -38,6 +38,15 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 
 type Analyzed = Pick<GeoSnap, "brand_mentions" | "brands_mentioned" | "keywords" | "prompt_version">;
 
+function parseExtraction(text: string): GeoExtraction | null {
+  try {
+    const checked = GeoExtraction.safeParse(JSON.parse(text));
+    return checked.success ? checked.data : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 답변 하나 분석. LLM 보조 추출이 실패해도(키 없음 등) 사전 대조 결과는 남긴다 */
 export async function analyzeAnswer(answer: string, category: string, dictionary: Record<string, string[]>): Promise<Analyzed> {
   const dictBrands = detectBrands(answer, dictionary);
@@ -48,19 +57,21 @@ export async function analyzeAnswer(answer: string, category: string, dictionary
 
   try {
     const { text: system, version } = await loadPrompt("geo-extract", 2);
-    const result = await structuredCall({
-      tier: "bulk",
-      system,
-      user: JSON.stringify({ answer, known_brands: dictBrands.map((b) => b.brand), known_keywords: dictKeywords.map((k) => k.keyword) }),
-      schema: GeoExtraction,
-      name: "geo_extraction",
-    });
+    const request = () =>
+      callAi({
+        grade: "bulk",
+        system,
+        user: JSON.stringify({ answer, known_brands: dictBrands.map((b) => b.brand), known_keywords: dictKeywords.map((k) => k.keyword) }),
+        schema: { name: "geo_extraction", zod: GeoExtraction },
+      });
+    // 형식이 틀리면 1회 재시도 (CLAUDE.md 7장)
+    const result = parseExtraction((await request()).text) ?? parseExtraction((await request()).text);
     if (result) {
       promptVersion = version;
       const knownBrands = new Set(dictBrands.map((b) => b.brand));
       const knownKeywords = new Set(dictKeywords.map((k) => k.keyword));
       // 원문에 그대로 있는 것만 (할루시네이션 차단)
-      llmBrands = result.data.brands
+      llmBrands = result.brands
         .filter((b) => verifyInAnswer(answer, b.matched_text))
         .map((b) => {
           // 이름으로 못 찾으면 원문 표기로 사전을 한 번 더 찾는다 (TonyMoly·トニーモリー → TONYMOLY)
@@ -69,7 +80,7 @@ export async function analyzeAnswer(answer: string, category: string, dictionary
           return { brand: brand in dictionary ? brand : b.name.trim(), matched_text: b.matched_text, source: "llm" as const };
         })
         .filter((b) => !knownBrands.has(b.brand) && knownBrands.add(b.brand));
-      llmKeywords = result.data.keywords
+      llmKeywords = result.keywords
         .filter((k) => k.matched_text.length <= MAX_KEYWORD_LENGTH && !SENTENCE_LIKE.test(k.matched_text.trim()) && verifyInAnswer(answer, k.matched_text))
         .map((k) => ({ keyword: canonicalKeyword(k.matched_text, category), matched_text: k.matched_text, source: "llm" as const }))
         .filter((k) => !knownKeywords.has(k.keyword) && knownKeywords.add(k.keyword));

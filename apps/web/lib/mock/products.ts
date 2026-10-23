@@ -3,9 +3,54 @@ import { Product } from "@/lib/schemas/product";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 가상 브랜드. 가격은 세금 포함 총액(税込), 성분은 全成分 표기 순서를 흉내 낸 샘플
-// 자사 3 + 경쟁 8 (prototype-plan P3). p-own-2·3의 제품명과 성분은 팀 가상 데이터(Suyeon 브랜치 mock-products.ts) 기준
+// 자사 2(확정명, sub_main #20) + 경쟁 8 + Qoo10 랭킹 20. 자사 제품은 평점 정보가 없어 source_raw = null
 // platform은 lib/platforms.ts의 slug. @cosme는 쓰지 않기로 해서 SampleC·SampleH는 楽天으로 옮기고 평점을 5점 척도로 환산했다 (2026-10-23)
 // source_raw는 상품 페이지 추출 원본을 흉내 낸 값. 평점·리뷰 수·행사가는 여기서만 꺼내 쓴다 (lib/schemas/product.ts readListing)
+// Qoo10 카테고리 랭킹 TOP10 (가상 브랜드). 순위는 수집 API가 주는 값이라 source_raw에 둔다 (DB_RULES 2.1)
+// [순위, 브랜드, 상품명, 税込 가격, 용량 ml, 全成分(앞부분), 특징]
+type RankSeed = [number, string, string, number, number, string[], string[]];
+
+const qoo10Toner: RankSeed[] = [
+  [1, "SampleD", "ヒアルロン酸ローション", 1980, 300, ["水", "BG", "ヒアルロン酸Na", "グリセリン"], ["보습", "대용량"]],
+  [2, "SampleE", "セラミド化粧水", 2750, 200, ["水", "グリセリン", "セラミドNP", "スクワラン"], ["장벽", "보습"]],
+  [3, "SampleF", "ビタミンCローション", 2420, 150, ["水", "BG", "アスコルビルグルコシド", "エタノール"], ["톤 정돈"]],
+  [4, "SampleG", "ハトムギ化粧水", 1580, 500, ["水", "ハトムギ種子エキス", "BG", "エタノール"], ["대용량", "산뜻"]],
+  [5, "SampleH", "アミノ酸化粧水", 2200, 200, ["水", "グリセリン", "アルギニン", "セリン"], ["저자극"]],
+  [6, "SampleI", "ドクダミトナー", 2090, 250, ["ドクダミエキス", "水", "BG", "ペンチレングリコール"], ["진정"]],
+  [7, "SampleJ", "ナイアシンアミドトナー", 2640, 200, ["水", "ナイアシンアミド", "グリセリン", "香料"], ["결 정돈"]],
+  [8, "SampleK", "米発酵化粧水", 2980, 150, ["コメ発酵液", "水", "グリセリン", "BG"], ["보습", "발효"]],
+  [9, "SampleL", "CICAトナー", 1890, 250, ["水", "ツボクサエキス", "BG", "香料"], ["진정"]],
+  [10, "SampleM", "とろみ保湿ローション", 3300, 200, ["水", "DPG", "グリセリン", "ヒアルロン酸Na"], ["고보습", "쫀쫀"]],
+];
+
+const qoo10Serum: RankSeed[] = [
+  [1, "SampleN", "レチノールセラム", 3520, 30, ["水", "BG", "レチノール", "スクワラン"], ["탄력"]],
+  [2, "SampleO", "ビタミンC美容液", 2980, 30, ["水", "アスコルビン酸", "エタノール", "BG"], ["톤 정돈"]],
+  [3, "SampleP", "ナイアシンアミドセラム", 2480, 50, ["水", "ナイアシンアミド", "グリセリン", "香料"], ["결 정돈"]],
+  [4, "SampleQ", "PDRNアンプル", 4400, 30, ["水", "グリセリン", "ナトリウムDNA", "BG"], ["재생 케어"]],
+  [5, "SampleR", "ヒアルロン酸アンプル", 1980, 50, ["水", "BG", "ヒアルロン酸Na", "グリセリン"], ["보습"]],
+  [6, "SampleS", "CICAアンプル", 2200, 50, ["ツボクサエキス", "水", "BG", "香料"], ["진정"]],
+  [7, "SampleT", "ペプチドセラム", 3850, 30, ["水", "グリセリン", "パルミトイルトリペプチド-5", "BG"], ["탄력"]],
+  [8, "SampleU", "グルタチオン美容液", 3300, 30, ["水", "グルタチオン", "BG", "エタノール"], ["톤 정돈"]],
+  [9, "SampleV", "発酵エッセンス", 2750, 50, ["ガラクトミセス培養液", "水", "BG", "グリセリン"], ["발효", "보습"]],
+  [10, "SampleW", "アゼライン酸セラム", 2640, 30, ["水", "アゼライン酸", "BG", "エタノール"], ["피지 케어"]],
+];
+
+const rankingProducts = (seeds: RankSeed[], prefix: string, category: string) =>
+  seeds.map(([rank, brand, name, price_jpy, volume_ml, ingredients, features]) => ({
+    id: `${prefix}-${String(rank).padStart(2, "0")}`,
+    kind: "competitor" as const,
+    brand,
+    name,
+    platform: "qoo10" as const,
+    price_jpy,
+    volume_ml,
+    ingredients,
+    features,
+    category,
+    source_raw: { qoo10_rank: rank, ranking: category, captured_at: "2026-10-20" },
+  }));
+
 type Seed = {
   id: string;
   kind: "own" | "competitor";
@@ -17,7 +62,7 @@ type Seed = {
   ingredients: string[];
   features: string[];
   category: string;
-  listing: { rating: number | null; rating_scale: number; review_count: number; sale_price_jpy: number | null; sale_label: string | null };
+  listing?: { rating: number | null; rating_scale: number; review_count: number; sale_price_jpy: number | null; sale_label: string | null };
 };
 
 const seeds: Seed[] = [
@@ -25,40 +70,25 @@ const seeds: Seed[] = [
     id: "p-own-1",
     kind: "own",
     brand: "Leafn",
-    name: "시카 수분 토너",
+    name: "Leaf& Dew Deep Skin",
     platform: "qoo10",
     price_jpy: 2480,
     volume_ml: 200,
-    ingredients: ["水", "ツボクサエキス", "グリセリン", "ナイアシンアミド"],
-    features: ["저자극", "수분"],
+    ingredients: ["水", "グリセリン", "ヒアルロン酸Na", "加水分解ヒアルロン酸", "パンテノール"],
+    features: ["히알루론산", "산뜻한 보습"],
     category: "化粧水",
-    listing: { rating: 4.3, rating_scale: 5, review_count: 640, sale_price_jpy: 1980, sale_label: "メガ割" },
   },
   {
     id: "p-own-2",
     kind: "own",
     brand: "Leafn",
-    name: "모이스트 밸런스 스킨",
+    name: "Leaf& Dew Core Essence",
     platform: "qoo10",
-    price_jpy: 2480,
-    volume_ml: 150,
-    ingredients: ["水", "BG", "グリセリン", "プロパンジオール", "ベタイン", "パンテノール", "ヒアルロン酸Na", "アラントイン", "ヒドロキシエチルセルロース", "クエン酸", "クエン酸Na", "EDTA-2Na", "エチルヘキシルグリセリン", "フェノキシエタノール"],
-    features: ["히알루론산Na·글리세린·판테놀 배합", "건성 피부 라인", "150ml 통형 용기"],
-    category: "化粧水",
-    listing: { rating: 4.4, rating_scale: 5, review_count: 812, sale_price_jpy: 1980, sale_label: "メガ割" },
-  },
-  {
-    id: "p-own-3",
-    kind: "own",
-    brand: "Leafn",
-    name: "모이스트 리페어 에센스",
-    platform: "rakuten",
     price_jpy: 2980,
-    volume_ml: 30,
-    ingredients: ["水", "グリセリン", "BG", "プロパンジオール", "スクワラン", "トリ(カプリル酸/カプリン酸)グリセリル", "セラミドNP", "コレステロール", "ステアリン酸", "ヒアルロン酸Na", "水添レシチン", "カルボマー", "アルギニン", "EDTA-2Na", "エチルヘキシルグリセリン", "フェノキシエタノール"],
-    features: ["세라마이드NP·콜레스테롤·스쿠알란 배합", "건성 피부 라인", "30ml 유리 펌프형"],
+    volume_ml: 50,
+    ingredients: ["水", "BG", "ヒアルロン酸Na", "アセチルヒアルロン酸Na", "グリセリン"],
+    features: ["히알루론산", "가벼운 제형"],
     category: "美容液",
-    listing: { rating: 4.2, rating_scale: 5, review_count: 472, sale_price_jpy: null, sale_label: null },
   },
   {
     id: "p-comp-1",
@@ -168,21 +198,29 @@ const seeds: Seed[] = [
 
 export const products = parseAll(
   Product,
-  seeds.map(({ listing, ...p }) => ({
-    url: `https://example.jp/items/${p.id}`,
-    image_path: null,
-    price_kind: "regular",
-    ...p,
-    source_raw: {
-      ...listing,
-      raw_title: `${p.brand} ${p.name}`,
-      raw_price_text: `${p.price_jpy.toLocaleString("ja-JP")}円（税込）`,
-      raw_volume_text: `${p.volume_ml}mL`,
-      raw_ingredients_text: `全成分：${p.ingredients.join("、")}`,
-      captured_at: ts("2026-10-20", "09:10"),
-    },
-    workspace_id: WORKSPACE_ID,
-    created_at: ts("2026-10-10"),
-  })),
+  [
+    ...seeds.map(({ listing, ...p }) => ({
+      url: `https://example.jp/items/${p.id}`,
+      image_path: null,
+      price_kind: "regular",
+      ...p,
+      source_raw: listing
+        ? {
+            ...listing,
+            raw_title: `${p.brand} ${p.name}`,
+            raw_price_text: `${p.price_jpy.toLocaleString("ja-JP")}円（税込）`,
+            raw_volume_text: `${p.volume_ml}mL`,
+            raw_ingredients_text: `全成分：${p.ingredients.join("、")}`,
+            captured_at: ts("2026-10-20", "09:10"),
+          }
+        : null,
+    })),
+    ...[...rankingProducts(qoo10Toner, "p-qsk", "化粧水"), ...rankingProducts(qoo10Serum, "p-qes", "美容液")].map((p) => ({
+      url: null,
+      image_path: null,
+      price_kind: "regular",
+      ...p,
+    })),
+  ].map((p) => ({ ...p, workspace_id: WORKSPACE_ID, created_at: ts("2026-10-10") })),
   "products",
 );

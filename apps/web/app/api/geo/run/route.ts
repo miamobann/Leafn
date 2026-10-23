@@ -4,9 +4,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { geoRepeatCount } from "@/lib/ai/config";
+import { geoRepeatCount } from "@/lib/ai/geo/config";
 import { runGeo } from "@/lib/ai/geo/run";
-import { AiConfigError } from "@/lib/ai/openai";
+import { AiConfigError } from "@/lib/ai/config";
 import { getProducts } from "@/lib/data";
 import { getCurrentUser, getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { GEO_CATEGORIES } from "@/lib/external/geo-terms";

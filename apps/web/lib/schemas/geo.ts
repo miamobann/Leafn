@@ -39,8 +39,8 @@ export const GeoSnapshot = WorkspaceRow.extend({
   model: z.string(),
   /** LLM 보조 추출에 쓴 프롬프트 버전 (사전 대조만 했으면 null) */
   prompt_version: z.string().nullable(),
-  /** 질의 카테고리 (化粧水·美容液·…). DB 칸은 null 허용 (나중에 추가한 칸), 앱은 항상 채운다 */
-  category: z.string().nullable(),
+  /** 질의 카테고리 (化粧水·美容液·…) */
+  category: z.string(),
   query: z.string(),
   /** 질의가 겨냥한 피부 고민 (질의 틀에서 정한다) */
   query_concern: SkinConcern.nullable(),

@@ -1,10 +1,11 @@
 // GEO가 질문하는 AI 검색 엔진 어댑터. 소비자처럼 질문만 보내고(지시문·제품 정보 없음), 답변 원문과 API의 인용 칸을 받는다
 // 위치는 일본으로 고정한다. Gemini·Perplexity는 키가 준비되면 같은 모양으로 붙인다
-import type Anthropic from "@anthropic-ai/sdk";
+// 측정 대상 엔진을 직접 부르는 일이라 제공사 선택(callAi)을 거치지 않고 SDK를 쓴다 (총괄 결정 2026-10-23). 키는 OPENAI_API_KEY·ANTHROPIC_API_KEY
+import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { GeoEngine } from "@/lib/schemas/geo";
-import { getAnthropic, hasAnthropicKey } from "../anthropic";
-import { GEO_ENGINE_MODELS } from "../config";
-import { AiConfigError, getOpenAI } from "../openai";
+import { AiConfigError } from "../config";
+import { GEO_ENGINE_MODELS } from "./config";
 
 export type EngineAnswer = { answer: string; citations: { url: string; title: string | null }[] };
 
@@ -16,6 +17,17 @@ export type GeoEngineAdapter = {
 };
 
 const JAPAN = { type: "approximate" as const, country: "JP", timezone: "Asia/Tokyo" };
+const TIMEOUT_MS = 120_000;
+
+function openai(): OpenAI {
+  if (!process.env.OPENAI_API_KEY) throw new AiConfigError("OPENAI_API_KEY 가 설정되어 있지 않습니다");
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: TIMEOUT_MS, maxRetries: 1 });
+}
+
+function anthropic(): Anthropic {
+  if (!process.env.ANTHROPIC_API_KEY) throw new AiConfigError("ANTHROPIC_API_KEY 가 설정되어 있지 않습니다");
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: TIMEOUT_MS, maxRetries: 1 });
+}
 const MAX_PAUSE_RESUMES = 3;
 
 function dedupe(citations: EngineAnswer["citations"]) {
@@ -27,7 +39,7 @@ const chatgpt: GeoEngineAdapter = {
   model: GEO_ENGINE_MODELS.chatgpt,
   available: () => Boolean(process.env.OPENAI_API_KEY),
   async ask(query) {
-    const res = await getOpenAI().responses.create({
+    const res = await openai().responses.create({
       model: GEO_ENGINE_MODELS.chatgpt,
       tools: [{ type: "web_search", user_location: JAPAN }],
       // 소비자용 ChatGPT처럼 검색을 거친 답을 받는다 (auto면 검색 없이 기억으로 답해 인용이 비고, 없는 제품이 섞였다)
@@ -49,7 +61,7 @@ const chatgpt: GeoEngineAdapter = {
 const claude: GeoEngineAdapter = {
   engine: "claude",
   model: GEO_ENGINE_MODELS.claude,
-  available: hasAnthropicKey,
+  available: () => Boolean(process.env.ANTHROPIC_API_KEY),
   async ask(query) {
     const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: query }];
     let res = await create(messages);
@@ -72,7 +84,7 @@ const claude: GeoEngineAdapter = {
 
 // 정책상 답을 거절하면 서버가 다른 모델로 이어서 답한다 (server-side fallback)
 function create(messages: Anthropic.Beta.BetaMessageParam[]) {
-  return getAnthropic().beta.messages.create({
+  return anthropic().beta.messages.create({
     model: GEO_ENGINE_MODELS.claude,
     max_tokens: 4000,
     betas: ["server-side-fallback-2026-07-01"],
