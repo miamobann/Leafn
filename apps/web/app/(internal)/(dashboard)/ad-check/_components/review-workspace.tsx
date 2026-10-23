@@ -212,7 +212,9 @@ export function ReviewWorkspace({ products, book, workspaceId, aiEnabled }: Revi
           <CardHeader>
             <CardTitle>결과</CardTitle>
           </CardHeader>
-          <CardContent>{renderResult()}</CardContent>
+          <CardContent className="max-h-[75vh] overflow-y-auto" role="region" aria-label="판정 결과" tabIndex={0}>
+            {renderResult()}
+          </CardContent>
         </Card>
       </div>
       {check && !busy && (
