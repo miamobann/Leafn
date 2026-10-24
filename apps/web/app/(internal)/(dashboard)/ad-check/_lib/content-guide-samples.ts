@@ -72,7 +72,7 @@ export const HASHTAG_GROUPS = [
   { key: "trend", label: "고민·트렌드", reason: "고민·행사·검색어로 찾는 사람에게 닿게 해요. 시장 분석 검색어에서 뽑은 태그도 붙여요." },
 ] as const;
 
-/** 큐텐 대표 이미지 갤러리 (정사각형 1:1). 첫 장은 검색 결과 목록의 썸네일이라 자세히, 나머지는 역할만 */
+/** 큐텐 대표 이미지 (정사각형 1:1). 첫 장은 검색 결과 목록의 썸네일이라 자세히, 나머지는 역할만 */
 export const GalleryShot = z.object({
   role: z.string(),
   image: z.string(),
@@ -93,7 +93,7 @@ export const GuideDraft = z.object({
   reason: z.string(),
   blocks: z.array(GuideBlock),
   hashtags: Hashtags.default({ brand: [], ingredient: [], trend: [] }),
-  /** 상세페이지(큐텐)만: 대표 이미지 갤러리 */
+  /** 상세페이지(큐텐)만: 대표 이미지 */
   gallery: z.array(GalleryShot).default([]),
 });
 export type GuideDraft = z.infer<typeof GuideDraft>;
@@ -161,7 +161,7 @@ const DETAIL_TAIL = [
   },
 ];
 
-// 대표 이미지 갤러리 5장. 실제 페이지는 더 많기도 해서(예: 16장) 디자이너가 늘려도 된다
+// 대표 이미지 5장. 실제 페이지는 더 많기도 해서(예: 16장) 디자이너가 늘려도 된다
 const DETAIL_GALLERY = [
   {
     role: "대표 (검색 썸네일)",

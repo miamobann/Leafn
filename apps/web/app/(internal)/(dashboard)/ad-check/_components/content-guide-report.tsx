@@ -21,7 +21,7 @@ type ContentGuideReportProps = {
   appeals: string[];
   keywords: string[];
   blocks: GuideBlock[];
-  /** 상세페이지(큐텐)만: 대표 이미지 갤러리 */
+  /** 상세페이지(큐텐)만: 대표 이미지 */
   gallery: GalleryShot[];
   hashtags: string[];
   /** 블록 key → 메모 */
@@ -35,7 +35,7 @@ type ContentGuideReportProps = {
 type Fill = ContentGuideReportProps["fill"];
 
 const PURPOSE: Record<Channel, { purpose: string; scope: string }> = {
-  qoo10_detail: { purpose: "큐텐 상세페이지 제작안 보고 및 디자인 전달", scope: "대표 이미지 갤러리 · 상세페이지 장면 · 촬영 가이드" },
+  qoo10_detail: { purpose: "큐텐 상세페이지 제작안 보고 및 디자인 전달", scope: "대표 이미지 · 상세페이지 장면 · 촬영 가이드" },
   instagram: { purpose: "인스타그램 게시물 제작안 보고 및 디자인 전달", scope: "슬라이드 · 캡션 · 해시태그 · 촬영 가이드" },
   x: { purpose: "X 게시물 제작안 보고 및 디자인 전달", scope: "게시글 · 이미지 · 해시태그 · 촬영 가이드" },
   banner: { purpose: "배너 제작안 보고 및 디자인 전달", scope: "메인·서브 카피 · 배너 이미지 · 촬영 가이드" },
@@ -278,12 +278,12 @@ function FlowSection({ props }: { props: ContentGuideReportProps }) {
   );
 }
 
-/** 큐텐 대표 이미지 갤러리 (정사각형). 첫 장(검색 썸네일)은 자세히, 나머지는 역할만 */
+/** 큐텐 대표 이미지 (정사각형). 첫 장(검색 썸네일)은 자세히, 나머지는 역할만 */
 function GallerySection({ gallery }: { gallery: GalleryShot[] }) {
   const [first, ...rest] = gallery;
   if (!first) return null;
   return (
-    <Section n={3} title={`대표 이미지 갤러리 (정사각형 1:1 · ${gallery.length}장)`}>
+    <Section n={3} title={`대표 이미지 (정사각형 1:1 · ${gallery.length}장)`}>
       <p className="text-[9pt] text-muted-foreground">상품 페이지 맨 위에서 옆으로 넘기는 사진이에요. 첫 장은 검색 결과 목록의 썸네일로 쓰여요.</p>
       <div className="grid grid-cols-[60mm_1fr] gap-6">
         <PhotoBox no={1} label={first.role} image={first.image} className="aspect-square" />

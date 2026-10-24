@@ -277,7 +277,7 @@ const withoutBrand = (name: string) => name.replace(/^Leaf&\s*/, "");
 
 type Qoo10Props = { blocks: GuideBlock[]; gallery: GalleryShot[]; fill: Fill; productName: string; category: string };
 
-/** 대표 이미지 갤러리 (정사각형). 실제 큐텐처럼 사진 양 끝 화살표 + 「n / 전체」 */
+/** 대표 이미지 (정사각형). 실제 큐텐처럼 사진 양 끝 화살표 + 「n / 전체」 */
 function GalleryViewer({ gallery, className = "" }: { gallery: GalleryShot[]; className?: string }) {
   const [index, setIndex] = useState(0);
   const at = Math.min(index, Math.max(gallery.length - 1, 0));
@@ -304,7 +304,7 @@ function GalleryGuide({ gallery }: { gallery: GalleryShot[] }) {
   if (!first) return null;
   return (
     <section className="space-y-2 rounded-md border p-3">
-      <h3 className="font-semibold">대표 이미지 갤러리 (정사각형 1:1 · {gallery.length}장)</h3>
+      <h3 className="font-semibold">대표 이미지 (정사각형 1:1 · {gallery.length}장)</h3>
       <p className="text-xs text-muted-foreground">상품 페이지 맨 위에서 옆으로 넘기는 사진이에요. 첫 장은 검색 결과 목록의 썸네일로 쓰여요. 디자이너가 장 수를 늘려도 돼요.</p>
       <div className="rounded-md bg-muted p-2">
         <p className="font-medium">
@@ -696,13 +696,45 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
               )}
             </div>
           )}
-          <dl className="grid gap-1 rounded-md bg-muted p-3 text-sm sm:grid-cols-[7rem_1fr]">
-            <dt className="font-medium">리뷰 소구점</dt>
-            <dd>{material.hasReviews ? material.appeals.join(" · ") || "소구점 후보 없음" : "리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다"}</dd>
-            <dt className="font-medium">검색어 순위</dt>
-            <dd lang="ja">{material.keywords.map((k, i) => `${i + 1}. ${k}`).join("  ")}</dd>
-            <dd className="text-xs text-muted-foreground sm:col-start-2">리뷰 분석·시장 분석의 가짜 데이터를 읽어 옵니다</dd>
-          </dl>
+          {/* 제작에 반영할 재료: 다른 탭이 만들어 둔 결과를 읽기만 한다 (AI 호출 없음). 화면이 길어지지 않게 접어 둔다 */}
+          <details className="rounded-md border p-3 text-sm">
+            <summary className="cursor-pointer font-medium">
+              제작에 반영할 재료 <span className="font-normal text-muted-foreground">· 리뷰 분석 {material.hasReviews ? material.appeals.length : 0}개 · 시장 분석 {material.keywords.length}개</span>
+            </summary>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <section className="space-y-1 rounded-md bg-muted p-3">
+                <p className="flex items-center gap-2 font-medium">
+                  <span className="rounded border bg-background px-1.5 text-xs">리뷰 분석 탭</span>
+                  리뷰 소구점
+                </p>
+                {material.hasReviews ? (
+                  <ul className="flex flex-wrap gap-1">
+                    {material.appeals.map((a) => (
+                      <li key={a} className="rounded-full bg-background px-2 py-0.5 text-xs">
+                        {a}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다</p>
+                )}
+              </section>
+              <section className="space-y-1 rounded-md bg-muted p-3">
+                <p className="flex items-center gap-2 font-medium">
+                  <span className="rounded border bg-background px-1.5 text-xs">시장 분석 탭</span>
+                  검색어 순위
+                </p>
+                <ol className="space-y-0.5 text-xs" lang="ja">
+                  {material.keywords.map((k, i) => (
+                    <li key={k}>
+                      {i + 1}. {k}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">각 탭이 만들어 둔 결과를 읽어 와요 (지금은 샘플 데이터).</p>
+          </details>
           {CHANNEL_RULES[channel] && (
             <details className="rounded-md border p-3 text-sm">
               <summary className="cursor-pointer font-medium">채널 운영 기준 (SNS 가이드 분석)</summary>
@@ -795,7 +827,6 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
                 <CardTitle>3. 본문 추천 · 메모</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                {channel === "qoo10_detail" && <GalleryGuide gallery={current.gallery} />}
                 <BodyPager
                   key={`${current.id}-${slideCount}`}
                   blocks={blocks}
@@ -804,6 +835,8 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
                   onMemo={(blockKey, text) => setMemos((m) => ({ ...m, [`${current.id}:${blockKey}`]: text }))}
                   memoWhere={(blockKey) => memoLocation(channel, blocks, blockKey)}
                 />
+
+                {channel === "qoo10_detail" && <GalleryGuide gallery={current.gallery} />}
 
                 <details className="rounded-md border p-3">
                   <summary className="cursor-pointer font-semibold">촬영 가이드 (컷 리스트 {buildCutList(channel, blocks, current.gallery).length}컷 · PDF 붙임)</summary>
