@@ -7,7 +7,7 @@ import { parseModelOutput } from "./parse";
 import { buildSystemPrompt, buildUserMessage } from "./prompt";
 
 /** 지금 쓰는 프롬프트 버전 (prompts/ad-check.<버전>.md). 저장하는 prompt_version 은 "ad-check.<버전>" */
-export const AD_CHECK_PROMPT_VERSION = "v5";
+export const AD_CHECK_PROMPT_VERSION = "v6";
 
 /** 시험할 때만 AD_CHECK_PROMPT_VERSION 환경 변수(예: v6)로 덮어쓴다. 형식 검사는 buildSystemPrompt 가 한다 */
 function promptVersion(): string {
