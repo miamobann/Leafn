@@ -5,7 +5,6 @@ import {
   Folder,
   House,
   MessageSquareText,
-  Rocket,
   Settings,
   ShieldCheck,
   type LucideIcon,
@@ -30,7 +29,8 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-export const HOME_ITEM: NavItem = { label: "홈", href: "/", featureId: "J", icon: House };
+// 프로모션 캘린더는 홈에 들어가고, /calendar는 홈 캘린더의 전체보기 화면으로만 남는다 (2026-10-24 진출 실행 탭 제거)
+export const HOME_ITEM: NavItem = { label: "홈", href: "/", featureId: "J", icon: House, alsoActive: /^\/calendar(\/|$)/ };
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -58,14 +58,6 @@ export const NAV_GROUPS: NavGroup[] = [
       // /ad-check/<검토 ID> 상세는 저장된 검토라 이력에 속한다 (안내 화면 /ad-check/guide는 제외)
       { label: "검토 이력", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/(?!history$|guide$)[^/]+$/ },
       { label: "콘텐츠 제작", href: "/ad-check/guide", featureId: "A" },
-    ],
-  },
-  {
-    label: "진출 실행",
-    icon: Rocket,
-    items: [
-      { label: "플랫폼별 강점", href: "/platforms", featureId: "H" },
-      { label: "프로모션 캘린더", href: "/calendar", featureId: "I" },
     ],
   },
   {
