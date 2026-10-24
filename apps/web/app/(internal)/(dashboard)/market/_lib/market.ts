@@ -5,8 +5,10 @@ import type { PromoHookType, RankingItem, SkinConcern, TrendSnapshot } from "@/l
 import { classifySuggestion } from "@/lib/external/search-terms";
 import { matchIngredient } from "@/lib/ai/appeal-normalize";
 
-export const OWN_BRAND = "Leafn";
-export const MARKET_CATEGORIES = ["化粧水", "美容液", "クリーム"] as const;
+// 자사 브랜드는 lib/own-products.ts가 기준 (docs/Product.md)
+export { OWN_BRAND } from "@/lib/own-products";
+// 카테고리 목록은 lib/market-config.ts가 기준
+export { MARKET_CATEGORIES } from "@/lib/market-config";
 export const TOP_N = 10;
 
 /** 자사 제품과 겹치는 성분을 볼 때 빼는 흔한 기제·보존제 */

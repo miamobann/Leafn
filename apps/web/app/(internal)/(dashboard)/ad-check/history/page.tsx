@@ -55,20 +55,24 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
             { key: "detail", label: "" },
           ]}
           rows={checks.map((c) => {
-            const [first, ...rest] = c.input_text.split("\n");
+            // 목록 문구는 한국어로 통일한다 (일본어 입력은 한국어 번역, 번역이 없으면 원문)
+            const koText = c.input_lang === "ko" ? c.input_text : (c.back_translation_ko ?? c.input_text);
+            const koLang = c.input_lang === "ko" || c.back_translation_ko ? "ko" : c.input_lang;
+            const [first, ...rest] = koText.split("\n");
             return {
               id: c.id,
-              href: `/ad-check?from=${c.id}`, // 문구를 누르면 새 검토로 불러와 고친다. 상세는 맨 끝 칸
+              href: `/ad-check/${c.id}`, // 문구를 누르면 상세(두괄식 결과), 고치기는 맨 끝 「수정」
               cells: {
                 text: (
                   // 긴 문구는 한 줄로 자르고 전체는 title로 보여준다
-                  <span lang={c.input_lang} title={c.input_text} className="flex max-w-80 gap-1">
-                    <span className="truncate">{first}</span>
+                  <span lang={koLang} title={koText} className="flex max-w-80 gap-1">
+                    {/* 표 템플릿의 링크 밑줄이 잘린 글자(truncate)까지 내려오지 않아서, 링크에 커서를 올리면 여기서 밑줄을 긋는다 */}
+                    <span className="truncate font-medium underline-offset-4 [a:hover_&]:underline">{first}</span>
                     {rest.length > 0 && <span className="shrink-0 text-muted-foreground">외 {rest.length}줄</span>}
                   </span>
                 ),
                 product: (
-                  <span className="block max-w-56 truncate" title={productName(c.product_id)}>
+                  <span className="block max-w-44 truncate" title={productName(c.product_id)}>
                     {productName(c.product_id)} · {c.usage ? USAGE_LABEL[c.usage] : "—"}
                   </span>
                 ),
@@ -77,8 +81,8 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
                 reviewer: memberName(c.reviewer_id),
                 date: formatDate(c.created_at),
                 detail: (
-                  <Link href={`/ad-check/${c.id}`} className="text-xs text-muted-foreground underline underline-offset-4">
-                    상세
+                  <Link href={`/ad-check?from=${c.id}`} className={`${buttonVariants({ variant: "outline", size: "sm" })} border-foreground/40!`}>
+                    수정
                   </Link>
                 ),
               },

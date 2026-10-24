@@ -56,6 +56,9 @@ const POSTERS = {
 } as const;
 const POSTER_FOR: Record<SkinType, keyof typeof POSTERS> = { dry: "dry", inner_dry: "dry", normal: "dry", combo: "combo", oily: "oily" };
 
+// 판매 중 라인의 「購入する」가 여는 Qoo10 상세페이지 (/survey/shop/[제품])
+const SHOP_PATH: Record<string, string> = { "moisture-skin": "/survey/shop/deep-skin", "moisture-essence": "/survey/shop/core-essence" };
+
 // MBTI처럼 반대되는 두 성향을 한 막대에 놓고 합 100점으로 나눈다 (팀 결정 2026-10-23)
 type Pole = { code: string; label: string };
 type Axis = { title: string; left: Pole; right: Pole; leftPoints: (sc: Scores, max: Scores) => number };
@@ -278,13 +281,14 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
                       </p>
                     </div>
                   </div>
-                  {line.status === "on_sale" && (
-                    <Button
+                  {line.status === "on_sale" && SHOP_PATH[line.id] && (
+                    <Link
+                      href={SHOP_PATH[line.id]}
                       onClick={() => trackReco({ event: "buy_click", lineId: line.id, skinType, under18 })}
-                      className="h-11 w-full"
+                      className={cn(buttonVariants(), "h-11 w-full")}
                     >
                       {COPY.buy}
-                    </Button>
+                    </Link>
                   )}
                   {line.status === "in_development" && done[line.id] && (
                     <p className="rounded-md bg-muted px-3 py-2 text-sm">

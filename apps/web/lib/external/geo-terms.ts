@@ -2,11 +2,12 @@
 // 1차는 사전 대조(한·일·영 동의어 포함). 사전에 없는 말은 Step 2에서 LLM이 뽑고, 원문에 있는 것만 남긴다 (verifyInAnswer)
 import { fold, INGREDIENT_ALIASES } from "@/lib/ai/appeal-normalize";
 import type { SkinConcern } from "@/lib/schemas/trend";
+import { OWN_BRAND } from "@/lib/own-products";
 
 export type TermSource = "dictionary" | "llm";
 
 /** 자사 브랜드 표기 흔들림 */
-export const OWN_BRAND_ALIASES = ["Leafn", "Leaf &", "Leaf&", "リーフアンド"];
+export const OWN_BRAND_ALIASES = ["Leaf&", "Leaf &", "リーフアンド"];
 
 /** 결정 키워드 (AI가 추천 사유로 드는 말) · 통일 이름 → 표기 (ko는 자사 제품 정보의 한국어 특징과 대조할 때 쓴다) */
 export const DECISIVE_KEYWORDS: Record<string, { ko: string; aliases: string[] }> = {
@@ -176,8 +177,8 @@ export function brandDictionary(ownBrand: string, competitorBrands: string[]): R
   return {
     ...KNOWN_BRANDS,
     ...Object.fromEntries(competitorBrands.filter((b) => b !== ownBrand && !(b in KNOWN_BRANDS)).map((b) => [b, [b]])),
-    // 자사가 Leafn이면 Leafn 표기, 알려진 실제 브랜드면 그 표기 (예: Torriden 본사가 돌릴 때 トリデン·토리든)
-    [ownBrand]: [...new Set([ownBrand, ...(ownBrand === "Leafn" ? OWN_BRAND_ALIASES : []), ...(KNOWN_BRANDS[ownBrand] ?? [])])],
+    // 자사(Leaf&)면 자사 표기 흔들림, 알려진 실제 브랜드면 그 표기 (예: Torriden 본사가 돌릴 때 トリデン·토리든)
+    [ownBrand]: [...new Set([ownBrand, ...(ownBrand === OWN_BRAND ? OWN_BRAND_ALIASES : []), ...(KNOWN_BRANDS[ownBrand] ?? [])])],
   };
 }
 
@@ -235,7 +236,7 @@ export function sentenceHas(sentence: string, aliases: string[]): boolean {
 
 /**
  * 문장 안에서 키워드가 어느 브랜드의 추천 사유인지: 키워드 바로 앞에 나온 브랜드 (앞에 없으면 바로 뒤).
- * 「SampleA はアルコールフリー、Leafn は低刺激」에서 アルコールフリー는 SampleA, 低刺激는 Leafn
+ * 「SampleA はアルコールフリー、Leaf& は低刺激」에서 アルコールフリー는 SampleA, 低刺激는 Leaf&
  */
 export function attributeKeyword(sentence: string, keywordAliases: string[], brands: { brand: string; matched_text: string }[]): string | null {
   const k = Math.min(...keywordAliases.map((a) => findIn(sentence, a)).filter((i) => i >= 0));
