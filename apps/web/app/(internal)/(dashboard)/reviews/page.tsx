@@ -1,9 +1,9 @@
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTableTemplate } from "@/components/templates";
-import { getProducts, getReviews } from "@/lib/data";
+import { getReviewProductList } from "@/lib/data/reviews";
 
 export default async function ReviewsPage() {
-  const [products, reviews] = await Promise.all([getProducts(), getReviews()]);
+  const products = await getReviewProductList();
 
   return (
     <>
@@ -16,19 +16,16 @@ export default async function ReviewsPage() {
           { key: "ko", label: "국내 리뷰", align: "right" },
           { key: "ja", label: "일본 리뷰", align: "right" },
         ]}
-        rows={products.map((p) => {
-          const mine = reviews.filter((r) => r.product_id === p.id);
-          return {
-            id: p.id,
-            href: `/reviews/${p.id}`,
-            cells: {
-              name: `${p.brand} ${p.name}`,
-              kind: p.kind === "own" ? "자사" : "경쟁",
-              ko: mine.filter((r) => r.lang === "ko").length,
-              ja: mine.filter((r) => r.lang === "ja").length,
-            },
-          };
-        })}
+        rows={products.map((p) => ({
+          id: p.id,
+          href: `/reviews/${p.id}`,
+          cells: {
+            name: `${p.brand} ${p.name}`,
+            kind: p.kind === "own" ? "자사" : "경쟁",
+            ko: p.ko,
+            ja: p.ja,
+          },
+        }))}
       />
     </>
   );
