@@ -330,8 +330,50 @@ class ClassifyListingTest(unittest.TestCase):
         self.assertIsNone(self.reason("ザ タイム アクア 200ml"))
 
     def test_categories_without_a_target_kind_only_exclude_sets(self):
-        self.assertIsNone(q.classify_listing("洗顔クレンジング", "serum"))
-        self.assertEqual(q.classify_listing("2本セット 美容液", "serum"), "set")
+        self.assertIsNone(q.classify_listing("洗顔クレンジング", "cream"))
+        self.assertEqual(q.classify_listing("2本セット 美容液", "cream"), "set")
+
+
+class ClassifyEssenceListingTest(unittest.TestCase):
+    """에센스(美容液) 카테고리의 제외 규칙. 실제 목록 40개를 읽고 정한 패턴을 가상의 제목으로 확인한다."""
+
+    def reason(self, title: str):
+        return q.classify_listing(title, "serum")
+
+    def test_single_essence_listings_are_kept(self):
+        for title in [
+            "ビタミンC セラム 30ml",
+            "ナイアシン エッセンス 30mL 60mL 高濃縮美容液",
+            "【2種GIFT付】PDRNアンプル 30ml",
+            "PDRNカフェインショット 30ml/50ml",  # ショット는 에센스 단어
+            "【導入美容液】ヒアルロン セラム 80mL",
+            "ビタミンC アンプル 25% 23ml/40% 15g",  # 농도 · 용량 선택은 한 제품
+        ]:
+            self.assertIsNone(self.reason(title), title)
+
+    def test_sets_are_excluded(self):
+        self.assertEqual(self.reason("【美容液1+1】 選べる美容液 2点セット"), "set")
+        self.assertEqual(self.reason("ハイドロキノン 3本セット"), "set")
+        self.assertEqual(self.reason("グリーンアンプル 15ml 2個 1個も選べる"), "set")
+
+    def test_essence_sold_together_with_other_kinds_is_excluded(self):
+        self.assertEqual(self.reason("スキンブースターセラム 150mL / 導入美容液 / 化粧水"), "multi_type")
+        self.assertEqual(self.reason("セラム 30ml アクティブクリーム 50ml"), "multi_type")
+
+    def test_other_kinds_alone_are_excluded(self):
+        self.assertEqual(self.reason("低刺激 保湿クリーム 50ml"), "not_toner")
+        self.assertEqual(self.reason("毛穴ケア クレンジングオイル"), "not_toner")
+        self.assertEqual(self.reason("シートマスク 10枚"), "not_toner")
+
+    def test_a_toner_is_not_an_essence(self):
+        self.assertEqual(self.reason("エッセンストナー 200ml"), "not_toner")
+
+    def test_option_listing_of_one_kind_is_kept_for_a_human_to_check(self):
+        self.assertIsNone(self.reason("【選べる7種】ペプチドアンプルほか 毛穴・ハリ・高保湿"))
+
+    def test_the_same_title_is_judged_by_its_own_category(self):
+        self.assertIsNone(q.classify_listing("ビタミンC セラム 30ml", "serum"))
+        self.assertEqual(q.classify_listing("ビタミンC セラム 30ml", "toner"), "not_toner")  # 화장수 단어 목록을 그대로 쓰면 에센스가 다 빠진다
 
 
 class RankingTest(unittest.TestCase):
@@ -350,7 +392,11 @@ class RankingTest(unittest.TestCase):
 
     def test_unknown_category_is_rejected(self):
         with self.assertRaises(ValueError):
-            q.listing_url("serum", 1)
+            q.listing_url("cream", 1)
+
+    def test_essence_category_address_is_the_sibling_of_toner(self):
+        self.assertIn("120000012/220000159/320001623", q.listing_url("serum", 1))
+        self.assertIn("120000012/220000159/320001619", q.listing_url("toner", 1))
 
 
 class CollectTest(unittest.TestCase):

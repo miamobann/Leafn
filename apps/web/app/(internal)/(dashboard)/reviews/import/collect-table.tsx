@@ -1,14 +1,14 @@
 // 수집 결과 표(제품 고르기)와 "자동으로 뺀 제품" 목록.
 import type { CollectionRowView, CollectionView } from "@/lib/data/collection";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LOW_REVIEW_FLOOR, looksOptioned, SKIP_REASON_LABEL, TEXT, unfit } from "./collect-options";
+import { LOW_REVIEW_FLOOR, looksOptioned, skipReasonLabel, TEXT, unfit } from "./collect-options";
 import { n, StateCell } from "./collect-parts";
 
 function hintOf(r: CollectionRowView) {
   if (r.failed) return null;
   if (r.isSet) return "세트 상품이라 비교에 맞지 않아요";
   if ((r.lowCount ?? 0) < LOW_REVIEW_FLOOR) return "불만 리뷰가 거의 없어요";
-  if (looksOptioned(r.name)) return "옵션·시리즈 상품이에요. 화장수만 있는지 확인하고 선택해 주세요";
+  if (looksOptioned(r.name)) return "옵션·시리즈 상품이에요. 한 종류만 있는지 확인하고 선택해 주세요";
   return null;
 }
 
@@ -88,7 +88,7 @@ export function ResultTable({
 }
 
 /** 수집기가 비교 대상이 아니라고 자동으로 뺀 제품. 리뷰는 읽지 않았고 보기만 가능하다 */
-export function SkippedList({ skipped }: { skipped: CollectionView["skipped"] }) {
+export function SkippedList({ skipped, category }: { skipped: CollectionView["skipped"]; category: string }) {
   if (skipped.length === 0) return null;
   return (
     <details className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -101,7 +101,7 @@ export function SkippedList({ skipped }: { skipped: CollectionView["skipped"] })
               <span lang="ja" className="break-words">
                 {s.brand} {s.name}
               </span>
-              <span className="block">{SKIP_REASON_LABEL[s.reason]}</span>
+              <span className="block">{skipReasonLabel(s.reason, category)}</span>
             </span>
           </li>
         ))}
