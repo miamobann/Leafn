@@ -56,8 +56,8 @@ const NEW_PRODUCT_WEIGHTS = { sensitive: [30, 45, 20, 5], other: [2, 13, 35, 50]
 const TRIGGER_COUNT_WEIGHTS = { sensitive: [5, 20, 30, 25, 12, 8], other: [45, 30, 15, 7, 2, 1] };
 
 const AGE_WEIGHTS: Record<string, number> = { "18-19": 8, "20s": 30, "30s": 28, "40s": 22, "50plus": 12 };
-// 첫 입점처인 Qoo10 상세페이지 링크로 들어오는 응답이 가장 많고, SNS가 뒤따르는 모양
-const SOURCE_WEIGHTS: Record<SurveySource, number> = { qoo10: 54, instagram: 14, line: 9, x: 7, friend: 6, search: 6, other: 4 };
+// 상세페이지 링크로 들어오는 쇼핑몰이 가장 많고(첫 입점처 Qoo10 > 라쿠텐), SNS가 뒤따르는 모양
+const SOURCE_WEIGHTS: Record<SurveySource, number> = { qoo10: 30, rakuten: 24, instagram: 14, line: 9, x: 7, friend: 6, search: 6, other: 4 };
 const SOURCE_OTHER = ["雑誌", "店頭のPOP", "YouTube"];
 
 // 고민 선택 가중치: 피부타입 · 연령대 · 민감에 따라 달라진다

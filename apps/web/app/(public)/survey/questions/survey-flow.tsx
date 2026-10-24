@@ -47,6 +47,7 @@ const SOURCE_LABELS: Record<SurveySource, string> = {
   instagram: "Instagram",
   x: "X（旧Twitter）",
   line: "LINE",
+  rakuten: "楽天市場",
   qoo10: "Qoo10",
   friend: "友人・知人の紹介",
   search: "検索",

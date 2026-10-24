@@ -39,6 +39,7 @@ const SOURCE_KO: Record<SurveySource, string> = {
   instagram: "Instagram",
   x: "X",
   line: "LINE",
+  rakuten: "라쿠텐",
   qoo10: "Qoo10",
   friend: "지인 소개",
   search: "검색",
@@ -46,7 +47,7 @@ const SOURCE_KO: Record<SurveySource, string> = {
 };
 // 공유 링크: 채널별 꼬리표(?src=). 마지막 줄은 꼬리표 없는 기본 링크
 const SOURCE_LINKS: { key: SurveySource | null; label: string }[] = [
-  ...(["qoo10", "instagram", "x", "line"] as const).map((key) => ({ key, label: SOURCE_KO[key] })),
+  ...(["qoo10", "rakuten", "instagram", "x", "line"] as const).map((key) => ({ key, label: SOURCE_KO[key] })),
   { key: null, label: "기본 (경로를 묻는 링크)" },
 ];
 
