@@ -229,7 +229,8 @@
 | --- | --- | --- |
 | `workspaces` | name | J |
 | `workspace_members` | workspace_id, user_id, role (`owner` / `member`) | J |
-| `products` | workspace_id, kind (`own` / `competitor`), brand, name, platform, url, price_jpy, volume_ml, ingredients jsonb, features text[], image_path, source_raw jsonb | E에서 생성, C에서 확장 |
+| `projects` | workspace_id, name, platform_id, description (프로젝트 = 제품군, 예: Leaf& Dew) | J (2026-10-24 총괄 결정) |
+| `products` | workspace_id, kind (`own` / `competitor`), brand, name, platform, url, price_jpy, volume_ml, ingredients jsonb, features text[], image_path, source_raw jsonb, project_id, sale_status (`on_sale` / `in_development`), skin_line (`dry` / `oily` / `combo`) | E에서 생성, C에서 확장. 자사 제품은 project_id로 프로젝트에 속함 (2026-10-24). 실제 칸 이름은 db-frame 기준 (`platform_id`, `raw`, `ingredients text[]`) |
 | `reviews` | workspace_id, product_id, source (`cosme` / `rakuten` / `qoo10` / `oliveyoung` / `csv`), external_id, lang (`ja` / `ko`), rating, body, posted_at, raw jsonb · unique(workspace_id, source, external_id) | E (D는 참조) |
 | `review_analyses` | review_id, sentiment (`positive` / `negative` / `neutral`), keywords jsonb `[{text, category}]` (category: `ingredient` / `texture` / `price` / `scent` / `skin_reaction` / `other`), pain_points text[], repurchase_factors text[], model, prompt_version | E (D는 참조) |
 | `review_insights` | workspace_id, product_id, kind (`pain_point` / `repurchase_factor` / `keyword`), label, count, evidence_review_ids uuid[] | E (원문 근거 연결) |

@@ -31,9 +31,11 @@ const GAP_LABEL: Record<GapStatus, { badge: string; variant: "default" | "second
 
 type EngineResult = { engine: GeoEngine; ok: true; result: GeoRunResult } | { engine: GeoEngine; ok: false; message: string };
 
-export function GeoInsights({ initial, ownProducts }: { initial: GeoRow[]; ownProducts: Product[] }) {
+/** category를 넘기면 원페이지 조건 바의 카테고리를 따르고 카테고리 버튼을 숨긴다 */
+export function GeoInsights({ initial, ownProducts, category: fixedCategory }: { initial: GeoRow[]; ownProducts: Product[]; category?: string }) {
   const [all, setAll] = useState(initial);
-  const [category, setCategory] = useState<string>(CATEGORY_OPTIONS[0]);
+  const [pickedCategory, setCategory] = useState<string>(CATEGORY_OPTIONS[0]);
+  const category = fixedCategory ?? pickedCategory;
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<EngineResult[]>([]);
 
@@ -76,10 +78,11 @@ export function GeoInsights({ initial, ownProducts }: { initial: GeoRow[]; ownPr
 
   return (
     <ReportTemplate
-      state={snapshots.length === 0 ? "empty" : undefined}
+      // 원페이지에서는 측정 전이어도 측정 버튼이 보여야 해서 빈 상태로 바꾸지 않는다
+      state={snapshots.length === 0 && !fixedCategory ? "empty" : undefined}
       filters={
         <div className="flex flex-wrap items-start gap-4">
-          <ToggleGroup label="카테고리" options={CATEGORY_OPTIONS} value={category} onChange={setCategory} />
+          {!fixedCategory && <ToggleGroup label="카테고리" options={CATEGORY_OPTIONS} value={category} onChange={setCategory} />}
           <div className="space-y-1 text-xs">
             <Button size="sm" variant="outline" disabled={running} onClick={runAll}>
               {running ? "AI에 질의 중… (1~3분)" : "AI에 질의 (질의마다 3회 평균)"}

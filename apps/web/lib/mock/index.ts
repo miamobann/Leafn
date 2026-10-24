@@ -3,9 +3,13 @@ import { adChecks } from "./ad-checks";
 import { geoSnapshots } from "./geo";
 import { platforms } from "./platforms";
 import { products } from "./products";
-import { projectStages, projects } from "./projects";
+import { boardProjects, projectStages, projects } from "./projects";
 import { rankingSources } from "./ranking-sources";
 import { searchSnapshots } from "./search";
+import { snsPatterns, snsVideoNotes } from "./sns-notes";
+import { claimJudgments } from "./claim-judgments";
+import { copyCandidates } from "./copy-candidates";
+import { POSITIONING } from "@/lib/market-config";
 import { promoEvents } from "./promo-events";
 import { reviewAnalyses } from "./review-analyses";
 import { reviewInsights } from "./review-insights";
@@ -48,16 +52,55 @@ function checkRefs() {
   }
   for (const p of platforms) expect(userIds.has(p.updated_by), `platforms ${p.id}.updated_by`);
   for (const a of activity) expect(userIds.has(a.actor_id), `activity ${a.id}.actor_id`);
-  const projectIds = ids(projects);
-  for (const p of projects) {
+  const boardProjectIds = ids(boardProjects);
+  for (const p of boardProjects) {
     if (p.product_id) expect(productIds.has(p.product_id), `projects ${p.id}.product_id`);
     // 현황판 칸이 비지 않도록 프로젝트마다 8단계가 하나씩 있어야 한다
     const stages = new Set(projectStages.filter((s) => s.project_id === p.id).map((s) => s.stage));
     expect(StageKey.options.every((k) => stages.has(k)), `projects ${p.id} 단계 누락`);
   }
   for (const s of projectStages) {
-    expect(projectIds.has(s.project_id), `projectStages ${s.id}.project_id`);
+    expect(boardProjectIds.has(s.project_id), `projectStages ${s.id}.project_id`);
     if (s.owner_id) expect(userIds.has(s.owner_id), `projectStages ${s.id}.owner_id`);
+  }
+
+  // 랭킹은 20위까지, 랭킹 항목이 가리키는 제품은 products에 있어야 하고 상품명 해석이 있어야 한다 (시장 분석 원페이지)
+  for (const t of trendSnapshots) {
+    expect(t.data.ranking.length <= 20, `trendSnapshots ${t.id} 랭킹이 20위를 넘음`);
+    for (const r of t.data.ranking) {
+      if (r.product_id) expect(productIds.has(r.product_id), `trendSnapshots ${t.id} ${r.rank}위 product_id ${r.product_id}`);
+      expect(Boolean(r.name_ko), `trendSnapshots ${t.id} ${r.rank}위 ${r.name} name_ko 없음`);
+      // Qoo10 랭킹은 products의 Qoo10 랭킹 제품(리뷰가 붙은 제품)과 같은 목록이어야 한다
+      if (t.source === "qoo10_ranking") expect(Boolean(r.product_id), `trendSnapshots ${t.id} ${r.rank}위 ${r.name}가 products에 없음`);
+    }
+  }
+
+  // SNS 공통 패턴이 가리키는 영상은 같은 카테고리의 영상 메모에 있어야 한다
+  for (const p of snsPatterns)
+    for (const vid of p.video_ids) {
+      const note = snsVideoNotes.find((n) => n.id === vid);
+      expect(Boolean(note), `snsPatterns ${p.id} 영상 ${vid}`);
+      if (note) expect(note.category === p.category, `snsPatterns ${p.id} 영상 ${vid}의 카테고리가 다름`);
+    }
+
+  // 기회와 전략: 후보 영역의 근거 키워드·카피 재료는 판정 사전에 있어야 하고, 카피는 자사 제품의 사실만 써야 한다 (景表法)
+  const judged = new Set(claimJudgments.map((j) => j.keyword));
+  const zoneIds = new Set<string>();
+  for (const [category, axis] of Object.entries(POSITIONING))
+    for (const z of axis.zones) {
+      zoneIds.add(z.id);
+      expect(judged.has(z.gap_keyword), `POSITIONING ${category} ${z.id}.gap_keyword ${z.gap_keyword}`);
+    }
+  // 카피에서 찾는 성분 표기 (전성분 표기에 그대로 들어 있어야 한다)
+  const INGREDIENT_WORDS = ["ヒアルロン酸", "セラミド", "ナイアシンアミド", "ツボクサ", "レチノール", "アスコルビ", "ドクダミ", "パンテノール", "トラネキサム酸", "スクワラン", "PDRN", "アゼライン酸"];
+  for (const c of copyCandidates) {
+    expect(zoneIds.has(c.zone_id), `copyCandidates ${c.id}.zone_id`);
+    for (const m of c.materials) expect(judged.has(m), `copyCandidates ${c.id} 재료 ${m}`);
+    const own = products.find((p) => p.id === c.own_product_id);
+    expect(own?.kind === "own" && own.category === c.category, `copyCandidates ${c.id}.own_product_id`);
+    const words = INGREDIENT_WORDS.filter((w) => c.copy_ja.includes(w));
+    for (const w of words) expect(Boolean(own?.ingredients.some((x) => x.includes(w))), `copyCandidates ${c.id}: 자사 전성분에 없는 ${w}`);
+    if (words.length > 0) expect(Boolean(c.ingredient_purpose), `copyCandidates ${c.id}: 성분 특기에 배합 목적 없음`);
   }
 
   // 설문 집계가 가리키는 라인 · 연령대 · 고민 값이 문항과 추천 라인에 있어야 한다
@@ -79,6 +122,10 @@ function checkRefs() {
     for (const c of r.concerns) expect(concernValues.has(c), `surveySummary.recent ${r.at}.concerns ${c}`);
   }
 
+  // 제품이 가리키는 프로젝트(제품군)가 있어야 한다
+  const projectIds = ids(projects);
+  for (const p of products) if (p.project_id) expect(projectIds.has(p.project_id), `products ${p.id}.project_id`);
+
   if (errors.length > 0) {
     throw new Error(`교차 참조 검사 실패:\n${errors.join("\n")}`);
   }
@@ -98,6 +145,10 @@ export const mock = {
   trendSnapshots,
   rankingSources,
   searchSnapshots,
+  snsVideoNotes,
+  snsPatterns,
+  claimJudgments,
+  copyCandidates,
   geoSnapshots,
   promoEvents,
   platforms,
@@ -109,5 +160,6 @@ export const mock = {
   surveySummary,
   activity,
   projects,
+  boardProjects,
   projectStages,
 };

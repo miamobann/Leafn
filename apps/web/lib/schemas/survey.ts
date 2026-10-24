@@ -41,7 +41,7 @@ export const SurveyAnswer = z.union([z.string(), z.array(z.string())]);
 export type SurveyAnswer = z.infer<typeof SurveyAnswer>;
 
 /** 유입 경로. 링크의 ?src= 값이거나, 없으면 시작 전에 고른 값 */
-export const SurveySource = z.enum(["instagram", "x", "line", "qoo10", "friend", "search", "other"]);
+export const SurveySource = z.enum(["instagram", "x", "line", "qoo10", "rakuten", "friend", "search", "other"]);
 export type SurveySource = z.infer<typeof SurveySource>;
 
 /** surveys 테이블 (supabase/migrations/20261023030815_survey.sql) */

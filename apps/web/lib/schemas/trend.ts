@@ -50,6 +50,24 @@ export const RankingItem = z.object({
   is_kbeauty: z.boolean(),
   // 제안: 상위 상품만 분석한다 (분석 전이면 없음)
   appeal: AppealAnalysis.optional(),
+  // 제안: 시장 분석 원페이지(상위권 진입 조건). data jsonb 안의 값이라 컬럼 추가는 없다
+  // price_jpy는 평시가(税込) 기준 (8장 11번). 행사 주간 여부는 promo_events와 대조해 화면에서 계산한다
+  /** products에 같은 제품이 있으면 그 ID (제품 상세·비교로 이어진다) */
+  product_id: z.string().nullable().optional(),
+  /** 상품명 한국어 해석 */
+  name_ko: z.string().optional(),
+  /** 상품 설명 원문. 핵심 성분·소구 태그·사용감은 저장하지 않고 이 글과 상품명을 사전에 대조해 계산한다 */
+  description_ja: z.string().optional(),
+  volume_ml: z.number().positive().nullable().optional(),
+  /** 같은 제품의 추가 용량(리필·미니어처)만. 다른 제품 증정품은 넣지 않는다 */
+  extra_volume_ml: z.number().nonnegative().optional(),
+  rating: z.number().nonnegative().nullable().optional(),
+  rating_scale: z.number().int().positive().optional(),
+  promo_type: PromoHookType.nullable().optional(),
+  /** 상품 페이지의 프로모션 문구 원문 */
+  promo_text: z.string().nullable().optional(),
+  /** 수상·랭킹 배지 문구 원문 */
+  badges: z.array(z.string()).optional(),
 });
 export type RankingItem = z.infer<typeof RankingItem>;
 
