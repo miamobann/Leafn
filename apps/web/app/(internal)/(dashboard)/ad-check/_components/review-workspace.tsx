@@ -1,12 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
 import type { z } from "zod";
 import { AiResultMeta } from "@/components/common/ai";
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/states";
 import { ViewStateGate } from "@/components/common/view-state";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdCheck, AdUsage } from "@/lib/schemas/ad-check";
 import type { ReviewStatus } from "@/lib/schemas/common";
@@ -174,11 +172,6 @@ export function ReviewWorkspace({ products, workspaceId, initial }: ReviewWorksp
           onExpertToggle={() => setExpertRequested((v) => !v)}
         />
       )}
-      <div className="mt-6 flex justify-end">
-        <Link href="/ad-check/guide" className={`${buttonVariants({ variant: "outline" })} border-foreground/40!`}>
-          제작 가이드
-        </Link>
-      </div>
     </ViewStateGate>
   );
 }
