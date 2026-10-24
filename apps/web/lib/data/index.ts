@@ -148,6 +148,16 @@ export async function getIngredientInterest(opts: { source: TrendSource; categor
   return latest?.data.ingredients ?? [];
 }
 
+/** 마케터가 등록한 영상 메모 (수요 · SNS 공통 패턴) */
+export async function getSnsVideoNotes() {
+  return mock.snsVideoNotes;
+}
+
+/** 영상 메모에서 묶은 공통 패턴 (AI 결과 샘플) */
+export async function getSnsPatterns() {
+  return mock.snsPatterns;
+}
+
 export async function getGeoSnapshots() {
   return mock.geoSnapshots;
 }

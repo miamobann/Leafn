@@ -6,6 +6,7 @@ import { products } from "./products";
 import { projectStages, projects } from "./projects";
 import { rankingSources } from "./ranking-sources";
 import { searchSnapshots } from "./search";
+import { snsPatterns, snsVideoNotes } from "./sns-notes";
 import { promoEvents } from "./promo-events";
 import { reviewAnalyses } from "./review-analyses";
 import { reviewInsights } from "./review-insights";
@@ -60,6 +61,25 @@ function checkRefs() {
     if (s.owner_id) expect(userIds.has(s.owner_id), `projectStages ${s.id}.owner_id`);
   }
 
+  // 랭킹은 20위까지, 랭킹 항목이 가리키는 제품은 products에 있어야 하고 상품명 해석이 있어야 한다 (시장 분석 원페이지)
+  for (const t of trendSnapshots) {
+    expect(t.data.ranking.length <= 20, `trendSnapshots ${t.id} 랭킹이 20위를 넘음`);
+    for (const r of t.data.ranking) {
+      if (r.product_id) expect(productIds.has(r.product_id), `trendSnapshots ${t.id} ${r.rank}위 product_id ${r.product_id}`);
+      expect(Boolean(r.name_ko), `trendSnapshots ${t.id} ${r.rank}위 ${r.name} name_ko 없음`);
+      // Qoo10 랭킹은 products의 Qoo10 랭킹 제품(리뷰가 붙은 제품)과 같은 목록이어야 한다
+      if (t.source === "qoo10_ranking") expect(Boolean(r.product_id), `trendSnapshots ${t.id} ${r.rank}위 ${r.name}가 products에 없음`);
+    }
+  }
+
+  // SNS 공통 패턴이 가리키는 영상은 같은 카테고리의 영상 메모에 있어야 한다
+  for (const p of snsPatterns)
+    for (const vid of p.video_ids) {
+      const note = snsVideoNotes.find((n) => n.id === vid);
+      expect(Boolean(note), `snsPatterns ${p.id} 영상 ${vid}`);
+      if (note) expect(note.category === p.category, `snsPatterns ${p.id} 영상 ${vid}의 카테고리가 다름`);
+    }
+
   // 설문 집계가 가리키는 라인 · 연령대 · 고민 값이 문항과 추천 라인에 있어야 한다
   const lineIds = ids(surveyProductLines);
   const optionValues = (qid: string) => new Set(surveyQuestions.find((q) => q.id === qid)?.options.map((o) => o.value) ?? []);
@@ -98,6 +118,8 @@ export const mock = {
   trendSnapshots,
   rankingSources,
   searchSnapshots,
+  snsVideoNotes,
+  snsPatterns,
   geoSnapshots,
   promoEvents,
   platforms,
