@@ -1,14 +1,13 @@
 // 시장 분석 원페이지 · PART 3 기회와 전략의 계산 (AI 없음).
 // 수요 신호(자동완성·SNS·AI 검색)는 있는데 Top 10 상품명·설명에서는 채택이 낮은 키워드를 찾고, 약기법 판정(샘플)을 붙인다.
 import type { GeoSnap } from "@/lib/schemas/geo";
-import type { ClaimJudgment, ClaimVerdict, CopyCandidate, SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
-import type { Product } from "@/lib/schemas/product";
+import type { ClaimJudgment, ClaimVerdict, SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
 import type { SearchSnap } from "@/lib/schemas/search";
 import { fold } from "@/lib/ai/appeal-normalize";
 import { splitSentences } from "@/lib/external/geo-terms";
-import { GAP_MAX_ADOPTION, POSITIONING, type CandidateZone } from "@/lib/market-config";
+import { GAP_MAX_ADOPTION } from "@/lib/market-config";
 import { autocompleteChanges, type AutocompleteStatus } from "./demand";
-import { INGREDIENT_MATCH, TOP_N } from "./market";
+import { TOP_N } from "./market";
 import type { OverviewRow } from "./overview";
 
 export const VERDICT_LABEL: Record<ClaimVerdict, string> = {
@@ -85,62 +84,6 @@ export function demandSupplyGaps(input: {
 /** 시장 분석이라 특정 제품 구분을 전제하지 않는다: 一般化粧品·医薬部外品 어느 쪽으로도 광고에 쓸 수 없으면 사용 불가 */
 export function blockedEverywhere(j: Pick<ClaimJudgment, "general_cosmetic" | "quasi_drug">): boolean {
   return j.general_cosmetic === "not_allowed" && j.quasi_drug === "not_allowed";
-}
-
-// ── 3-B 포지셔닝 맵 ───────────────────────────────
-
-export type MapPoint = { id: string; label: string; x: number; y: number; own: boolean; row?: OverviewRow; product?: Product; matched: string };
-
-/** 사용감 표기로 Y값(-1 = 축 왼쪽 끝, +1 = 오른쪽 끝)을 정한다. 양쪽 표기가 다 있거나 없으면 null */
-export function axisValue(category: string, text: string): { y: number; matched: string } | null {
-  const axis = POSITIONING[category];
-  if (!axis) return null;
-  const low = axis.low.aliases.find((a) => fold(text).includes(fold(a)));
-  const high = axis.high.aliases.find((a) => fold(text).includes(fold(a)));
-  if (low && !high) return { y: -1, matched: low };
-  if (high && !low) return { y: 1, matched: high };
-  return null;
-}
-
-export function positioning(category: string, top: OverviewRow[], products: Product[]) {
-  const points: MapPoint[] = [];
-  const unplaced: OverviewRow[] = [];
-  for (const r of top) {
-    const v = axisValue(category, rowText(r));
-    if (v && r.ppm !== null) points.push({ id: `${r.brand}|${r.name}`, label: `${r.rank}위 ${r.brand}`, x: r.ppm, y: v.y, own: false, row: r, matched: v.matched });
-    else unplaced.push(r);
-  }
-  const own = products.filter((p) => p.kind === "own" && p.category === category);
-  const ownUnplaced: Product[] = [];
-  for (const p of own) {
-    const v = axisValue(category, [p.name, ...p.features].join("\n"));
-    if (v && p.price_jpy != null && p.volume_ml) points.push({ id: p.id, label: p.name, x: Math.round((p.price_jpy / p.volume_ml) * 10) / 10, y: v.y, own: true, product: p, matched: v.matched });
-    else ownUnplaced.push(p);
-  }
-  return { axis: POSITIONING[category] ?? null, points, unplaced, ownUnplaced };
-}
-
-// ── 3-C 카피 후보 ─────────────────────────────────
-
-/** 카피에 나온 성분 사전 이름 */
-export function copyIngredients(copy: string): string[] {
-  return Object.entries(INGREDIENT_MATCH)
-    .filter(([, { match }]) => match.some((m) => copy.includes(m)))
-    .map(([ing]) => ing);
-}
-
-/** 자사 스펙 일치: 카피에 나온 성분이 자사 전성분에 있고, 재료 중 어느 구분으로도 광고에 못 쓰는 말이 없어야 한다 */
-export function specCheck(c: CopyCandidate, own: Product | undefined, judgments: ClaimJudgment[]) {
-  const missing = own ? copyIngredients(c.copy_ja).filter((ing) => !own.ingredients.some((x) => INGREDIENT_MATCH[ing].match.some((m) => x.includes(m)))) : [];
-  const blocked = c.materials.filter((m) => {
-    const j = judgments.find((x) => x.keyword === m);
-    return j ? blockedEverywhere(j) : false;
-  });
-  return { ok: Boolean(own) && missing.length === 0 && blocked.length === 0, missing, blocked };
-}
-
-export function zonesFor(category: string): CandidateZone[] {
-  return POSITIONING[category]?.zones ?? [];
 }
 
 export { TOP_N };

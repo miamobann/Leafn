@@ -68,6 +68,11 @@ export const RankingItem = z.object({
   promo_text: z.string().nullable().optional(),
   /** 수상·랭킹 배지 문구 원문 */
   badges: z.array(z.string()).optional(),
+  // 제안: Qoo10 수집값 (팀원이 정가·할인율·할인 적용가를 보낸다). price_jpy = 정가. 할인이 없으면 null
+  /** 할인율 (%) */
+  discount_rate: z.number().min(0).max(100).nullable().optional(),
+  /** 할인 적용가 (税込) */
+  sale_price_jpy: z.number().int().nonnegative().nullable().optional(),
 });
 export type RankingItem = z.infer<typeof RankingItem>;
 
