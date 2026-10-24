@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PlatformId } from "../platforms";
-import { Timestamp, WorkspaceRow } from "./common";
+import { Id, Timestamp, WorkspaceRow } from "./common";
+import { SaleStatus, SkinLine } from "./project";
 
 export const Product = WorkspaceRow.extend({
   kind: z.enum(["own", "competitor"]),
@@ -17,6 +18,10 @@ export const Product = WorkspaceRow.extend({
   // 제안: docs/prototype-plan.md 8장 11번 (정가·행사가 구분), 15번 (카테고리)
   price_kind: z.enum(["regular", "sale"]).optional(),
   category: z.string().optional(),
+  // 프로젝트(제품군)에 속한 자사 제품이면 채운다 (2026-10-24 총괄 결정). 경쟁 제품은 null
+  project_id: Id.nullable(),
+  sale_status: SaleStatus.nullable(),
+  skin_line: SkinLine.nullable(),
 });
 export type Product = z.infer<typeof Product>;
 

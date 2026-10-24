@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/layout/page-header";
-import { getProductLines } from "@/lib/data";
+import { getProjectsWithProducts } from "@/lib/data";
 import { ProjectManager } from "./project-manager";
 
 type ProjectsPageProps = {
@@ -8,7 +8,7 @@ type ProjectsPageProps = {
 
 // 헤더의 프로젝트 메뉴에서 들어오는 화면 (사이드바 메뉴에는 없다). ?new=project면 새 프로젝트 폼을 먼저 연다
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
-  const [lines, params] = await Promise.all([getProductLines(), searchParams]);
+  const [lines, params] = await Promise.all([getProjectsWithProducts(), searchParams]);
 
   return (
     <>

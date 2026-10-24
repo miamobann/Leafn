@@ -3,7 +3,7 @@
 import { mock } from "@/lib/mock";
 import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
 import type { Product } from "@/lib/schemas/product";
-import { StageKey } from "@/lib/schemas/project";
+import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
 import { AppealTopic } from "@/lib/schemas/review";
 
@@ -193,17 +193,19 @@ export async function getLibraryItems(opts: { type?: string; q?: string } = {}) 
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-/** 상단 헤더의 프로젝트(제품군)와 그 제품들. 홈 현황판의 getProjects()와는 다른 단위다 */
-export async function getProductLines() {
-  return mock.productLines.map((line) => ({
-    ...line,
-    products: mock.lineProducts.filter((p) => p.product_line_id === line.id),
+/** 상단 헤더의 프로젝트(제품군)와 그 제품들 (샘플). 로그인한 워크스페이스의 실제 행은 lib/data/projects.ts */
+export async function getProjectsWithProducts() {
+  return mock.projects.map((project) => ({
+    ...project,
+    products: mock.products
+      .filter((p) => p.project_id === project.id)
+      .map((p) => ProjectProduct.parse({ ...p, project_id: project.id, category: p.category ?? null })),
   }));
 }
 
-/** 홈 진행 현황판: 프로젝트(자사 제품 하나)마다 8단계를 업무 흐름 순서로, 담당자 이름과 함께 */
-export async function getProjects() {
-  return mock.projects.map((p) => ({
+/** 홈 진행 현황판: 현황판 한 줄(자사 제품 하나)마다 8단계를 업무 흐름 순서로, 담당자 이름과 함께 */
+export async function getBoardProjects() {
+  return mock.boardProjects.map((p) => ({
     ...p,
     stages: mock.projectStages
       .filter((s) => s.project_id === p.id)

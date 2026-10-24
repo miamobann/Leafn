@@ -1,10 +1,10 @@
 // 상단 헤더: 워크스페이스 / 프로젝트(제품군) 선택. 워크스페이스 → 프로젝트 → 제품 구조 (2026-10-24 총괄 결정)
-import { getProductLines, getWorkspace } from "@/lib/data";
+import { getProjectsWithProducts, getWorkspace } from "@/lib/data";
 import { ProjectSwitcher } from "./project-switcher";
 import { WorkspaceName } from "./workspace-name";
 
 export async function TopBar() {
-  const [workspace, lines] = await Promise.all([getWorkspace(), getProductLines()]);
+  const [workspace, lines] = await Promise.all([getWorkspace(), getProjectsWithProducts()]);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-6">

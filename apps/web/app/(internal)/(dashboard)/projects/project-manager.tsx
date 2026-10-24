@@ -1,19 +1,26 @@
 "use client";
 
-// 프로젝트(제품군) 목록 · 고른 프로젝트의 제품 표 · 추가 폼. 추가한 내용은 이 브라우저에만 저장한다 (components/layout/project-store.ts)
+// 프로젝트(제품군) 목록 · 고른 프로젝트의 제품 표 · 추가 폼.
+// 로그인한 워크스페이스가 있으면 DB에 저장하고, 아니면 이 브라우저에만 저장한다 (components/layout/project-store.ts)
 import { Plus } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { type LineWithProducts, useProductLines } from "@/components/layout/project-store";
+import { type AddResult, type ProjectWithProducts, type StoreSource, useProjects } from "@/components/layout/project-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { platformLabel } from "@/lib/platforms";
-import type { SaleStatus, SkinType } from "@/lib/schemas/product-line";
+import type { NewProjectProduct, NewProject, SaleStatus, SkinLine } from "@/lib/schemas/project";
 
 const TEXT = {
-  notice: "추가한 프로젝트·제품은 이 브라우저에만 저장돼요. 리뷰 분석·광고 검토 화면에는 DB를 연결한 뒤에 나와요.",
+  notice: {
+    loading: "팀 워크스페이스의 프로젝트를 불러오는 중이에요.",
+    db: "팀 워크스페이스에 저장돼요. 같은 워크스페이스의 팀원에게도 보여요.",
+    not_configured: "DB가 연결되지 않은 환경이라 샘플 데이터를 보여 줘요. 추가한 내용은 이 브라우저에만 저장돼요.",
+    signed_out: "로그인하지 않아 샘플 데이터를 보여 줘요. 추가한 내용은 이 브라우저에만 저장돼요.",
+    error: "DB에서 불러오지 못해 샘플 데이터를 보여 줘요. 추가한 내용은 이 브라우저에만 저장돼요.",
+  },
   projects: "프로젝트",
   products: (n: number) => `제품 ${n}종`,
   newProject: "새 프로젝트",
@@ -28,21 +35,24 @@ const TEXT = {
   addProduct: "제품 추가",
   productName: "제품 이름",
   productNamePlaceholder: "예) Leaf& Dew Deep Cream",
-  skinType: "피부 타입",
+  skinLine: "피부 라인",
   category: "카테고리",
   categoryPlaceholder: "예) 化粧水",
   status: "판매 상태",
   add: "추가",
-  linked: "리뷰·비교 연결",
-  linkedYes: "연결됨",
-  linkedNo: "아직",
   noProducts: "아직 제품이 없어요. 아래에서 추가해 주세요.",
   nameRequired: "이름을 넣어 주세요",
   duplicate: "같은 이름이 이미 있어요",
   current: "헤더에서 고른 프로젝트",
+  saving: "저장 중…",
 };
 
-const SKIN_TYPES: { value: SkinType; label: string }[] = [
+function noticeText(source: StoreSource) {
+  if (source.kind === "sample") return TEXT.notice[source.reason] + (source.message ? ` (${source.message})` : "");
+  return TEXT.notice[source.kind];
+}
+
+const SKIN_LINES: { value: SkinLine; label: string }[] = [
   { value: "dry", label: "건성" },
   { value: "oily", label: "지성" },
   { value: "combo", label: "복합성" },
@@ -56,16 +66,18 @@ const STATUSES: { value: SaleStatus; label: string }[] = [
 const SELECT = "h-8 w-full rounded-lg border border-input bg-background px-2 text-sm";
 const LABEL = "flex flex-col gap-1.5 text-sm";
 
-const skinLabel = (v: SkinType | null) => SKIN_TYPES.find((s) => s.value === v)?.label ?? "—";
-const statusLabel = (v: SaleStatus) => STATUSES.find((s) => s.value === v)?.label ?? v;
+const skinLabel = (v: SkinLine | null) => SKIN_LINES.find((s) => s.value === v)?.label ?? "—";
+const statusLabel = (v: SaleStatus | null) => STATUSES.find((s) => s.value === v)?.label ?? "—";
 
-export function ProjectManager({ base, startWithNewProject }: { base: LineWithProducts[]; startWithNewProject: boolean }) {
-  const { lines, current, select, addLine, addProduct } = useProductLines(base);
+export function ProjectManager({ base, startWithNewProject }: { base: ProjectWithProducts[]; startWithNewProject: boolean }) {
+  const { projects, current, source, select, addProject, addProduct } = useProjects(base);
   const [showNewProject, setShowNewProject] = useState(startWithNewProject);
 
   return (
     <div className="space-y-4">
-      <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{TEXT.notice}</p>
+      <p role="status" className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        {noticeText(source)}
+      </p>
       <div className="flex flex-wrap items-start gap-4">
         <Card className="min-w-0 flex-1 basis-64">
           <CardHeader>
@@ -73,29 +85,35 @@ export function ProjectManager({ base, startWithNewProject }: { base: LineWithPr
           </CardHeader>
           <CardContent className="space-y-2">
             <ul className="space-y-1">
-              {lines.map((line) => (
-                <li key={line.id}>
+              {projects.map((project) => (
+                <li key={project.id}>
                   <button
                     type="button"
-                    onClick={() => select(line.id)}
-                    aria-current={line.id === current?.id ? "true" : undefined}
+                    onClick={() => select(project.id)}
+                    aria-current={project.id === current?.id ? "true" : undefined}
                     className={`w-full rounded-md border px-3 py-2 text-left text-sm hover:bg-muted ${
-                      line.id === current?.id ? "border-foreground/40 bg-muted" : "border-border"
+                      project.id === current?.id ? "border-foreground/40 bg-muted" : "border-border"
                     }`}
                   >
-                    <span className="block font-medium">{line.name}</span>
+                    <span className="block font-medium">{project.name}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {platformLabel(line.platform)} · {TEXT.products(line.products.length)}
+                      {project.platform_id ? `${platformLabel(project.platform_id)} · ` : ""}
+                      {TEXT.products(project.products.length)}
                     </span>
                   </button>
                 </li>
               ))}
             </ul>
             {showNewProject ? (
-              <NewProjectForm existing={lines} onCancel={() => setShowNewProject(false)} onCreate={(input) => {
-                addLine(input);
-                setShowNewProject(false);
-              }} />
+              <NewProjectForm
+                existing={projects}
+                onCancel={() => setShowNewProject(false)}
+                onCreate={async (input) => {
+                  const r = await addProject(input);
+                  if (r.ok) setShowNewProject(false);
+                  return r;
+                }}
+              />
             ) : (
               <Button variant="outline" className="w-full" onClick={() => setShowNewProject(true)}>
                 <Plus aria-hidden />
@@ -112,7 +130,8 @@ export function ProjectManager({ base, startWithNewProject }: { base: LineWithPr
                 {current.name} · {TEXT.productList}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                {TEXT.current} · {platformLabel(current.platform)}
+                {TEXT.current}
+                {current.platform_id ? ` · ${platformLabel(current.platform_id)}` : ""}
                 {current.description ? ` · ${current.description}` : ""}
               </p>
             </CardHeader>
@@ -125,22 +144,20 @@ export function ProjectManager({ base, startWithNewProject }: { base: LineWithPr
                     <TableHeader>
                       <TableRow>
                         <TableHead>{TEXT.productName}</TableHead>
-                        <TableHead>{TEXT.skinType}</TableHead>
+                        <TableHead>{TEXT.skinLine}</TableHead>
                         <TableHead>{TEXT.category}</TableHead>
                         <TableHead>{TEXT.status}</TableHead>
-                        <TableHead>{TEXT.linked}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {current.products.map((p) => (
                         <TableRow key={p.id}>
                           <TableCell className="font-medium">{p.name}</TableCell>
-                          <TableCell>{skinLabel(p.skin_type)}</TableCell>
+                          <TableCell>{skinLabel(p.skin_line)}</TableCell>
                           <TableCell>{p.category ?? "—"}</TableCell>
                           <TableCell>
-                            <Badge variant={p.status === "on_sale" ? "default" : "secondary"}>{statusLabel(p.status)}</Badge>
+                            <Badge variant={p.sale_status === "on_sale" ? "default" : "secondary"}>{statusLabel(p.sale_status)}</Badge>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{p.product_id ? TEXT.linkedYes : TEXT.linkedNo}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -161,20 +178,24 @@ function NewProjectForm({
   onCreate,
   onCancel,
 }: {
-  existing: LineWithProducts[];
-  onCreate: (input: { name: string; platform: "qoo10"; description: string | null }) => void;
+  existing: ProjectWithProducts[];
+  onCreate: (input: NewProject) => Promise<AddResult>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return setError(TEXT.nameRequired);
     if (existing.some((l) => l.name === trimmed)) return setError(TEXT.duplicate);
-    onCreate({ name: trimmed, platform: "qoo10", description: description.trim() || null });
+    setSaving(true);
+    const r = await onCreate({ name: trimmed, platform_id: "qoo10", description: description.trim() || null });
+    setSaving(false);
+    if (!r.ok) setError(r.message);
   }
 
   return (
@@ -203,7 +224,9 @@ function NewProjectForm({
         <span className="text-xs text-muted-foreground">{TEXT.platformNote}</span>
       </div>
       <div className="flex gap-2">
-        <Button type="submit">{TEXT.create}</Button>
+        <Button type="submit" disabled={saving}>
+          {saving ? TEXT.saving : TEXT.create}
+        </Button>
         <Button type="button" variant="outline" onClick={onCancel}>
           {TEXT.cancel}
         </Button>
@@ -216,24 +239,28 @@ function NewProductForm({
   existing,
   onAdd,
 }: {
-  existing: LineWithProducts;
-  onAdd: (input: { name: string; status: SaleStatus; skin_type: SkinType | null; category: string | null }) => void;
+  existing: ProjectWithProducts;
+  onAdd: (input: NewProjectProduct) => Promise<AddResult>;
 }) {
   const [name, setName] = useState("");
-  const [skinType, setSkinType] = useState<SkinType | "">("");
+  const [skinLine, setSkinLine] = useState<SkinLine | "">("");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState<SaleStatus>("in_development");
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return setError(TEXT.nameRequired);
     if (existing.products.some((p) => p.name === trimmed)) return setError(TEXT.duplicate);
-    onAdd({ name: trimmed, status, skin_type: skinType || null, category: category.trim() || null });
+    setSaving(true);
+    const r = await onAdd({ name: trimmed, sale_status: status, skin_line: skinLine || null, category: category.trim() || null });
+    setSaving(false);
+    if (!r.ok) return setError(r.message);
     setName("");
     setCategory("");
-    setSkinType("");
+    setSkinLine("");
     setStatus("in_development");
   }
 
@@ -254,10 +281,10 @@ function NewProductForm({
           />
         </label>
         <label className={LABEL}>
-          {TEXT.skinType}
-          <select className={SELECT} value={skinType} onChange={(e) => setSkinType(e.target.value as SkinType | "")}>
+          {TEXT.skinLine}
+          <select className={SELECT} value={skinLine} onChange={(e) => setSkinLine(e.target.value as SkinLine | "")}>
             <option value="">—</option>
-            {SKIN_TYPES.map((s) => (
+            {SKIN_LINES.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>
@@ -280,9 +307,9 @@ function NewProductForm({
         </label>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit">
+      <Button type="submit" disabled={saving}>
         <Plus aria-hidden />
-        {TEXT.add}
+        {saving ? TEXT.saving : TEXT.add}
       </Button>
     </form>
   );

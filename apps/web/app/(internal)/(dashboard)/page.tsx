@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ViewStateGate } from "@/components/common/view-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAdChecks, getProjects, getPromoEvents } from "@/lib/data";
+import { getAdChecks, getBoardProjects, getPromoEvents } from "@/lib/data";
 import { dDay } from "@/lib/format";
 import { ProjectBoard, ProjectProgress, StageDetail } from "./_home/project-board";
 import { ScrollButtons } from "./_home/scroll-buttons";
@@ -11,7 +11,7 @@ export default async function HomePage() {
   const [pending, events, projects] = await Promise.all([
     getAdChecks({ status: "pending" }),
     getPromoEvents(),
-    getProjects(),
+    getBoardProjects(),
   ]);
   const next = events[0];
   const stats = [

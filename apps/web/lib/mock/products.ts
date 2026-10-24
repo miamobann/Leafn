@@ -1,7 +1,8 @@
 import type { PlatformId } from "@/lib/platforms";
 import { Product } from "@/lib/schemas/product";
-import { OWN_BRAND, ownProductImage, ownProductName } from "@/lib/own-products";
+import { OWN_BRAND, OWN_PRODUCTS, ownProductImage, ownProductName } from "@/lib/own-products";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
+import { OWN_PROJECT_ID } from "./projects";
 
 // 가상 브랜드. 가격은 세금 포함 총액(税込), 성분은 全成分 표기 순서를 흉내 낸 샘플
 // 자사 4(이름·사진은 lib/own-products.ts, 개발 중 2종 포함) + 경쟁 8 + Qoo10 랭킹 20. 자사 제품은 평점 정보가 없어 source_raw = null
@@ -228,6 +229,12 @@ const seeds: Seed[] = [
   },
 ];
 
+// 자사 제품은 프로젝트 Leaf& Dew(lib/mock/projects.ts)에 속하고, 판매 상태·피부 라인은 lib/own-products.ts 이름표를 따른다
+function projectFields(p: { kind: "own" | "competitor"; name: string }) {
+  const own = p.kind === "own" ? OWN_PRODUCTS.find((o) => o.name === p.name) : undefined;
+  return { project_id: own ? OWN_PROJECT_ID : null, sale_status: own?.status ?? null, skin_line: own?.skin_line ?? null };
+}
+
 export const products = parseAll(
   Product,
   [
@@ -253,6 +260,6 @@ export const products = parseAll(
       price_kind: "regular",
       ...p,
     })),
-  ].map((p) => ({ ...p, workspace_id: WORKSPACE_ID, created_at: ts("2026-10-10") })),
+  ].map((p) => ({ ...p, ...projectFields(p), workspace_id: WORKSPACE_ID, created_at: ts("2026-10-10") })),
   "products",
 );

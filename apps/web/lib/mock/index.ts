@@ -2,9 +2,8 @@ import { activity } from "./activity";
 import { adChecks } from "./ad-checks";
 import { geoSnapshots } from "./geo";
 import { platforms } from "./platforms";
-import { lineProducts, productLines } from "./product-lines";
 import { products } from "./products";
-import { projectStages, projects } from "./projects";
+import { boardProjects, projectStages, projects } from "./projects";
 import { rankingSources } from "./ranking-sources";
 import { searchSnapshots } from "./search";
 import { promoEvents } from "./promo-events";
@@ -49,22 +48,16 @@ function checkRefs() {
   }
   for (const p of platforms) expect(userIds.has(p.updated_by), `platforms ${p.id}.updated_by`);
   for (const a of activity) expect(userIds.has(a.actor_id), `activity ${a.id}.actor_id`);
-  const projectIds = ids(projects);
-  for (const p of projects) {
+  const boardProjectIds = ids(boardProjects);
+  for (const p of boardProjects) {
     if (p.product_id) expect(productIds.has(p.product_id), `projects ${p.id}.product_id`);
     // 현황판 칸이 비지 않도록 프로젝트마다 8단계가 하나씩 있어야 한다
     const stages = new Set(projectStages.filter((s) => s.project_id === p.id).map((s) => s.stage));
     expect(StageKey.options.every((k) => stages.has(k)), `projects ${p.id} 단계 누락`);
   }
   for (const s of projectStages) {
-    expect(projectIds.has(s.project_id), `projectStages ${s.id}.project_id`);
+    expect(boardProjectIds.has(s.project_id), `projectStages ${s.id}.project_id`);
     if (s.owner_id) expect(userIds.has(s.owner_id), `projectStages ${s.id}.owner_id`);
-  }
-
-  const productLineIds = ids(productLines);
-  for (const lp of lineProducts) {
-    expect(productLineIds.has(lp.product_line_id), `lineProducts ${lp.id}.product_line_id`);
-    if (lp.product_id) expect(productIds.has(lp.product_id), `lineProducts ${lp.id}.product_id`);
   }
 
   // 설문 집계가 가리키는 라인 · 연령대 · 고민 값이 문항과 추천 라인에 있어야 한다
@@ -85,6 +78,10 @@ function checkRefs() {
     expect(ageValues.has(r.age_group), `surveySummary.recent ${r.at}.age_group`);
     for (const c of r.concerns) expect(concernValues.has(c), `surveySummary.recent ${r.at}.concerns ${c}`);
   }
+
+  // 제품이 가리키는 프로젝트(제품군)가 있어야 한다
+  const projectIds = ids(projects);
+  for (const p of products) if (p.project_id) expect(projectIds.has(p.project_id), `products ${p.id}.project_id`);
 
   if (errors.length > 0) {
     throw new Error(`교차 참조 검사 실패:\n${errors.join("\n")}`);
@@ -116,7 +113,6 @@ export const mock = {
   surveySummary,
   activity,
   projects,
+  boardProjects,
   projectStages,
-  productLines,
-  lineProducts,
 };
