@@ -44,7 +44,7 @@ const RECOMMENDED = "rounded px-1.5 text-xs bg-risk-low/15 text-risk-low";
 /** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
 const KEYWORD_TAGS = 1;
 /** 추가 요청 글자 수 제한 (AI에 참고로만 보낸다. 약기법이 항상 먼저) */
-const REQUEST_MAX = 100;
+const REQUEST_MAX = 50;
 /** 추가 요청 예시: 누르면 칸에 채워진다 */
 const REQUEST_EXAMPLES = ["연말 선물 시즌 느낌으로", "첫 구매 고객을 위한 안내", "재구매를 부르는 문구", "첫 줄에 보습을 강조"];
 /** AI 연결 전, 생성 순서를 보여 주려고 샘플을 띄우기 전에 잠깐 기다리는 시간 */
@@ -574,7 +574,7 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
   const [loading, setLoading] = useState<"titles" | "body" | null>(null);
   /** "제목 id:블록 key" → 메모 (화면에만 둔다) */
   const [memos, setMemos] = useState<Record<string, string>>({});
-  /** 추가 요청 (선택, 100자). 제작할 때 참고로 함께 보낸다 */
+  /** 추가 요청 (선택, 50자). 제작할 때 참고로 함께 보낸다 */
   const [request, setRequest] = useState("");
   /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
   const [withPhotoGuide, setWithPhotoGuide] = useState(true);
