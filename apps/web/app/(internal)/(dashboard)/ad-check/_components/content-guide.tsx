@@ -279,16 +279,22 @@ function DetailSlices({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
 
 
 /** 큐텐 상품명(타이틀). 맨 앞 브랜드 카타카나는 실제 화면처럼 색을 달리한다 */
-const QOO10_BRAND = "リーフアンド";
+const QOO10_BRAND = "リーフアンド(Leaf&)";
 
 type Qoo10Props = { blocks: GuideBlock[]; gallery: GalleryShot[]; fill: Fill; title: string; priceJpy: number; category: string };
 
 function Qoo10Title({ title, className }: { title: string; className: string }) {
-  const rest = title.startsWith(QOO10_BRAND) ? title.slice(QOO10_BRAND.length) : title;
+  // 브랜드 표기만 실제 화면처럼 색을 달리한다 (【公式】 뒤에 온다)
+  const [before, ...after] = title.split(QOO10_BRAND);
   return (
     <p className={className}>
-      {title.startsWith(QOO10_BRAND) && <span className="mr-1 font-bold text-primary">{QOO10_BRAND}</span>}
-      {rest.trim()}
+      {after.length === 0 ? title : (
+        <>
+          {before}
+          <span className="font-bold text-primary">{QOO10_BRAND}</span>
+          {after.join(QOO10_BRAND)}
+        </>
+      )}
     </p>
   );
 }
@@ -550,7 +556,7 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
     "캡션 8~15줄, 더보기 전 첫 2줄에 핵심",
     "첫 줄 스타일: 마침표 1줄 선언형(기본) · 【NEW】【お知らせ】(공지) · [ ] 또는 | |(매거진풍) · 감성 스토리텔링 문장. ＼〜／는 쓰지 않아요",
     "말투는 친근하게(〜してね), 이모지 4~8개를 톤에 맞게 (수분 💧🫧 · 계절 ❄️🌸). 상세페이지는 진지한 톤",
-    "해시태그 5개 (브랜드 1 · 성분·제형 1 · 고민·트렌드 2 · 검색어 1)",
+    "해시태그 5개 (브랜드 영문·가타카나 2 · 성분·제형 1 · 고민·트렌드 1 · 검색어 1)",
     "사진 4:5 세로, 1~5장 (제품 35% · 제형 30% · 피부 25%)",
     "링크는 프로필 링크로, 약기법 각주(*浸透：角質層まで 등) 필수",
     "올리는 시간: 점심 11:45~12:45, 저녁 19:30~21:30 (일본 시간)",
@@ -618,9 +624,9 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
     ? { brand: [], ingredient: [], trend: [] }
     : channel === "instagram"
       ? {
-          brand: current.hashtags.brand.slice(0, 1),
+          brand: current.hashtags.brand.slice(0, 2),
           ingredient: current.hashtags.ingredient.slice(0, 1),
-          trend: [...new Set([...current.hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 2 - KEYWORD_TAGS), ...keywordTags])],
+          trend: [...new Set([...current.hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 3 - KEYWORD_TAGS), ...keywordTags])],
         }
       : current.hashtags;
   const hashtags = [...groups.brand, ...groups.ingredient, ...groups.trend];
