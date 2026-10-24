@@ -85,6 +85,8 @@ export async function createProjectProduct(projectId: string, input: NewProjectP
     .maybeSingle();
   if (projectError) return { ok: false, message: saveError(projectError) };
   if (!project) return { ok: false, message: "프로젝트를 찾지 못했어요" };
+  // products.platform_id는 비울 수 없다 (TAB 2 마이그레이션)
+  if (!project.platform_id) return { ok: false, message: "프로젝트의 진출 플랫폼이 정해지지 않았어요" };
   const { data, error } = await supabase
     .from("products")
     .insert({

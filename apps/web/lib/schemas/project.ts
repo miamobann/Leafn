@@ -3,7 +3,7 @@ import { PlatformId } from "../platforms";
 import { DateOnly, Id, Timestamp, WorkspaceRow } from "./common";
 
 // 워크스페이스(팀) → 프로젝트(제품군, 예: Leaf& Dew) → 제품(products) 구조 (2026-10-24 총괄 결정).
-// 테이블: supabase/migrations/20261024103838_projects_products.sql (projects, products.project_id)
+// 테이블: supabase/migrations/20261024104911_projects_products.sql (projects, products.project_id)
 
 export const Project = WorkspaceRow.extend({
   name: z.string().min(1),

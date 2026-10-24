@@ -5,7 +5,7 @@
 --   가격·용량·성분은 넣지 않는다 (샘플 값을 실제 DB에 넣지 않기 위해). 필요하면 화면이나 추출 기능으로 채운다
 --
 -- 실행 방법 (DB 관리자)
---   1. 20261024103838_projects_products.sql 마이그레이션이 적용된 뒤에 실행한다
+--   1. 20261024104911_projects_products.sql 마이그레이션이 적용된 뒤에 실행한다
 --   2. 아래 PUT_INVITE_CODE_HERE를 워크스페이스의 참여 코드로 바꾼다 (설정 화면 또는 workspaces.invite_code)
 --   3. Supabase SQL Editor(또는 psql)에서 파일 전체를 실행한다
 --
