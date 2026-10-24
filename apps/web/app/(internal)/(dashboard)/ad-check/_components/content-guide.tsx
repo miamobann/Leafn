@@ -277,10 +277,21 @@ function DetailSlices({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
   );
 }
 
-/** 제품명 앞의 브랜드(Leaf&)는 따로 강조해서 보여 주므로 뗀다 */
-const withoutBrand = (name: string) => name.replace(/^Leaf&\s*/, "");
 
-type Qoo10Props = { blocks: GuideBlock[]; gallery: GalleryShot[]; fill: Fill; productName: string; category: string };
+/** 큐텐 상품명(타이틀). 맨 앞 브랜드 카타카나는 실제 화면처럼 색을 달리한다 */
+const QOO10_BRAND = "リーフアンド";
+
+type Qoo10Props = { blocks: GuideBlock[]; gallery: GalleryShot[]; fill: Fill; title: string; priceJpy: number; category: string };
+
+function Qoo10Title({ title, className }: { title: string; className: string }) {
+  const rest = title.startsWith(QOO10_BRAND) ? title.slice(QOO10_BRAND.length) : title;
+  return (
+    <p className={className}>
+      {title.startsWith(QOO10_BRAND) && <span className="mr-1 font-bold text-primary">{QOO10_BRAND}</span>}
+      {rest.trim()}
+    </p>
+  );
+}
 
 /** 대표 이미지 (정사각형). 실제 큐텐처럼 사진 양 끝 화살표 + 「n / 전체」 */
 function GalleryViewer({ gallery, className = "" }: { gallery: GalleryShot[]; className?: string }) {
@@ -332,20 +343,19 @@ function GalleryGuide({ gallery }: { gallery: GalleryShot[] }) {
   );
 }
 
-/** 가격은 정가만 (이중 가격 표시 X). 아직 정해지지 않아 価格未定. 할인·쿠폰·送料無料·プレゼント 표시는 근거가 없어 넣지 않는다 */
-function PriceBox() {
+/** 가격은 판매가만 (가상 가격표, 세금 포함). 이중 가격·할인·쿠폰·送料無料·プレゼント 표시는 근거가 없어 넣지 않는다 */
+function PriceBox({ priceJpy }: { priceJpy: number }) {
   return (
     <div className="border-b pb-3">
-      <p className="text-xs text-muted-foreground">価格</p>
       <p className="text-xl font-black" lang="ja">
-        価格未定
+        {priceJpy.toLocaleString("ja-JP")}円 <span className="text-xs font-normal text-muted-foreground">(税込)</span>
       </p>
     </div>
   );
 }
 
 /** Qoo10 모바일 앱 상품 페이지 틀 (팀이 만든 목업 기준) */
-function Qoo10Mobile({ blocks, gallery, fill, productName, category }: Qoo10Props) {
+function Qoo10Mobile({ blocks, gallery, fill, title, priceJpy, category }: Qoo10Props) {
   const hook = blocks.find((b) => b.key === "hook");
   const banner = hook?.options[0].text_ja.split("\n").filter((l) => !l.startsWith("*")).join(" ").replaceAll("*", "") ?? "";
   return (
@@ -366,11 +376,8 @@ function Qoo10Mobile({ blocks, gallery, fill, productName, category }: Qoo10Prop
       <p className="truncate bg-primary px-3 py-1.5 text-center text-xs font-bold text-primary-foreground">{fill(banner)}</p>
       <div className="space-y-2 p-3">
         <span className="inline-block rounded-sm bg-primary px-1.5 text-[0.65rem] font-bold text-primary-foreground">公式ショップ</span>
-        <p className="font-semibold">
-          <span className="mr-1 text-primary">Leaf&</span>
-          {withoutBrand(productName)}
-        </p>
-        <PriceBox />
+        <Qoo10Title title={title} className="text-sm leading-snug" />
+        <PriceBox priceJpy={priceJpy} />
       </div>
       <p className="bg-muted-foreground px-3 py-2 text-xs text-background">スキンケア &gt; 基礎化粧品 &gt; {category}</p>
       <div className="flex border-b text-center text-xs">
@@ -393,7 +400,7 @@ function Qoo10Mobile({ blocks, gallery, fill, productName, category }: Qoo10Prop
 }
 
 /** Qoo10 PC 상품 페이지 틀 (모달에서 크게 본다). 실제 PC 화면 배치를 따르되 근거 없는 평점·할인·배송 문구는 넣지 않는다 */
-function Qoo10Pc({ blocks, gallery, fill, productName, category }: Qoo10Props) {
+function Qoo10Pc({ blocks, gallery, fill, title, priceJpy, category }: Qoo10Props) {
   return (
     <div className="mx-auto max-w-5xl overflow-hidden rounded-md border bg-background text-sm" lang="ja">
       <div className="flex items-center gap-6 border-b px-6 py-3">
@@ -422,11 +429,8 @@ function Qoo10Pc({ blocks, gallery, fill, productName, category }: Qoo10Props) {
         </div>
         <div className="space-y-3">
           <span className="inline-block rounded-sm bg-primary px-1.5 text-xs font-bold text-primary-foreground">公式ショップ</span>
-          <p className="text-lg leading-snug">
-            <span className="mr-1 font-bold text-primary">Leaf&</span>
-            {withoutBrand(productName)}
-          </p>
-          <PriceBox />
+          <Qoo10Title title={title} className="text-lg leading-snug" />
+          <PriceBox priceJpy={priceJpy} />
           <div className="flex items-center justify-between border-b pb-3 text-xs">
             <span className="font-medium">レビュー</span>
             <span className="text-muted-foreground">販売開始後に表示</span>
@@ -601,7 +605,9 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
       // 인스타그램은 고른 장 수까지만 (1장 = 단일 게시물, 2~5장 = 여러 장)
       (channel !== "instagram" || !b.key.startsWith("slide") || Number(b.key.slice(5)) <= slideCount),
   );
-  const fill = (text: string) => fillProduct(text, product.name_ko, product.ingredients);
+  const isEssence = product.line.includes("에센스");
+  const fill = (text: string) =>
+    fillProduct(text, product.name_ko, product.ingredients, { kind_ja: isEssence ? "美容液" : "化粧水", kind_ko: isEssence ? "에센스" : "스킨", volume: product.volume });
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
   const detailBlocked = channel === "qoo10_detail" && product.launch_status === "developing";
 
@@ -618,7 +624,7 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
         }
       : current.hashtags;
   const hashtags = [...groups.brand, ...groups.ingredient, ...groups.trend];
-  const category = product.line.includes("에센스") ? "美容液" : "化粧水";
+  const category = isEssence ? "美容液" : "化粧水";
 
   /** AI 연결 전: 잠깐 기다렸다가 샘플을 보여 준다 */
   function wait(step: "titles" | "body", done: () => void) {
@@ -822,10 +828,10 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
                           <span className="flex flex-wrap items-center gap-2">
                             {d.recommended && <span className={RECOMMENDED}>가장 추천</span>}
                             <span className="font-medium" lang="ja">
-                              {i + 1}. {d.title_ja}
+                              {i + 1}. {fill(d.title_ja)}
                             </span>
                           </span>
-                          <span className="mt-1 block text-muted-foreground">{d.title_ko}</span>
+                          <span className="mt-1 block text-muted-foreground">{fill(d.title_ko)}</span>
                           <span className="mt-2 block border-t pt-2 text-xs text-muted-foreground">
                             {d.recommended ? "추천 이유" : "참고"}: {d.reason}
                           </span>
@@ -848,7 +854,7 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
                   <EmptyState message="왼쪽에서 제목을 골라 주세요" action="고른 제목으로 미리보기와 본문을 만들어요" />
                 ) : (
                   <>
-                    {channel === "qoo10_detail" && <Qoo10Preview blocks={blocks} gallery={current.gallery} fill={fill} productName={product.name_ko} category={category} />}
+                    {channel === "qoo10_detail" && <Qoo10Preview blocks={blocks} gallery={current.gallery} fill={fill} title={fill(current.title_ja)} priceJpy={product.price_jpy} category={category} />}
                     {channel === "instagram" && <InstagramPreview key={`${current.id}-${slideCount}`} blocks={blocks} hashtags={hashtags} fill={fill} />}
                     {channel === "x" && <XPreview blocks={blocks} hashtags={hashtags} fill={fill} />}
                     {channel === "banner" && <BannerPreview blocks={blocks} fill={fill} />}
@@ -946,7 +952,7 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
           channelLabel={GUIDE_CHANNELS.find((c) => c.id === channel)?.label ?? channel}
           postTypeLabel={hasPostType ? (POST_TYPES.find((t) => t.id === postType)?.label ?? null) : null}
           author={author}
-          title={{ ja: current.title_ja, ko: current.title_ko, reason: current.reason }}
+          title={{ ja: fill(current.title_ja), ko: fill(current.title_ko), reason: current.reason }}
           appeals={material.hasReviews ? material.appeals : []}
           keywords={material.keywords}
           blocks={blocks}
