@@ -32,7 +32,7 @@ export const LAB_PRODUCTS: unknown[] = [
   {
     id: "p-own-1",
     name_ko: ownProductName("deep-skin"),
-    name_ja: ownProductName("deep-skin"),
+    name_ja: "リーフ＆デュー ディープスキン",
     line: "건성 스킨",
     launch_status: "live",
     product_category: "general_cosmetic",
@@ -59,7 +59,7 @@ export const LAB_PRODUCTS: unknown[] = [
   {
     id: "p-own-2",
     name_ko: ownProductName("core-essence"),
-    name_ja: ownProductName("core-essence"),
+    name_ja: "リーフ＆デュー コアエッセンス",
     line: "건성 에센스",
     launch_status: "live",
     product_category: "general_cosmetic",
@@ -88,7 +88,7 @@ export const LAB_PRODUCTS: unknown[] = [
   {
     id: "p-own-3",
     name_ko: ownProductName("tea-pure-skin"),
-    name_ja: ownProductName("tea-pure-skin"),
+    name_ja: "リーフ＆デュー ティーピュアスキン",
     line: "지성 스킨",
     launch_status: "developing",
     product_category: "general_cosmetic",
@@ -104,7 +104,7 @@ export const LAB_PRODUCTS: unknown[] = [
   {
     id: "p-own-4",
     name_ko: ownProductName("mild-skin"),
-    name_ja: ownProductName("mild-skin"),
+    name_ja: "リーフ＆デュー マイルドスキン",
     line: "복합성 스킨",
     launch_status: "developing",
     product_category: "general_cosmetic",

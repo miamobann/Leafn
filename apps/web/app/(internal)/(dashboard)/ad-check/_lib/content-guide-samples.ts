@@ -301,7 +301,7 @@ const RAW: unknown[] = [
   detailDraft(
     "dp-1",
     true,
-    ["リーフアンド 【公式】{product} {kind_ja} {volume} 保湿 乾燥肌 さっぱり べたつかない うるおい 韓国スキンケア", "리프앤드 【공식】{product} {kind_ko} {volume} 보습 건성 피부 산뜻 끈적임 없음 촉촉 한국 스킨케어"],
+    ["リーフアンド 【公式】{product_ja} {kind_ja} {volume} 保湿 乾燥肌 さっぱり べたつかない うるおい 韓国スキンケア", "리프앤드 【공식】{product} {kind_ko} {volume} 보습 건성 피부 산뜻 끈적임 없음 촉촉 한국 스킨케어"],
     "리뷰 소구점 「오래가는 보습」「산뜻한 흡수」를 검색어(保湿·乾燥肌·さっぱり)로 앞쪽에 넣었어요. 순위·후기 수·「ニキビ」 같은 말 없이 브랜드 → 【公式】 → 제품명·종류·용량 → 키워드 순서예요.",
     [["季節の変わり目に。\n毎日のうるおいを、角質層まで*\n*浸透：角質層まで", "환절기에.\n매일의 보습을, 각질층까지*\n*침투: 각질층까지"], ["乾燥が気になる季節に。\nしっとり続く、毎日の保湿ケア", "건조함이 신경 쓰이는 계절에.\n촉촉함이 이어지는 매일의 보습 케어"]],
     [["洗顔後、すぐにつっぱる。\n乾燥が気になる季節、こんなお悩みありませんか？", "세안 후 금방 당긴다.\n건조함이 신경 쓰이는 계절, 이런 고민 없나요?"], ["乾燥で、メイクのりが気になる日に", "건조해서 화장이 잘 안 먹는 날에"]],
@@ -310,7 +310,7 @@ const RAW: unknown[] = [
   detailDraft(
     "dp-2",
     false,
-    ["リーフアンド 【公式】{product} {kind_ja} {volume}｜洗顔後すぐなじむ 朝晩の保湿ケア キメを整える 韓国コスメ", "리프앤드 【공식】{product} {kind_ko} {volume}｜세안 후 바로 스며듦 아침저녁 보습 케어 피부결 정돈 한국 화장품"],
+    ["リーフアンド 【公式】{product_ja} {kind_ja} {volume}｜洗顔後すぐなじむ 朝晩の保湿ケア キメを整える 韓国コスメ", "리프앤드 【공식】{product} {kind_ko} {volume}｜세안 후 바로 스며듦 아침저녁 보습 케어 피부결 정돈 한국 화장품"],
     "사용 장면(洗顔後·朝晩)과 효능 범위 표현 「キメを整える」를 넣었어요. 검색어 「保湿」은 있지만 「乾燥肌」 같은 고민 키워드가 1번보다 적어요.",
     [["肌のキメを整える、\nしっとり習慣。", "피부결을 정돈하는\n촉촉한 습관."], ["なめらかな肌へ、毎日のひと手間。", "매끄러운 피부로, 매일의 한 단계."]],
     [["乾燥で、肌がごわつく日に", "건조해서 피부가 거칠게 느껴지는 날에"], ["洗顔後のつっぱり感が気になる方へ", "세안 후 당김이 신경 쓰이는 분께"]],
@@ -319,7 +319,7 @@ const RAW: unknown[] = [
   detailDraft(
     "dp-3",
     false,
-    ["リーフアンド 【公式】【メガ割】{product} {kind_ja} {volume} 2ステップ保湿ルーティン 乾燥肌 しっとり 韓国スキンケア", "리프앤드 【공식】【메가와리】{product} {kind_ko} {volume} 2단계 보습 루틴 건성 피부 촉촉 한국 스킨케어"],
+    ["リーフアンド 【公式】【メガ割】{product_ja} {kind_ja} {volume} 2ステップ保湿ルーティン 乾燥肌 しっとり 韓国スキンケア", "리프앤드 【공식】【메가와리】{product} {kind_ko} {volume} 2단계 보습 루틴 건성 피부 촉촉 한국 스킨케어"],
     "메가와리 기간용이에요. 【メガ割】는 실제 행사 기간에만 붙이고, 할인율·「最安値」·「GIFT付」는 실제 행사 내용이 있을 때만 넣어요.",
     [["Qoo10メガ割。\n2ステップで、毎日のうるおいケア", "큐텐 메가와리.\n2단계로 매일의 보습 케어"], ["メガ割期間に、はじめるうるおい習慣", "메가와리 기간에 시작하는 보습 습관"]],
     [["乾燥が気になる季節、ケアに迷っていませんか？", "건조함이 신경 쓰이는 계절, 케어에 고민하고 있지 않나요?"], ["洗顔後、すぐにつっぱる方へ", "세안 후 금방 당기는 분께"]],
@@ -670,12 +670,13 @@ export const GUIDE_DRAFTS: GuideDraft[] = z.array(GuideDraft).parse(RAW);
 
 /** {product}·{ingredients_*} 자리에 제품 정보를 넣는다. 성분은 주요 성분(전성분에서 정제수 앞, 최대 4개) */
 /** 상품명(큐텐 타이틀)에 넣는 제품 종류·용량 */
-export type ProductFacts = { kind_ja: string; kind_ko: string; volume: string };
+export type ProductFacts = { kind_ja: string; kind_ko: string; volume: string; product_ja: string };
 
 export function fillProduct(text: string, productName: string, ingredients: { ko: string; ja: string }[] = [], facts?: ProductFacts): string {
   const main = ingredients.slice(0, Math.max(0, ingredients.findIndex((i) => i.ja === "水")) || ingredients.length).slice(0, 4);
   return text
     .replaceAll("{product}", productName)
+    .replaceAll("{product_ja}", facts?.product_ja ?? productName)
     .replaceAll("{kind_ja}", facts?.kind_ja ?? "")
     .replaceAll("{kind_ko}", facts?.kind_ko ?? "")
     .replaceAll("{volume}", facts?.volume ?? "")
