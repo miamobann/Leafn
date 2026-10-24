@@ -3,17 +3,13 @@ import { notFound } from "next/navigation";
 import { EvidenceList } from "@/components/common/evidence-list";
 import { PageHeader } from "@/components/layout/page-header";
 import { BarList, ReportTemplate } from "@/components/templates";
-import { getProduct, getProducts, getReviewReport } from "@/lib/data";
-
-export async function generateStaticParams() {
-  return (await getProducts()).map((p) => ({ productId: p.id }));
-}
+import { getReviewProductById, getReviewReportOf } from "@/lib/data/reviews";
 
 export default async function ReviewReportPage({ params }: { params: Promise<{ productId: string }> }) {
   const { productId } = await params;
-  const product = await getProduct(productId);
+  const product = await getReviewProductById(productId);
   if (!product) notFound();
-  const { reviews, insights, sentiment } = await getReviewReport(productId);
+  const { reviews, insights, sentiment, analyzed } = await getReviewReportOf(productId);
   const keywordCounts = new Map<string, number>();
   for (const r of reviews) for (const k of r.analysis?.keywords ?? []) keywordCounts.set(k.text, (keywordCounts.get(k.text) ?? 0) + 1);
   const evidence = (ids: string[]) => reviews.filter((r) => ids.includes(r.id));
@@ -29,6 +25,11 @@ export default async function ReviewReportPage({ params }: { params: Promise<{ p
           상세페이지용 리뷰 만들기
         </Link>
       </div>
+      {!analyzed && reviews.length > 0 && (
+        <p className="mb-4 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+          리뷰 {reviews.length.toLocaleString("en-US")}건을 가져왔지만 AI 분석 전이라 감성 · 키워드 · 불만 유형은 아직 비어 있어요. 리뷰 원문은 “원문 목록”에서 볼 수 있어요.
+        </p>
+      )}
       <ReportTemplate
         state={reviews.length === 0 ? "empty" : "ready"}
         emptyAction="리뷰 CSV 올리기"

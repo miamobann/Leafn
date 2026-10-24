@@ -3,18 +3,14 @@ import { Input } from "@/components/ui/input";
 import { LangBadge, SentimentBadge } from "@/components/common/badges";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTableTemplate } from "@/components/templates";
-import { getProduct, getProducts, getReviews } from "@/lib/data";
+import { getReviewProductById, getReviewsOf } from "@/lib/data/reviews";
 import { formatDate } from "@/lib/format";
-
-export async function generateStaticParams() {
-  return (await getProducts()).map((p) => ({ productId: p.id }));
-}
 
 export default async function ReviewListPage({ params }: { params: Promise<{ productId: string }> }) {
   const { productId } = await params;
-  const product = await getProduct(productId);
+  const product = await getReviewProductById(productId);
   if (!product) notFound();
-  const reviews = await getReviews({ productId });
+  const reviews = await getReviewsOf(productId);
 
   return (
     <>

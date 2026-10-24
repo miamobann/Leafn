@@ -4,6 +4,10 @@ import { AiMeta, BaseRow, Id, Lang, Sentiment, Timestamp, WorkspaceRow } from ".
 export const ReviewSource = z.enum(["cosme", "rakuten", "qoo10", "oliveyoung", "csv"]);
 export type ReviewSource = z.infer<typeof ReviewSource>;
 
+// 제품 외 불만(배송 · 파손 · 누락 · 응대)이라 분석에서 뺀 사유. 마이그레이션 20261024010000. 없으면(null) 분석 대상이다
+export const ExcludedReason = z.enum(["shipping", "damage", "missing_item", "service", "other_non_product"]);
+export type ExcludedReason = z.infer<typeof ExcludedReason>;
+
 export const Review = WorkspaceRow.extend({
   product_id: Id,
   source: ReviewSource,
@@ -16,6 +20,7 @@ export const Review = WorkspaceRow.extend({
   // 제안: docs/prototype-plan.md 8장 7번 (body_ko), 8번 (평점 척도), 9번 (작성자 속성)
   body_ko: z.string().optional(),
   rating_scale: z.number().int().positive().optional(),
+  excluded_reason: ExcludedReason.nullable().optional(),
   reviewer_attrs: z
     .object({ age_group: z.string().optional(), skin_type: z.string().optional() })
     .optional(),
