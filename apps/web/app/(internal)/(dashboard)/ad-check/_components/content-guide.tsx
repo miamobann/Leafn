@@ -43,10 +43,12 @@ const PANEL_HEIGHT = "h-[32rem]";
 const RECOMMENDED = "rounded px-1.5 text-xs bg-risk-low/15 text-risk-low";
 /** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
 const KEYWORD_TAGS = 1;
-/** 추가 요청 글자 수 제한 (AI에 참고로만 보낸다. 약기법이 항상 먼저) */
-const REQUEST_MAX = 50;
-/** 추가 요청 예시: 누르면 칸에 채워진다 */
-const REQUEST_EXAMPLES = ["연말 선물 시즌 느낌으로", "첫 구매 고객을 위한 안내", "재구매를 부르는 문구", "첫 줄에 보습을 강조"];
+/** 강조할 방향 글자 수 제한 (AI에 방향 참고로만 보낸다. 약기법이 항상 먼저) */
+const DIRECTION_MAX = 50;
+/** 강조할 방향 예시: 대화가 아니라 키워드로 쓰게 짧은 낱말로 둔다. 누르면 칸에 채워진다 */
+const DIRECTION_EXAMPLES = ["연말 선물", "첫 구매 고객", "재구매 유도", "보습 강조"];
+/** 질문·부탁 말투면 칸 아래에 키워드로 적어 달라고 알려 준다 */
+const QUESTION_LIKE = /[?？]\s*$|(해\s?줘|해\s?주세요|할\s?수\s?있|어때|알려)/;
 /** AI 연결 전, 생성 순서를 보여 주려고 샘플을 띄우기 전에 잠깐 기다리는 시간 */
 const SAMPLE_DELAY_MS = 700;
 
@@ -574,8 +576,10 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
   const [loading, setLoading] = useState<"titles" | "body" | null>(null);
   /** "제목 id:블록 key" → 메모 (화면에만 둔다) */
   const [memos, setMemos] = useState<Record<string, string>>({});
-  /** 추가 요청 (선택, 50자). 제작할 때 참고로 함께 보낸다 */
-  const [request, setRequest] = useState("");
+  /** 강조할 방향 (선택, 50자). 제작할 때 방향 참고로 함께 보낸다 */
+  const [direction, setDirection] = useState("");
+  /** 제작할 때 실제로 반영한 방향 (제작 뒤에 칸을 고쳐도 결과·PDF는 이 값) */
+  const [appliedDirection, setAppliedDirection] = useState("");
   /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
   const [withPhotoGuide, setWithPhotoGuide] = useState(true);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -631,6 +635,7 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
     const key = genKey;
     setPickedId(null);
     setMemos({});
+    setAppliedDirection(direction.trim());
     wait("titles", () => setGeneratedKey(key));
   }
   function pick(id: string) {
@@ -753,25 +758,30 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
             </details>
           )}
           <div className="space-y-1">
-            <label htmlFor="guide-request" className={LABEL}>
-              추가 요청 <span className="font-normal text-muted-foreground">(선택 · {request.length}/{REQUEST_MAX}자)</span>
+            <label htmlFor="guide-direction" className={LABEL}>
+              강조할 방향 <span className="font-normal text-muted-foreground">(선택 · {direction.length}/{DIRECTION_MAX}자)</span>
             </label>
             <Input
-              id="guide-request"
-              value={request}
-              maxLength={REQUEST_MAX}
-              onChange={(e) => setRequest(e.target.value)}
-              placeholder="예: 연말 선물 시즌 느낌으로"
+              id="guide-direction"
+              value={direction}
+              maxLength={DIRECTION_MAX}
+              onChange={(e) => setDirection(e.target.value)}
+              placeholder="예: 연말 선물 · 첫 구매 고객 · 보습 강조"
             />
             <div className="flex flex-wrap items-center gap-1">
               <span className="text-xs text-muted-foreground">예시</span>
-              {REQUEST_EXAMPLES.map((ex) => (
-                <button key={ex} type="button" onClick={() => setRequest(ex)} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted">
+              {DIRECTION_EXAMPLES.map((ex) => (
+                <button key={ex} type="button" onClick={() => setDirection(ex)} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted">
                   {ex}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">요청은 참고로만 반영해요. 약기법에 어긋나는 요청(효능 과장 등)은 반영하지 않아요.</p>
+            {QUESTION_LIKE.test(direction.trim()) ? (
+              <p className="text-xs text-risk-medium">질문이나 부탁에는 답하지 않아요. 원하는 방향을 키워드로 적어 주세요 (예: 연말 선물).</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">제작할 때 방향으로만 반영돼요. 질문이나 대화는 할 수 없고, 약기법에 어긋나는 방향(효능 과장 등)은 반영하지 않아요.</p>
+            )}
+            {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="text-xs text-muted-foreground">샘플 데이터 · AI 연결 전</span>
@@ -792,6 +802,11 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
         <EmptyState message="이 조합의 샘플 문구가 아직 없어요" action="다른 채널이나 게시물 종류를 골라 보세요" />
       ) : (
         <>
+          {appliedDirection && (
+            <p className="text-sm">
+              <span className="rounded-full border px-2 py-0.5">반영한 방향: {appliedDirection}</span>
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
@@ -946,7 +961,7 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
           memos={Object.fromEntries(blocks.map((b) => [b.key, memos[`${current.id}:${b.key}`] ?? ""]))}
           fill={fill}
           cutList={withPhotoGuide ? buildCutList(channel, blocks, current.gallery) : null}
-          request={request.trim()}
+          direction={appliedDirection}
         />
       )}
     </div>

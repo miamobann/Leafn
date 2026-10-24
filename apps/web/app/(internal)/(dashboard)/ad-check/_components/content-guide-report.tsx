@@ -30,8 +30,8 @@ type ContentGuideReportProps = {
   channel: Channel;
   /** 붙임: 촬영 가이드 (없으면 붙이지 않는다) */
   cutList: CutRow[] | null;
-  /** 제작할 때 적은 추가 요청 (없으면 빈 문자열) */
-  request: string;
+  /** 제작할 때 반영한 강조할 방향 (없으면 빈 문자열) */
+  direction: string;
 };
 
 type Fill = ContentGuideReportProps["fill"];
@@ -179,10 +179,10 @@ function Summary({ props }: { props: ContentGuideReportProps }) {
             <dd>{props.appeals.slice(0, 3).join(" · ") || "없음 (리뷰 없음)"}</dd>
             <dt className="font-medium">검색어</dt>
             <dd lang="ja">{props.keywords.slice(0, 3).join(" · ") || "없음"}</dd>
-            {props.request && (
+            {props.direction && (
               <>
-                <dt className="font-medium">요청 사항</dt>
-                <dd>{props.request}</dd>
+                <dt className="font-medium">강조한 방향</dt>
+                <dd>{props.direction}</dd>
               </>
             )}
           </dl>
