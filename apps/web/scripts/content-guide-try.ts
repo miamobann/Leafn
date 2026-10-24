@@ -4,6 +4,7 @@
 import { checkBody } from "@/lib/ai/content-guide/check";
 import { generateBody, generateTitles } from "@/lib/ai/content-guide/generate";
 import type { AiUsage } from "@/lib/ai/client";
+import { getAppealComparison } from "@/lib/data";
 import { ContentChannel, type ContentGuideInput } from "@/lib/schemas/content-guide";
 
 // gpt-4.1-mini 기준 가격 (100만 토큰당 달러). 바뀔 수 있으니 실제 청구서로 확인
@@ -28,7 +29,7 @@ const input: ContentGuideInput = {
   },
   appeals: { praised: ["오래가는 보습", "산뜻한 흡수", "순함"], competitor_complaints: ["끈적임", "향이 강함"], candidates: ["산뜻한 흡수"] },
   keywords: { search: ["韓国 化粧水 おすすめ", "韓国 化粧水 ドラッグストア"], ingredients: ["ヒアルロン酸"] },
-  review_quotes: ["촉촉한데 끈적이지 않아서 아침저녁으로 잘 쓰고 있어요."],
+  review_quotes: [], // main()에서 리뷰 분석 데이터(가짜)로 채운다
   evidence: [],
   promo: null,
   channel,
@@ -39,7 +40,17 @@ const input: ContentGuideInput = {
   direction: "",
 };
 
+/** 리뷰 분석 데이터에서 칭찬이 가장 많은 주제의 리뷰 중, 평점이 높고 짧은 것 하나를 고른다 */
+async function pickReview(productId: string): Promise<string[]> {
+  const appeal = await getAppealComparison(productId);
+  const top = appeal?.topics.filter((t) => t.praises.length > 0).toSorted((a, b) => b.praiseShare - a.praiseShare)[0];
+  const best = top?.praises.filter((r) => r.body.length >= 15 && r.body.length <= 80).toSorted((a, b) => b.rating - a.rating || a.body.length - b.body.length)[0];
+  return best ? [best.body] : [];
+}
+
 async function main() {
+  input.review_quotes = await pickReview("p-own-1");
+  console.log(`리뷰 원문: ${input.review_quotes[0] ?? "없음"}`);
   const titles = await generateTitles(input);
   show("① 제목", titles.usage);
   titles.result.titles.forEach((t, i) => console.log(`  ${i + 1}. ${t.recommended ? "[추천] " : ""}${t.title_ja}  (${t.title_ko})`));
