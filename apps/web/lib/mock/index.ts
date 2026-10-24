@@ -66,6 +66,8 @@ function checkRefs() {
     for (const r of t.data.ranking) {
       if (r.product_id) expect(productIds.has(r.product_id), `trendSnapshots ${t.id} ${r.rank}위 product_id ${r.product_id}`);
       expect(Boolean(r.name_ko), `trendSnapshots ${t.id} ${r.rank}위 ${r.name} name_ko 없음`);
+      // Qoo10 랭킹은 products의 Qoo10 랭킹 제품(리뷰가 붙은 제품)과 같은 목록이어야 한다
+      if (t.source === "qoo10_ranking") expect(Boolean(r.product_id), `trendSnapshots ${t.id} ${r.rank}위 ${r.name}가 products에 없음`);
     }
   }
 

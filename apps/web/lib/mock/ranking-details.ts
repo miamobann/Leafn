@@ -1,7 +1,6 @@
 // 랭킹 항목의 상세 값(상품 설명·용량·평점·프로모션·배지) 샘플.
 // 楽天·Qoo10 상품 페이지의 항목 구성만 흉내 낸 합성 값이다. 제품마다 고정이라 주가 바뀌어도 같다
 import type { PromoHookType, RankingItem } from "@/lib/schemas/trend";
-import { ownProductName } from "@/lib/own-products";
 import { readListing } from "@/lib/schemas/product";
 import type { Banner } from "./appeal-samples";
 import { products } from "./products";
@@ -36,7 +35,15 @@ const NAME_KO: Record<string, string> = {
   "ブライトニングトナー": "브라이트닝 토너",
   "ニードルトナー": "니들 토너",
   "ドクダミパッドトナー": "어성초 패드 토너",
-  [ownProductName("core-essence")]: "리프앤 듀 코어 에센스",
+  "セラミド化粧水": "세라마이드 화장수",
+  "ビタミンCローション": "비타민C 로션",
+  "ハトムギ化粧水": "율무 화장수",
+  "アミノ酸化粧水": "아미노산 화장수",
+  "ドクダミトナー": "어성초 토너",
+  "ナイアシンアミドトナー": "나이아신아마이드 토너",
+  "米発酵化粧水": "쌀 발효 화장수",
+  "CICAトナー": "시카 토너",
+  "とろみ保湿ローション": "쫀쫀한 보습 로션",
   "セラミドアンプル": "세라마이드 앰플",
   "ナイアシンアミド美容液": "나이아신아마이드 미용액",
   "レチノールセラム": "레티놀 세럼",
