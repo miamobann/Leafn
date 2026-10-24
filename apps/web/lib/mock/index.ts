@@ -60,6 +60,15 @@ function checkRefs() {
     if (s.owner_id) expect(userIds.has(s.owner_id), `projectStages ${s.id}.owner_id`);
   }
 
+  // 랭킹은 20위까지, 랭킹 항목이 가리키는 제품은 products에 있어야 하고 상품명 해석이 있어야 한다 (시장 분석 원페이지)
+  for (const t of trendSnapshots) {
+    expect(t.data.ranking.length <= 20, `trendSnapshots ${t.id} 랭킹이 20위를 넘음`);
+    for (const r of t.data.ranking) {
+      if (r.product_id) expect(productIds.has(r.product_id), `trendSnapshots ${t.id} ${r.rank}위 product_id ${r.product_id}`);
+      expect(Boolean(r.name_ko), `trendSnapshots ${t.id} ${r.rank}위 ${r.name} name_ko 없음`);
+    }
+  }
+
   // 설문 집계가 가리키는 라인 · 연령대 · 고민 값이 문항과 추천 라인에 있어야 한다
   const lineIds = ids(surveyProductLines);
   const optionValues = (qid: string) => new Set(surveyQuestions.find((q) => q.id === qid)?.options.map((o) => o.value) ?? []);
