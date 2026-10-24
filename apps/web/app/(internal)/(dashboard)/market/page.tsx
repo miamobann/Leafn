@@ -17,7 +17,7 @@ export default async function MarketPage() {
 
   return (
     <>
-      <PageHeader title="시장 분석" description="카테고리·플랫폼을 고르면 아래 모든 섹션이 함께 바뀌어요 (샘플)" />
+      <PageHeader title="시장 분석" description="저장된 시장 데이터 · 카테고리·플랫폼별 조회" />
       <MarketOverview
         snapshots={[...rakuten, ...qoo10]}
         products={products}

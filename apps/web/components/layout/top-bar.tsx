@@ -1,3 +1,4 @@
+import { isSupabaseConfigured } from "@/lib/data/workspace";
 // 상단 헤더: 워크스페이스 / 프로젝트(제품군) 선택. 워크스페이스 → 프로젝트 → 제품 구조 (2026-10-24 총괄 결정)
 import { getProjectsWithProducts, getWorkspace } from "@/lib/data";
 import { ProjectSwitcher } from "./project-switcher";
@@ -16,7 +17,7 @@ export async function TopBar() {
         <ProjectSwitcher base={lines} />
       </nav>
       <span className="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">
-        샘플 데이터 · 저장되지 않음
+        {isSupabaseConfigured() ? "실제 팀 데이터 · 미연결 기능 별도 안내" : "샘플 데이터 · 저장되지 않음"}
       </span>
     </header>
   );

@@ -70,19 +70,19 @@ export default async function ReviewsPage() {
             const status = p.ko.length === 0 ? "리뷰 없음" : p.analyzed ? "분석 완료" : "분석 전";
             const unreleased = p.saleStatus === "in_development";
             const head = (
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-base font-semibold">{p.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {[p.skinLine && SKIN_LINE_LABEL[p.skinLine], categoryLabel(p.category), unreleased && "개발중"].filter(Boolean).join(" · ")}
-                    </p>
-                  </div>
-                  {!unreleased && (
-                    <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${p.analyzed ? "bg-emerald-50 text-emerald-900" : "bg-muted text-muted-foreground"}`}>
-                      {status}
-                    </span>
-                  )}
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-base font-semibold">{p.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {[p.skinLine && SKIN_LINE_LABEL[p.skinLine], categoryLabel(p.category), unreleased && "개발중"].filter(Boolean).join(" · ")}
+                  </p>
                 </div>
+                {!unreleased && (
+                  <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${p.analyzed ? "bg-emerald-50 text-emerald-900" : "bg-muted text-muted-foreground"}`}>
+                    {status}
+                  </span>
+                )}
+              </div>
             );
             // 출시 전 제품은 리뷰가 없어 갈 곳이 없다: 링크 없이 안내만 보여 준다
             if (unreleased) {
@@ -132,7 +132,13 @@ export default async function ReviewsPage() {
         </div>
       </section>
 
-      <CompetitorTable rows={competitors} />
+      <section className="space-y-3">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-lg font-semibold">경쟁 제품</h2>
+          <span className="text-sm text-muted-foreground">일본 리뷰 기준 · {competitors.length}개</span>
+        </div>
+        <CompetitorTable rows={competitors} />
+      </section>
     </>
   );
 }

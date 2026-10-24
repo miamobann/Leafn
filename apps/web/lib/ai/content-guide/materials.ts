@@ -26,7 +26,7 @@ type PromoLike = { platform: string; title: string; start_date: string; end_date
 /** 오늘 이후(또는 진행 중) 가장 가까운 Qoo10 메가와리 일정을 프롬프트 [행사] 글로. 없으면 null → AI는 날짜를 쓰지 않는다 */
 export function pickMegaSale(events: PromoLike[], today: string): string | null {
   const next = events
-    .filter((e) => e.platform === "Qoo10" && /メガ割|메가와리/.test(e.title) && e.end_date >= today)
+    .filter((e) => (e.platform === "qoo10" || e.platform === "Qoo10") && /メガ割|메가와리/.test(e.title) && e.end_date >= today)
     .toSorted((a, b) => a.start_date.localeCompare(b.start_date))[0];
   return next ? `Qoo10メガ割 ${next.start_date}~${next.end_date} / 사은품: 없음` : null;
 }
