@@ -27,11 +27,12 @@ import {
   type GalleryShot,
   type GuideBlock,
   type GuideChannel,
-  type GuideDraft,
+  GuideDraft,
   type Hashtags,
   type PostType,
 } from "../_lib/content-guide-samples";
 import type { LabProduct } from "../_lib/products";
+import { type ContentGuideInput, GuideBodyResult, type GuideTitle, GuideTitlesResult } from "@/lib/schemas/content-guide";
 import { buildCutList, PHOTO_DONTS, PHOTO_RULES } from "../_lib/photo-guide";
 import { ContentGuideReport, memoLocation, type ReportAuthor } from "./content-guide-report";
 
@@ -51,7 +52,10 @@ const DIRECTION_EXAMPLES = ["연말 선물", "첫 구매 고객", "재구매 유
 const SAMPLE_DELAY_MS = 700;
 
 /** 제품별로 반영한 재료 (리뷰 소구점 · 검색어 순위). 가짜 데이터 */
-export type GuideMaterials = Record<string, { hasReviews: boolean; appeals: string[]; keywords: string[] }>;
+export type GuideMaterials = Record<
+  string,
+  { hasReviews: boolean; appeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; megaSale: string | null }
+>;
 
 type ContentGuideProps = {
   products: LabProduct[];
@@ -59,7 +63,15 @@ type ContentGuideProps = {
   materials: GuideMaterials;
   /** PDF 머리글의 작성자 (로그인한 사람 이름 · 팀) */
   author: ReportAuthor;
+  /** 서버에 AI 키가 있으면 true → 「제작하기」가 /api/content-guide 를 부른다. 없으면 샘플 */
+  aiEnabled: boolean;
 };
+
+/** 약기법 판정 행동 이름 (광고 검토와 같은 말) */
+const ACTION_LABEL: Record<string, string> = { must_fix: "수정 필수", should_fix: "수정 권장", expert: "전문가 확인" };
+
+/** AI가 블록마다 남긴 주의 (금지어 검사 · 약기법 판정). 블록 key → 문구 */
+type BlockWarnings = Record<string, string[]>;
 
 type Fill = (text: string) => string;
 
@@ -573,7 +585,7 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
   ],
 };
 
-export function ContentGuide({ products, drafts, materials, author }: ContentGuideProps) {
+export function ContentGuide({ products, drafts, materials, author, aiEnabled }: ContentGuideProps) {
   const [productId, setProductId] = useState(products[0].id);
   const [channel, setChannel] = useState<GuideChannel>("qoo10_detail");
   const [postType, setPostType] = useState<PostType>("general");
@@ -590,14 +602,20 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
   const [appliedDirection, setAppliedDirection] = useState("");
   /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
   const [withPhotoGuide, setWithPhotoGuide] = useState(true);
+  /** AI로 만든 제목·본문 (AI 모드). 본문은 제목을 고를 때 채운다 */
+  const [aiDrafts, setAiDrafts] = useState<GuideDraft[]>([]);
+  /** AI 모드에서 고른 제목 정보 (본문 요청에 다시 보낸다) */
+  const [aiTitles, setAiTitles] = useState<Record<string, GuideTitle>>({});
+  const [warnings, setWarnings] = useState<Record<string, BlockWarnings>>({});
+  const [aiError, setAiError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], keywords: [] };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], megaSale: null };
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
-  const list = drafts
+  const list = (aiEnabled ? aiDrafts : drafts)
     .filter((d) => d.channel === channel && (!hasPostType || d.post_type === postType))
     .toSorted((a, b) => Number(b.recommended) - Number(a.recommended));
   // 제품·채널·게시물 종류가 바뀌면 다시 제작해야 한다
@@ -641,15 +659,90 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
       done();
     }, SAMPLE_DELAY_MS);
   }
-  function generate() {
+  /** AI 요청 재료 (프롬프트 2장 입력 블록). 다른 탭의 결과(소구점·검색어·리뷰·행사)를 모아 넘긴다 */
+  function aiInput(): ContentGuideInput {
+    return {
+      product: {
+        name: product.name_ko,
+        name_ja: product.name_ja,
+        kind: isEssence ? "에센스(美容液)" : "스킨(化粧水)",
+        category: product.product_category,
+        launch_status: product.launch_status,
+        volume: product.volume,
+        price_jpy: product.price_jpy,
+        ingredients_ja: product.ingredients.map((i) => i.ja),
+        line_products: products.filter((p) => p.id !== product.id && p.launch_status === "live").map((p) => p.name_ja),
+      },
+      appeals: { praised: material.appeals, competitor_complaints: material.complaints, candidates: material.candidates },
+      keywords: { search: material.keywords, ingredients: [] },
+      review_quotes: material.hasReviews ? material.reviewQuotes : [],
+      evidence: [],
+      promo: postType === "mega_sale" && hasPostType ? material.megaSale : null,
+      channel,
+      post_type: hasPostType ? postType : "general",
+      season: null,
+      slide_count: slideCount,
+      sponsored: false,
+      direction: direction.trim(),
+    };
+  }
+
+  async function postAi(payload: unknown): Promise<Record<string, unknown>> {
+    const res = await fetch("/api/content-guide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "AI 제작에 실패했습니다");
+    return json;
+  }
+
+  async function generate() {
     const key = genKey;
     setPickedId(null);
     setMemos({});
+    setAiError(null);
     setAppliedDirection(direction.trim());
-    wait("titles", () => setGeneratedKey(key));
+    if (!aiEnabled) return wait("titles", () => setGeneratedKey(key));
+    setLoading("titles");
+    try {
+      const json = await postAi({ step: "titles", input: aiInput() });
+      const titles = GuideTitlesResult.parse({ titles: json.titles }).titles;
+      const made = titles.map((t, i) => ({ id: `ai-${Date.now()}-${i}`, title: t }));
+      setAiTitles(Object.fromEntries(made.map((m) => [m.id, m.title])));
+      setAiDrafts(made.map((m) => GuideDraft.parse({ id: m.id, channel, post_type: hasPostType ? postType : "general", title_ja: m.title.title_ja, title_ko: m.title.title_ko, recommended: m.title.recommended, reason: m.title.reason, blocks: [] })));
+      setWarnings({});
+      setGeneratedKey(key);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "AI 제작에 실패했습니다");
+    } finally {
+      setLoading(null);
+    }
   }
-  function pick(id: string) {
-    if (id !== pickedId) wait("body", () => setPickedId(id));
+
+  async function pick(id: string) {
+    if (id === pickedId) return;
+    const draft = aiDrafts.find((d) => d.id === id);
+    if (!aiEnabled || !draft || draft.blocks.length > 0) {
+      if (!aiEnabled) return wait("body", () => setPickedId(id));
+      return setPickedId(id);
+    }
+    setAiError(null);
+    setLoading("body");
+    try {
+      const json = await postAi({ step: "body", input: aiInput(), picked: aiTitles[id] });
+      const body = GuideBodyResult.parse(json.body);
+      const blockWarnings: BlockWarnings = {};
+      const add = (key: string, text: string) => (blockWarnings[key] = [...(blockWarnings[key] ?? []), text]);
+      for (const h of (json.lintHits as { key: string; text: string; reason: string }[]) ?? []) add(h.key, `「${h.text}」 ${h.reason}`);
+      for (const c of (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? []) {
+        if (c.action !== "ok") add(c.key, `약기법 판정 ${ACTION_LABEL[c.action] ?? c.action}${c.findings.length ? `: ${c.findings.map((f) => f.text).join(", ")}` : ""}`);
+      }
+      setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
+      setWarnings((w) => ({ ...w, [id]: blockWarnings }));
+      setPickedId(id);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "AI 제작에 실패했습니다");
+    } finally {
+      setLoading(null);
+    }
   }
 
   return (
@@ -798,6 +891,12 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
         </CardContent>
       </Card>
 
+      {aiError && (
+        <div role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm">
+          <p className="font-medium text-destructive">⚠ {aiError}</p>
+          <p className="mt-1 text-muted-foreground">잠시 후 다시 눌러 주세요.</p>
+        </div>
+      )}
       {detailBlocked ? (
         <EmptyState message="개발 중인 제품은 아직 상세페이지를 만들지 않아요" action="출시된 스킨·에센스를 고르거나 다른 채널을 골라 주세요" />
       ) : loading === "titles" ? (
@@ -876,6 +975,21 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
                 <CardTitle>3. 본문 추천 · 메모</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
+                {Object.keys(warnings[current.id] ?? {}).length > 0 && (
+                  <section role="alert" className="space-y-1 rounded-md border border-risk-medium/50 p-3">
+                    <p className="font-semibold text-risk-medium">약기법 주의 · 게시 전에 고쳐 주세요</p>
+                    <ul className="list-disc pl-5 text-xs">
+                      {Object.entries(warnings[current.id] ?? {}).flatMap(([key, items]) =>
+                        items.map((w) => (
+                          <li key={`${key}-${w}`}>
+                            {(blocks.findIndex((b) => b.key === key) + 1) || "-"}. {blocks.find((b) => b.key === key)?.heading ?? key}: {w}
+                          </li>
+                        )),
+                      )}
+                    </ul>
+                    <p className="text-xs text-muted-foreground">「새 검토」에서 문구를 고쳐 다시 판정할 수 있어요.</p>
+                  </section>
+                )}
                 <BodyPager
                   key={`${current.id}-${slideCount}`}
                   blocks={blocks}

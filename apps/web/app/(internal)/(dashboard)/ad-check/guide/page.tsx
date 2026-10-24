@@ -1,5 +1,7 @@
 import { PageHeader } from "@/components/layout/page-header";
-import { getAppealComparison, getSearchSnapshots, getWorkspace } from "@/lib/data";
+import { pickMegaSale, pickReviewQuotes } from "@/lib/ai/content-guide/materials";
+import { getAppealComparison, getPromoEvents, getSearchSnapshots, getWorkspace } from "@/lib/data";
+import { getToday } from "@/lib/data/launch";
 import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/data/workspace";
 import { APPEAL_TOPICS } from "@/lib/schemas/review";
 import { ContentGuide, type GuideMaterials } from "../_components/content-guide";
@@ -20,21 +22,32 @@ async function getReportAuthor() {
 
 export default async function ContentGuidePage() {
   // 반영할 재료 (가짜 데이터, 읽기만): 리뷰 분석의 소구점 · 시장 분석의 검색어 순위
-  const [appeals, snapshots, author] = await Promise.all([
+  const [appeals, snapshots, author, events, today] = await Promise.all([
     Promise.all(PRODUCTS.map((p) => getAppealComparison(p.id))),
     getSearchSnapshots(),
     getReportAuthor(),
+    getPromoEvents(),
+    getToday(),
   ]);
+  // 키가 있으면 「제작하기」가 AI를 부른다. 키 값은 화면에 넘기지 않고 있는지만 넘긴다
+  const aiEnabled = Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
+  const megaSale = pickMegaSale(events, today);
   const latest = snapshots.findLast((s) => s.engine === "google_autocomplete");
   const keywords = (latest?.suggestions ?? []).slice(0, MAX_KEYWORDS).map((s) => s.value);
   const materials: GuideMaterials = Object.fromEntries(
     PRODUCTS.map((p, i) => {
       const appeal = appeals[i];
-      const praised = (appeal?.topics ?? [])
+      const topics = appeal?.topics ?? [];
+      const praised = topics
         .filter((t) => t.praises.length > 0)
         .toSorted((a, b) => b.praiseShare - a.praiseShare)
         .map((t) => APPEAL_TOPICS[t.topic].positive.ko);
-      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, keywords }];
+      const complaints = topics
+        .filter((t) => t.complaints.length > 0)
+        .toSorted((a, b) => b.complaintShare - a.complaintShare)
+        .map((t) => APPEAL_TOPICS[t.topic].negative.ko);
+      const candidates = topics.filter((t) => t.isCandidate).map((t) => APPEAL_TOPICS[t.topic].positive.ko);
+      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), keywords, megaSale }];
     }),
   );
 
@@ -46,9 +59,9 @@ export default async function ContentGuidePage() {
         featureId="A"
       />
       <AdDisclaimer />
-      <p className="mt-2 text-xs text-muted-foreground">샘플 데이터 · AI 미연결 · 게시 전에는 새 검토로 다시 확인하세요</p>
+      <p className="mt-2 text-xs text-muted-foreground">{aiEnabled ? "AI 제작 (참고 자료는 샘플 데이터)" : "샘플 데이터 · AI 미연결"} · 게시 전에는 새 검토로 다시 확인하세요</p>
       <div className="mt-4">
-        <ContentGuide products={PRODUCTS} drafts={GUIDE_DRAFTS} materials={materials} author={author} />
+        <ContentGuide products={PRODUCTS} drafts={GUIDE_DRAFTS} materials={materials} author={author} aiEnabled={aiEnabled} />
       </div>
     </>
   );
