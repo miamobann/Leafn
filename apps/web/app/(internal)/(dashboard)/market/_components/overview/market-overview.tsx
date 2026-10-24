@@ -6,17 +6,18 @@ import { EmptyState } from "@/components/common/states";
 import { ViewStateGate } from "@/components/common/view-state";
 import { MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
 import type { GeoSnap } from "@/lib/schemas/geo";
-import type { SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
+import type { ClaimJudgment, CopyCandidate, SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
 import type { Product } from "@/lib/schemas/product";
 import type { PromoEvent } from "@/lib/schemas/promo";
 import type { SearchSnap } from "@/lib/schemas/search";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
 import { weekLabel } from "@/app/(internal)/(dashboard)/market/_lib/market";
-import { ownBaseline, seriesOf } from "@/app/(internal)/(dashboard)/market/_lib/overview";
+import { ownBaseline, rowsAt, seriesOf, top10 } from "@/app/(internal)/(dashboard)/market/_lib/overview";
 import { ConditionBar } from "./condition-bar";
 import { MarketPart } from "./part0-market";
 import { SupplyPart } from "./part1-supply";
 import { DemandPart } from "./part2-demand";
+import { OpportunityPart } from "./part3-opportunity";
 import { SectionHeader } from "./section-header";
 import { MAX_COMPARE, OverviewPanel, type PanelContent } from "./side-panel";
 
@@ -34,7 +35,6 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 // 아직 만들지 않은 파트의 자리 표시. 기존 상세 화면 링크는 새 탭으로 연다
 const PLACEHOLDER: Partial<Record<SectionId, { message: string; links: { href: string; label: string }[] }>> = {
   summary: { message: "다른 섹션 완성 후 표시", links: [] },
-  opportunity: { message: "다음 단계에서 표시", links: [] },
 };
 
 export function MarketOverview({
@@ -45,6 +45,8 @@ export function MarketOverview({
   snsNotes,
   snsPatterns,
   geo,
+  judgments,
+  copies,
 }: {
   snapshots: TrendSnapshot[];
   products: Product[];
@@ -53,6 +55,8 @@ export function MarketOverview({
   snsNotes: SnsVideoNote[];
   snsPatterns: SnsPattern[];
   geo: GeoSnap[];
+  judgments: ClaimJudgment[];
+  copies: CopyCandidate[];
 }) {
   const [category, setCategory] = useState<MarketCategory>("化粧水");
   const [platform, setPlatform] = useState<MarketPlatform>("rakuten_ranking");
@@ -86,6 +90,20 @@ export function MarketOverview({
       />
     ),
     demand: <DemandPart search={search} snsNotes={snsNotes} snsPatterns={snsPatterns} geo={geo} category={category} onOpen={setPanel} />,
+    opportunity: (
+      <OpportunityPart
+        category={category}
+        top={top10(rowsAt(series, series.length - 1))}
+        products={products}
+        search={search}
+        snsNotes={snsNotes}
+        snsPatterns={snsPatterns}
+        geo={geo}
+        judgments={judgments}
+        copies={copies}
+        onOpen={setPanel}
+      />
+    ),
   };
 
   return (

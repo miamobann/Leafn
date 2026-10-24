@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ReferenceArea, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
 
 // 팀 테마(globals.css)의 무채색 차트 색을 쓴다. 색만으로 구분하지 않도록 선 모양(실선·점선)과 범례·라벨을 같이 쓴다.
 const AXIS = { fontSize: 11, fill: "var(--muted-foreground)" };
@@ -155,6 +155,87 @@ export function StackedBarChart({
           />
         ))}
       </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export type MapDot = { id: string; label: string; x: number; y: number };
+export type MapZone = { id: string; label: string; x: [number, number]; side: "low" | "high"; selected: boolean };
+
+/**
+ * 포지셔닝 맵: X = ml당 실질 단가, Y = 카테고리 축의 양 끝(-1 / +1) 한 가지만.
+ * 경쟁 = 회색 원, 자사 = 진한 마름모 (모양으로도 구분), 후보 영역 = 옅은 음영 (고른 영역은 테두리)
+ */
+export function PositioningChart({
+  competitors,
+  own,
+  zones,
+  lowLabel,
+  highLabel,
+  onSelect,
+  height = 300,
+}: {
+  competitors: MapDot[];
+  own: MapDot[];
+  zones: MapZone[];
+  lowLabel: string;
+  highLabel: string;
+  onSelect?: (id: string) => void;
+  height?: number;
+}) {
+  const click = (d: unknown) => {
+    const id = (d as { payload?: { id?: string } }).payload?.id;
+    if (id && onSelect) onSelect(id);
+  };
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ScatterChart margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
+        <CartesianGrid stroke="var(--border)" />
+        <XAxis type="number" dataKey="x" name="ml당 실질 단가" unit="円" tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--border)" }} domain={["auto", "auto"]} />
+        <YAxis
+          type="number"
+          dataKey="y"
+          domain={[-1.6, 1.6]}
+          ticks={[-1, 1]}
+          tick={AXIS}
+          tickLine={false}
+          axisLine={false}
+          width={64}
+          tickFormatter={(v: number) => (v < 0 ? lowLabel : highLabel)}
+        />
+        {zones.map((z) => (
+          <ReferenceArea
+            key={z.id}
+            x1={z.x[0]}
+            x2={z.x[1]}
+            y1={z.side === "low" ? -1.5 : 0.2}
+            y2={z.side === "low" ? -0.2 : 1.5}
+            fill="var(--chart-3)"
+            fillOpacity={z.selected ? 0.35 : 0.15}
+            stroke={z.selected ? "var(--foreground)" : "none"}
+            strokeDasharray="4 3"
+            label={{ value: z.label, position: "insideTop", fontSize: 11, fill: "var(--muted-foreground)" }}
+          />
+        ))}
+        <Tooltip
+          cursor={{ strokeDasharray: "3 3" }}
+          content={({ active, payload }) => {
+            const dot = active ? (payload?.[0]?.payload as MapDot | undefined) : undefined;
+            if (!dot) return null;
+            return (
+              <div style={TOOLTIP_STYLE} className="px-2 py-1">
+                <p className="font-medium">{dot.label}</p>
+                <p>
+                  {dot.x}円/ml · {dot.y < 0 ? lowLabel : highLabel}
+                </p>
+              </div>
+            );
+          }}
+        />
+        <Legend wrapperStyle={{ fontSize: 12 }} />
+        <Scatter name="경쟁 (Top 10)" data={competitors} fill="var(--chart-2)" stroke="var(--card)" strokeWidth={2} onClick={click} className="cursor-pointer" isAnimationActive={false} />
+        <Scatter name="자사" data={own} fill="var(--primary)" shape="diamond" stroke="var(--card)" strokeWidth={2} onClick={click} className="cursor-pointer" isAnimationActive={false} />
+      </ScatterChart>
     </ResponsiveContainer>
   );
 }
