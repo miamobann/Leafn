@@ -129,6 +129,18 @@ class SummaryTest(unittest.TestCase):
         self.assertIn("goodscode=999", q.summary_url("999"))
 
 
+class SaveStateTest(unittest.TestCase):
+    def test_never_saved_product_is_not_saved_even_with_new_reviews(self):
+        self.assertEqual(q.save_state(False, 12), "not_saved")
+        self.assertEqual(q.save_state(False, 0), "not_saved")
+
+    def test_saved_before_and_nothing_new_is_fully_saved(self):
+        self.assertEqual(q.save_state(True, 0), "fully_saved")
+
+    def test_saved_before_and_new_low_reviews_is_partly_saved(self):
+        self.assertEqual(q.save_state(True, 3), "partly_saved")
+
+
 class FindStartPageTest(unittest.TestCase):
     def pages(self, rows, **kw):
         fake = PagedFake(rows)
@@ -273,6 +285,17 @@ class CollectStarsTest(unittest.TestCase):
         self.assertEqual([info["stars"][s]["start_page"] for s in ("1", "2", "3")], [1, 3, 5])
 
 
+class ParseStarsTest(unittest.TestCase):
+    def test_parses_one_or_several(self):
+        self.assertEqual(q.parse_stars("3"), [3])
+        self.assertEqual(q.parse_stars("3,1,2"), [1, 2, 3])
+        self.assertEqual(q.parse_stars("2, 2"), [2])
+
+    def test_rejects_out_of_range_and_garbage(self):
+        for text in ["", "0", "6", "a", "1,x", ","]:
+            self.assertIsNone(q.parse_stars(text), text)
+
+
 class ClassifyListingTest(unittest.TestCase):
     """제목만 보는 규칙. 확실한 것만 빼고 애매한 것은 남기는 것이 목적이다 (가상의 제목으로 확인)."""
 
@@ -328,6 +351,73 @@ class RankingTest(unittest.TestCase):
     def test_unknown_category_is_rejected(self):
         with self.assertRaises(ValueError):
             q.listing_url("serum", 1)
+
+
+class CollectTest(unittest.TestCase):
+    def test_one_product_failure_does_not_stop_the_others(self):
+        client = FakeClient(
+            gets=[listing_html([("1", "A"), ("2", "B")]), summary_html(), summary_html()],
+            posts=[requests.ConnectionError("boom"), review_html([("7", 1)])],
+        )
+        result = q.collect("toner", top_n=2, stars=[1], limit=10, client=client)
+        self.assertEqual([p["status"] for p in result["products"]], ["failed", "done"])
+        self.assertEqual([r["external_id"] for r in result["reviews"]], ["7"])
+        self.assertEqual(result["reviews"][0]["product_gd_no"], "2")
+
+    def test_blocked_stops_everything_and_keeps_partial_result(self):
+        client = FakeClient(
+            gets=[listing_html([("1", "A"), ("2", "B")]), summary_html(), summary_html()],
+            posts=[review_html([("7", 1)]), q.BlockedError("403")],
+        )
+        result = q.collect("toner", top_n=2, stars=[1], limit=10, client=client)
+        self.assertIn("aborted", result["meta"])
+        self.assertEqual(len(result["reviews"]), 1)  # 막히기 전까지 모은 것은 남긴다
+
+    def test_run_over_budget_fails_only_that_product(self):
+        with mock.patch.object(q, "MAX_REQUESTS_PER_PRODUCT", 2):
+            fake = PagedFake(sorted_list(s1=100000, s5=10), gets=[listing_html([("1", "A")]), summary_html()])
+            result = q.collect("toner", top_n=1, stars=[5], limit=5, client=fake)
+        self.assertEqual(result["products"][0]["status"], "failed")
+        self.assertIn("요청이", result["products"][0]["error"])
+
+
+class CollectStateTest(unittest.TestCase):
+    def _run(self, saved: set[str], known: set[str]):
+        client = FakeClient(
+            gets=[
+                listing_html([("1", "A"), ("2", "B"), ("3", "C")]),
+                summary_html("500"),
+                summary_html("40"),
+                summary_html("9,999"),
+            ],
+            posts=[
+                review_html([("a", 1), ("b", 1)]),  # 제품 1: 1점 2건
+                review_html([("d", 1)]),  # 제품 2
+                review_html([("e", 1)]),  # 제품 3
+            ],
+        )
+        result = q.collect("toner", top_n=3, stars=[1], limit=50, known_ids=known, saved_products=saved, client=client)
+        return result["products"]
+
+    def test_three_states_and_site_numbers(self):
+        products = self._run(saved={"1", "2"}, known={"a", "b", "d"})
+        by = {p["gd_no"]: p for p in products}
+        self.assertEqual(by["1"]["save_state"], "fully_saved")  # 이력 있음, 읽은 2건이 모두 이미 저장됨
+        self.assertEqual(by["2"]["save_state"], "fully_saved")
+        self.assertEqual(by["3"]["save_state"], "not_saved")  # 이력 없음
+        self.assertEqual((by["1"]["site_total_count"], by["1"]["site_low_count"], by["1"]["low_count_exact"]), (500, 2, True))
+        self.assertEqual(by["3"]["site_total_count"], 9999)
+        self.assertEqual(by["1"]["stars"]["1"]["exhausted"], True)
+
+    def test_partly_saved_when_a_new_review_appeared(self):
+        products = self._run(saved={"1"}, known={"a"})  # b가 새로 생김
+        self.assertEqual(products[0]["save_state"], "partly_saved")
+        self.assertEqual(products[0]["collected"], 1)
+
+    def test_callers_known_ids_are_not_modified(self):
+        known = {"a"}
+        self._run(saved=set(), known=known)
+        self.assertEqual(known, {"a"})
 
 
 class ClientTest(unittest.TestCase):

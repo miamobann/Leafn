@@ -7,10 +7,13 @@
 같은 별점 안에서는 최신순이다. 그래서 체크한 별점마다 "그 별점이 시작하는 페이지"를 찾아(find_start_page) 건너뛰고,
 이미 가진 리뷰는 건너뛰면서 아직 없는 리뷰를 최신순으로 N건 모은다(read_star). 체크하지 않은 별점은 읽지 않는다.
 
+실행 (저장소 루트에서):
+    python -m collectors.sources.qoo10 --category toner --top-n 10 --stars 3 --limit 20
+
 규칙
 - 요청마다 2~5초 무작위로 쉰다 (robots.txt Crawl-delay 2초 이상). 사이트 부담을 줄이려는 간격이다.
 - 쿠키·로그인을 쓰지 않는다. 403·429·캡차가 보이면 우회하지 않고 바로 멈춘다 (BlockedError).
-- 이미 가진 리뷰 id는 저장하지 않는다. 목록은 페이지 단위라 id를 보려면 읽어야 하므로 요청은 한다.
+- 이미 가진 리뷰 id(--known-ids)는 저장하지 않는다. 목록은 페이지 단위라 id를 보려면 읽어야 하므로 요청은 한다.
 - 제품 하나에서 요청이 MAX_REQUESTS_PER_PRODUCT를 넘으면 그 제품은 멈춘다 (위치 찾기가 길을 잃어도 사이트를 두드리지 않게).
 - 제품 하나가 실패해도 다음 제품은 계속한다. 웹앱과는 DB로만 연결한다 (지금은 DB 테이블이 없어 JSON 파일로 출력).
 - 약관: 이 수집은 팀과 강사 합의 아래 소량만 한다 (CLAUDE.md 8장). 한도를 늘리기 전에 팀에 먼저 알린다.
@@ -18,9 +21,14 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import random
 import re
+import sys
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable
 
 import requests
@@ -384,3 +392,123 @@ def collect_stars(
         "stars": per_star,
         "requests": len(pages.cache),
     }
+
+
+def save_state(has_history: bool, new_count: int) -> str:
+    """화면에 띄울 저장 상태. 리뷰 번호로 센 '새로 저장할 수 있는 수'(new_count)로 정한다.
+
+    not_saved    이전에 저장한 적이 없는 제품
+    partly_saved 저장한 적이 있고, 새로 저장할 수 있는 리뷰가 있다
+    fully_saved  저장한 적이 있고, 새로 저장할 수 있는 리뷰가 없다
+    """
+    if not has_history:
+        return "not_saved"
+    return "partly_saved" if new_count > 0 else "fully_saved"
+
+
+# ---- 전체 실행 ----
+
+
+def collect(
+    category: str,
+    top_n: int,
+    stars: list[int],
+    limit: int,
+    known_ids: set[str] | None = None,
+    saved_products: set[str] | None = None,
+    client: Client | None = None,
+    log: Callable[[str], None] = lambda _msg: None,
+) -> dict[str, Any]:
+    """stars: 가져올 별점(예: [3] 또는 [1, 2, 3]). limit: 별점마다 새로 가져올 건수. 이미 가진 리뷰(known_ids)는 세지 않는다.
+
+    saved_products: 이전에 리뷰를 저장한 적이 있는 제품 번호(gd_no). 저장 상태(save_state)를 정하는 데 쓴다.
+    """
+    client = client or Client()
+    known = set(known_ids or ())  # 호출한 쪽의 집합을 바꾸지 않는다
+    saved = saved_products or set()
+    result: dict[str, Any] = {
+        "meta": {
+            "source": "qoo10",
+            "category": category,
+            "sort": "MOST_REVIEWED",
+            "top_n": top_n,
+            "stars": sorted(set(stars)),
+            "limit": limit,
+            "captured_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        },
+        "products": [],
+        "reviews": [],
+        "excluded": [],
+    }
+    try:
+        products, excluded = fetch_ranking(client, category, top_n)
+        result["meta"]["skipped"] = len(excluded)
+        result["excluded"] = excluded
+        for product in products:
+            log(f"[{product['rank']}위] {product['gd_no']} {product['title'][:30]}")
+            status: dict[str, Any] = {**product, "status": "failed", "error": None}
+            try:
+                summary = fetch_summary(client, product["gd_no"])
+                reviews, info = collect_stars(client, product["gd_no"], stars, limit, known)
+                for review in reviews:
+                    result["reviews"].append({"product_gd_no": product["gd_no"], "lang": "ja", **review})
+                known.update(r["external_id"] for r in reviews)
+                status.update(
+                    info,
+                    status="done",
+                    collected=len(reviews),
+                    site_total_count=summary["total_count"],
+                    site_avg_rating=summary["avg_rating"],
+                    site_low_count=info["low_count"],
+                    save_state=save_state(product["gd_no"] in saved, len(reviews)),
+                )
+            except BlockedError:
+                raise
+            except (requests.RequestException, ValueError) as err:  # 이 제품만 실패, 다음 제품은 계속
+                status.update(error=str(err)[:200], collected=0)
+                log(f"  ! 실패: {err}")
+            result["products"].append(status)
+    except BlockedError as err:
+        result["meta"]["aborted"] = f"접근이 막혀 멈췄어요: {err}"
+        log(f"! {result['meta']['aborted']}")
+    result["meta"]["requests_made"] = client.requests_made
+    return result
+
+
+def parse_stars(text: str) -> list[int] | None:
+    """"3" 또는 "1,2,3"을 [1, 2, 3]으로. 1~5가 아니거나 비었으면 None."""
+    try:
+        stars = sorted({int(part) for part in text.split(",") if part.strip()})
+    except ValueError:
+        return None
+    return stars if stars and all(1 <= star <= 5 for star in stars) else None
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Qoo10 일본 리뷰 수집 (소량, 로컬 실행)")
+    parser.add_argument("--category", choices=sorted(CATEGORIES), default="toner")
+    parser.add_argument("--top-n", type=int, default=10, help="리뷰 많은 순 상위 N개 제품 (세트 상품 제외)")
+    parser.add_argument("--stars", default="3", help="가져올 별점. 쉼표로 여러 개 (예: 3 또는 1,2,3)")
+    parser.add_argument("--limit", type=int, default=20, help="별점마다 새로 가져올 리뷰 수")
+    parser.add_argument("--known-ids", type=Path, help="이미 가진 리뷰 id 목록(JSON 배열). 이 id는 저장하지 않는다")
+    parser.add_argument("--saved-products", type=Path, help="이전에 저장한 적 있는 제품 번호 목록(JSON 배열)")
+    parser.add_argument("--out", type=Path, help="결과 JSON 경로 (기본: collectors/data/)")
+    args = parser.parse_args()
+    stars = parse_stars(args.stars)
+    if stars is None or not (1 <= args.top_n <= 50 and 1 <= args.limit <= 200):
+        parser.error("범위: top-n 1~50, stars는 1~5 (예: 3 또는 1,2,3), limit 1~200")
+
+    known = set(json.loads(args.known_ids.read_text(encoding="utf-8"))) if args.known_ids else set()
+    saved = set(json.loads(args.saved_products.read_text(encoding="utf-8"))) if args.saved_products else set()
+    result = collect(
+        args.category, args.top_n, stars, args.limit, known, saved, log=lambda m: print(m, file=sys.stderr)
+    )
+    out = args.out or Path("collectors/data") / f"qoo10-{datetime.now():%Y%m%d-%H%M%S}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"저장: {out} (제품 {len(result['products'])}, 리뷰 {len(result['reviews'])}, 요청 {result['meta']['requests_made']}번)")
+    return 1 if "aborted" in result["meta"] else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
