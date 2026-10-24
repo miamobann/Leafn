@@ -134,8 +134,9 @@ export function rankingDetail(brand: string, name: string, category: string, ban
 
   const hook = banner?.hooks[0];
   const [promo_type, promo_text] = banner ? (hook ?? [null, null]) : h % 5 === 4 ? [null, null] : PROMOS[h % 4];
-  // 같은 제품 미니어처를 주는 경우만 총 용량에 더한다
+  // 같은 제품을 더 주는 경우만 총 용량에 더한다: 미니어처 증정, 1+1(같은 제품 1개 더)
   const sameProductMini = promo_type === "gift" && (promo_text === "同品ミニサイズ付き" || promo_text === "ミニサイズおまけ付き");
+  const onePlusOne = promo_text === "1+1";
 
   const awardHook = banner?.hooks.find(([type]) => type === "award");
   const badges = awardHook ? [awardHook[1]] : h % 9 === 0 ? ["ランキング1位獲得"] : h % 13 === 0 ? ["ベストコスメ受賞"] : [];
@@ -152,7 +153,7 @@ export function rankingDetail(brand: string, name: string, category: string, ban
     name_ko: NAME_KO[name],
     description_ja,
     volume_ml: volume,
-    ...(sameProductMini ? { extra_volume_ml: MINI_ML[category] } : {}),
+    ...(sameProductMini ? { extra_volume_ml: MINI_ML[category] } : onePlusOne ? { extra_volume_ml: volume } : {}),
     rating: listing?.rating ?? Math.round((3.8 + (h % 10) / 10) * 10) / 10,
     rating_scale: listing?.rating_scale ?? 5,
     promo_type,

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ViewStateGate } from "@/components/common/view-state";
 import { MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
 import type { GeoSnap } from "@/lib/schemas/geo";
-import type { ClaimJudgment, CopyCandidate, SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
+import type { ClaimJudgment, SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
 import type { Product } from "@/lib/schemas/product";
 import type { PromoEvent } from "@/lib/schemas/promo";
 import type { SearchSnap } from "@/lib/schemas/search";
@@ -44,7 +44,6 @@ export function MarketOverview({
   snsPatterns,
   geo,
   judgments,
-  copies,
 }: {
   snapshots: TrendSnapshot[];
   products: Product[];
@@ -54,7 +53,6 @@ export function MarketOverview({
   snsPatterns: SnsPattern[];
   geo: GeoSnap[];
   judgments: ClaimJudgment[];
-  copies: CopyCandidate[];
 }) {
   const [category, setCategory] = useState<MarketCategory>("化粧水");
   const [platform, setPlatform] = useState<MarketPlatform>("rakuten_ranking");
@@ -73,7 +71,7 @@ export function MarketOverview({
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX_COMPARE ? cur : [...cur, id]));
 
   const body: Record<SectionId, React.ReactNode> = {
-    market: <MarketPart series={series} platformLabel={platformInfo.label} onOpen={setPanel} />,
+    market: <MarketPart series={series} platformLabel={platformInfo.label} products={products} onOpen={setPanel} />,
     summary: (
       <SummaryPart
         series={series}
@@ -118,13 +116,11 @@ export function MarketOverview({
       <OpportunityPart
         category={category}
         top={top10(rowsAt(series, series.length - 1))}
-        products={products}
         search={search}
         snsNotes={snsNotes}
         snsPatterns={snsPatterns}
         geo={geo}
         judgments={judgments}
-        copies={copies}
         onOpen={setPanel}
       />
     ),

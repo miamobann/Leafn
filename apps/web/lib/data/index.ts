@@ -163,11 +163,6 @@ export async function getClaimJudgments() {
   return mock.claimJudgments;
 }
 
-/** 카피 후보 (AI 결과 샘플) */
-export async function getCopyCandidates() {
-  return mock.copyCandidates;
-}
-
 export async function getGeoSnapshots() {
   return mock.geoSnapshots;
 }
