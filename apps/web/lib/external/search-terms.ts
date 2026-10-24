@@ -3,7 +3,8 @@ import { fold, matchIngredient } from "@/lib/ai/appeal-normalize";
 import type { SkinConcern } from "@/lib/schemas/trend";
 
 /** 끝의 공백까지가 시드다 (그 뒤에 붙는 말을 자동완성으로 받는다) */
-export const AUTOCOMPLETE_SEEDS = ["化粧水 ", "化粧水 成分 ", "美容液 ", "韓国 化粧水 "];
+// クリーム는 시장 분석 원페이지에서 카테고리를 바꿔도 자동완성이 나오도록 추가 (2026-10-24)
+export const AUTOCOMPLETE_SEEDS = ["化粧水 ", "化粧水 成分 ", "美容液 ", "韓国 化粧水 ", "クリーム "];
 export const AUTOCOMPLETE_REGION = { gl: "jp", hl: "ja" } as const;
 
 /** 성분 검색 관심도(Google Trends): 카테고리마다 「카테고리 + 성분」 검색어를 비교한다 · 일본, 최근 3개월 평균 */

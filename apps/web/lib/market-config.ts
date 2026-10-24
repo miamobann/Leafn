@@ -4,6 +4,7 @@ import type { TrendSource } from "@/lib/schemas/trend";
 
 export const MARKET_CATEGORIES = ["化粧水", "美容液", "クリーム"] as const;
 export type MarketCategory = (typeof MARKET_CATEGORIES)[number];
+export const CATEGORY_KO: Record<string, string> = { "化粧水": "화장수", "美容液": "미용액", "クリーム": "크림", "日焼け止め": "선크림", "クレンジング": "클렌징" };
 
 /** 두 플랫폼의 랭킹은 합치지 않는다 (고객층·랭킹 산정 방식이 달라 상위권 조건이 왜곡된다) */
 // eventPlatform = promo_events.platform 표기 (랭킹 주가 플랫폼 행사와 겹치는지 볼 때 쓴다)

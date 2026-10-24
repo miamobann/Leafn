@@ -6,6 +6,7 @@ import { products } from "./products";
 import { projectStages, projects } from "./projects";
 import { rankingSources } from "./ranking-sources";
 import { searchSnapshots } from "./search";
+import { snsPatterns, snsVideoNotes } from "./sns-notes";
 import { promoEvents } from "./promo-events";
 import { reviewAnalyses } from "./review-analyses";
 import { reviewInsights } from "./review-insights";
@@ -71,6 +72,14 @@ function checkRefs() {
     }
   }
 
+  // SNS 공통 패턴이 가리키는 영상은 같은 카테고리의 영상 메모에 있어야 한다
+  for (const p of snsPatterns)
+    for (const vid of p.video_ids) {
+      const note = snsVideoNotes.find((n) => n.id === vid);
+      expect(Boolean(note), `snsPatterns ${p.id} 영상 ${vid}`);
+      if (note) expect(note.category === p.category, `snsPatterns ${p.id} 영상 ${vid}의 카테고리가 다름`);
+    }
+
   // 설문 집계가 가리키는 라인 · 연령대 · 고민 값이 문항과 추천 라인에 있어야 한다
   const lineIds = ids(surveyProductLines);
   const optionValues = (qid: string) => new Set(surveyQuestions.find((q) => q.id === qid)?.options.map((o) => o.value) ?? []);
@@ -109,6 +118,8 @@ export const mock = {
   trendSnapshots,
   rankingSources,
   searchSnapshots,
+  snsVideoNotes,
+  snsPatterns,
   geoSnapshots,
   promoEvents,
   platforms,
