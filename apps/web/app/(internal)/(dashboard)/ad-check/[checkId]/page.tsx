@@ -43,8 +43,21 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
             </>
           }
           attributes={[
-            { label: "원문", value: <span className="whitespace-pre-line" lang={check.input_lang}>{check.input_text}</span> },
+            // 최종 문구를 먼저, 원문은 그 아래 (일본어 원문은 연한 글씨로 한국어 번역을 덧붙인다)
             { label: "최종 문구", value: check.final_text ? <span className="whitespace-pre-line">{check.final_text}</span> : "—" },
+            {
+              label: "원문",
+              value: (
+                <span className="block space-y-1">
+                  <span className="block whitespace-pre-line" lang={check.input_lang}>
+                    {check.input_text}
+                  </span>
+                  {check.input_lang === "ja" && check.back_translation_ko && (
+                    <span className="block whitespace-pre-line text-muted-foreground">한국어: {check.back_translation_ko}</span>
+                  )}
+                </span>
+              ),
+            },
             { label: "제품", value: product?.name ?? "—" },
             { label: "사용처", value: check.usage ? USAGE_LABEL[check.usage] : "—" },
             { label: "검토자", value: reviewer },
