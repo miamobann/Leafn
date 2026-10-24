@@ -47,8 +47,6 @@ const KEYWORD_TAGS = 1;
 const DIRECTION_MAX = 50;
 /** 강조할 방향 예시: 대화가 아니라 키워드로 쓰게 짧은 낱말로 둔다. 누르면 칸에 채워진다 */
 const DIRECTION_EXAMPLES = ["연말 선물", "첫 구매 고객", "재구매 유도", "보습 강조"];
-/** 질문·부탁 말투면 칸 아래에 키워드로 적어 달라고 알려 준다 */
-const QUESTION_LIKE = /[?？]\s*$|(해\s?줘|해\s?주세요|할\s?수\s?있|어때|알려)/;
 /** AI 연결 전, 생성 순서를 보여 주려고 샘플을 띄우기 전에 잠깐 기다리는 시간 */
 const SAMPLE_DELAY_MS = 700;
 
@@ -776,11 +774,7 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
                 </button>
               ))}
             </div>
-            {QUESTION_LIKE.test(direction.trim()) ? (
-              <p className="text-xs text-risk-medium">질문이나 부탁에는 답하지 않아요. 원하는 방향을 키워드로 적어 주세요 (예: 연말 선물).</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">제작할 때 방향으로만 반영돼요. 질문이나 대화는 할 수 없고, 약기법에 어긋나는 방향(효능 과장 등)은 반영하지 않아요.</p>
-            )}
+            <p className="text-xs text-muted-foreground">제작할 때 방향으로 반영돼요. 부탁하듯 적어도 되지만 답장은 오지 않고, 약기법에 어긋나는 방향(효능 과장 등)은 반영하지 않아요.</p>
             {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
