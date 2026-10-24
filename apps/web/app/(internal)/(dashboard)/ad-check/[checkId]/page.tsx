@@ -24,14 +24,9 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
     <>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <PageHeader title="검토 상세" featureId="A" />
-        <div className="flex flex-wrap gap-2">
-          <Link href="/ad-check/history" className={`${buttonVariants({ variant: "outline" })} border-foreground/40!`}>
-            검토 내역 목록
-          </Link>
-          <Link href={`/ad-check?from=${check.id}`} className={buttonVariants()}>
-            이 내용으로 새 검토
-          </Link>
-        </div>
+        <Link href={`/ad-check?from=${check.id}`} className={buttonVariants()}>
+          이 내용으로 재검토
+        </Link>
       </div>
       <AdDisclaimer />
       <div className="mt-4">

@@ -31,12 +31,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
 
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <PageHeader title="검토 내역" description="원문, 수정 제안, 담당자 검토 결과" featureId="A" />
-        <Link href="/ad-check" className={buttonVariants()}>
-          새 검토
-        </Link>
-      </div>
+      <PageHeader title="검토 내역" description="원문, 수정 제안, 담당자 검토 결과" featureId="A" />
       {/* 결과가 없을 때도 필터를 남겨 다른 조건으로 바꿀 수 있게, 필터는 표 템플릿 밖에 둔다 */}
       <div className="mb-4">
         <HistoryFilters products={productOptions} statuses={ReviewStatus.options.map((v) => ({ value: v, label: STATUS_LABEL[v] }))} />
