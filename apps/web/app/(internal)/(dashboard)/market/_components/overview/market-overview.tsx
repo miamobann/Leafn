@@ -17,7 +17,6 @@ import { SupplyPart } from "./part1-supply";
 import { DemandPart } from "./part2-demand";
 import { OpportunityPart } from "./part3-opportunity";
 import { SummaryPart } from "./summary";
-import { AppealReport } from "@/app/(internal)/(dashboard)/market/_components/appeal-report";
 import { SectionHeader } from "./section-header";
 import { MAX_COMPARE, OverviewPanel, type PanelContent } from "./side-panel";
 
@@ -31,9 +30,6 @@ const SECTIONS = [
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
-
-/** 상세 이미지 분석(楽天·Qoo10 비교)을 하는 카테고리 */
-const APPEAL_CATEGORY = "化粧水";
 
 export function MarketOverview({
   snapshots,
@@ -86,31 +82,17 @@ export function MarketOverview({
       />
     ),
     supply: (
-      <div className="space-y-6">
-        <SupplyPart
-          series={series}
-          sameSource={sameSource}
-          platformLabel={platformInfo.label}
-          platformName={platformInfo.eventPlatform}
-          promoEvents={promoEvents}
-          products={products}
-          selected={selected}
-          onToggleCompare={toggleCompare}
-          onOpen={setPanel}
-        />
-        {/* 예전 성분 관심도 화면에서 옮김: 상위 상품 상세 이미지의 소구 성분 (楽天 vs Qoo10, 化粧水만) */}
-        <div>
-          <h3 className="mb-2 text-sm font-semibold">1-C 상세 이미지 소구 성분 · 楽天 vs Qoo10</h3>
-          {category === APPEAL_CATEGORY ? (
-            <AppealReport
-              initial={{ rakuten_ranking: seriesOf(snapshots, "rakuten_ranking", APPEAL_CATEGORY).at(-1), qoo10_ranking: seriesOf(snapshots, "qoo10_ranking", APPEAL_CATEGORY).at(-1) }}
-              products={products}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">상세 이미지 분석은 {APPEAL_CATEGORY}만 하고 있어요</p>
-          )}
-        </div>
-      </div>
+      <SupplyPart
+        series={series}
+        sameSource={sameSource}
+        platformLabel={platformInfo.label}
+        platformName={platformInfo.eventPlatform}
+        promoEvents={promoEvents}
+        products={products}
+        selected={selected}
+        onToggleCompare={toggleCompare}
+        onOpen={setPanel}
+      />
     ),
     demand: <DemandPart search={search} snsNotes={snsNotes} snsPatterns={snsPatterns} geo={geo} products={products} category={category} onOpen={setPanel} />,
     opportunity: (
