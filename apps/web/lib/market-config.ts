@@ -9,8 +9,8 @@ export const CATEGORY_KO: Record<string, string> = { "化粧水": "화장수", "
 /** 두 플랫폼의 랭킹은 합치지 않는다 (고객층·랭킹 산정 방식이 달라 상위권 조건이 왜곡된다) */
 // eventPlatform = promo_events.platform 표기 (랭킹 주가 플랫폼 행사와 겹치는지 볼 때 쓴다)
 export const MARKET_PLATFORMS = [
-  { source: "rakuten_ranking", label: "楽天", eventPlatform: "楽天市場" },
   { source: "qoo10_ranking", label: "Qoo10", eventPlatform: "Qoo10" },
+  { source: "rakuten_ranking", label: "楽天", eventPlatform: "楽天市場" },
 ] as const satisfies readonly { source: TrendSource; label: string; eventPlatform: string }[];
 export type MarketPlatform = (typeof MARKET_PLATFORMS)[number]["source"];
 

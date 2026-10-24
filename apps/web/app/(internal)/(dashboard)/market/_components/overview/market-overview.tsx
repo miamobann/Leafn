@@ -24,7 +24,7 @@ import { MAX_COMPARE, OverviewPanel, type PanelContent } from "./side-panel";
 // 섹션 순서 = 팀장이 읽는 순서 (요약 → 시장 개관 → 공급 → 수요 → 기회와 전략)
 const SECTIONS = [
   { id: "summary", label: "요약", title: "이번 주 핵심", question: "공급·수요·기회를 한 줄씩", featureIds: [] },
-  { id: "market", label: "시장 개관", title: "PART 0. 시장 개관", question: "이 카테고리에서 K-뷰티가 커지고 있나?", featureIds: ["B"] },
+  { id: "market", label: "시장 개관", title: "PART 0. 시장 개관", question: "순위권 제품은 얼마에, ml당 얼마에 팔리나?", featureIds: ["B"] },
   { id: "supply", label: "공급", title: "PART 1. 공급", question: "상위권에 들려면 무엇이 필요한가?", featureIds: ["B", "C"] },
   { id: "demand", label: "수요", title: "PART 2. 수요", question: "소비자와 AI 검색은 지금 무엇을 기준으로 고르나?", featureIds: ["B", "GEO"] },
   { id: "opportunity", label: "기회와 전략", title: "PART 3. 기회와 전략", question: "자사는 어디에 서서 무엇을 말할까?", featureIds: ["A", "C"] },
@@ -55,7 +55,8 @@ export function MarketOverview({
   judgments: ClaimJudgment[];
 }) {
   const [category, setCategory] = useState<MarketCategory>("化粧水");
-  const [platform, setPlatform] = useState<MarketPlatform>("rakuten_ranking");
+  // 실데이터는 Qoo10으로 수집한다 (2026-10-24 결정). 楽天은 비교용 샘플
+  const [platform, setPlatform] = useState<MarketPlatform>("qoo10_ranking");
   const [panel, setPanel] = useState<PanelContent | null>(null);
   // 표 체크박스와 패널의 [비교에 추가]가 같은 목록을 쓴다 (저장되지 않음)
   const [selected, setSelected] = useState<string[]>([]);
