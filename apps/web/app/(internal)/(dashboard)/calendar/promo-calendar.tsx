@@ -9,7 +9,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import koLocale from "@fullcalendar/core/locales/ko";
 import type { EventInput } from "@fullcalendar/core";
 import { StatusBadge } from "@/components/common/badges";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PromoEventView } from "@/lib/data/launch";
 import { setMilestoneDone } from "@/lib/data/launch-actions";
@@ -48,6 +48,8 @@ export function PromoCalendar({
 
   const selected = events.find((e) => e.id === selectedId) ?? null;
   const idle = !selected && renderIdle ? renderIdle({ events, select: setSelectedId }) : null;
+  // 문구 관련 버튼은 광고 검토로 간다: 이 행사의 검토가 있으면 그 상세, 없으면 새 검토
+  const adCheckHref = selected?.adCheck ? `/ad-check/${selected.adCheck.id}` : "/ad-check";
 
   const calendarEvents = useMemo<EventInput[]>(
     () =>
@@ -153,13 +155,19 @@ export function PromoCalendar({
                 <p className="mb-1 font-medium">준비 마감</p>
                 <ul className="space-y-1">
                   {selected.milestones.map((m) => (
-                    <li key={m.id}>
-                      <label className="flex items-center gap-2">
+                    <li key={m.id} className="flex items-center gap-2">
+                      <label className="flex flex-1 items-center gap-2">
                         <input type="checkbox" checked={m.done} onChange={(e) => toggleMilestone(selected.id, m.id, e.target.checked)} />
                         <span className={m.done ? "text-muted-foreground line-through" : ""}>
                           {m.label} · {m.dueDate} ({dDay(m.dueDate)})
                         </span>
                       </label>
+                      {/* 쿠폰 설정·물류 입고 같은 마감은 갈 화면이 없어 체크만 한다 */}
+                      {m.label.includes("문구") && (
+                        <Link href={adCheckHref} className={`${buttonVariants({ variant: "outline", size: "xs" })} shrink-0`}>
+                          광고 검토로 →
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -167,14 +175,13 @@ export function PromoCalendar({
               <div className="flex items-center gap-2">
                 <span className="font-medium">행사용 문구</span>
                 {selected.adCheck ? (
-                  <Link href={`/ad-check/${selected.adCheck.id}`} className="flex items-center gap-1">
-                    <StatusBadge status={selected.adCheck.status} />
-                  </Link>
+                  <StatusBadge status={selected.adCheck.status} />
                 ) : (
-                  <Link href="/ad-check" className="text-xs underline-offset-4 hover:underline">
-                    검토 없음 · 새 검토
-                  </Link>
+                  <span className="text-xs text-muted-foreground">검토 없음</span>
                 )}
+                <Link href={adCheckHref} className={`${buttonVariants({ variant: "outline", size: "xs" })} ml-auto shrink-0`}>
+                  {selected.adCheck ? "검토 상세 →" : "새 검토 만들기 →"}
+                </Link>
               </div>
               <p className="text-xs text-muted-foreground">체크와 추가는 샘플이라 새로고침하면 사라져요 (DB 연결 전)</p>
             </>
