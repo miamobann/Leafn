@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { EmptyState, LoadingState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   fillProduct,
@@ -42,6 +43,10 @@ const PANEL_HEIGHT = "h-[32rem]";
 const RECOMMENDED = "rounded px-1.5 text-xs bg-risk-low/15 text-risk-low";
 /** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
 const KEYWORD_TAGS = 1;
+/** 추가 요청 글자 수 제한 (AI에 참고로만 보낸다. 약기법이 항상 먼저) */
+const REQUEST_MAX = 100;
+/** 추가 요청 예시: 누르면 칸에 채워진다 */
+const REQUEST_EXAMPLES = ["연말 선물 시즌 느낌으로", "첫 구매 고객을 위한 안내", "재구매를 부르는 문구", "첫 줄에 보습을 강조"];
 /** AI 연결 전, 생성 순서를 보여 주려고 샘플을 띄우기 전에 잠깐 기다리는 시간 */
 const SAMPLE_DELAY_MS = 700;
 
@@ -569,6 +574,8 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
   const [loading, setLoading] = useState<"titles" | "body" | null>(null);
   /** "제목 id:블록 key" → 메모 (화면에만 둔다) */
   const [memos, setMemos] = useState<Record<string, string>>({});
+  /** 추가 요청 (선택, 100자). 제작할 때 참고로 함께 보낸다 */
+  const [request, setRequest] = useState("");
   /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
   const [withPhotoGuide, setWithPhotoGuide] = useState(true);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -696,10 +703,10 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
               )}
             </div>
           )}
-          {/* 제작에 반영할 재료: 다른 탭이 만들어 둔 결과를 읽기만 한다 (AI 호출 없음). 화면이 길어지지 않게 접어 둔다 */}
+          {/* 참고 자료: 다른 탭이 만들어 둔 결과를 읽기만 한다 (AI 호출 없음). 화면이 길어지지 않게 접어 둔다 */}
           <details className="rounded-md border p-3 text-sm">
             <summary className="cursor-pointer font-medium">
-              제작에 반영할 재료 <span className="font-normal text-muted-foreground">· 리뷰 분석 {material.hasReviews ? material.appeals.length : 0}개 · 시장 분석 {material.keywords.length}개</span>
+              참고 자료 <span className="font-normal text-muted-foreground">· 리뷰 분석 {material.hasReviews ? material.appeals.length : 0}개 · 시장 분석 {material.keywords.length}개</span>
             </summary>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <section className="space-y-1 rounded-md bg-muted p-3">
@@ -745,6 +752,27 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
               </ul>
             </details>
           )}
+          <div className="space-y-1">
+            <label htmlFor="guide-request" className={LABEL}>
+              추가 요청 <span className="font-normal text-muted-foreground">(선택 · {request.length}/{REQUEST_MAX}자)</span>
+            </label>
+            <Input
+              id="guide-request"
+              value={request}
+              maxLength={REQUEST_MAX}
+              onChange={(e) => setRequest(e.target.value)}
+              placeholder="예: 연말 선물 시즌 느낌으로"
+            />
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-xs text-muted-foreground">예시</span>
+              {REQUEST_EXAMPLES.map((ex) => (
+                <button key={ex} type="button" onClick={() => setRequest(ex)} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted">
+                  {ex}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">요청은 참고로만 반영해요. 약기법에 어긋나는 요청(효능 과장 등)은 반영하지 않아요.</p>
+          </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="text-xs text-muted-foreground">샘플 데이터 · AI 연결 전</span>
             <Button type="button" onClick={generate} disabled={detailBlocked || loading !== null}>
@@ -838,6 +866,29 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
 
                 {channel === "qoo10_detail" && <GalleryGuide gallery={current.gallery} />}
 
+
+                {hasPostType && hashtags.length > 0 && (
+                  <section className="space-y-3 rounded-md border p-3">
+                    <h3 className="font-semibold">
+                      해시태그 추천 ({hashtags.length}개 · 기준 {channel === "x" ? `1~${X_MAX_HASHTAGS}` : IG_HASHTAG_LIMIT}개)
+                    </h3>
+                    {HASHTAG_GROUPS.filter((g) => groups[g.key].length > 0).map((g) => (
+                      <div key={g.key} className="space-y-1">
+                        <p className="text-xs font-medium">{g.label}</p>
+                        <HashtagChips tags={groups[g.key]} />
+                        <p className="text-xs text-muted-foreground">{g.reason}</p>
+                      </div>
+                    ))}
+                    {keywordTags.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        검색어에서 뽑은 태그: {keywordTags.join(" ")} (시장 분석 검색어 1위)
+                      </p>
+                    )}
+                    {channel === "x" && <p className="text-xs text-muted-foreground">X는 해시태그가 3개를 넘으면 노출이 줄어서 브랜드 1개 + 캠페인·제품 1개만 써요.</p>}
+                  </section>
+                )}
+
+                {/* 촬영 가이드는 가장 중요한 내용이 아니라 항상 맨 아래에 둔다 (PDF에서도 붙임) */}
                 <details className="rounded-md border p-3">
                   <summary className="cursor-pointer font-semibold">촬영 가이드 (컷 리스트 {buildCutList(channel, blocks, current.gallery).length}컷 · PDF 붙임)</summary>
                   <div className="mt-2 grid gap-3 text-xs sm:grid-cols-2">
@@ -860,27 +911,6 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">컷 리스트는 사진 칸 설명을 모아 만들어요 (AI를 따로 부르지 않아요).</p>
                 </details>
-
-                {hasPostType && hashtags.length > 0 && (
-                  <section className="space-y-3 rounded-md border p-3">
-                    <h3 className="font-semibold">
-                      해시태그 추천 ({hashtags.length}개 · 기준 {channel === "x" ? `1~${X_MAX_HASHTAGS}` : IG_HASHTAG_LIMIT}개)
-                    </h3>
-                    {HASHTAG_GROUPS.filter((g) => groups[g.key].length > 0).map((g) => (
-                      <div key={g.key} className="space-y-1">
-                        <p className="text-xs font-medium">{g.label}</p>
-                        <HashtagChips tags={groups[g.key]} />
-                        <p className="text-xs text-muted-foreground">{g.reason}</p>
-                      </div>
-                    ))}
-                    {keywordTags.length > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        검색어에서 뽑은 태그: {keywordTags.join(" ")} (시장 분석 검색어 1위)
-                      </p>
-                    )}
-                    {channel === "x" && <p className="text-xs text-muted-foreground">X는 해시태그가 3개를 넘으면 노출이 줄어서 브랜드 1개 + 캠페인·제품 1개만 써요.</p>}
-                  </section>
-                )}
               </CardContent>
             </Card>
           )}
@@ -916,6 +946,7 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
           memos={Object.fromEntries(blocks.map((b) => [b.key, memos[`${current.id}:${b.key}`] ?? ""]))}
           fill={fill}
           cutList={withPhotoGuide ? buildCutList(channel, blocks, current.gallery) : null}
+          request={request.trim()}
         />
       )}
     </div>
