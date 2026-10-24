@@ -6,7 +6,7 @@ import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
 import { fold } from "@/lib/ai/appeal-normalize";
 import { splitSentences } from "@/lib/external/geo-terms";
-import { GAP_MAX_ADOPTION, POSITIONING, type CandidateZone, type OwnProductClass } from "@/lib/market-config";
+import { GAP_MAX_ADOPTION, POSITIONING, type CandidateZone } from "@/lib/market-config";
 import { autocompleteChanges, type AutocompleteStatus } from "./demand";
 import { INGREDIENT_MATCH, TOP_N } from "./market";
 import type { OverviewRow } from "./overview";
@@ -82,9 +82,9 @@ export function demandSupplyGaps(input: {
     .toSorted((a, b) => a.adopted.length - b.adopted.length || b.sources.length - a.sources.length);
 }
 
-/** 자사 제품 구분 기준 판정 (구분이 정해지지 않았으면 一般化粧品 기준) */
-export function verdictFor(j: ClaimJudgment, ownClass: OwnProductClass): ClaimVerdict {
-  return ownClass === "quasi_drug" ? j.quasi_drug : j.general_cosmetic;
+/** 시장 분석이라 특정 제품 구분을 전제하지 않는다: 一般化粧品·医薬部外品 어느 쪽으로도 광고에 쓸 수 없으면 사용 불가 */
+export function blockedEverywhere(j: Pick<ClaimJudgment, "general_cosmetic" | "quasi_drug">): boolean {
+  return j.general_cosmetic === "not_allowed" && j.quasi_drug === "not_allowed";
 }
 
 // ── 3-B 포지셔닝 맵 ───────────────────────────────
@@ -129,12 +129,12 @@ export function copyIngredients(copy: string): string[] {
     .map(([ing]) => ing);
 }
 
-/** 자사 스펙 일치: 카피에 나온 성분이 자사 전성분에 있고, 재료 중 광고 사용 불가 판정이 없어야 한다 */
-export function specCheck(c: CopyCandidate, own: Product | undefined, judgments: ClaimJudgment[], ownClass: OwnProductClass) {
+/** 자사 스펙 일치: 카피에 나온 성분이 자사 전성분에 있고, 재료 중 어느 구분으로도 광고에 못 쓰는 말이 없어야 한다 */
+export function specCheck(c: CopyCandidate, own: Product | undefined, judgments: ClaimJudgment[]) {
   const missing = own ? copyIngredients(c.copy_ja).filter((ing) => !own.ingredients.some((x) => INGREDIENT_MATCH[ing].match.some((m) => x.includes(m)))) : [];
   const blocked = c.materials.filter((m) => {
     const j = judgments.find((x) => x.keyword === m);
-    return j ? verdictFor(j, ownClass) === "not_allowed" : false;
+    return j ? blockedEverywhere(j) : false;
   });
   return { ok: Boolean(own) && missing.length === 0 && blocked.length === 0, missing, blocked };
 }

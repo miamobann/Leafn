@@ -10,20 +10,20 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { GAP_MAX_ADOPTION, OWN_PRODUCT_CLASS } from "@/lib/market-config";
+import { GAP_MAX_ADOPTION } from "@/lib/market-config";
 import type { GeoSnap } from "@/lib/schemas/geo";
 import type { ClaimJudgment, ClaimVerdict, CopyCandidate, CopyPlacement, SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
 import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
 import { AUTOCOMPLETE_STATUS_LABEL } from "@/app/(internal)/(dashboard)/market/_lib/demand";
 import {
+  blockedEverywhere,
   DEMAND_SOURCE_LABEL,
   demandSupplyGaps,
   positioning,
   specCheck,
   TOP_N,
   VERDICT_LABEL,
-  verdictFor,
   zonesFor,
   type GapRow,
 } from "@/app/(internal)/(dashboard)/market/_lib/opportunity";
@@ -34,11 +34,8 @@ import type { PanelContent } from "./side-panel";
 // 화면 문구
 const TEXT = {
   gapRule: `수요 신호(자동완성·SNS·AI 검색)가 있는데 Top ${TOP_N} 상품명·설명·프로모션 문구에서 ${GAP_MAX_ADOPTION}개 이하로만 쓰인 키워드 (참고 기준)`,
-  classNote:
-    OWN_PRODUCT_CLASS === null
-      ? "자사 제품 구분(一般化粧品 / 医薬部外品)이 아직 정해지지 않아 강조한 열이 없어요. 광고 사용 불가 묶음은 一般化粧品 기준이에요."
-      : `자사 제품 구분: ${OWN_PRODUCT_CLASS === "quasi_drug" ? "医薬部外品" : "一般化粧品"} (강조한 열)`,
-  ngWhy: "경쟁사가 이 말을 안 쓰는 이유가 규제일 수 있어요. 수요가 있어도 광고에는 쓰지 않아요.",
+  classNote: "시장 분석이라 특정 제품 구분을 전제하지 않고 一般化粧品·医薬部外品 판정을 나란히 보여줘요",
+  ngWhy: "一般化粧品·医薬部外品 어느 쪽으로도 광고에 쓸 수 없는 말이에요. 경쟁사가 이 말을 안 쓰는 이유가 규제일 수 있어요.",
   mapRule: "Y값은 상품명·설명(자사는 제품명·특징)의 사용감 표기로 정해요. 표기가 없거나 양쪽 표기가 다 있으면 맵에 찍지 않아요. 후보 영역은 계산값이 아니라 근거 문장과 함께 정한 설정이에요.",
   copyRule: "재료는 사용 가능·근거 자료 필요 빈칸과 AI 검색 결정 키워드 중 자사 전성분·스펙으로 사실인 것만 써요 (자사에 없는 성분·시험·수상은 쓰지 않음).",
   verifyRule: "자사 실적 데이터가 없어 목표 수치와 필요한 표본 수는 정하지 않았어요. 기준값은 담당자가 넣어요 (저장되지 않음).",
@@ -47,16 +44,14 @@ const TEXT = {
 const PLACEMENT_LABEL: Record<CopyPlacement, string> = { product_name: "상품명", detail_page: "상세페이지", qa: "Q&A", ad: "광고 소재" };
 const TREND_TEXT = (g: GapRow) => (g.trend ? AUTOCOMPLETE_STATUS_LABEL[g.trend] : "—");
 
-function Verdict({ verdict, strong }: { verdict: ClaimVerdict; strong?: boolean }) {
+function Verdict({ verdict }: { verdict: ClaimVerdict }) {
   const tone = verdict === "usable" ? "bg-risk-low/15 text-risk-low" : verdict === "needs_evidence" ? "bg-risk-medium/15 text-risk-medium" : "bg-risk-high/15 text-risk-high";
-  return <Badge className={`${tone} ${strong ? "ring-2 ring-foreground/40" : ""}`}>{VERDICT_LABEL[verdict]}</Badge>;
+  return <Badge className={tone}>{VERDICT_LABEL[verdict]}</Badge>;
 }
 
 // ── 3-A ─────────────────────────────────────────
 
 function GapTable({ rows, onOpen }: { rows: GapRow[]; onOpen: (g: GapRow) => void }) {
-  const strongGeneral = OWN_PRODUCT_CLASS === "general_cosmetic";
-  const strongQuasi = OWN_PRODUCT_CLASS === "quasi_drug";
   return (
     <Table>
       <TableHeader>
@@ -67,8 +62,8 @@ function GapTable({ rows, onOpen }: { rows: GapRow[]; onOpen: (g: GapRow) => voi
           <TableHead>수요 신호</TableHead>
           <TableHead>추세</TableHead>
           <TableHead className="text-right">Top {TOP_N} 채택</TableHead>
-          <TableHead className={strongGeneral ? "bg-muted" : undefined}>판정 一般化粧品</TableHead>
-          <TableHead className={strongQuasi ? "bg-muted" : undefined}>판정 医薬部外品</TableHead>
+          <TableHead>판정 一般化粧品</TableHead>
+          <TableHead>판정 医薬部外品</TableHead>
           <TableHead className="min-w-48">판정 근거</TableHead>
         </TableRow>
       </TableHeader>
@@ -94,11 +89,11 @@ function GapTable({ rows, onOpen }: { rows: GapRow[]; onOpen: (g: GapRow) => voi
             <TableCell className="text-right">
               {g.adopted.length}/{TOP_N}
             </TableCell>
-            <TableCell className={strongGeneral ? "bg-muted" : undefined}>
-              <Verdict verdict={g.judgment.general_cosmetic} strong={strongGeneral} />
+            <TableCell>
+              <Verdict verdict={g.judgment.general_cosmetic} />
             </TableCell>
-            <TableCell className={strongQuasi ? "bg-muted" : undefined}>
-              <Verdict verdict={g.judgment.quasi_drug} strong={strongQuasi} />
+            <TableCell>
+              <Verdict verdict={g.judgment.quasi_drug} />
             </TableCell>
             <TableCell className="whitespace-normal text-xs text-muted-foreground">{g.judgment.basis}</TableCell>
           </TableRow>
@@ -139,8 +134,8 @@ export function OpportunityPart({
   if (top.length === 0) return <EmptyState message="이 플랫폼·카테고리의 랭킹 데이터가 없어 빈칸을 계산할 수 없어요" />;
 
   const gaps = demandSupplyGaps({ category, top, search, snsNotes, snsPatterns, geo, judgments });
-  const usable = gaps.filter((g) => verdictFor(g.judgment, OWN_PRODUCT_CLASS) !== "not_allowed");
-  const blocked = gaps.filter((g) => verdictFor(g.judgment, OWN_PRODUCT_CLASS) === "not_allowed");
+  const usable = gaps.filter((g) => !blockedEverywhere(g.judgment));
+  const blocked = gaps.filter((g) => blockedEverywhere(g.judgment));
   const map = positioning(category, top, products);
   const zones = zonesFor(category);
   const selectedZone = zoneByCategory[category] ?? null;
@@ -151,7 +146,7 @@ export function OpportunityPart({
     onOpen({
       kind: "quotes",
       title: `${g.judgment.keyword} · ${g.judgment.label_ko}`,
-      description: `${VERDICT_LABEL[verdictFor(g.judgment, OWN_PRODUCT_CLASS)]} · ${g.judgment.basis}`,
+      description: `一般化粧品 ${VERDICT_LABEL[g.judgment.general_cosmetic]} · 医薬部外品 ${VERDICT_LABEL[g.judgment.quasi_drug]} · ${g.judgment.basis}`,
       quotes: g.evidence.map((e) => ({ ja: e.ja, ko: e.ko, note: e.note })),
       rows: { title: `Top ${TOP_N}에서 이 키워드를 쓴 제품 (${g.adopted.length}개)`, items: g.adopted.map((row) => ({ row })) },
       footnote: `쓰는 방법: ${g.judgment.note_ko}`,
@@ -274,7 +269,7 @@ export function OpportunityPart({
             <div className="grid gap-3 lg:grid-cols-2">
               {zoneCopies.map((c) => {
                 const own = products.find((p) => p.id === c.own_product_id);
-                const check = specCheck(c, own, judgments, OWN_PRODUCT_CLASS);
+                const check = specCheck(c, own, judgments);
                 return (
                   <div key={c.id} className="space-y-2 rounded-lg border p-3">
                     <div className="flex items-start justify-between gap-2">
@@ -293,7 +288,7 @@ export function OpportunityPart({
                         return (
                           <Badge key={m} variant="outline">
                             <span lang="ja">{m}</span>
-                            {j ? ` · ${VERDICT_LABEL[verdictFor(j, OWN_PRODUCT_CLASS)]}` : ""}
+                            {j ? ` · 一般 ${VERDICT_LABEL[j.general_cosmetic]} / 部外品 ${VERDICT_LABEL[j.quasi_drug]}` : ""}
                           </Badge>
                         );
                       })}
