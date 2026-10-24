@@ -14,7 +14,7 @@
 | --- | --- |
 | workspaces, workspace_members, profiles | 헤더, 설정, 담당자 이름. 기존 로그인 세션 사용 |
 | projects, products | 프로젝트 관리, 제품 선택, 시장 비교·상세, 리뷰, 광고 입력, 자료실 |
-| ad_checks, content_guides | 약기법 광고 검토 판정 자동 저장·이력 조회·담당자 승인(`owner` 전용), 콘텐츠 제작 가이드 자동 저장·자료실 연동 |
+| ad_checks, ad_check_lines, content_guides | 약기법 광고 검토 판정 자동 저장·이력 조회·담당자 승인(`owner` 전용), 콘텐츠 제작 가이드 자동 저장·자료실 연동 |
 | product_competitors | 소구점 비교의 실제 자사-경쟁제품 연결 |
 | reviews, review_analyses | 리뷰 목록·리포트·소구점. 제외 리뷰 제거, 실제 분석 연결 |
 | trend_snapshots, search_snapshots, geo_snapshots | 시장 화면 초기 조회·새로고침 시 저장된 결과 표시 |

@@ -73,8 +73,9 @@
 
 | 테이블 | 범위 | 핵심 칸 | 비고 |
 | --- | --- | --- | --- |
-| `ad_checks` | 팀 | input_text, input_lang, usage, product_category, findings `jsonb`, line_results `jsonb`, overall_risk, overall_action, translated_text, back_translation_ko, localized_note, final_text, review_status, is_expert_review_requested, reviewer_id → profiles, reviewer_note, reviewed_at, product_id → products, promo_event_id → promo_events, model, prompt_version | 줄별 판정은 `findings`·`line_results` jsonb에 저장. 판정 시 자동 저장, 승인/반려(`update`)는 `owner`만 가능 |
-| `content_guides` | 팀 | product_id → products, promo_event_id → promo_events, channel, post_type, direction, title_ja, title_ko, angle, recommended, reason, blocks `jsonb`, hashtags `jsonb`, gallery `jsonb`, lint_hits `jsonb`, checks `jsonb`, model, prompt_version | 콘텐츠 제작 가이드 본문 생성 시 별도 테이블로 자동 저장 |
+| `ad_checks` | 팀 | created_by → profiles, source (`manual`·`content_guide`), input_text, input_lang, usage, product_category, overall_risk, overall_action, final_text, review_status, is_expert_review_requested, reviewer_id → profiles, reviewer_note, reviewed_at, product_id → products, promo_event_id → promo_events, model, prompt_version, deleted_at | 판정 시 자동 저장, 승인/반려(`update`)는 `owner`만 가능 (`docs/tab3-db-plan.md`) |
+| `ad_check_lines` | 팀 | ad_check_id → ad_checks, line_index, block_key, original, action, findings `jsonb`, ingredient_check, translated_text, back_translation_ko, localized_note | 검토 한 건의 줄별 판정·번역·역번역·현지화 메모 |
+| `content_guides` | 팀 | created_by → profiles, product_id → products, promo_event_id → promo_events, channel, post_type, input `jsonb`, title `jsonb`, body `jsonb`, lint_hits `jsonb`, ad_check_id → ad_checks, model, prompt_version | 콘텐츠 제작 가이드 본문 생성 시 별도 테이블로 자동 저장 |
 
 **TAB 3 담당자 안 (2026-10-22, 팀 합의 전)** — 기존 칸은 바꾸지 않고 열만 추가한다. Zod는 `lib/schemas/ad-check.ts`에 `.nullable()`로 반영함.
 

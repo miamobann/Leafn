@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { getAdChecks, getBoardProjects } from "@/lib/data";
 import { getPlatformViews, getPromoEventViews, getToday } from "@/lib/data/launch";
@@ -20,20 +19,8 @@ export default async function HomePage() {
     <ProjectProgress>
       {/* 첫 화면: 위쪽 바(3.5rem)와 본문 위 여백(2rem)을 뺀 높이. 벽돌 상세는 늘 이 아래에서 시작한다 */}
       <div className="min-h-[calc(100vh-5.5rem)]">
-        <div className="flex items-start justify-between gap-4">
-          <PageHeader title="홈" description="이번 주 할 일과 프로젝트 진행" featureId="J" />
-          {/* 다음 행사는 캘린더 패널로 옮기고, 승인 대기 문구 수만 제목 줄 오른쪽 빈 자리에 둔다 */}
-          <Link
-            href="/ad-check/history"
-            className="flex shrink-0 items-center gap-4 rounded-xl border border-status-pending/40 bg-status-pending/10 px-4 py-2.5 hover:bg-status-pending/15"
-          >
-            <span>
-              <span className="block text-xs text-muted-foreground">승인 대기 문구</span>
-              <span className="block text-2xl leading-tight font-semibold">{pending.length}건</span>
-            </span>
-            <span className="text-sm text-muted-foreground">검토 이력 →</span>
-          </Link>
-        </div>
+        {/* 다음 행사와 승인 대기 문구는 캘린더 패널(다음 행사 · 문구 검토 대기)에서 본다 */}
+        <PageHeader title="홈" description="이번 주 할 일과 프로젝트 진행" featureId="J" />
         {isSupabaseConfigured() && <p className="my-4 text-sm text-muted-foreground">업무 단계 현황과 활동 기록은 저장 구조 준비 중입니다. 프로젝트·제품은 상단 메뉴에서 확인할 수 있습니다.</p>}
         <ProjectBoard projects={projects} />
         <HomeCalendar

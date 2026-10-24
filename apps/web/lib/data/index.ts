@@ -92,8 +92,22 @@ export async function getReviewTranslations(productId: string) {
 }
 
 export async function getAdChecks(opts: { status?: ReviewStatus } = {}) {
-  const rows = await readRows("ad_checks").catch(missingTableOnly);
-  return (rows ? rows.map(adCheckFromRow) : mock.adChecks).filter((a) => !opts.status || a.review_status === opts.status);
+  const [rows, lineRows] = await Promise.all([
+    readRows("ad_checks").catch(missingTableOnly),
+    readRows("ad_check_lines").catch(missingTableOnly),
+  ]);
+  if (!rows) return mock.adChecks.filter((a) => !opts.status || a.review_status === opts.status);
+  const linesByCheck = new Map<string, Record<string, unknown>[]>();
+  for (const line of lineRows ?? []) {
+    const checkId = String(line.ad_check_id ?? "");
+    const list = linesByCheck.get(checkId) ?? [];
+    list.push(line);
+    linesByCheck.set(checkId, list);
+  }
+  return rows
+    .filter((r) => !r.deleted_at && (!r.source || r.source === "manual"))
+    .map((r) => adCheckFromRow(r, linesByCheck.get(String(r.id)) ?? []))
+    .filter((a) => !opts.status || a.review_status === opts.status);
 }
 
 export async function getAdCheck(id: string) {
@@ -186,13 +200,17 @@ export async function getLibraryItems(opts: { type?: string; q?: string } = {}) 
   ]);
   const items: LibraryItem[] = [
     ...checks.map((a) => ({ id: a.id, type: "광고 검토", title: a.input_text, href: `/ad-check/${a.id}`, created_at: a.created_at })),
-    ...(guides ?? []).map((g) => ({
-      id: String(g.id),
-      type: "콘텐츠 가이드",
-      title: `${String(g.title_ko ?? g.title_ja ?? "")}`,
-      href: "/ad-check/guide",
-      created_at: String(g.created_at),
-    })),
+    ...(guides ?? []).map((g) => {
+      const titleObj = g.title as Record<string, unknown> | null;
+      const titleText = String(titleObj?.title_ko ?? titleObj?.title_ja ?? g.title_ko ?? g.title_ja ?? "");
+      return {
+        id: String(g.id),
+        type: "콘텐츠 가이드",
+        title: titleText,
+        href: "/ad-check/guide",
+        created_at: String(g.created_at),
+      };
+    }),
     ...products.map((p) => ({ id: p.id, type: "제품", title: `${p.brand} ${p.name}`, href: `/market/competitors/${p.id}`, created_at: p.created_at })),
     ...geo.map((g) => ({ id: g.id, type: "GEO 측정", title: `${g.engine} · ${g.query}`, href: "/market#demand", created_at: g.created_at })),
   ];

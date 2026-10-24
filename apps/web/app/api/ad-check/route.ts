@@ -1,4 +1,4 @@
-// POST /api/ad-check (CLAUDE.md 6장): 광고 문구 → 줄별 위험 표현·사유·근거·대체 표현·번역 (정밀 등급) → ad_checks 자동 저장.
+// POST /api/ad-check (CLAUDE.md 6장): 광고 문구 → 줄별 위험 표현·사유·근거·대체 표현·번역 (정밀 등급) → ad_checks · ad_check_lines 자동 저장.
 import { NextResponse } from "next/server";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
@@ -69,6 +69,7 @@ export async function POST(request: Request) {
         id: check.id,
         created_at: check.created_at,
         workspace_id: workspaceId,
+        source: "manual",
         product_id: check.product_id && UUID_RE.test(check.product_id) ? check.product_id : null,
         input_text: check.input_text,
         input_lang: check.input_lang,
@@ -76,11 +77,6 @@ export async function POST(request: Request) {
         product_category: body.data.product.product_category ?? null,
         overall_risk: check.overall_risk ?? null,
         overall_action: check.overall_action ?? null,
-        findings: check.findings,
-        line_results: check.line_results ?? [],
-        translated_text: (check.line_results ?? []).map((l) => l.translated_text).filter(Boolean).join("\n") || null,
-        back_translation_ko: (check.line_results ?? []).map((l) => l.back_translation_ko).filter(Boolean).join("\n") || null,
-        localized_note: (check.line_results ?? []).map((l) => l.localized_note).filter(Boolean).join("\n") || null,
         final_text: check.input_text,
         review_status: check.review_status,
         is_expert_review_requested: check.is_expert_review_requested ?? false,
@@ -88,6 +84,24 @@ export async function POST(request: Request) {
         prompt_version: check.prompt_version,
       });
       if (dbErr) return fail(500, "결과를 DB에 저장하지 못했습니다. 관리자에게 테이블 적용 상태와 권한을 확인해 주세요.");
+
+      const lineRows = (check.line_results ?? []).map((line) => ({
+        workspace_id: workspaceId,
+        ad_check_id: check.id,
+        line_index: line.line_index,
+        block_key: null,
+        original: line.original,
+        action: line.action,
+        findings: check.findings.filter((f) => f.line_index === line.line_index),
+        ingredient_check: line.ingredient_check,
+        translated_text: line.translated_text,
+        back_translation_ko: line.back_translation_ko,
+        localized_note: line.localized_note,
+      }));
+      if (lineRows.length > 0) {
+        const { error: lineErr } = await supabase.from("ad_check_lines").insert(lineRows);
+        if (lineErr) return fail(500, "줄별 판정 결과를 DB에 저장하지 못했습니다. 관리자에게 테이블 적용 상태와 권한을 확인해 주세요.");
+      }
     }
 
     return NextResponse.json({

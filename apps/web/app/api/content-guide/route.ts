@@ -60,7 +60,6 @@ export async function POST(request: Request) {
     const checked = await checkBody(req.input.channel, { name: p.name, product_category: p.category, ingredients: p.ingredients_ja }, made.result);
     const checks = checked.blocks.map((b) => ({ key: b.key, action: b.line.action, findings: b.line.findings.map((f) => ({ text: f.text, reason: f.reason })) }));
 
-
     if (mine) {
       const supabase = await createClient();
       const { error: dbErr } = await supabase.from("content_guides").insert({
@@ -68,17 +67,11 @@ export async function POST(request: Request) {
         product_id: req.product_id && UUID_RE.test(req.product_id) ? req.product_id : null,
         channel: req.input.channel,
         post_type: req.input.post_type,
-        direction: req.input.direction,
-        title_ja: req.picked.title_ja,
-        title_ko: req.picked.title_ko,
-        angle: req.picked.angle,
-        recommended: req.picked.recommended,
-        reason: req.picked.reason,
-        blocks: made.result.blocks,
-        hashtags: made.result.hashtags,
-        gallery: made.result.gallery,
+        input: req.input,
+        title: req.picked,
+        body: made.result,
         lint_hits: made.lintHits,
-        checks,
+        ad_check_id: null,
         model: made.model,
         prompt_version: `content-guide.${made.promptVersion}`,
       });
