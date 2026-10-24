@@ -5,7 +5,7 @@ import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
 import type { Product } from "@/lib/schemas/product";
 import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
-import { AppealTopic } from "@/lib/schemas/review";
+import { APPEAL_MAX_RATING, buildAppealComparison } from "./appeal";
 
 export async function getWorkspace() {
   return mock.workspace;
@@ -43,20 +43,17 @@ export async function getReviewReport(productId: string) {
   return { reviews, insights, sentiment };
 }
 
-// 소구점 후보 판정 기준 (팀 합의 전 시안)
-const APPEAL_RULE = { minComplaints: 3, minPraises: 3, praiseToComplaintRatio: 2 } as const;
-
 function qoo10Rank(p: Product): number | null {
   const rank = p.source_raw?.qoo10_rank;
   return typeof rank === "number" ? rank : null;
 }
 
 /**
- * 소구점 찾기: 같은 카테고리 Qoo10 랭킹 TOP10의 낮은 평점 리뷰 불만(일본) vs 자사 제품의 칭찬(국내)을 주제별로 비교.
- * 경쟁 불만이 많고 + 자사 칭찬이 많고 + 자사 불만이 적은 주제가 소구점 후보다.
+ * 소구점 찾기 (샘플): 같은 카테고리 Qoo10 랭킹 TOP10의 낮은 평점 리뷰 불만(일본) vs 자사 제품의 칭찬(국내)을 주제별로 비교.
+ * 계산 기준은 lib/data/appeal.ts에 있다. DB를 읽는 버전은 lib/data/reviews.ts의 getAppealComparisonOf다.
  */
 export async function getAppealComparison(ownProductId: string, opts: { maxRating?: number } = {}) {
-  const maxRating = opts.maxRating ?? 3;
+  const maxRating = opts.maxRating ?? APPEAL_MAX_RATING;
   const own = mock.products.find((p) => p.id === ownProductId && p.kind === "own");
   if (!own) return null;
 
@@ -74,42 +71,7 @@ export async function getAppealComparison(ownProductId: string, opts: { maxRatin
   const all = await getReviews();
   const ownReviews = all.filter((r) => r.product_id === own.id && r.lang === "ko");
   const lowReviews = all.filter((r) => competitorIds.has(r.product_id) && r.rating <= maxRating);
-  const has = (r: (typeof all)[number], topic: AppealTopic, polarity: "positive" | "negative") =>
-    r.analysis?.topics?.some((t) => t.topic === topic && t.polarity === polarity) ?? false;
-
-  const topics = AppealTopic.options
-    .map((topic) => {
-      const complaints = lowReviews.filter((r) => has(r, topic, "negative"));
-      const praises = ownReviews.filter((r) => has(r, topic, "positive"));
-      const ownComplaints = ownReviews.filter((r) => has(r, topic, "negative"));
-      const complaintShare = lowReviews.length ? complaints.length / lowReviews.length : 0;
-      const praiseShare = ownReviews.length ? praises.length / ownReviews.length : 0;
-      return {
-        topic,
-        complaints,
-        praises,
-        ownComplaints,
-        complaintShare,
-        praiseShare,
-        complaintProductCount: new Set(complaints.map((r) => r.product_id)).size,
-        isCandidate:
-          complaints.length >= APPEAL_RULE.minComplaints &&
-          praises.length >= APPEAL_RULE.minPraises &&
-          praises.length >= ownComplaints.length * APPEAL_RULE.praiseToComplaintRatio,
-        score: complaintShare * praiseShare,
-      };
-    })
-    .sort((a, b) => Number(b.isCandidate) - Number(a.isCandidate) || b.score - a.score);
-
-  return {
-    own,
-    competitors: competitors.map((p) => ({ ...p, lowReviewCount: lowReviews.filter((r) => r.product_id === p.id).length })),
-    ownReviewCount: ownReviews.length,
-    lowReviewCount: lowReviews.length,
-    maxRating,
-    rule: APPEAL_RULE,
-    topics,
-  };
+  return buildAppealComparison({ own, competitors, ownReviews, lowReviews, maxRating });
 }
 
 export async function getReviewTranslations(productId: string) {

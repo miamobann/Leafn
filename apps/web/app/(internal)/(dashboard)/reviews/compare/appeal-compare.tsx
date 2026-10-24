@@ -7,12 +7,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { Check, ChevronRight, Info, Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import type { getAppealComparison } from "@/lib/data";
+import type { AppealComparisonView } from "@/lib/data/reviews";
 import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
 import { EvidencePanel, linkClass, paginate, Pager, ReviewCard } from "../_components/parts";
 import { distribution, share } from "../_lib/topics";
 
-export type AppealComparison = NonNullable<Awaited<ReturnType<typeof getAppealComparison>>>;
+export type AppealComparison = AppealComparisonView;
 type TopicRow = AppealComparison["topics"][number];
 
 const RANK_PAGE = 10;
@@ -23,9 +23,19 @@ const TEXT = {
   caution:
     "경쟁 제품을 지목하거나 깎아내리는 문구는 쓸 수 없어요(他社製品の誹謗広告の制限). 소구점은 자사 제품의 장점으로만 표현하고, 효능 표현은 광고 검토를 거쳐 주세요.",
   noCandidate: "기준을 넘는 소구점 후보가 없어요. 경쟁 제품 리뷰를 더 가져오면 달라질 수 있어요.",
+  noLowReviews: (max: number) => `비교할 경쟁 제품의 별점 1~${max}점 리뷰가 아직 없어요. 리뷰 가져오기에서 이 제품의 경쟁 제품 리뷰를 저장해 주세요.`,
   pickHint: "여러 개 고르면 아래 정리가 합쳐져요",
   pickNone: "후보를 하나 이상 고르면 소구 정리가 보여요",
 } as const;
+
+/** 후보가 0개인 이유. 분석 전이면 "후보 없음"이 아니라 아직 계산할 수 없는 것이다 */
+function emptyReason(d: AppealComparison) {
+  if (d.lowReviewCount === 0) return TEXT.noLowReviews(d.maxRating);
+  if (d.ownAnalyzedCount === 0 || d.lowAnalyzedCount === 0) {
+    return `리뷰는 있지만 AI 분석 전이라 후보를 계산할 수 없어요 (분석된 리뷰: 자사 ${d.ownAnalyzedCount}/${d.ownReviewCount}건 · 경쟁 ${d.lowAnalyzedCount}/${d.lowReviewCount}건).`;
+  }
+  return TEXT.noCandidate;
+}
 
 export function AppealCompare({
   comparisons,
@@ -160,7 +170,7 @@ export function AppealCompare({
               )}
             </div>
 
-            {candidates.length === 0 && <p className="text-sm text-muted-foreground">{TEXT.noCandidate}</p>}
+            {candidates.length === 0 && <p className="text-sm text-muted-foreground">{emptyReason(data)}</p>}
             <div role="group" aria-label="소구점 후보 선택" className="grid gap-3 md:grid-cols-3">
               {candidates.map((t) => {
                 const on = picked.has(t.topic);
