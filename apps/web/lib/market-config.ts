@@ -30,3 +30,61 @@ export const APPEAL_TAGS: Record<string, { ko: string; aliases: string[] }> = {
   "アルコールフリー": { ko: "무알코올", aliases: ["アルコールフリー", "ノンアルコール"] },
   "弱酸性": { ko: "약산성", aliases: ["弱酸性"] },
 };
+
+// ── PART 3 기회와 전략 ──────────────────────────────
+
+/** 수요-공급 빈칸: Top 10 중 이 수 이하로만 쓰인 키워드를 "채택이 낮다"고 본다 (참고 기준, 팀 확인 전) */
+export const GAP_MAX_ADOPTION = 3;
+
+/**
+ * 자사 제품 구분 (一般化粧品 / 医薬部外品). knowledge/yakkiho/00-README.md 기준 아직 미정이라 null.
+ * null이면 판정 표에서 어느 열도 강조하지 않고, 광고 사용 불가 묶음은 一般化粧品 기준으로 나눈다
+ */
+export type OwnProductClass = "general_cosmetic" | "quasi_drug" | null;
+export const OWN_PRODUCT_CLASS: OwnProductClass = null;
+
+/** 포지셔닝 맵 후보 영역: 코드로 계산하지 않고 근거 문장과 함께 정의한다. 담당자가 1~2개 중 고른다 */
+export type CandidateZone = {
+  id: string;
+  label: string;
+  /** ml당 실질 단가 범위 (円) */
+  ppm: [number, number];
+  /** Y축 어느 쪽인가 */
+  side: "low" | "high";
+  /** 근거가 된 수요-공급 빈칸 키워드 (claim_judgments.keyword) */
+  gap_keyword: string;
+  /** 어느 빈칸에서 나왔는지 설명 */
+  basis_ko: string;
+};
+
+/**
+ * 카테고리별 포지셔닝 맵의 Y축: 한 가지 축만 (여러 효능을 섞지 않고, 효능 클레임은 축으로 쓰지 않는다).
+ * 값은 상품명·설명(자사는 제품명·특징)의 사용감 표기로 정한다. 표기가 없거나 양쪽 다 있으면 맵에 찍지 않는다
+ */
+export const POSITIONING: Record<string, { label_ko: string; low: { ja: string; aliases: string[] }; high: { ja: string; aliases: string[] }; zones: CandidateZone[] }> = {
+  "化粧水": {
+    label_ko: "사용감",
+    low: { ja: "さっぱり", aliases: ["さっぱり", "みずみずしい", "산뜻", "가벼운"] },
+    high: { ja: "しっとり", aliases: ["しっとり", "とろみ", "濃密", "촉촉", "쫀쫀"] },
+    zones: [
+      { id: "z-toner-light", label: "후보 A · 산뜻한 중가대", ppm: [9, 13.5], side: "low", gap_keyword: "ベタつかない", basis_ko: "SNS 공통 표현 「ベタつかないのに乾かない」 수요가 있는데 Top 10 상품명·설명에서는 거의 쓰지 않는 빈칸" },
+      { id: "z-toner-value", label: "후보 B · 산뜻한 저가 대용량", ppm: [5, 8.5], side: "low", gap_keyword: "大容量", basis_ko: "AI 검색 답변의 결정 키워드 「大容量」이 반복되는데 Top 10 채택이 낮은 빈칸" },
+    ],
+  },
+  "美容液": {
+    label_ko: "사용감",
+    low: { ja: "さっぱり", aliases: ["さっぱり", "みずみずしい", "산뜻", "가벼운"] },
+    high: { ja: "しっとり", aliases: ["しっとり", "とろみ", "濃密", "촉촉", "쫀쫀"] },
+    zones: [
+      { id: "z-serum-dry", label: "후보 A · 산뜻한 보습 중저가", ppm: [50, 70], side: "low", gap_keyword: "乾燥", basis_ko: "자동완성의 「乾燥肌」 수요가 있는데 Top 10 상품명·설명에서는 쓰지 않는 빈칸" },
+    ],
+  },
+  "クリーム": {
+    label_ko: "사용감",
+    low: { ja: "さっぱり", aliases: ["さっぱり", "みずみずしい", "산뜻", "가벼운"] },
+    high: { ja: "しっとり", aliases: ["しっとり", "とろみ", "濃密", "촉촉", "쫀쫀"] },
+    zones: [
+      { id: "z-cream-light", label: "후보 A · 촉촉하지만 끈적이지 않는 중저가", ppm: [25, 35], side: "high", gap_keyword: "ベタつかない", basis_ko: "SNS 공통 표현 「重いのにベタつかない」 수요가 있는데 Top 10 상품명·설명에서는 쓰지 않는 빈칸" },
+    ],
+  },
+};
