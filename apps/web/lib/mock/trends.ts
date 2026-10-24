@@ -1,6 +1,7 @@
 import { TrendSnapshot } from "@/lib/schemas/trend";
 import { OWN_BRAND, ownProductName } from "@/lib/own-products";
 import { findBanner, qoo10Banners, sampleAppeal } from "./appeal-samples";
+import { rankingDetail } from "./ranking-details";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 楽天ランキング 화면의 항목 구성을 흉내 낸 합성 시계열 (샘플)
@@ -8,6 +9,8 @@ import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 // 순위는 고정 식(기준 점수 + 주별 기울기 + 고정 흔들림)으로 만들어 빌드마다 같다
 
 const WEEK_COUNT = 12;
+/** 랭킹은 20위까지만 저장한다 (prototype-plan 8장 10번) */
+const RANKING_SIZE = 20;
 const FIRST_MONDAY = "2026-08-03";
 
 function addDays(date: string, days: number): string {
@@ -156,6 +159,7 @@ const rakutenSnapshots = parseAll(
         // 신제품은 출시 주부터 랭킹에 나온다 (흔들림 seed는 원래 순서 i로 고정해 기존 후보 순위가 바뀌지 않게)
         .filter((item) => w >= item.start)
         .toSorted((a, b) => b.score - a.score)
+        .slice(0, RANKING_SIZE)
         .map((item, r) => ({
           rank: r + 1,
           name: item.name,
@@ -163,6 +167,7 @@ const rakutenSnapshots = parseAll(
           price_jpy: item.price_jpy,
           review_count: item.review_count,
           is_kbeauty: item.is_kbeauty,
+          ...rankingDetail(item.brand, item.name, category, findBanner("rakuten_ranking", item.brand, item.name)),
           appeal:
             category === APPEAL_CATEGORY && w === WEEK_COUNT - 1 && r < APPEAL_TOP_N
               ? appealFor(item.brand, item.name, ts(date, "06:00"))
@@ -206,6 +211,7 @@ const qoo10Snapshots = parseAll(
           price_jpy: b.price_jpy,
           review_count: b.review_count,
           is_kbeauty: b.is_kbeauty,
+          ...rankingDetail(b.brand, b.name, APPEAL_CATEGORY, b),
           appeal: b.rank <= APPEAL_TOP_N ? sampleAppeal(b, ts(LAST_WEEK, "07:00")) : undefined,
         })),
         ingredients: [],
