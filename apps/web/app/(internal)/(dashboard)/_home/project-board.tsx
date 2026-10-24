@@ -7,11 +7,11 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { getProjects } from "@/lib/data";
+import type { getBoardProjects } from "@/lib/data";
 import { dDay } from "@/lib/format";
 import { StageKey, type StageStatus } from "@/lib/schemas/project";
 
-type HomeProject = Awaited<ReturnType<typeof getProjects>>[number];
+type HomeProject = Awaited<ReturnType<typeof getBoardProjects>>[number];
 type HomeStage = HomeProject["stages"][number];
 
 const TEXT = {

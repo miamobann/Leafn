@@ -39,6 +39,20 @@
 | `workspace_members` | 팀 | workspace_id, user_id → profiles, role(`owner`·`member`) | `unique (workspace_id, user_id)` |
 | `activity_log` | 팀 | actor_id, action, target_type, target_id | target_id는 FK 없이 uuid (여러 테이블을 가리킴) |
 
+### 프로젝트 · 제품 (확정 · 2026-10-24 · 총괄)
+
+워크스페이스(팀) → 프로젝트(제품군, 예: Leaf& Dew) → 제품. 화면 헤더에서 프로젝트를 고르고, 그 안의 제품은 탭을 나누지 않고 한 화면에서 다룬다. 마이그레이션 `20261024104911_projects_products.sql`이 이 정의를 따른다.
+
+| 테이블 | 범위 | 핵심 칸 | 비고 |
+| --- | --- | --- | --- |
+| `projects` | 팀 | name, platform_id(FK 없음, 진출 실행 테이블과 같은 이유), description, created_by → profiles, updated_at | `unique (workspace_id, name)`, `unique (id, workspace_id)` (복합 FK 대상) |
+
+- **제품은 `products`에 칸을 더한다** (별도 테이블을 만들지 않음): `project_id`, `sale_status`(`on_sale`·`in_development`), `skin_line`(`dry`·`oily`·`combo`). `(project_id, workspace_id)` → projects 복합 FK, 프로젝트를 지우면 `project_id`만 null (`on delete set null (project_id)`). 한 프로젝트 안에서 제품 이름은 겹치지 않는다 (부분 unique 인덱스).
+- `products` 테이블 자체는 TAB 2 마이그레이션 `20261023202113_create_products_reviews.sql`(PR #48)이 만든다. 이 마이그레이션은 그 뒤에 칸만 더하므로 #48 다음에 적용한다.
+- `skin_line`은 제품이 겨냥하는 피부 라인이다. 설문의 `skin_type`(진단 결과, 5종)과는 다른 값이다.
+- 홈 진행 현황판의 가짜 데이터는 코드에서 `boardProjects`(현황판 한 줄 = 자사 제품 하나)로 이름을 바꿨다. DB 테이블은 대시보드 작업에서 제품 단위로 정한다.
+- 시작 데이터(Leaf& Dew 6종)는 `supabase/seeds/projects_leaf_dew.sql`. DB 관리자가 마이그레이션 적용 뒤 참여 코드를 넣어 실행한다.
+
 ### 기준표 (공용)
 
 | 테이블 | 핵심 칸 | 비고 |
@@ -49,7 +63,7 @@
 
 | 테이블 | 범위 | 핵심 칸 | 비고 |
 | --- | --- | --- | --- |
-| `products` | 팀 | kind(`own`·`competitor`), brand, name, category, platform_id → platforms, url, price_jpy, price_kind, volume_ml, ingredients `text[]`, features `text[]`, image_path, raw | ml당 가격은 저장하지 않음 (8장 11번) |
+| `products` | 팀 | kind(`own`·`competitor`), brand, name, category, platform_id → platforms, url, price_jpy, price_kind, volume_ml, ingredients `text[]`, features `text[]`, image_path, raw, **project_id**, **sale_status**, **skin_line** | ml당 가격은 저장하지 않음 (8장 11번). project_id · sale_status · skin_line은 2026-10-24 추가 (위 "프로젝트 · 제품") |
 | `reviews` | 팀 | product_id, **platform_id**, **source**, external_id, lang, rating, body, body_ko, reviewer_attrs `jsonb`, posted_at, raw, collected_at | 지금 Zod의 `source`(cosme·rakuten·…·csv)를 플랫폼과 수집 방법 둘로 나눈다 |
 | `review_analyses` | 팀 | **workspace_id**, review_id (unique), sentiment, keywords `jsonb` [{text, category}], pain_points, repurchase_factors, model, prompt_version | Zod에는 workspace_id가 없음 → 추가 (RLS를 단순하게) |
 | `review_insights` | 팀 | product_id, kind, label, label_ko, count, evidence_review_ids `uuid[]` | 분석을 다시 돌리면 다시 만들어지는 파생 데이터 |
@@ -145,6 +159,7 @@
 
 ```
 workspaces ─┬─ workspace_members ── profiles (= auth.users)
+            ├─ projects ── products (project_id)
             ├─ products ──┬─ reviews ──┬─ review_analyses
             │             │            └─ review_translations ── ad_checks
             │             ├─ review_insights
