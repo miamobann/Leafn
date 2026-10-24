@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ViewStateGate } from "@/components/common/view-state";
-import { MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
+import { IMPORTED_SNAPSHOT_PREFIX, MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
 import type { GeoSnap } from "@/lib/schemas/geo";
 import type { SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
 import type { Product } from "@/lib/schemas/product";
@@ -58,7 +58,9 @@ export function MarketOverview({
   const sameSource = snapshots.filter((s) => s.source === platform);
   const latest = series.at(-1);
   const week = latest ? `${weekLabel(latest.captured_at)} 주` : null;
-  const basis = week ? `${week} · ${platformInfo.label}` : `${platformInfo.label} · 이 카테고리 데이터 없음`;
+  // 랭킹을 쓰는 섹션(요약·시장 개관·공급)은 실데이터면 실데이터로 표시한다. 수요는 아직 샘플 데이터라 샘플 그대로
+  const realRanking = Boolean(latest?.id.startsWith(IMPORTED_SNAPSHOT_PREFIX));
+  const basis = week ? `${week} · ${platformInfo.label}${realRanking ? " 수집 데이터" : ""}` : `${platformInfo.label} · 이 카테고리 데이터 없음`;
 
   const toggleCompare = (id: string) =>
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX_COMPARE ? cur : [...cur, id]));
@@ -99,7 +101,7 @@ export function MarketOverview({
           {SECTIONS.map((s) => (
             // 바로가기로 이동했을 때 머리말이 고정 바에 가려지지 않게 scroll-margin을 준다
             <section key={s.id} id={s.id} aria-labelledby={`${s.id}-title`} className="scroll-mt-40">
-              <SectionHeader titleId={`${s.id}-title`} title={s.title} question={s.question} basis={basis} featureIds={[...s.featureIds]} />
+              <SectionHeader titleId={`${s.id}-title`} title={s.title} question={s.question} basis={basis} featureIds={[...s.featureIds]} real={realRanking && s.id !== "demand"} />
               {body[s.id]}
             </section>
           ))}

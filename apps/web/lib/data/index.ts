@@ -6,6 +6,7 @@ import type { Product } from "@/lib/schemas/product";
 import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
 import { AppealTopic } from "@/lib/schemas/review";
+import { importedSnapshots } from "./market-imports";
 
 export async function getWorkspace() {
   return mock.workspace;
@@ -127,7 +128,10 @@ export async function getAdCheck(id: string) {
 
 /** source는 필수 (楽天·Qoo10 시계열이 섞이지 않게). category를 빼면 모든 카테고리. captured_at 오름차순 */
 export async function getTrendSnapshots(opts: { source: TrendSource; category?: string }) {
-  return mock.trendSnapshots
+  // 실데이터(수집 CSV)가 있는 플랫폼·카테고리는 샘플 대신 실데이터만 쓴다
+  const imported = importedSnapshots();
+  const hasImport = (t: { source: string; category: string }) => imported.some((i) => i.source === t.source && i.category === t.category);
+  return [...mock.trendSnapshots.filter((t) => !hasImport(t)), ...imported]
     .filter((t) => t.source === opts.source)
     .filter((t) => !opts.category || t.category === opts.category)
     .toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));

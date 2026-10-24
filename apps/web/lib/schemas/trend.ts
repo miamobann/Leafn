@@ -19,7 +19,8 @@ export const RankingItem = z.object({
   name: z.string(),
   brand: z.string(),
   price_jpy: z.number().int().nonnegative(),
-  review_count: z.number().int().nonnegative(),
+  /** 리뷰 수. 수집값에 없으면 null (Qoo10 랭킹 CSV에는 아직 없다) */
+  review_count: z.number().int().nonnegative().nullable(),
   is_kbeauty: z.boolean(),
   // 제안: 시장 분석 원페이지(상위권 진입 조건). data jsonb 안의 값이라 컬럼 추가는 없다
   // price_jpy는 평시가(税込) 기준 (8장 11번). 행사 주간 여부는 promo_events와 대조해 화면에서 계산한다
@@ -44,6 +45,11 @@ export const RankingItem = z.object({
   discount_rate: z.number().min(0).max(100).nullable().optional(),
   /** 할인 적용가 (税込) */
   sale_price_jpy: z.number().int().nonnegative().nullable().optional(),
+  // 제안: Qoo10 랭킹 수집값 (팀원 CSV)
+  /** 상품 페이지 주소 */
+  url: z.string().url().nullable().optional(),
+  /** 수집값의 핵심 유효 성분 (한국어 정리본) */
+  key_ingredients_ko: z.string().nullable().optional(),
 });
 export type RankingItem = z.infer<typeof RankingItem>;
 
