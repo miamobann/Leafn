@@ -180,5 +180,52 @@ class DbCallsTest(unittest.TestCase):
         self.assertNotIn("secret-key", str(ctx.exception))
 
 
+class WriteResultTest(unittest.TestCase):
+    def _result(self, products, reviews, aborted=None):
+        meta = {"aborted": aborted} if aborted else {}
+        return {"meta": meta, "products": products, "reviews": reviews}
+
+    def test_writes_products_and_staged_reviews_then_marks_ready(self):
+        db, session = make_db([
+            FakeResponse([{"id": "rp-1"}]),  # 제품 1
+            FakeResponse(None),  # 제품 1의 임시 리뷰
+            FakeResponse([{"id": "rp-2"}]),  # 제품 2 (리뷰 없음)
+            FakeResponse(None),  # 수집 요청 갱신
+        ])
+        result = self._result([product(), product(gd_no="222", rank=2)], [review(), review(external_id="r2")])
+        summary = d.write_result(db, "run-1", result)
+        self.assertEqual((summary["status"], summary["products_done"], summary["staged_reviews"]), ("ready", 2, 2))
+        staged_call = session.calls[1]
+        self.assertEqual((staged_call["url"].rsplit("/", 1)[1], len(staged_call["body"])), ("collection_staged_reviews", 2))
+        self.assertEqual(staged_call["body"][0]["run_product_id"], "rp-1")
+        self.assertEqual(len(session.calls), 4)  # 리뷰 없는 제품은 임시 리뷰 요청을 보내지 않는다
+        self.assertEqual(session.calls[-1]["body"]["status"], "ready")
+
+    def test_excluded_listings_are_written_and_counted(self):
+        db, session = make_db([FakeResponse([{"id": "rp-1"}]), FakeResponse(None), FakeResponse(None), FakeResponse(None)])
+        result = {**self._result([product()], [review()]), "excluded": [{"rank": 2, "gd_no": "222", "title": "洗顔クレンジング", "brand": "", "url": "", "reason": "not_toner"}]}
+        summary = d.write_result(db, "run-1", result)
+        self.assertEqual(summary["excluded"], 1)
+        skipped_call = next(c for c in session.calls if c["url"].endswith("collection_run_skipped"))
+        self.assertEqual(skipped_call["body"][0]["reason"], "not_toner")
+
+    def test_no_excluded_listings_sends_no_skipped_request(self):
+        db, session = make_db([FakeResponse([{"id": "rp-1"}]), FakeResponse(None), FakeResponse(None)])
+        d.write_result(db, "run-1", self._result([product()], [review()]))
+        self.assertFalse(any(c["url"].endswith("collection_run_skipped") for c in session.calls))
+
+    def test_nothing_read_marks_the_run_failed(self):
+        db, session = make_db([FakeResponse([{"id": "rp-1"}]), FakeResponse(None)])
+        result = self._result([product(status="failed", error="boom")], [])
+        self.assertEqual(d.write_result(db, "run-1", result)["status"], "failed")
+
+    def test_blocked_midway_keeps_partial_result_and_records_why(self):
+        db, session = make_db([FakeResponse([{"id": "rp-1"}]), FakeResponse(None), FakeResponse(None)])
+        result = self._result([product()], [review()], aborted="접근이 막혀 멈췄어요")
+        summary = d.write_result(db, "run-1", result)
+        self.assertEqual(summary["status"], "ready")  # 읽은 제품이 있으니 미리보기는 남긴다
+        self.assertEqual(session.calls[-1]["body"]["error"], "접근이 막혀 멈췄어요")
+
+
 if __name__ == "__main__":
     unittest.main()

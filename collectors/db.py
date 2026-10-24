@@ -183,6 +183,28 @@ class Db:
     def update_run(self, run_id: str, **fields: Any) -> None:
         self._call("PATCH", "collection_runs", {**self._ws(), "id": f"eq.{run_id}"}, fields)
 
+    # ---- 일꾼(worker) 모드: 화면이 만든 대기(queued) 요청을 집어 간다 ----
+
+    def next_queued_run(self) -> dict[str, Any] | None:
+        rows = self._call("GET", "collection_runs", {**self._ws(), "status": "eq.queued", "order": "created_at.asc", "limit": "1", "select": "*"})
+        return rows[0] if rows else None
+
+    def claim_run(self, run_id: str) -> bool:
+        """대기 요청을 수집 중(running)으로 바꿔 내 것으로 한다. 다른 일꾼이 먼저 집어 갔으면 False (status=queued 조건이 겹침을 막는다)."""
+        got = self._call(
+            "PATCH", "collection_runs", {**self._ws(), "id": f"eq.{run_id}", "status": "eq.queued", "select": "id"},
+            {"status": "running", "started_at": now_iso()}, prefer="return=representation",
+        )
+        return bool(got)
+
+    def fail_stale_runs(self, older_than: str) -> int:
+        """수집 중인데 older_than(ISO 시각)보다 오래 소식이 없는 요청을 실패로 바꾼다 (일꾼이 도중에 꺼진 경우)."""
+        got = self._call(
+            "PATCH", "collection_runs", {**self._ws(), "status": "eq.running", "started_at": f"lt.{older_than}", "select": "id"},
+            {"status": "failed", "finished_at": now_iso(), "error": "수집기가 도중에 멈춘 것 같아요. 다시 불러와 주세요"}, prefer="return=representation",
+        )
+        return len(got or [])
+
     def add_run_product(self, run_id: str, p: dict[str, Any]) -> str:
         return self._call("POST", "collection_run_products", body=product_row(run_id, self.workspace_id, p), prefer="return=representation")[0]["id"]
 
@@ -195,3 +217,31 @@ class Db:
         rows = [staged_row(self.workspace_id, run_product_id, r) for r in reviews]
         for start in range(0, len(rows), CHUNK):
             self._call("POST", "collection_staged_reviews", body=rows[start : start + CHUNK])
+
+
+def write_result(db: Db, run_id: str, result: dict[str, Any]) -> dict[str, Any]:
+    """collect() 결과를 DB에 쓰고 수집 요청을 마무리한다.
+
+    미리보기(ready)가 되는 경우: 읽은 제품이 하나라도 있다. 막혀서 중간에 멈췄어도 그때까지의 결과는 남기고 error에 이유를 적는다.
+    제품을 하나도 못 읽었으면 failed.
+    """
+    done = 0
+    staged = 0
+    for p in result["products"]:
+        run_product_id = db.add_run_product(run_id, p)
+        reviews = [r for r in result["reviews"] if r["product_gd_no"] == p["gd_no"]]
+        if reviews:
+            db.add_staged_reviews(run_product_id, reviews)
+        if p.get("status") == "done":
+            done += 1
+        staged += len(reviews)
+    excluded = result.get("excluded", [])
+    if excluded:
+        db.add_skipped(run_id, excluded)
+    aborted = result["meta"].get("aborted")
+    status = "ready" if done else "failed"
+    db.update_run(run_id, status=status, finished_at=now_iso(), error=aborted)
+    return {
+        "status": status, "products": len(result["products"]), "products_done": done,
+        "staged_reviews": staged, "excluded": len(excluded), "aborted": aborted,
+    }
