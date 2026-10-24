@@ -66,24 +66,3 @@ export const ClaimJudgment = WorkspaceRow.extend({
 }).extend(AiMeta.shape);
 export type ClaimJudgment = z.infer<typeof ClaimJudgment>;
 
-/** 사용 위치 */
-export const CopyPlacement = z.enum(["product_name", "detail_page", "qa", "ad"]);
-export type CopyPlacement = z.infer<typeof CopyPlacement>;
-
-/** 카피 후보 (AI가 재료로 만든다고 가정한 샘플). 재료는 수요-공급 빈칸·AI 검색 결정 키워드 중 자사 스펙으로 사실인 것만 */
-export const CopyCandidate = WorkspaceRow.extend({
-  category: z.string(),
-  /** 이 카피가 겨냥하는 후보 영역 (lib/market-config.ts) */
-  zone_id: z.string(),
-  own_product_id: z.string(),
-  copy_ja: z.string(),
-  copy_ko: z.string(),
-  /** 재료 키워드 (ClaimJudgment.keyword) */
-  materials: z.array(z.string()).min(1),
-  placements: z.array(CopyPlacement).min(1),
-  /** 성분을 특기하면 그 성분의 배합 목적 (F5.5). 성분을 안 쓰면 null */
-  ingredient_purpose: z.string().nullable(),
-  /** 검증 지표와 측정 방법. 목표 수치·표본 수는 지어내지 않는다 */
-  verification: z.object({ metric: z.string(), method: z.string() }),
-}).extend(AiMeta.shape);
-export type CopyCandidate = z.infer<typeof CopyCandidate>;

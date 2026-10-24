@@ -218,3 +218,42 @@ export function ownDiff(row: OverviewRow, own: Product) {
     onlyOwn: [...ownHas].filter((x) => !rowHas.has(x)),
   };
 }
+
+// ── PART 0. 가격 포지셔닝 맵 ──────────────────────
+// [심리적 가격 저항선 × 실질 가치]: 장바구니에서 느끼는 판매가와 실제 용량 대비 ml당 실질 가격의 괴리를 본다
+
+export type PricePoint = {
+  id: string;
+  label: string;
+  /** 판매가 (税込, 평시가) */
+  price: number;
+  /** ml당 실질 가격 (같은 제품 추가 용량까지 나눈 값) */
+  ppm: number;
+  promo: string | null;
+  own: boolean;
+  row?: OverviewRow;
+};
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = values.toSorted((a, b) => a - b);
+  return Math.round(quantile(sorted, 0.5) * 10) / 10;
+}
+
+export function priceMap(top: OverviewRow[], products: Product[], category: string) {
+  const points: PricePoint[] = top.flatMap((r) =>
+    // 수상·랭킹 배지(award)는 프로모션이 아니라서 뺀다 (세트·할인·한정·증정만 프로모션 진행 중)
+    r.ppm === null ? [] : [{ id: `${r.brand}|${r.name}`, label: `${r.rank}위 ${r.brand} ${r.name}`, price: r.price_jpy, ppm: r.ppm, promo: r.promo_type && r.promo_type !== "award" ? (r.promo_text ?? null) : null, own: false, row: r }],
+  );
+  const own: PricePoint[] = products
+    .filter((p) => p.kind === "own" && p.category === category && p.price_jpy != null && p.volume_ml)
+    .map((p) => ({ id: p.id, label: `자사 ${p.name}`, price: p.price_jpy as number, ppm: round1((p.price_jpy as number) / (p.volume_ml as number)), promo: null, own: true }));
+  return {
+    points,
+    own,
+    medianPrice: median(points.map((p) => p.price)),
+    medianPpm: median(points.map((p) => p.ppm)),
+    /** 용량 정보가 없어 찍지 못한 제품 */
+    unplaced: top.filter((r) => r.ppm === null),
+  };
+}
