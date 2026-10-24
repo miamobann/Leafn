@@ -145,7 +145,7 @@ export function SupplyPart({
         <TableCell className={WIDE_ONLY}>{r.promo_type ? PROMO_HOOK_LABEL[r.promo_type] : "—"}</TableCell>
         <TableCell className="text-right">
           {r.rating != null ? r.rating.toFixed(1) : "—"}
-          <span className="block text-xs text-muted-foreground">{r.review_count.toLocaleString("ko-KR")}건</span>
+          <span className="block text-xs text-muted-foreground">{r.review_count !== null ? `${r.review_count.toLocaleString("ko-KR")}건` : "리뷰 수 없음"}</span>
         </TableCell>
       </TableRow>
     );
@@ -174,9 +174,9 @@ export function SupplyPart({
           <ConditionCard
             title="리뷰 허들"
             definition={DEFINITIONS.reviews}
-            value={`${reviews.min.toLocaleString("ko-KR")}건`}
-            sub={`최소 · 중앙값 ${reviews.median.toLocaleString("ko-KR")}건`}
-            onClick={() => list("리뷰 수 · 적은 순", DEFINITIONS.reviews, reviews.rows.map((row) => ({ row, note: `리뷰 ${row.review_count.toLocaleString("ko-KR")}건` })))}
+            value={reviews ? `${reviews.min.toLocaleString("ko-KR")}건` : "—"}
+            sub={reviews ? `최소 · 중앙값 ${reviews.median.toLocaleString("ko-KR")}건` : "수집 데이터에 리뷰 수가 없어요"}
+            onClick={reviews ? () => list("리뷰 수 · 적은 순", DEFINITIONS.reviews, reviews.rows.map((row) => ({ row, note: `리뷰 ${(row.review_count ?? 0).toLocaleString("ko-KR")}건` }))) : undefined}
           />
           <ConditionCard
             title="수상·매체 이력"

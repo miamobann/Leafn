@@ -71,14 +71,19 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
           {row.rank}위 {row.prevRank !== null ? <span className="text-muted-foreground">(전주 {row.prevRank}위)</span> : <span className="text-muted-foreground">(전주 20위 밖)</span>}
         </Fact>
         <Fact label="K-뷰티">{row.is_kbeauty ? "예" : "아니오"}</Fact>
-        <Fact label="판매가 (税込, 평시가)">{formatJpy(row.price_jpy)}</Fact>
+        <Fact label="판매가 (税込, 정가)">{formatJpy(row.price_jpy)}</Fact>
+        {row.sale_price_jpy != null && (
+          <Fact label="할인 적용가">
+            {formatJpy(row.sale_price_jpy)} {row.discount_rate != null && <span className="text-muted-foreground">({row.discount_rate}% 할인)</span>}
+          </Fact>
+        )}
         <Fact label="용량">
           {row.volume_ml ? `${row.volume_ml}ml` : "—"}
           {row.extra_volume_ml ? <span className="block text-xs text-muted-foreground">+ 같은 제품 {row.extra_volume_ml}ml</span> : null}
         </Fact>
         <Fact label="ml당 실질 단가">{row.ppm !== null ? `${row.ppm}円` : "—"}</Fact>
         <Fact label="평점 · 리뷰">
-          {row.rating != null ? `${row.rating.toFixed(1)} / ${row.rating_scale ?? 5}` : "—"} · {row.review_count.toLocaleString("ko-KR")}건
+          {row.rating != null ? `${row.rating.toFixed(1)} / ${row.rating_scale ?? 5}` : "—"} · {row.review_count !== null ? `${row.review_count.toLocaleString("ko-KR")}건` : "리뷰 수 없음"}
         </Fact>
         <Fact label="프로모션">
           {row.promo_type ? (
@@ -89,6 +94,7 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
             "—"
           )}
         </Fact>
+        {row.key_ingredients_ko && <Fact label="핵심 성분 (수집값)">{row.key_ingredients_ko}</Fact>}
         <Fact label="수상·배지">{(row.badges ?? []).length > 0 ? <span lang="ja">{row.badges?.join(" · ")}</span> : "—"}</Fact>
       </section>
 
@@ -143,6 +149,11 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
           </Link>
         ) : (
           <span className="self-center text-xs text-muted-foreground">상세 없음 (등록되지 않은 제품이라 비교·상세를 열 수 없어요)</span>
+        )}
+        {row.url && (
+          <a href={row.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            상품 페이지 열기 ↗
+          </a>
         )}
       </div>
       {compareFull && <p className="text-xs text-muted-foreground">비교는 {MAX_COMPARE}개까지 고를 수 있어요</p>}
