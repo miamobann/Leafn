@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PromoEventView } from "@/lib/data/launch";
+import { CalendarTodo, type PendingCopy } from "./calendar-todo";
 
 const TEXT = {
   title: "프로모션 캘린더",
@@ -22,7 +23,17 @@ const PromoCalendar = dynamic(() => import("../calendar/promo-calendar").then((m
   loading: () => <Skeleton className="h-[560px] w-full" />,
 });
 
-export function HomeCalendar({ events, platformKeys, today }: { events: PromoEventView[]; platformKeys: string[]; today: string }) {
+export function HomeCalendar({
+  events,
+  platformKeys,
+  today,
+  pending,
+}: {
+  events: PromoEventView[];
+  platformKeys: string[];
+  today: string;
+  pending: PendingCopy[];
+}) {
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -35,7 +46,14 @@ export function HomeCalendar({ events, platformKeys, today }: { events: PromoEve
         </CardAction>
       </CardHeader>
       <CardContent>
-        <PromoCalendar events={events} platformKeys={platformKeys} today={today} variant="home" />
+        {/* 다음 행사와 할 일은 따로 상자를 두지 않고, 아무 일정도 고르지 않았을 때 캘린더 오른쪽 패널에 보인다 */}
+        <PromoCalendar
+          events={events}
+          platformKeys={platformKeys}
+          today={today}
+          variant="home"
+          renderIdle={(ctx) => <CalendarTodo {...ctx} pending={pending} today={today} />}
+        />
       </CardContent>
     </Card>
   );

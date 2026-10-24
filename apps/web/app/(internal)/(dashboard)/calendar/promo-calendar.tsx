@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { type ReactNode, useMemo, useState, useTransition } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import listPlugin from "@fullcalendar/list";
@@ -30,11 +30,14 @@ export function PromoCalendar({
   platformKeys,
   today,
   variant = "page",
+  renderIdle,
 }: {
   events: PromoEventView[];
   platformKeys: string[];
   today: string;
   variant?: keyof typeof VIEW;
+  /** 아무 일정도 고르지 않았을 때 오른쪽 패널에 보일 내용 (홈의 다음 행사·할 일). 없으면 안내 문구 */
+  renderIdle?: (ctx: { events: PromoEventView[]; select: (eventId: string) => void }) => ReactNode;
 }) {
   const isPage = variant === "page";
   const [events, setEvents] = useState(initial);
@@ -44,6 +47,7 @@ export function PromoCalendar({
   const [, startTransition] = useTransition();
 
   const selected = events.find((e) => e.id === selectedId) ?? null;
+  const idle = !selected && renderIdle ? renderIdle({ events, select: setSelectedId }) : null;
 
   const calendarEvents = useMemo<EventInput[]>(
     () =>
@@ -123,10 +127,18 @@ export function PromoCalendar({
         />
       </div>
 
-      <Card className="h-fit">
-        <CardHeader>
-          <CardTitle>{selected ? selected.title : "일정을 눌러 보세요"}</CardTitle>
-        </CardHeader>
+      {/* 홈에서는 바깥 카드 안에 들어가므로 테두리를 왼쪽 선 하나로 줄인다 */}
+      <Card className={isPage ? "h-fit" : "h-fit gap-4 rounded-none border-l bg-transparent py-0 ring-0"}>
+        {!idle && (
+          <CardHeader>
+            {selected && renderIdle && (
+              <button type="button" onClick={() => setSelectedId(null)} className="w-fit text-xs text-muted-foreground hover:text-foreground">
+                ← 할 일 보기
+              </button>
+            )}
+            <CardTitle>{selected ? selected.title : "일정을 눌러 보세요"}</CardTitle>
+          </CardHeader>
+        )}
         <CardContent className="space-y-3 text-sm">
           {selected ? (
             <>
@@ -167,7 +179,7 @@ export function PromoCalendar({
               <p className="text-xs text-muted-foreground">체크와 추가는 샘플이라 새로고침하면 사라져요 (DB 연결 전)</p>
             </>
           ) : (
-            <p className="text-muted-foreground">행사 막대나 ▲ 마감을 누르면 준비 상황이 여기 보여요.</p>
+            (idle ?? <p className="text-muted-foreground">행사 막대나 ▲ 마감을 누르면 준비 상황이 여기 보여요.</p>)
           )}
         </CardContent>
       </Card>

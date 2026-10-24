@@ -108,7 +108,7 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
   const { selection, select } = useSelection();
 
   return (
-    <Card id={BOARD_ID} className="mt-6">
+    <Card id={BOARD_ID}>
       <CardHeader>
         <CardTitle>{TEXT.title}</CardTitle>
         <CardAction className="text-xs text-muted-foreground">{TEXT.hint}</CardAction>
