@@ -36,12 +36,6 @@ export const APPEAL_TAGS: Record<string, { ko: string; aliases: string[] }> = {
 /** 수요-공급 빈칸: Top 10 중 이 수 이하로만 쓰인 키워드를 "채택이 낮다"고 본다 (참고 기준, 팀 확인 전) */
 export const GAP_MAX_ADOPTION = 3;
 
-/**
- * 자사 제품 구분 (一般化粧品 / 医薬部外品). knowledge/yakkiho/00-README.md 기준 아직 미정이라 null.
- * null이면 판정 표에서 어느 열도 강조하지 않고, 광고 사용 불가 묶음은 一般化粧品 기준으로 나눈다
- */
-export type OwnProductClass = "general_cosmetic" | "quasi_drug" | null;
-export const OWN_PRODUCT_CLASS: OwnProductClass = null;
 
 /** 포지셔닝 맵 후보 영역: 코드로 계산하지 않고 근거 문장과 함께 정의한다. 담당자가 1~2개 중 고른다 */
 export type CandidateZone = {
