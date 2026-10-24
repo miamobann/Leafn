@@ -10,11 +10,14 @@ import { APPEAL_TAGS } from "@/lib/market-config";
 import type { Product } from "@/lib/schemas/product";
 import { INGREDIENT_MATCH, PROMO_HOOK_LABEL } from "@/app/(internal)/(dashboard)/market/_lib/market";
 import { ownDiff, type OverviewRow } from "@/app/(internal)/(dashboard)/market/_lib/overview";
+import { highlightParts } from "@/app/(internal)/(dashboard)/market/_lib/demand";
 
-/** 오른쪽 패널에 띄울 내용: 제품 하나의 요약, 또는 숫자·막대의 근거 제품 목록 */
+/** 오른쪽 패널에 띄울 내용: 제품 요약, 근거 제품 목록, 근거 원문(자동완성·영상 메모), AI 답변 원문 */
 export type PanelContent =
   | { kind: "product"; row: OverviewRow }
-  | { kind: "list"; title: string; description?: string; rows: { row: OverviewRow; note?: string }[] };
+  | { kind: "list"; title: string; description?: string; rows: { row: OverviewRow; note?: string }[] }
+  | { kind: "quotes"; title: string; description?: string; quotes: { ja: string; ko?: string; note?: string }[]; footnote?: string; link?: { href: string; label: string } }
+  | { kind: "answers"; title: string; description?: string; answers: { heading: string; text: string; marks: string[]; citations: { url: string; domain: string; title: string | null }[] }[]; footnote?: string };
 
 export const MAX_COMPARE = 4;
 
@@ -169,6 +172,60 @@ export function OverviewPanel({
         description={row.name_ko}
       >
         <ProductSummary row={row} own={own} selected={selected} onToggleCompare={onToggleCompare} />
+      </EvidenceSheet>
+    );
+  }
+
+  if (content.kind === "quotes") {
+    return (
+      <EvidenceSheet open onOpenChange={(open) => !open && onClose()} title={content.title} description={content.description}>
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          근거 원문 <LangBadge lang="ja" /> + 한국어 해석
+        </p>
+        <ul className="space-y-2">
+          {content.quotes.map((q, i) => (
+            <li key={i} className="rounded-md border p-2 text-sm">
+              <p lang="ja">{q.ja}</p>
+              {q.ko && <p className="mt-0.5 text-xs text-muted-foreground">{q.ko}</p>}
+              {q.note && <p className="mt-1 text-xs text-muted-foreground">{q.note}</p>}
+            </li>
+          ))}
+        </ul>
+        {content.link && (
+          <Link href={content.link.href} target="_blank" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            {content.link.label} ↗
+          </Link>
+        )}
+        {content.footnote && <p className="text-xs text-muted-foreground">{content.footnote}</p>}
+      </EvidenceSheet>
+    );
+  }
+
+  if (content.kind === "answers") {
+    return (
+      <EvidenceSheet open onOpenChange={(open) => !open && onClose()} title={content.title} description={content.description}>
+        {content.answers.map((a, i) => (
+          <section key={i} className="space-y-1">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              {a.heading} <LangBadge lang="ja" />
+            </h3>
+            <p lang="ja" className="rounded-md bg-muted p-2 text-sm leading-relaxed">
+              {highlightParts(a.text, a.marks).map((part, j) =>
+                part.mark ? (
+                  <mark key={j} className="rounded bg-primary/15 px-0.5 font-medium text-foreground underline underline-offset-2">
+                    {part.text}
+                  </mark>
+                ) : (
+                  <span key={j}>{part.text}</span>
+                ),
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              인용 출처: {a.citations.length === 0 ? "엔진이 출처를 주지 않았어요" : a.citations.map((c) => c.domain).join(", ")}
+            </p>
+          </section>
+        ))}
+        {content.footnote && <p className="text-xs text-muted-foreground">{content.footnote}</p>}
       </EvidenceSheet>
     );
   }
