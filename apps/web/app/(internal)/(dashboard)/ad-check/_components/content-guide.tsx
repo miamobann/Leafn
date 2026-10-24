@@ -1,13 +1,17 @@
 "use client";
 
-// 콘텐츠 제작 가이드: 제품·채널(·게시물 종류)을 고르면 제목 추천 3개(좌)·채널 양식 미리보기(우)·본문 추천(아래)을 보여준다.
-// 화면 뼈대라 샘플 데이터만 쓴다. AI 호출·사진 업로드·저장·PDF 출력은 아직 없다.
+// 콘텐츠 제작 가이드: 제품·채널(·게시물 종류)을 고르고 「제작하기」를 누르면 제목 추천 3개(좌)가 나오고,
+// 제목을 고르면 그 제목으로 채널 양식 미리보기(우)·본문 추천(아래)이 나온다 (AI 연결 후의 2단계 흐름).
+// 화면 뼈대라 샘플 데이터를 짧게 기다렸다 보여 준다. AI 호출·사진 업로드·저장·PDF 출력은 아직 없다.
+// 블록 메모는 화면에만 두고(저장 안 함) PDF 출력에 함께 넣을 예정이다.
 // 사진 칸에는 어떤 사진이 들어갈지 설명만 보여 준다.
 import { Bell, ChevronLeft, ChevronRight, Heart, Search, ShoppingCart, Store } from "lucide-react";
-import { useRef, useState } from "react";
-import { EmptyState } from "@/components/common/states";
+import { useEffect, useRef, useState } from "react";
+import { EmptyState, LoadingState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   fillProduct,
   GUIDE_CHANNELS,
@@ -20,6 +24,7 @@ import {
   X_CHAR_LIMIT,
   X_CHAR_RECOMMENDED,
   X_MAX_HASHTAGS,
+  type GalleryShot,
   type GuideBlock,
   type GuideChannel,
   type GuideDraft,
@@ -36,6 +41,12 @@ const PANEL_HEIGHT = "h-[32rem]";
 const RECOMMENDED = "rounded px-1.5 text-xs bg-risk-low/15 text-risk-low";
 /** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
 const KEYWORD_TAGS = 1;
+/** 강조할 방향 글자 수 제한 (AI에 방향 참고로만 보낸다. 약기법이 항상 먼저) */
+const DIRECTION_MAX = 50;
+/** 강조할 방향 예시: 대화가 아니라 키워드로 쓰게 짧은 낱말로 둔다. 누르면 칸에 채워진다 */
+const DIRECTION_EXAMPLES = ["연말 선물", "첫 구매 고객", "재구매 유도", "보습 강조"];
+/** AI 연결 전, 생성 순서를 보여 주려고 샘플을 띄우기 전에 잠깐 기다리는 시간 */
+const SAMPLE_DELAY_MS = 700;
 
 /** 제품별로 반영한 재료 (리뷰 소구점 · 검색어 순위). 가짜 데이터 */
 export type GuideMaterials = Record<string, { hasReviews: boolean; appeals: string[]; keywords: string[] }>;
@@ -97,7 +108,18 @@ function PagerDots({ count, at }: { count: number; at: number }) {
 }
 
 /** 본문 추천: 블록을 한 장씩 옆으로 넘기며 본다 (블록이 많은 상세페이지·여러 장 SNS가 길어지지 않게) */
-function BodyPager({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
+function BodyPager({
+  blocks,
+  fill,
+  memos,
+  onMemo,
+}: {
+  blocks: GuideBlock[];
+  fill: Fill;
+  /** 블록 key → 메모 */
+  memos: Record<string, string>;
+  onMemo: (blockKey: string, text: string) => void;
+}) {
   const [index, setIndex] = useState(0);
   const at = Math.min(index, blocks.length - 1);
   const b = blocks[at];
@@ -115,12 +137,13 @@ function BodyPager({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
             className={`rounded-full border px-2 py-0.5 text-xs ${i === at ? "border-foreground bg-muted font-medium" : "text-muted-foreground hover:bg-muted"}`}
           >
             {i + 1}. {x.heading}
+            {memos[x.key] && <span className="text-primary"> · 메모</span>}
           </button>
         ))}
       </div>
-      {/* 높이를 고정해 넘길 때 칸·화살표가 위아래로 움직이지 않게 한다. 글이 길면 칸 안에서 스크롤 */}
-      <div className="relative h-80 rounded-md border">
-        <div className="h-full overflow-y-auto px-12 py-4" role="region" aria-label="본문 블록 내용" tabIndex={0}>
+      {/* 높이를 고정해 넘길 때 칸·버튼이 위아래로 움직이지 않게 한다. 글이 길면 칸 안에서 스크롤 */}
+      <div className="h-80 rounded-md border">
+        <div className="h-full overflow-y-auto px-4 py-4" role="region" aria-label="본문 블록 내용" tabIndex={0}>
         <p className="font-semibold">
           {at + 1}/{blocks.length} · {b.heading}
         </p>
@@ -138,14 +161,37 @@ function BodyPager({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
           ))}
         <p className="mt-2 text-xs text-muted-foreground">추천 이유: {b.reason}</p>
         </div>
-        {blocks.length > 1 && (
-          <>
-            <PagerArrow side="left" label="이전 블록" disabled={at === 0} onClick={() => setIndex(at - 1)} />
-            <PagerArrow side="right" label="다음 블록" disabled={at === blocks.length - 1} onClick={() => setIndex(at + 1)} />
-          </>
-        )}
       </div>
-      {blocks.length > 1 && <PagerDots count={blocks.length} at={at} />}
+      {/* 넘기기 버튼은 칸 아래 가운데에 모은다 (양 끝에 두면 검토하며 오가기 불편해서) */}
+      {blocks.length > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <Button type="button" variant="outline" size="sm" disabled={at === 0} onClick={() => setIndex(at - 1)}>
+            <ChevronLeft aria-hidden />
+            이전
+          </Button>
+          <span className="min-w-14 text-center text-sm tabular-nums" aria-live="polite">
+            {at + 1} / {blocks.length}
+          </span>
+          <Button type="button" variant="outline" size="sm" disabled={at === blocks.length - 1} onClick={() => setIndex(at + 1)}>
+            다음
+            <ChevronRight aria-hidden />
+          </Button>
+        </div>
+      )}
+      <div>
+        <label htmlFor="guide-block-memo" className={LABEL}>
+          메모 · {at + 1}. {b.heading}
+        </label>
+        <Textarea
+          id="guide-block-memo"
+          value={memos[b.key] ?? ""}
+          onChange={(e) => onMemo(b.key, e.target.value)}
+          placeholder="이 블록에 대한 검토 의견을 적어 주세요"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          메모는 PDF 출력(준비 중)에 함께 넣을 예정이에요 · 아직 저장되지 않아 새로고침하거나 다시 제작하면 사라져요.
+        </p>
+      </div>
     </div>
   );
 }
@@ -227,7 +273,57 @@ function DetailSlices({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
 /** 제품명 앞의 브랜드(Leaf&)는 따로 강조해서 보여 주므로 뗀다 */
 const withoutBrand = (name: string) => name.replace(/^Leaf&\s*/, "");
 
-type Qoo10Props = { blocks: GuideBlock[]; fill: Fill; productName: string; category: string };
+type Qoo10Props = { blocks: GuideBlock[]; gallery: GalleryShot[]; fill: Fill; productName: string; category: string };
+
+/** 대표 이미지 (정사각형). 실제 큐텐처럼 사진 양 끝 화살표 + 「n / 전체」 */
+function GalleryViewer({ gallery, className = "" }: { gallery: GalleryShot[]; className?: string }) {
+  const [index, setIndex] = useState(0);
+  const at = Math.min(index, Math.max(gallery.length - 1, 0));
+  const shot = gallery[at];
+  return (
+    <div className={`relative ${className}`}>
+      <ImageSlot image={shot ? `대표 이미지 ${at + 1} · ${shot.role}\n${shot.image}` : null} className="aspect-square rounded-none border-x-0 border-t-0 whitespace-pre-line" />
+      {gallery.length > 1 && (
+        <>
+          <PagerArrow side="left" label="이전 대표 이미지" disabled={at === 0} onClick={() => setIndex(at - 1)} />
+          <PagerArrow side="right" label="다음 대표 이미지" disabled={at === gallery.length - 1} onClick={() => setIndex(at + 1)} />
+        </>
+      )}
+      <span className="absolute right-3 bottom-3 rounded-full bg-foreground/70 px-2 py-0.5 text-[0.65rem] text-background">
+        {at + 1} / {gallery.length || 1}
+      </span>
+    </div>
+  );
+}
+
+/** 본문 추천 위에 두는 대표 이미지 안내: 첫 장은 자세히, 나머지는 역할만 */
+function GalleryGuide({ gallery }: { gallery: GalleryShot[] }) {
+  const [first, ...rest] = gallery;
+  if (!first) return null;
+  return (
+    <section className="space-y-2 rounded-md border p-3">
+      <h3 className="font-semibold">대표 이미지 (정사각형 1:1 · {gallery.length}장)</h3>
+      <p className="text-xs text-muted-foreground">상품 페이지 맨 위에서 옆으로 넘기는 사진이에요. 첫 장은 검색 결과 목록의 썸네일로 쓰여요. 디자이너가 장 수를 늘려도 돼요.</p>
+      <div className="rounded-md bg-muted p-2">
+        <p className="font-medium">
+          1. {first.role} — {first.image}
+        </p>
+        <ul className="mt-1 list-disc pl-5 text-xs">
+          {first.rules.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+      </div>
+      <ol className="grid gap-1 text-xs sm:grid-cols-2">
+        {rest.map((g, i) => (
+          <li key={g.role}>
+            {i + 2}. <span className="font-medium">{g.role}</span> — {g.image}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
 
 /** 가격은 정가만 (이중 가격 표시 X). 아직 정해지지 않아 価格未定. 할인·쿠폰·送料無料·プレゼント 표시는 근거가 없어 넣지 않는다 */
 function PriceBox() {
@@ -242,7 +338,7 @@ function PriceBox() {
 }
 
 /** Qoo10 모바일 앱 상품 페이지 틀 (팀이 만든 목업 기준) */
-function Qoo10Mobile({ blocks, fill, productName, category }: Qoo10Props) {
+function Qoo10Mobile({ blocks, gallery, fill, productName, category }: Qoo10Props) {
   const hook = blocks.find((b) => b.key === "hook");
   const banner = hook?.options[0].text_ja.split("\n").filter((l) => !l.startsWith("*")).join(" ").replaceAll("*", "") ?? "";
   return (
@@ -259,11 +355,8 @@ function Qoo10Mobile({ blocks, fill, productName, category }: Qoo10Props) {
           <ShoppingCart className="size-5" />
         </span>
       </div>
-      <div className="relative">
-        <ImageSlot image="썸네일: 제품 단독 컷 (1:1, 흰 배경)" className="aspect-square rounded-none border-x-0 border-t-0" />
-        <span className="absolute right-3 bottom-9 rounded-full bg-foreground/70 px-2 py-0.5 text-[0.65rem] text-background">1 / 5</span>
-        <p className="absolute inset-x-0 bottom-0 truncate bg-primary px-3 py-1.5 text-center text-xs font-bold text-primary-foreground">{fill(banner)}</p>
-      </div>
+      <GalleryViewer gallery={gallery} />
+      <p className="truncate bg-primary px-3 py-1.5 text-center text-xs font-bold text-primary-foreground">{fill(banner)}</p>
       <div className="space-y-2 p-3">
         <span className="inline-block rounded-sm bg-primary px-1.5 text-[0.65rem] font-bold text-primary-foreground">公式ショップ</span>
         <p className="font-semibold">
@@ -292,31 +385,57 @@ function Qoo10Mobile({ blocks, fill, productName, category }: Qoo10Props) {
   );
 }
 
-/** Qoo10 PC 상품 페이지 틀 (모달에서 크게 본다) */
-function Qoo10Pc({ blocks, fill, productName, category }: Qoo10Props) {
+/** Qoo10 PC 상품 페이지 틀 (모달에서 크게 본다). 실제 PC 화면 배치를 따르되 근거 없는 평점·할인·배송 문구는 넣지 않는다 */
+function Qoo10Pc({ blocks, gallery, fill, productName, category }: Qoo10Props) {
   return (
-    <div className="mx-auto max-w-4xl overflow-hidden rounded-md border bg-background text-sm" lang="ja">
-      <div className="flex items-center justify-between border-b-2 border-primary px-4 py-2">
-        <span className="text-xl font-black">Qoo10</span>
-        <span className="text-xs text-muted-foreground">ホーム &gt; スキンケア &gt; 基礎化粧品 &gt; {category}</span>
+    <div className="mx-auto max-w-5xl overflow-hidden rounded-md border bg-background text-sm" lang="ja">
+      <div className="flex items-center gap-6 border-b px-6 py-3">
+        <span className="text-2xl font-black text-primary">Qoo10</span>
+        <span className="flex h-9 flex-1 items-center justify-between rounded-md border border-primary/60 px-3 text-xs text-muted-foreground">
+          Qoo10で商品を探してみよう！
+          <Search className="size-4" aria-hidden />
+        </span>
+        <span className="flex gap-4" aria-hidden>
+          <Bell className="size-5" />
+          <ShoppingCart className="size-5" />
+        </span>
       </div>
-      <div className="flex gap-6 border-b p-5">
-        <ImageSlot image="썸네일: 제품 단독 컷 (1:1, 흰 배경)" className="aspect-square w-72 shrink-0" />
-        <div className="flex-1 space-y-3">
+      <p className="px-6 py-3 text-xs text-muted-foreground">スキンケア &gt; 基礎化粧品 &gt; {category}</p>
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-8 px-6 pb-6">
+        <div className="space-y-3">
+          <GalleryViewer gallery={gallery} className="overflow-hidden rounded-md border" />
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="font-bold">ショップ情報</span>
+            <span className="text-xs text-muted-foreground">ショップへ &gt;</span>
+          </div>
+          <p className="flex items-center gap-2">
+            <Store className="size-4" aria-hidden />
+            Leaf& 公式ショップ
+          </p>
+        </div>
+        <div className="space-y-3">
           <span className="inline-block rounded-sm bg-primary px-1.5 text-xs font-bold text-primary-foreground">公式ショップ</span>
-          <p className="text-lg font-bold">
-            <span className="mr-1 text-primary">Leaf&</span>
+          <p className="text-lg leading-snug">
+            <span className="mr-1 font-bold text-primary">Leaf&</span>
             {withoutBrand(productName)}
           </p>
           <PriceBox />
+          <div className="flex items-center justify-between border-b pb-3 text-xs">
+            <span className="font-medium">レビュー</span>
+            <span className="text-muted-foreground">販売開始後に表示</span>
+          </div>
+          <div className="flex items-center justify-between border-b pb-3 text-xs">
+            <span className="font-medium">配送情報</span>
+            <span className="text-muted-foreground">未定</span>
+          </div>
           <div className="flex gap-2">
             <span className="flex-1 rounded border py-3 text-center font-bold">カートに入れる</span>
             <span className="flex-[1.5] rounded bg-primary py-3 text-center font-bold text-primary-foreground">今すぐ購入</span>
           </div>
         </div>
       </div>
-      <div className="flex border-b-2 border-foreground text-center font-bold">
-        <span className="flex-1 bg-foreground py-3 text-background">商品詳細</span>
+      <div className="flex border-y text-center text-sm font-bold">
+        <span className="flex-1 border-b-2 border-foreground py-3">商品詳細</span>
         <span className="flex-1 py-3 text-muted-foreground">レビュー</span>
         <span className="flex-1 py-3 text-muted-foreground">Q&A</span>
       </div>
@@ -440,9 +559,20 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
 export function ContentGuide({ products, drafts, materials }: ContentGuideProps) {
   const [productId, setProductId] = useState(products[0].id);
   const [channel, setChannel] = useState<GuideChannel>("qoo10_detail");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [postType, setPostType] = useState<PostType>("general");
   const [slideCount, setSlideCount] = useState(IG_MAX_SLIDES);
+  // 생성 흐름: 제작하기 → 제목 3개 → 제목 고르기 → 본문·미리보기
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState<"titles" | "body" | null>(null);
+  /** "제목 id:블록 key" → 메모 (화면에만 둔다) */
+  const [memos, setMemos] = useState<Record<string, string>>({});
+  /** 강조할 방향 (선택, 50자). 제작할 때 방향 참고로 함께 보낸다 */
+  const [direction, setDirection] = useState("");
+  /** 제작할 때 실제로 반영한 방향 (제작 뒤에 칸을 고쳐도 결과·PDF는 이 값) */
+  const [appliedDirection, setAppliedDirection] = useState("");
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   const product = products.find((p) => p.id === productId) ?? products[0];
   const material = materials[product.id] ?? { hasReviews: false, appeals: [], keywords: [] };
@@ -451,7 +581,10 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
   const list = drafts
     .filter((d) => d.channel === channel && (!hasPostType || d.post_type === postType))
     .toSorted((a, b) => Number(b.recommended) - Number(a.recommended));
-  const current = list.find((d) => d.id === selectedId) ?? list[0];
+  // 제품·채널·게시물 종류가 바뀌면 다시 제작해야 한다
+  const genKey = `${productId}|${channel}|${hasPostType ? postType : "-"}`;
+  const generated = generatedKey === genKey;
+  const current = generated ? list.find((d) => d.id === pickedId) : undefined;
   const blocks = (current?.blocks ?? []).filter(
     (b) =>
       // 리뷰가 없는 제품(개발 중)은 리뷰 블록을 뺀다
@@ -478,6 +611,26 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
   const hashtags = [...groups.brand, ...groups.ingredient, ...groups.trend];
   const category = product.line.includes("에센스") ? "美容液" : "化粧水";
 
+  /** AI 연결 전: 잠깐 기다렸다가 샘플을 보여 준다 */
+  function wait(step: "titles" | "body", done: () => void) {
+    clearTimeout(timer.current);
+    setLoading(step);
+    timer.current = setTimeout(() => {
+      setLoading(null);
+      done();
+    }, SAMPLE_DELAY_MS);
+  }
+  function generate() {
+    const key = genKey;
+    setPickedId(null);
+    setMemos({});
+    setAppliedDirection(direction.trim());
+    wait("titles", () => setGeneratedKey(key));
+  }
+  function pick(id: string) {
+    if (id !== pickedId) wait("body", () => setPickedId(id));
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -502,10 +655,7 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
                 type="button"
                 role="tab"
                 aria-selected={channel === ch.id}
-                onClick={() => {
-                  setChannel(ch.id);
-                  setSelectedId(null);
-                }}
+                onClick={() => setChannel(ch.id)}
                 className={`rounded-full border px-3 py-1 text-sm ${channel === ch.id ? "border-foreground bg-muted font-medium" : "text-muted-foreground hover:bg-muted"}`}
               >
                 {ch.label}
@@ -522,10 +672,7 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
                   id="guide-post-type"
                   className={SELECT}
                   value={postType}
-                  onChange={(e) => {
-                    setPostType(POST_TYPES.find((t) => t.id === e.target.value)?.id ?? "general");
-                    setSelectedId(null);
-                  }}
+                  onChange={(e) => setPostType(POST_TYPES.find((t) => t.id === e.target.value)?.id ?? "general")}
                 >
                   {POST_TYPES.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -550,13 +697,45 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
               )}
             </div>
           )}
-          <dl className="grid gap-1 rounded-md bg-muted p-3 text-sm sm:grid-cols-[7rem_1fr]">
-            <dt className="font-medium">리뷰 소구점</dt>
-            <dd>{material.hasReviews ? material.appeals.join(" · ") || "소구점 후보 없음" : "리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다"}</dd>
-            <dt className="font-medium">검색어 순위</dt>
-            <dd lang="ja">{material.keywords.map((k, i) => `${i + 1}. ${k}`).join("  ")}</dd>
-            <dd className="text-xs text-muted-foreground sm:col-start-2">리뷰 분석·시장 분석의 가짜 데이터를 읽어 옵니다</dd>
-          </dl>
+          {/* 참고 자료: 다른 탭이 만들어 둔 결과를 읽기만 한다 (AI 호출 없음). 화면이 길어지지 않게 접어 둔다 */}
+          <details className="rounded-md border p-3 text-sm">
+            <summary className="cursor-pointer font-medium">
+              참고 자료 <span className="font-normal text-muted-foreground">· 리뷰 분석 {material.hasReviews ? material.appeals.length : 0}개 · 시장 분석 {material.keywords.length}개</span>
+            </summary>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <section className="space-y-1 rounded-md bg-muted p-3">
+                <p className="flex items-center gap-2 font-medium">
+                  <span className="rounded border bg-background px-1.5 text-xs">리뷰 분석 탭</span>
+                  리뷰 소구점
+                </p>
+                {material.hasReviews ? (
+                  <ul className="flex flex-wrap gap-1">
+                    {material.appeals.map((a) => (
+                      <li key={a} className="rounded-full bg-background px-2 py-0.5 text-xs">
+                        {a}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다</p>
+                )}
+              </section>
+              <section className="space-y-1 rounded-md bg-muted p-3">
+                <p className="flex items-center gap-2 font-medium">
+                  <span className="rounded border bg-background px-1.5 text-xs">시장 분석 탭</span>
+                  검색어 순위
+                </p>
+                <ol className="space-y-0.5 text-xs" lang="ja">
+                  {material.keywords.map((k, i) => (
+                    <li key={k}>
+                      {i + 1}. {k}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">각 탭이 만들어 둔 결과를 읽어 와요 (지금은 샘플 데이터).</p>
+          </details>
           {CHANNEL_RULES[channel] && (
             <details className="rounded-md border p-3 text-sm">
               <summary className="cursor-pointer font-medium">채널 운영 기준 (SNS 가이드 분석)</summary>
@@ -567,30 +746,68 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
               </ul>
             </details>
           )}
+          <div className="space-y-1">
+            <label htmlFor="guide-direction" className={LABEL}>
+              강조할 방향 <span className="font-normal text-muted-foreground">(선택 · {direction.length}/{DIRECTION_MAX}자)</span>
+            </label>
+            <Input
+              id="guide-direction"
+              value={direction}
+              maxLength={DIRECTION_MAX}
+              onChange={(e) => setDirection(e.target.value)}
+              placeholder="예: 연말 선물 · 첫 구매 고객 · 보습 강조"
+            />
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-xs text-muted-foreground">예시</span>
+              {DIRECTION_EXAMPLES.map((ex) => (
+                <button key={ex} type="button" onClick={() => setDirection(ex)} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted">
+                  {ex}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">제작할 때 방향으로 반영돼요. 부탁하듯 적어도 되지만 답장은 오지 않고, 약기법에 어긋나는 방향(효능 과장 등)은 반영하지 않아요.</p>
+            {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="text-xs text-muted-foreground">샘플 데이터 · AI 연결 전</span>
+            <Button type="button" onClick={generate} disabled={detailBlocked || loading !== null}>
+              {generated ? "다시 제작하기" : "제작하기"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
       {detailBlocked ? (
         <EmptyState message="개발 중인 제품은 아직 상세페이지를 만들지 않아요" action="출시된 스킨·에센스를 고르거나 다른 채널을 골라 주세요" />
-      ) : !current ? (
+      ) : loading === "titles" ? (
+        <LoadingState step="1/2 · 리뷰 소구점과 검색어를 반영해 제목 3개를 만드는 중…" />
+      ) : !generated ? (
+        <EmptyState message="「제작하기」를 누르면 제목 3개를 추천해요" action="제목을 고르면 그 제목으로 미리보기와 본문을 만들어요" />
+      ) : list.length === 0 ? (
         <EmptyState message="이 조합의 샘플 문구가 아직 없어요" action="다른 채널이나 게시물 종류를 골라 보세요" />
       ) : (
         <>
+          {appliedDirection && (
+            <p className="text-sm">
+              <span className="rounded-full border px-2 py-0.5">반영한 방향: {appliedDirection}</span>
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>제목 추천</CardTitle>
+                <CardTitle>1. 제목 고르기</CardTitle>
               </CardHeader>
               <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`}>
                 <ol className="space-y-2">
                   {list.map((d, i) => {
-                    const selected = d.id === current?.id;
+                    const selected = d.id === pickedId;
                     return (
                       <li key={d.id}>
                         <button
                           type="button"
                           aria-pressed={selected}
-                          onClick={() => setSelectedId(d.id)}
+                          disabled={loading !== null}
+                          onClick={() => pick(d.id)}
                           className={`w-full rounded-md border p-3 text-left text-sm hover:bg-muted ${selected ? "border-foreground bg-muted" : ""}`}
                         >
                           <span className="flex flex-wrap items-center gap-2">
@@ -613,24 +830,41 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
 
             <Card>
               <CardHeader>
-                <CardTitle>미리보기</CardTitle>
+                <CardTitle>2. 미리보기</CardTitle>
               </CardHeader>
               <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`} role="region" aria-label="결과물 미리보기" tabIndex={0}>
-                {current && channel === "qoo10_detail" && <Qoo10Preview blocks={blocks} fill={fill} productName={product.name_ko} category={category} />}
-                {current && channel === "instagram" && <InstagramPreview key={`${current.id}-${slideCount}`} blocks={blocks} hashtags={hashtags} fill={fill} />}
-                {current && channel === "x" && <XPreview blocks={blocks} hashtags={hashtags} fill={fill} />}
-                {current && channel === "banner" && <BannerPreview blocks={blocks} fill={fill} />}
+                {loading === "body" ? (
+                  <LoadingState step="2/2 · 고른 제목으로 미리보기와 본문을 만드는 중…" />
+                ) : !current ? (
+                  <EmptyState message="왼쪽에서 제목을 골라 주세요" action="고른 제목으로 미리보기와 본문을 만들어요" />
+                ) : (
+                  <>
+                    {channel === "qoo10_detail" && <Qoo10Preview blocks={blocks} gallery={current.gallery} fill={fill} productName={product.name_ko} category={category} />}
+                    {channel === "instagram" && <InstagramPreview key={`${current.id}-${slideCount}`} blocks={blocks} hashtags={hashtags} fill={fill} />}
+                    {channel === "x" && <XPreview blocks={blocks} hashtags={hashtags} fill={fill} />}
+                    {channel === "banner" && <BannerPreview blocks={blocks} fill={fill} />}
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {current && (
+          {current && loading === null && (
             <Card>
               <CardHeader>
-                <CardTitle>본문 추천</CardTitle>
+                <CardTitle>3. 본문 추천 · 메모</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                <BodyPager key={`${current.id}-${slideCount}`} blocks={blocks} fill={fill} />
+                <BodyPager
+                  key={`${current.id}-${slideCount}`}
+                  blocks={blocks}
+                  fill={fill}
+                  memos={Object.fromEntries(blocks.map((b) => [b.key, memos[`${current.id}:${b.key}`] ?? ""]))}
+                  onMemo={(blockKey, text) => setMemos((m) => ({ ...m, [`${current.id}:${blockKey}`]: text }))}
+                />
+
+                {channel === "qoo10_detail" && <GalleryGuide gallery={current.gallery} />}
+
 
                 {hasPostType && hashtags.length > 0 && (
                   <section className="space-y-3 rounded-md border p-3">
