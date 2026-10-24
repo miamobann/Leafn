@@ -19,15 +19,24 @@ import { NewEventForm } from "./new-event-form";
 const nextDay = (d: string) => new Date(Date.parse(d) + 86_400_000).toISOString().slice(0, 10);
 const COLOR = { platform_event: "var(--sentiment-positive)", own_campaign: "var(--risk-low)", milestone: "var(--risk-high)" };
 
+// 홈에 넣을 때는 플랫폼 고르기·행사 추가·보기 전환을 빼고 높이를 줄인다. 다 쓰려면 이 화면(전체보기)으로 온다
+const VIEW = {
+  page: { height: 640, headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listMonth" } },
+  home: { height: 520, headerToolbar: { left: "prev,next today", center: "title", right: "" } },
+};
+
 export function PromoCalendar({
   events: initial,
   platformKeys,
   today,
+  variant = "page",
 }: {
   events: PromoEventView[];
   platformKeys: string[];
   today: string;
+  variant?: keyof typeof VIEW;
 }) {
+  const isPage = variant === "page";
   const [events, setEvents] = useState(initial);
   const [platform, setPlatform] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("event"));
@@ -67,27 +76,31 @@ export function PromoCalendar({
     <div className="grid grid-cols-[1fr_20rem] gap-4">
       <div>
         <div className="mb-3 flex items-center gap-2 text-sm">
-          <label className="flex items-center gap-2">
-            플랫폼
-            <select className="rounded-md border bg-background px-2 py-1" value={platform} onChange={(e) => setPlatform(e.target.value)}>
-              <option value="">전체</option>
-              {platformKeys.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
-          </label>
+          {isPage && (
+            <label className="flex items-center gap-2">
+              플랫폼
+              <select className="rounded-md border bg-background px-2 py-1" value={platform} onChange={(e) => setPlatform(e.target.value)}>
+                <option value="">전체</option>
+                {platformKeys.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <span className="ml-auto flex gap-3 text-xs text-muted-foreground">
             <span style={{ color: COLOR.platform_event }}>■ 플랫폼 행사</span>
             <span style={{ color: COLOR.own_campaign }}>■ 자사 캠페인</span>
             <span style={{ color: COLOR.milestone }}>▲ 준비 마감</span>
           </span>
-          <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
-            {adding ? "닫기" : "행사 추가"}
-          </Button>
+          {isPage && (
+            <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
+              {adding ? "닫기" : "행사 추가"}
+            </Button>
+          )}
         </div>
-        {adding && (
+        {isPage && adding && (
           <NewEventForm
             platformKeys={platformKeys}
             onCreated={(e) => {
@@ -103,8 +116,8 @@ export function PromoCalendar({
           initialView="dayGridMonth"
           initialDate={selected?.startDate ?? today}
           now={today}
-          headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,listMonth" }}
-          height={640}
+          headerToolbar={VIEW[variant].headerToolbar}
+          height={VIEW[variant].height}
           events={calendarEvents}
           eventClick={(info) => setSelectedId(info.event.groupId || info.event.id)}
         />

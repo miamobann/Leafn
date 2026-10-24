@@ -3,15 +3,20 @@ import { ViewStateGate } from "@/components/common/view-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAdChecks, getBoardProjects, getPromoEvents } from "@/lib/data";
+import { getPlatformViews, getPromoEventViews, getToday } from "@/lib/data/launch";
 import { dDay } from "@/lib/format";
+import { HomeCalendar } from "./_home/home-calendar";
 import { ProjectBoard, ProjectProgress, StageDetail } from "./_home/project-board";
 import { ScrollButtons } from "./_home/scroll-buttons";
 
 export default async function HomePage() {
-  const [pending, events, projects] = await Promise.all([
+  const [pending, events, projects, calendarEvents, platforms, today] = await Promise.all([
     getAdChecks({ status: "pending" }),
     getPromoEvents(),
     getBoardProjects(),
+    getPromoEventViews(),
+    getPlatformViews(),
+    getToday(),
   ]);
   const next = events[0];
   const stats = [
@@ -36,6 +41,7 @@ export default async function HomePage() {
           ))}
         </div>
         <ProjectBoard projects={projects} />
+        <HomeCalendar events={calendarEvents} platformKeys={platforms.map((p) => p.key)} today={today} />
         {/* 최근 활동은 사이드바 맨 아래로 옮겼다. 템플릿의 상자 줄은 2칸 고정이라, 할 일 하나를 한 줄 전체로 넓히려고 여기서 직접 그린다 */}
         <ViewStateGate>
           <Card className="mt-6">
