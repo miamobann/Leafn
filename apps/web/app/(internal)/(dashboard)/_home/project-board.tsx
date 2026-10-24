@@ -32,7 +32,7 @@ const TEXT = {
 
 /** 단계마다 현황판 열 이름, 상세 제목, 관련 화면 (prototype-plan 2장) */
 const STAGES = {
-  market: { short: "시장", label: "시장 파악", href: "/market/ingredients", screen: "성분 관심도" },
+  market: { short: "시장", label: "시장 파악", href: "/market", screen: "시장 개요" },
   competition: { short: "경쟁", label: "경쟁 분석", href: "/market/competitors", screen: "경쟁제품 비교" },
   appeal: { short: "소구", label: "소구점 도출", href: "/reviews/compare", screen: "소구점 찾기" },
   customer: { short: "고객", label: "고객 이해", href: "/survey-results", screen: "응답 집계" },
