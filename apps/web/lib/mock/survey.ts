@@ -118,7 +118,8 @@ export const surveyQuestions = parseAll(
   "surveyQuestions",
 );
 
-// 제품명은 lib/own-products.ts (docs/Product.md 기준). 추천 문구는 약기법 검토 전 (광고 검토 담당과 합칠 예정)
+// 제품명은 lib/own-products.ts (docs/Product.md 기준).
+// 성분은 배합 목적(보습)과 전성분 표시 이름으로 적는다 (knowledge/yakkiho E24 · F5.5). 판테놀은 팀 결정(2026-10-23)으로 뺐다
 export const surveyProductLines = parseAll(
   SurveyProductLine,
   [
@@ -127,7 +128,7 @@ export const surveyProductLines = parseAll(
       name_ja: ownProductName("deep-skin"),
       name_ko: ownProductName("deep-skin"),
       image_path: ownProductImage("deep-skin"),
-      ingredients_ja: "ヒアルロン酸・グリセリン・パンテノール",
+      ingredients_ja: "ヒアルロン酸Na、グリセリン",
       status: "on_sale",
       // 중성: 팀 결정(2026-10-23)으로 건성 라인 스킨 + 지성 라인(출시 알림)
       for_types: ["dry", "inner_dry", "normal"],
@@ -137,7 +138,7 @@ export const surveyProductLines = parseAll(
       name_ja: ownProductName("core-essence"),
       name_ko: ownProductName("core-essence"),
       image_path: ownProductImage("core-essence"),
-      ingredients_ja: "ヒアルロン酸・セラミド・コレステロール・脂肪酸",
+      ingredients_ja: "ヒアルロン酸Na、セラミドNP、コレステロール、ステアリン酸",
       status: "on_sale",
       for_types: ["dry", "inner_dry"],
     },
@@ -146,7 +147,7 @@ export const surveyProductLines = parseAll(
       name_ja: `${ownProductName("mild-skin")} / ${ownProductName("mild-emulsion")}`,
       name_ko: `${ownProductName("mild-skin")} / ${ownProductName("mild-emulsion")}`,
       image_path: ownProductImage("mild-skin"),
-      ingredients_ja: "ヒアルロン酸・グリセリン・ベタイン",
+      ingredients_ja: "ヒアルロン酸Na、グリセリン、ベタイン",
       status: "in_development",
       for_types: ["combo", "inner_dry"],
     },
@@ -155,7 +156,7 @@ export const surveyProductLines = parseAll(
       name_ja: `${ownProductName("tea-pure-skin")} / ${ownProductName("tea-pure-calming-ampoule")}`,
       name_ko: `${ownProductName("tea-pure-skin")} / ${ownProductName("tea-pure-calming-ampoule")}`,
       image_path: ownProductImage("tea-pure-skin"),
-      ingredients_ja: "ヒアルロン酸・パンテノール・緑茶エキス",
+      ingredients_ja: "ヒアルロン酸Na、チャ葉エキス",
       status: "in_development",
       for_types: ["oily", "normal"],
     },

@@ -13,7 +13,7 @@ import { calcScores, isUnder18, judge, maxScores } from "@/lib/survey/judge";
 import { clearSession, parseSession, readSessionRaw, subscribeSession } from "../_lib/session";
 import { trackReco } from "../_lib/submit";
 
-// 일본어 문구는 원어민 검수 전, 결과 · 추천 문구는 약기법 검토 전 가안
+// 일본어 문구는 원어민 검수 전. 결과 · 추천 문구는 약기법 기준 자료(knowledge/yakkiho)와 대조해 고침 (2026-10-23, 법률 판정 아님)
 const TYPES: Record<SkinType, { name: string; desc: string; reason: string; tips: string[] }> = {
   dry: {
     name: "乾燥肌",
@@ -93,10 +93,9 @@ const COPY = {
   recoTitle: "この肌タイプにおすすめのLeaf&製品",
   poster: "広告ポスター（準備中）",
   productImage: "商品画像",
-  ingredients: "主な成分：",
+  ingredients: "保湿成分：",
   status: { on_sale: "発売中", in_development: "開発中" },
   buy: "購入する",
-  buyDemo: "デモ版のため、実際のショップには移動しません。",
   notifyOpen: "発売のお知らせを受け取る",
   notifyMinor: "18歳未満の方はお申し込みいただけません",
   notifyDone: (via: string) => `発売のお知らせを申し込みました（${via}）`,
@@ -109,7 +108,7 @@ const COPY = {
     line: "LINE",
     emailLabel: "メールアドレス",
     lineNote:
-      "LINEはIDの入力は不要です。ボタンを押すとLeaf&公式アカウントの友だち追加画面が開き、追加が完了するとお知らせの対象として登録されます。（デモ版のため移動しません）",
+      "LINEはIDの入力は不要です。ボタンを押すとLeaf&公式アカウントの友だち追加画面が開き、追加が完了するとお知らせの対象として登録されます。",
     consent: "[必須] 新商品の発売案内など、Leaf&からのお知らせ（メール／LINE）の受信に同意します",
     separate: "連絡先は診断の回答とは別に保管し、診断結果とはひも付けません。配信はいつでも停止できます。",
     close: "閉じる",
@@ -132,7 +131,6 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
   // 서버 렌더에는 세션이 없으므로 undefined(불러오는 중)로 두고, 브라우저에서 읽는다
   const raw = useSyncExternalStore(subscribeSession, readSessionRaw, () => undefined);
   const [tab, setTab] = useState<Tab>("reco");
-  const [bought, setBought] = useState(false);
   const [notifyLine, setNotifyLine] = useState<string | null>(null);
   const [via, setVia] = useState<Via>("email");
   const [email, setEmail] = useState("");
@@ -272,10 +270,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
                   </div>
                   {line.status === "on_sale" && (
                     <Button
-                      onClick={() => {
-                        trackReco({ event: "buy_click", lineId: line.id, skinType, under18 });
-                        setBought(true);
-                      }}
+                      onClick={() => trackReco({ event: "buy_click", lineId: line.id, skinType, under18 })}
                       className="h-11 w-full"
                     >
                       {COPY.buy}
@@ -296,7 +291,6 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
                   )}
                 </div>
               ))}
-              {bought && <p className="text-xs text-muted-foreground">{COPY.buyDemo}</p>}
               {openLine && (
                 <div className="space-y-3 rounded-lg bg-muted p-4">
                   <p className="text-sm font-semibold">{COPY.notify.title(openLine.name_ja)}</p>
