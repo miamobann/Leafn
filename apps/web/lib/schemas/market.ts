@@ -43,26 +43,3 @@ export const SnsPattern = WorkspaceRow.extend({
   analyzed_at: Timestamp,
 }).extend(AiMeta.shape);
 export type SnsPattern = z.infer<typeof SnsPattern>;
-
-// ── PART 3 기회와 전략 ──────────────────────────────
-
-/** 광고 사용 판정: 사용 가능(사용감·허용 효능) / 근거 자료 필요 / 광고 사용 불가 */
-export const ClaimVerdict = z.enum(["usable", "needs_evidence", "not_allowed"]);
-export type ClaimVerdict = z.infer<typeof ClaimVerdict>;
-
-/** 키워드 하나의 약기법 판정 (제품 구분별). 근거는 knowledge/yakkiho/의 조항 (AI 판정을 가정한 샘플) */
-export const ClaimJudgment = WorkspaceRow.extend({
-  /** 통일 이름 (일본어) */
-  keyword: z.string(),
-  label_ko: z.string(),
-  /** 수요 신호·상위권 채택을 찾을 때 대조하는 표기 */
-  aliases: z.array(z.string()).min(1),
-  general_cosmetic: ClaimVerdict,
-  quasi_drug: ClaimVerdict,
-  /** 판정 근거 조항 (knowledge/yakkiho/ 파일·항목) */
-  basis: z.string(),
-  /** 쓰는 방법·주의 (한국어) */
-  note_ko: z.string(),
-}).extend(AiMeta.shape);
-export type ClaimJudgment = z.infer<typeof ClaimJudgment>;
-

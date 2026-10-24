@@ -152,11 +152,6 @@ export async function getSnsPatterns() {
   return mock.snsPatterns;
 }
 
-/** 키워드별 약기법 판정 (AI 결과 샘플) */
-export async function getClaimJudgments() {
-  return mock.claimJudgments;
-}
-
 export async function getGeoSnapshots() {
   return mock.geoSnapshots;
 }

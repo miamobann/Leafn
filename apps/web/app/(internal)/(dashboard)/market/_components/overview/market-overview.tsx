@@ -4,29 +4,27 @@ import { useState } from "react";
 import { ViewStateGate } from "@/components/common/view-state";
 import { MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
 import type { GeoSnap } from "@/lib/schemas/geo";
-import type { ClaimJudgment, SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
+import type { SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
 import type { Product } from "@/lib/schemas/product";
 import type { PromoEvent } from "@/lib/schemas/promo";
 import type { SearchSnap } from "@/lib/schemas/search";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
 import { weekLabel } from "@/app/(internal)/(dashboard)/market/_lib/market";
-import { ownBaseline, rowsAt, seriesOf, top10 } from "@/app/(internal)/(dashboard)/market/_lib/overview";
+import { ownBaseline, seriesOf } from "@/app/(internal)/(dashboard)/market/_lib/overview";
 import { ConditionBar } from "./condition-bar";
 import { MarketPart } from "./part0-market";
 import { SupplyPart } from "./part1-supply";
 import { DemandPart } from "./part2-demand";
-import { OpportunityPart } from "./part3-opportunity";
 import { SummaryPart } from "./summary";
 import { SectionHeader } from "./section-header";
 import { MAX_COMPARE, OverviewPanel, type PanelContent } from "./side-panel";
 
-// 섹션 순서 = 팀장이 읽는 순서 (요약 → 시장 개관 → 공급 → 수요 → 기회와 전략)
+// 섹션 순서 = 팀장이 읽는 순서 (요약 → 시장 개관 → 공급 → 수요). 기회와 전략은 2026-10-24에 뺐다
 const SECTIONS = [
-  { id: "summary", label: "요약", title: "이번 주 핵심", question: "공급·수요·기회를 한 줄씩", featureIds: [] },
+  { id: "summary", label: "요약", title: "이번 주 핵심", question: "공급·수요를 한 줄씩", featureIds: [] },
   { id: "market", label: "시장 개관", title: "PART 0. 시장 개관", question: "순위권 제품은 얼마에, ml당 얼마에 팔리나?", featureIds: ["B"] },
   { id: "supply", label: "공급", title: "PART 1. 공급", question: "상위권에 들려면 무엇이 필요한가?", featureIds: ["B", "C"] },
   { id: "demand", label: "수요", title: "PART 2. 수요", question: "소비자와 AI 검색은 지금 무엇을 기준으로 고르나?", featureIds: ["B", "GEO"] },
-  { id: "opportunity", label: "기회와 전략", title: "PART 3. 기회와 전략", question: "자사는 어디에 서서 무엇을 말할까?", featureIds: ["A", "C"] },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
@@ -39,7 +37,6 @@ export function MarketOverview({
   snsNotes,
   snsPatterns,
   geo,
-  judgments,
 }: {
   snapshots: TrendSnapshot[];
   products: Product[];
@@ -48,7 +45,6 @@ export function MarketOverview({
   snsNotes: SnsVideoNote[];
   snsPatterns: SnsPattern[];
   geo: GeoSnap[];
-  judgments: ClaimJudgment[];
 }) {
   const [category, setCategory] = useState<MarketCategory>("化粧水");
   // 실데이터는 Qoo10으로 수집한다 (2026-10-24 결정). 楽天은 비교용 샘플
@@ -77,8 +73,6 @@ export function MarketOverview({
         search={search}
         snsNotes={snsNotes}
         snsPatterns={snsPatterns}
-        geo={geo}
-        judgments={judgments}
       />
     ),
     supply: (
@@ -95,18 +89,6 @@ export function MarketOverview({
       />
     ),
     demand: <DemandPart search={search} snsNotes={snsNotes} snsPatterns={snsPatterns} geo={geo} products={products} category={category} onOpen={setPanel} />,
-    opportunity: (
-      <OpportunityPart
-        category={category}
-        top={top10(rowsAt(series, series.length - 1))}
-        search={search}
-        snsNotes={snsNotes}
-        snsPatterns={snsPatterns}
-        geo={geo}
-        judgments={judgments}
-        onOpen={setPanel}
-      />
-    ),
   };
 
   return (
