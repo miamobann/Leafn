@@ -1,11 +1,18 @@
-"""Qoo10 일본(www.qoo10.jp) 리뷰 수집기 — 카테고리 목록 · 제품 요약 · 비교 대상 가리기.
+"""Qoo10 일본(www.qoo10.jp) 리뷰 수집기.
 
-흐름: 카테고리 목록(리뷰 많은 순) → 제품 번호(gd_no). 목록에는 세트, 여러 종류를 함께 파는 시리즈, 클렌징·크림 같은 다른 종류가 섞여 있어서
-제목으로 확실한 것만 빼고(classify_listing) 이유를 남긴다. 제품별 리뷰 읽기와 전체 실행은 다음 PR에서 이어진다.
+흐름: 카테고리 목록(리뷰 많은 순) → 제품 번호(gd_no) → 제품별 리뷰 목록(낮은 별점순)
+리뷰 화면의 선택(카테고리 · TOP N · 별점 체크박스 · 별점마다 새로 가져올 건수)이 collect()의 인자와 1:1로 대응한다.
+
+리뷰 읽는 방법 (2026-10-24 실험으로 확인): 목록은 낮은 별점부터 1→2→3→4→5로 끊김 없이 이어지고, 페이지를 멀리 건너뛰어 열 수 있으며,
+같은 별점 안에서는 최신순이다. 그래서 체크한 별점마다 "그 별점이 시작하는 페이지"를 찾아(find_start_page) 건너뛰고,
+이미 가진 리뷰는 건너뛰면서 아직 없는 리뷰를 최신순으로 N건 모은다(read_star). 체크하지 않은 별점은 읽지 않는다.
 
 규칙
 - 요청마다 2~5초 무작위로 쉰다 (robots.txt Crawl-delay 2초 이상). 사이트 부담을 줄이려는 간격이다.
 - 쿠키·로그인을 쓰지 않는다. 403·429·캡차가 보이면 우회하지 않고 바로 멈춘다 (BlockedError).
+- 이미 가진 리뷰 id는 저장하지 않는다. 목록은 페이지 단위라 id를 보려면 읽어야 하므로 요청은 한다.
+- 제품 하나에서 요청이 MAX_REQUESTS_PER_PRODUCT를 넘으면 그 제품은 멈춘다 (위치 찾기가 길을 잃어도 사이트를 두드리지 않게).
+- 제품 하나가 실패해도 다음 제품은 계속한다. 웹앱과는 DB로만 연결한다 (지금은 DB 테이블이 없어 JSON 파일로 출력).
 - 약관: 이 수집은 팀과 강사 합의 아래 소량만 한다 (CLAUDE.md 8장). 한도를 늘리기 전에 팀에 먼저 알린다.
 """
 
@@ -23,6 +30,8 @@ BASE = "https://www.qoo10.jp"
 # 카테고리 경로. 美容液(에센스)는 목록 주소를 확인한 뒤 추가한다 (추측해서 넣지 않는다).
 CATEGORIES = {"toner": "120000012/220000159/320001619"}
 LIST_PAGE_SIZE = 40
+REVIEW_PAGE_SIZE = 20  # 한 번에 20건이 되는 것을 실험으로 확인했다 (2026-10-24)
+MAX_REQUESTS_PER_PRODUCT = 80  # 한 제품에서 새로 연 페이지 수의 상한 (위치 찾기 약 11 + 읽기 몇 번이면 충분하다)
 MAX_LIST_PAGES = 5
 DELAY_RANGE = (2.0, 5.0)
 USER_AGENT = "LeafnReviewCollector/0.1 (student project; +https://github.com/miamobann/Leafn)"
@@ -194,3 +203,184 @@ def parse_summary(html: str) -> dict[str, Any]:
 
 def fetch_summary(client: Client, gd_no: str) -> dict[str, Any]:
     return parse_summary(client.get(summary_url(gd_no)))
+
+
+# ---- 리뷰 (제품별, 낮은 별점순) ----
+
+
+def review_url(gd_no: str, page: int) -> tuple[str, str]:
+    url = (
+        f"{BASE}/gmkt.inc/Mobile/My/ReviewsAppend.aspx?gd_no={gd_no}&group_code=2&tagCd=&option="
+        f"&page_no={page}&page_size={REVIEW_PAGE_SIZE}&sort_type=L&contents_cnt=0"
+    )
+    return url, summary_url(gd_no)
+
+
+def parse_reviews(html: str) -> list[dict[str, Any]]:
+    """리뷰 목록 조각(HTML)에서 리뷰를 읽는다. 연령대는 Qoo10에 없다."""
+    soup = BeautifulSoup(html, "html.parser")
+    reviews: list[dict[str, Any]] = []
+    for head in soup.select("div.detail_reviewstar"):
+        li = head.find_parent("li")
+        like = li.select_one("button[id^=like_R_]") if li else None
+        value = head.select_one(".reviewstar_ratecnt .value")
+        if li is None or like is None or value is None:
+            continue  # 구조가 다른 조각은 건너뛴다
+        spans = [s.get_text(strip=True) for s in head.select(".reviewstar_text span")]
+        author = spans[0] if spans else ""
+        posted = spans[1] if len(spans) > 1 else ""
+
+        options: dict[str, str] = {}
+        for span in li.select(".option_type"):
+            key, sep, val = span.get_text(" ", strip=True).partition(":")
+            if sep:
+                options[key.strip()] = val.strip()
+
+        aspects = []
+        for wrap in li.select(".content_review .review_wrap"):
+            name = wrap.select_one("span")
+            if name:
+                verdict = wrap.get_text(" ", strip=True).replace(name.get_text(strip=True), "", 1).strip()
+                aspects.append({"aspect": name.get_text(strip=True), "verdict": verdict})
+
+        body_el = li.select_one(".content_text")
+        body = body_el.get_text("\n", strip=True) if body_el else ""
+        likes = like.get_text(strip=True)
+        reviews.append(
+            {
+                "external_id": like["id"].removeprefix("like_R_"),
+                "rating": int(value.get_text(strip=True)),
+                "body": body,
+                "posted_at": posted.replace(".", "-") if re.fullmatch(r"\d{4}\.\d{2}\.\d{2}", posted) else None,
+                "raw": {
+                    "author_masked": author,
+                    "options": options,
+                    "aspects": aspects,
+                    "likes": int(likes) if likes.isdigit() else 0,
+                },
+            }
+        )
+    return reviews
+
+
+class ReviewPages:
+    """한 제품의 낮은 별점순 리뷰 페이지. 같은 페이지는 한 번만 요청한다 (위치 찾기에서 연 페이지를 읽기에서 다시 쓴다)."""
+
+    def __init__(self, client: Client, gd_no: str, budget: int | None = None) -> None:
+        self.client, self.gd_no = client, gd_no
+        self.budget = MAX_REQUESTS_PER_PRODUCT if budget is None else budget  # 만들 때 읽는다 (값을 바꿔도 반영되게)
+        self.cache: dict[int, list[dict[str, Any]]] = {}
+
+    def get(self, page: int) -> list[dict[str, Any]]:
+        if page not in self.cache:
+            if len(self.cache) >= self.budget:
+                raise ValueError(f"제품 하나에서 요청이 {self.budget}번을 넘어 멈췄어요")
+            url, referer = review_url(self.gd_no, page)
+            self.cache[page] = parse_reviews(self.client.post_empty(url, referer))
+        return self.cache[page]
+
+
+def reaches(pages: ReviewPages, page: int, star: int) -> bool:
+    """이 페이지의 마지막 리뷰가 star점 이상인가. 페이지가 비었으면(목록 끝을 넘음) 그렇다고 본다."""
+    rows = pages.get(page)
+    return not rows or rows[-1]["rating"] >= star
+
+
+def find_start_page(pages: ReviewPages, star: int, after: int = 0) -> int | None:
+    """star점이 처음 나오는 페이지(그 페이지에 앞 별점이 섞여 있을 수 있다). 이 제품에 star점 이상이 없으면 None.
+
+    낮은 별점순이라 '마지막 리뷰가 star점 이상'은 페이지 번호가 커질수록 거짓에서 참으로 한 번만 바뀐다.
+    after는 '마지막 리뷰가 star점 미만'이라고 이미 아는 가장 큰 페이지(없으면 0). 먼저 1, 3, 7, 15…로 늘려 가며 열어서 참인 곳을 찾고
+    그 사이를 반으로 좁힌다. 낮은 별점은 드물어서 보통 앞쪽에 있으니 늘려 가는 방식이 처음부터 반으로 가르는 것보다 적게 든다.
+    """
+    if star <= 1:
+        return 1
+    lo, step = after, 1
+    while True:
+        probe = lo + step
+        if reaches(pages, probe, star):
+            hi = probe
+            break
+        lo, step = probe, step * 2
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if reaches(pages, mid, star):
+            hi = mid
+        else:
+            lo = mid
+    return hi if pages.get(hi) else None
+
+
+def read_star(
+    pages: ReviewPages, star: int, start: int, quota: int, known_ids: set[str]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """start 페이지부터 star점 리뷰를 최신순으로 읽어, 아직 없는 리뷰를 quota건 모은다. 이미 가진 리뷰는 건너뛴다.
+
+    exhausted=True면 이 별점 구간 끝(더 높은 별점이 나오거나 목록이 끝남)까지 읽었다는 뜻이고, 그때 read는 이 별점의 정확한 리뷰 수다.
+    quota에 먼저 닿아 멈췄으면 exhausted=False (더 있을 수 있다).
+    """
+    collected: list[dict[str, Any]] = []
+    read = skipped_known = 0
+    page = start
+    exhausted = True
+    while True:
+        rows = pages.get(page)
+        for review in rows:
+            if review["rating"] > star:  # 낮은 별점순이라 이후는 모두 더 높다
+                return collected, _star_info(read, skipped_known, len(collected), True)
+            if review["rating"] < star:  # 시작 페이지에 섞여 있는 앞 별점
+                continue
+            read += 1
+            if review["external_id"] in known_ids:
+                skipped_known += 1
+                continue
+            collected.append(review)
+            if len(collected) >= quota:
+                return collected, _star_info(read, skipped_known, len(collected), False)
+        if len(rows) < REVIEW_PAGE_SIZE:  # 마지막 페이지
+            break
+        page += 1
+    return collected, _star_info(read, skipped_known, len(collected), exhausted)
+
+
+def _star_info(read: int, skipped_known: int, new: int, exhausted: bool) -> dict[str, Any]:
+    return {"read": read, "skipped_known": skipped_known, "new": new, "exhausted": exhausted}
+
+
+def collect_stars(
+    client: Client, gd_no: str, stars: list[int], quota: int, known_ids: set[str]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """체크한 별점마다 별점의 시작 위치로 건너뛰어, 아직 없는 최신 리뷰를 quota건씩 모은다. 체크하지 않은 별점은 읽지 않는다.
+
+    돌려주는 info: read(읽은 선택 별점 리뷰 수, 이미 가진 것 포함) · skipped_known · stop · low_count · low_count_exact(모든 별점이 끝까지 읽혔는가)
+    · stars(별점별 결과 {"3": {start_page, read, skipped_known, new, exhausted}}) · requests(이 제품에서 연 페이지 수)
+    """
+    pages = ReviewPages(client, gd_no)
+    collected: list[dict[str, Any]] = []
+    per_star: dict[str, dict[str, Any]] = {}
+    after = 0
+    missing = False  # 앞 별점에서 '이 별점 이상이 없다'가 확인되면 더 높은 별점도 없다
+    for star in sorted(set(stars)):
+        if missing:
+            per_star[str(star)] = {"start_page": None, **_star_info(0, 0, 0, True)}
+            continue
+        start = find_start_page(pages, star, after)
+        if start is None:
+            missing = True
+            per_star[str(star)] = {"start_page": None, **_star_info(0, 0, 0, True)}
+            continue
+        after = max(after, start - 1)
+        got, info = read_star(pages, star, start, quota, known_ids)
+        collected.extend(got)
+        per_star[str(star)] = {"start_page": start, **info}
+    read = sum(i["read"] for i in per_star.values())
+    all_exhausted = all(i["exhausted"] for i in per_star.values())
+    return collected, {
+        "read": read,
+        "skipped_known": sum(i["skipped_known"] for i in per_star.values()),
+        "stop": "max_star" if all_exhausted else "limit",
+        "low_count": read,
+        "low_count_exact": all_exhausted,
+        "stars": per_star,
+        "requests": len(pages.cache),
+    }

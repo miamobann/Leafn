@@ -1,8 +1,9 @@
-"""Qoo10 수집기 테스트 — 목록 · 제품 요약 · 제외 규칙. 네트워크를 쓰지 않고, 가짜 문장으로 만든 HTML만 쓴다 (실제 리뷰 원문은 넣지 않는다).
+"""Qoo10 수집기 테스트. 네트워크를 쓰지 않고, 가짜 문장으로 만든 HTML만 쓴다 (실제 리뷰 원문은 넣지 않는다).
 
 실행 (저장소 루트에서): python -m unittest discover -s collectors/tests -t .
 """
 
+import re
 import unittest
 from unittest import mock
 
@@ -19,6 +20,19 @@ def listing_html(items: list[tuple[str, str]]) -> str:
         for no, title in items
     )
     return f'<ul id="search_result_item_list">{cards}</ul>'
+
+
+def review_html(rows: list[tuple[str, int]]) -> str:
+    """rows: [(review_id, rating)]"""
+    return "".join(
+        f'<li><div class="detail_reviewstar"><p class="reviewstar_ratecnt"><span class="value">{star}</span>'
+        f'<span>5</span></p><p class="reviewstar_text"><span>abc***</span><span>2026.06.12</span></p></div>'
+        f'<button id="like_R_{rid}" class="btn_like">3</button>'
+        f'<p class="content_option"><span class="option_type">肌タイプ: 乾燥肌</span></p>'
+        f'<ul class="content_review"><li><div class="review_wrap"><span>保湿力</span>満足です</div></li></ul>'
+        f'<p class="content_text">テスト本文<br>{rid}</p></li>'
+        for rid, star in rows
+    )
 
 
 def summary_html(total: str = "143,807", score: str = "4.6") -> str:
@@ -47,6 +61,39 @@ class FakeClient:
         return reply
 
 
+class PagedFake:
+    """낮은 별점순 리뷰 목록을 흉내 낸다. 리뷰(번호, 별점) 목록을 요청한 page_no · page_size대로 잘라 주고, 어느 페이지를 열었는지 기록한다."""
+
+    def __init__(self, rows: list[tuple[str, int]], gets: list[str] | None = None) -> None:
+        self.rows = rows
+        self.gets = list(gets or [])
+        self.requests_made = 0
+        self.pages_asked: list[int] = []
+
+    def get(self, url: str) -> str:
+        self.requests_made += 1
+        return self.gets.pop(0)
+
+    def post_empty(self, url: str, referer: str) -> str:
+        self.requests_made += 1
+        page = int(re.search(r"page_no=(\d+)", url).group(1))
+        size = int(re.search(r"page_size=(\d+)", url).group(1))
+        self.pages_asked.append(page)
+        return review_html(self.rows[(page - 1) * size : page * size])
+
+
+def sorted_list(**counts: int) -> list[tuple[str, int]]:
+    """별점별 리뷰 수(s1=…, s2=…)로 낮은 별점순 목록을 만든다. 번호는 r0, r1, … (같은 별점 안에서는 앞이 더 최근)."""
+    rows: list[tuple[str, int]] = []
+    for key in sorted(counts):
+        rows += [(f"r{len(rows) + i}", int(key[1:])) for i in range(counts[key])]
+    return rows
+
+
+def ids(reviews: list[dict]) -> list[str]:
+    return [r["external_id"] for r in reviews]
+
+
 class ParseTest(unittest.TestCase):
     def test_listing_reads_number_brand_title_and_flags_sets(self):
         items = q.parse_listing(listing_html([("111", "化粧水 200ml"), ("222", "化粧水 2本セット")]))
@@ -54,8 +101,19 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(items[0]["brand"], "ブランド111")  # "公式" 표시는 브랜드명에서 뺀다
         self.assertEqual([i["is_set"] for i in items], [False, True])
 
+    def test_reviews_read_fields(self):
+        review = q.parse_reviews(review_html([("900", 2)]))[0]
+        self.assertEqual(review["external_id"], "900")
+        self.assertEqual(review["rating"], 2)
+        self.assertEqual(review["posted_at"], "2026-06-12")
+        self.assertEqual(review["body"], "テスト本文\n900")
+        self.assertEqual(review["raw"]["options"], {"肌タイプ": "乾燥肌"})
+        self.assertEqual(review["raw"]["aspects"], [{"aspect": "保湿力", "verdict": "満足です"}])
+        self.assertEqual(review["raw"]["likes"], 3)
+
     def test_empty_html_gives_no_items(self):
         self.assertEqual(q.parse_listing(""), [])
+        self.assertEqual(q.parse_reviews("<p>条件に合うレビューがありません</p>"), [])
 
 
 class SummaryTest(unittest.TestCase):
@@ -69,6 +127,150 @@ class SummaryTest(unittest.TestCase):
         got = q.fetch_summary(FakeClient(gets=[summary_html("1,234")]), "999")
         self.assertEqual(got["total_count"], 1234)
         self.assertIn("goodscode=999", q.summary_url("999"))
+
+
+class FindStartPageTest(unittest.TestCase):
+    def pages(self, rows, **kw):
+        fake = PagedFake(rows)
+        return fake, q.ReviewPages(fake, "999", **kw)
+
+    def test_star_one_starts_at_page_one_without_any_request(self):
+        fake, pages = self.pages(sorted_list(s1=50, s2=50))
+        self.assertEqual(q.find_start_page(pages, 1), 1)
+        self.assertEqual(fake.requests_made, 0)
+
+    def test_finds_the_first_page_that_reaches_the_star(self):
+        # 1점 300건(15페이지) 다음 2점 200건 다음 3점 → 3점은 (500번째 리뷰) = 26페이지
+        fake, pages = self.pages(sorted_list(s1=300, s2=200, s3=400, s4=100))
+        self.assertEqual(q.find_start_page(pages, 3), 26)
+
+    def test_start_page_can_be_in_the_middle_of_a_page(self):
+        fake, pages = self.pages(sorted_list(s1=25, s2=25, s3=50))  # 3점은 51번째부터 = 3페이지(41~60번째) 한가운데
+        self.assertEqual(q.find_start_page(pages, 3), 3)
+
+    def test_huge_list_needs_only_a_handful_of_requests(self):
+        fake, pages = self.pages(sorted_list(s1=1500, s2=1000, s3=3000, s4=500, s5=5000))  # 3점은 125페이지부터
+        self.assertEqual(q.find_start_page(pages, 3), 126)
+        self.assertLessEqual(fake.requests_made, 16)  # 125페이지를 하나씩 읽는 것과 비교
+
+    def test_a_known_lower_page_shortens_the_search(self):
+        rows = sorted_list(s1=1500, s2=1000, s3=3000)
+        fake, pages = self.pages(rows)
+        self.assertEqual(q.find_start_page(pages, 3, after=100), 126)
+        fake2, pages2 = self.pages(rows)
+        q.find_start_page(pages2, 3)
+        self.assertLess(fake.requests_made, fake2.requests_made)
+
+    def test_star_that_does_not_exist_gives_none(self):
+        fake, pages = self.pages(sorted_list(s1=30, s2=30, s3=30))
+        self.assertIsNone(q.find_start_page(pages, 4))
+
+    def test_empty_product_gives_none(self):
+        fake, pages = self.pages([])
+        self.assertIsNone(q.find_start_page(pages, 3))
+
+    def test_same_page_is_requested_only_once(self):
+        fake, pages = self.pages(sorted_list(s1=100, s2=100))
+        pages.get(2)
+        pages.get(2)
+        self.assertEqual(fake.pages_asked, [2])
+
+    def test_request_budget_stops_a_runaway_search(self):
+        fake, pages = self.pages(sorted_list(s1=100000, s5=10), budget=4)
+        with self.assertRaises(ValueError):
+            q.find_start_page(pages, 5)
+
+
+class ReadStarTest(unittest.TestCase):
+    def read(self, rows, star, start, quota, known=()):
+        fake = PagedFake(rows)
+        got, info = q.read_star(q.ReviewPages(fake, "999"), star, start, quota, set(known))
+        return fake, got, info
+
+    def test_collects_the_newest_reviews_of_that_star_up_to_quota(self):
+        _, got, info = self.read(sorted_list(s1=40, s2=100), star=2, start=2, quota=20)
+        self.assertEqual(ids(got), [f"r{i}" for i in range(40, 60)])
+        self.assertEqual((info["new"], info["exhausted"]), (20, False))
+
+    def test_skips_the_mixed_start_of_the_page_and_only_takes_that_star(self):
+        _, got, _ = self.read(sorted_list(s1=25, s2=25, s3=50), star=3, start=3, quota=5)
+        self.assertEqual(ids(got), ["r50", "r51", "r52", "r53", "r54"])
+
+    def test_known_reviews_are_skipped_and_do_not_count_toward_quota(self):
+        known = {f"r{i}" for i in range(40, 60)}
+        _, got, info = self.read(sorted_list(s1=40, s2=100), star=2, start=2, quota=20, known=known)
+        self.assertEqual(ids(got), [f"r{i}" for i in range(60, 80)])  # 이미 가진 20건 다음 20건
+        self.assertEqual((info["skipped_known"], info["new"]), (20, 20))
+
+    def test_nothing_new_when_everything_up_to_the_end_is_known(self):
+        rows = sorted_list(s2=12, s3=5)
+        _, got, info = self.read(rows, star=2, start=1, quota=20, known={r[0] for r in rows})
+        self.assertEqual((got, info["exhausted"]), ([], True))
+
+    def test_block_end_is_reported_as_exhausted_with_the_exact_count(self):
+        _, got, info = self.read(sorted_list(s2=15, s3=100), star=2, start=1, quota=20)
+        self.assertEqual((len(got), info["read"], info["exhausted"]), (15, 15, True))
+
+    def test_end_of_list_is_exhausted_too(self):
+        _, got, info = self.read(sorted_list(s3=7), star=3, start=1, quota=20)
+        self.assertEqual((len(got), info["exhausted"]), (7, True))
+
+    def test_new_arrivals_come_first_then_the_next_older_ones(self):
+        before = sorted_list(s3=60)
+        first = [r[0] for r in before[:20]]
+        after = [("new1", 3), ("new2", 3)] + before  # 그 사이 3점 2건이 새로 올라왔다
+        _, got, _ = self.read(after, star=3, start=1, quota=20, known=first)
+        self.assertEqual(ids(got), ["new1", "new2"] + [f"r{i}" for i in range(20, 38)])  # 새 리뷰 2건 + 그다음으로 오래된 18건
+
+
+class CollectStarsTest(unittest.TestCase):
+    def test_only_checked_stars_are_read_each_with_its_own_quota(self):
+        fake = PagedFake(sorted_list(s1=100, s2=100, s3=100, s4=100))
+        got, info = q.collect_stars(fake, "999", [1, 3], quota=10, known_ids=set())
+        by_star = {s: [r for r in got if r["rating"] == s] for s in (1, 2, 3)}
+        self.assertEqual((len(by_star[1]), len(by_star[2]), len(by_star[3])), (10, 0, 10))
+        self.assertEqual(set(info["stars"]), {"1", "3"})
+
+    def test_three_stars_get_ten_each(self):
+        fake = PagedFake(sorted_list(s1=100, s2=100, s3=100))
+        got, info = q.collect_stars(fake, "999", [3, 1, 2], quota=10, known_ids=set())
+        self.assertEqual(len(got), 30)
+        self.assertEqual([info["stars"][s]["new"] for s in ("1", "2", "3")], [10, 10, 10])
+        self.assertFalse(info["low_count_exact"])  # 어느 별점도 끝까지 읽지 않았다
+        self.assertEqual(info["stop"], "limit")
+
+    def test_second_run_brings_the_next_ones_without_duplicates(self):
+        rows = sorted_list(s1=5, s2=5, s3=200)
+        first, _ = q.collect_stars(PagedFake(rows), "999", [3], quota=20, known_ids=set())
+        second, _ = q.collect_stars(PagedFake(rows), "999", [3], quota=20, known_ids=set(ids(first)))
+        self.assertEqual(len(first), 20)
+        self.assertEqual(len(second), 20)
+        self.assertFalse(set(ids(first)) & set(ids(second)))
+        self.assertEqual(ids(second), [f"r{i}" for i in range(30, 50)])  # 바로 그다음으로 최근
+
+    def test_missing_star_is_reported_without_more_requests_for_higher_stars(self):
+        fake = PagedFake(sorted_list(s1=30, s2=30))
+        got, info = q.collect_stars(fake, "999", [3, 4, 5], quota=10, known_ids=set())
+        self.assertEqual(got, [])
+        self.assertTrue(all(i["exhausted"] and i["new"] == 0 for i in info["stars"].values()))
+        self.assertTrue(info["low_count_exact"])
+
+    def test_exact_count_when_every_checked_star_is_read_to_its_end(self):
+        fake = PagedFake(sorted_list(s2=8, s3=6, s4=50))
+        got, info = q.collect_stars(fake, "999", [2, 3], quota=20, known_ids=set())
+        self.assertEqual((len(got), info["low_count"], info["low_count_exact"], info["stop"]), (14, 14, True, "max_star"))
+
+    def test_three_star_only_run_is_cheap_on_a_big_product(self):
+        fake = PagedFake(sorted_list(s1=700, s2=400, s3=2000, s4=500))  # 3점은 56페이지부터
+        got, info = q.collect_stars(fake, "999", [3], quota=20, known_ids=set())
+        self.assertEqual(len(got), 20)
+        self.assertEqual(ids(got), [f"r{i}" for i in range(1100, 1120)])
+        self.assertLessEqual(info["requests"], 12)
+
+    def test_start_page_is_recorded_per_star(self):
+        fake = PagedFake(sorted_list(s1=40, s2=40, s3=40))
+        _, info = q.collect_stars(fake, "999", [1, 2, 3], quota=5, known_ids=set())
+        self.assertEqual([info["stars"][s]["start_page"] for s in ("1", "2", "3")], [1, 3, 5])
 
 
 class ClassifyListingTest(unittest.TestCase):
