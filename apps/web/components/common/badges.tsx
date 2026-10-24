@@ -39,3 +39,13 @@ export function LangBadge({ lang }: { lang: Lang }) {
 export function SourceBadge({ source }: { source: string }) {
   return <Badge variant="secondary">{source}</Badge>;
 }
+
+/** 샘플 데이터 영역 표시 (prototype-plan 4.2) */
+export function SampleDataBadge() {
+  return <Badge variant="outline">샘플</Badge>;
+}
+
+/** 기획안 기능 ID (A, B…). 테스트·리뷰 때 추적용, 정식 출시 전 제거 (prototype-plan 4.2) */
+export function FeatureTag({ id }: { id: string }) {
+  return <span className="rounded border border-border px-1.5 text-xs text-muted-foreground">{id}</span>;
+}

@@ -3,6 +3,7 @@ import type { SkinConcern } from "@/lib/schemas/trend";
 import { brandDictionary, detectBrands, detectKeywords, domainOf, rankMentions, verifyInAnswer } from "@/lib/external/geo-terms";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 import { products } from "./products";
+import { OWN_BRAND } from "@/lib/own-products";
 
 // 일본어 질의 5개 × AI 엔진 3개 (+ ChatGPT 1개 질의는 3회 반복 예시). 답변은 실제 엔진 응답이 아니라 형식만 흉내 낸 샘플
 // brand_mentions·keywords는 실제 분석과 같은 사전 함수로 답변에서 뽑는다. llm = 사전에 없어 LLM이 뽑았다고 가정한 말 (원문 대조 통과)
@@ -36,7 +37,7 @@ const rows: Row[] = [
     query: Q_DRY,
     concern: "dryness",
     answer:
-      "乾燥肌にはセラミドやヒアルロン酸配合のアイテムが定番です。SampleD のセラミドアンプルは@cosmeランキング上位の常連で、無香料なのも支持されています。SampleG のヒアルロン酸ローションは大容量でコスパが良いと評判です。Leafn のモイストバランススキンもヒアルロン酸配合で、乾燥肌向けラインとして紹介されています。(샘플)",
+      "乾燥肌にはセラミドやヒアルロン酸配合のアイテムが定番です。SampleD のセラミドアンプルは@cosmeランキング上位の常連で、無香料なのも支持されています。SampleG のヒアルロン酸ローションは大容量でコスパが良いと評判です。Leaf& のモイストバランススキンもヒアルロン酸配合で、乾燥肌向けラインとして紹介されています。(샘플)",
     citations: [
       ["https://www.cosme.net/sample-ranking-lotion", "化粧水ランキング"],
       ["https://the360.life/sample-ldk-moisture", "保湿化粧水 徹底比較"],
@@ -58,11 +59,11 @@ const rows: Row[] = [
     query: Q_DRY,
     concern: "dryness",
     answer:
-      "楽天のランキングでは SampleA と SampleG が上位です。SampleG は無香料・アルコールフリーで、LDKの比較テストでも保湿力が評価されました。新しいブランドでは Leafn が乾燥肌向けラインを展開しています。(샘플)",
+      "楽天のランキングでは SampleA と SampleG が上位です。SampleG は無香料・アルコールフリーで、LDKの比較テストでも保湿力が評価されました。新しいブランドでは Leaf& が乾燥肌向けラインを展開しています。(샘플)",
     citations: [
       ["https://the360.life/sample-ldk-moisture", "保湿化粧水 徹底比較"],
       ["https://item.rakuten.co.jp/sample-shop/sample-g-lotion", "SampleG ヒアルロン酸ローション"],
-      ["https://prtimes.jp/main/html/rd/p/sample-leafn.html", "Leafn 日本上陸のお知らせ"],
+      ["https://prtimes.jp/main/html/rd/p/sample-leafn.html", "Leaf& 日本上陸のお知らせ"],
     ],
   },
   ...[1, 2, 3].map(
@@ -72,9 +73,9 @@ const rows: Row[] = [
       concern: "sensitivity",
       run,
       answer: [
-        "敏感肌には低刺激でノンコメドジェニックテスト済みの化粧水が安心です。SampleA のドクダミ化粧水は無香料・アルコールフリーで、@cosmeランキングでも上位です。Leafn のシカ水分トナーもツボクサエキス配合でよく紹介されます。(샘플)",
+        "敏感肌には低刺激でノンコメドジェニックテスト済みの化粧水が安心です。SampleA のドクダミ化粧水は無香料・アルコールフリーで、@cosmeランキングでも上位です。Leaf& のシカ水分トナーもツボクサエキス配合でよく紹介されます。(샘플)",
         "SampleA のドクダミ化粧水は無香料でノンコメドジェニックテスト済み、敏感肌の定番です。SampleB のセラミドトナーも低刺激で人気があります。(샘플)",
-        "敏感肌向けなら SampleA が代表的で、アルコールフリー・無香料の処方です。Leafn はシカ配合のトナーで、低刺激をうたっています。(샘플)",
+        "敏感肌向けなら SampleA が代表的で、アルコールフリー・無香料の処方です。Leaf& はシカ配合のトナーで、低刺激をうたっています。(샘플)",
       ][run - 1],
       citations: [
         ["https://www.cosme.net/sample-ranking-sensitive", "敏感肌 化粧水ランキング"],
@@ -139,7 +140,7 @@ const rows: Row[] = [
     engine: "gemini",
     query: Q_20S,
     concern: "sensitivity",
-    answer: "SampleA と Leafn のシカ水分トナーがよく比較されます。SampleA はアルコールフリー、Leafn は低刺激処方と紹介されています。(샘플)",
+    answer: "SampleA と Leaf& のシカ水分トナーがよく比較されます。SampleA はアルコールフリー、Leaf& は低刺激処方と紹介されています。(샘플)",
     citations: [["https://note.com/sample-writer/n/sample01", "20代敏感肌のスキンケア"]],
   },
   {
@@ -156,7 +157,7 @@ const rows: Row[] = [
     engine: "chatgpt",
     query: Q_VALUE,
     concern: null,
-    answer: "大容量でコスパが良い化粧水として、SampleA（250mL）、SampleG（200mL）、Leafn（200mL）などがあります。(샘플)",
+    answer: "大容量でコスパが良い化粧水として、SampleA（250mL）、SampleG（200mL）、Leaf&（200mL）などがあります。(샘플)",
     citations: [["https://item.rakuten.co.jp/sample-shop/sample-a-lotion", "SampleA ドクダミ化粧水 250mL"]],
   },
   {
@@ -176,7 +177,7 @@ const rows: Row[] = [
 ];
 
 const dictionary = brandDictionary(
-  "Leafn",
+  OWN_BRAND,
   products.map((p) => p.brand),
 );
 

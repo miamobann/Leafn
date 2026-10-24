@@ -37,6 +37,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "시장 분석",
     icon: ChartLine,
     items: [
+      { label: "시장 개요", href: "/market", featureId: "B" },
       { label: "시장 트렌드", href: "/market/trends", featureId: "B" },
       { label: "성분 관심도", href: "/market/ingredients", featureId: "B" },
       { label: "경쟁제품 비교", href: "/market/competitors", featureId: "C" },

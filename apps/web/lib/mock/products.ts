@@ -1,6 +1,6 @@
 import type { PlatformId } from "@/lib/platforms";
 import { Product } from "@/lib/schemas/product";
-import { ownProductImage, ownProductName } from "@/lib/own-products";
+import { OWN_BRAND, ownProductImage, ownProductName } from "@/lib/own-products";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 가상 브랜드. 가격은 세금 포함 총액(税込), 성분은 全成分 표기 순서를 흉내 낸 샘플
@@ -72,7 +72,7 @@ const seeds: Seed[] = [
   {
     id: "p-own-1",
     kind: "own",
-    brand: "Leafn",
+    brand: OWN_BRAND,
     name: ownProductName("deep-skin"),
     image_path: ownProductImage("deep-skin"),
     platform: "qoo10",
@@ -85,7 +85,7 @@ const seeds: Seed[] = [
   {
     id: "p-own-2",
     kind: "own",
-    brand: "Leafn",
+    brand: OWN_BRAND,
     name: ownProductName("core-essence"),
     image_path: ownProductImage("core-essence"),
     platform: "qoo10",
@@ -99,7 +99,7 @@ const seeds: Seed[] = [
   {
     id: "p-own-3",
     kind: "own",
-    brand: "Leafn",
+    brand: OWN_BRAND,
     name: ownProductName("tea-pure-skin"),
     image_path: ownProductImage("tea-pure-skin"),
     platform: "qoo10",
@@ -112,7 +112,7 @@ const seeds: Seed[] = [
   {
     id: "p-own-4",
     kind: "own",
-    brand: "Leafn",
+    brand: OWN_BRAND,
     name: ownProductName("mild-skin"),
     image_path: ownProductImage("mild-skin"),
     platform: "qoo10",

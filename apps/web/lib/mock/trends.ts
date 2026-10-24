@@ -1,5 +1,5 @@
 import { TrendSnapshot } from "@/lib/schemas/trend";
-import { ownProductName } from "@/lib/own-products";
+import { OWN_BRAND, ownProductName } from "@/lib/own-products";
 import { findBanner, qoo10Banners, sampleAppeal } from "./appeal-samples";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
@@ -58,7 +58,7 @@ const CANDIDATES: Record<string, Candidate[]> = {
     ["SampleBK", "ブライトニングトナー", 2480, 200, true, 61, 0.9, 4],
   ],
   "美容液": [
-    ["Leafn", ownProductName("core-essence"), 2980, 380, true, 66, 1.6],
+    [OWN_BRAND, ownProductName("core-essence"), 2980, 380, true, 66, 1.6],
     ["SampleD", "セラミドアンプル", 2640, 2800, true, 94, 0.3],
     ["SampleE", "ナイアシンアミド美容液", 3300, 620, false, 88, 0.1],
     ["SampleF", "レチノールセラム", 2890, 1400, true, 85, 0.4],
