@@ -57,10 +57,10 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
         <div className="flex flex-wrap items-center gap-3">
           {!view ? (
             <>
-              <Button onClick={c.find} disabled={locked || form.stars.length === 0}>
+              <Button onClick={c.find} disabled={locked || form.stars.length === 0 || form.platformId !== "qoo10"}>
                 {busy === "start" ? TEXT.finding : TEXT.find}
               </Button>
-              <span className="text-xs text-muted-foreground">{form.stars.length === 0 ? "가져올 별점을 하나 이상 골라 주세요." : TEXT.findHint}</span>
+              <span className="text-xs text-muted-foreground">{form.platformId !== "qoo10" ? "라쿠텐은 이 프로토타입에서 가져오지 않아요. Qoo10을 골라 주세요." : form.stars.length === 0 ? "가져올 별점을 하나 이상 골라 주세요." : TEXT.findHint}</span>
             </>
           ) : (
             <Button variant="outline" onClick={c.reset} disabled={busy !== null || status === "running"}>
@@ -136,7 +136,7 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
               onToggleAll={() => c.setSelected(rows.length > 0 && selected.size === rows.length ? new Set() : new Set(rows.map((r) => r.id)))}
             />
 
-            <SkippedList skipped={view.skipped} />
+            <SkippedList skipped={view.skipped} category={view.run.category} />
 
             {!saved && (
               <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-3">

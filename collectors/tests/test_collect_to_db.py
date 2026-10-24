@@ -65,8 +65,8 @@ class ProcessRunTest(unittest.TestCase):
 
     def test_unsupported_category_is_explained(self):
         db, session = make_db([FakeResponse(None)])
-        self.assertEqual(c.process_run(db, {**RUN, "category": "serum"}, say=lambda _m: None), 1)
-        self.assertIn("serum", session.calls[-1]["body"]["error"])
+        self.assertEqual(c.process_run(db, {**RUN, "category": "cream"}, say=lambda _m: None), 1)
+        self.assertIn("cream", session.calls[-1]["body"]["error"])
 
     def test_unexpected_error_fails_the_run_instead_of_stopping_the_worker(self):
         db, session = make_db([FakeResponse([]), FakeResponse([]), FakeResponse(None)])

@@ -35,8 +35,8 @@ import requests
 from bs4 import BeautifulSoup
 
 BASE = "https://www.qoo10.jp"
-# 카테고리 경로. 美容液(에센스)는 목록 주소를 확인한 뒤 추가한다 (추측해서 넣지 않는다).
-CATEGORIES = {"toner": "120000012/220000159/320001619"}
+# 카테고리 경로. 에센스(美容液)는 기초화장품(120000012/220000159)의 형제 카테고리이고, 사이트 메뉴에서 직접 확인한 코드다 (추측하지 않는다).
+CATEGORIES = {"toner": "120000012/220000159/320001619", "serum": "120000012/220000159/320001623"}
 LIST_PAGE_SIZE = 40
 REVIEW_PAGE_SIZE = 20  # 한 번에 20건이 되는 것을 실험으로 확인했다 (2026-10-24)
 MAX_REQUESTS_PER_PRODUCT = 80  # 한 제품에서 새로 연 페이지 수의 상한 (위치 찾기 약 11 + 읽기 몇 번이면 충분하다)
@@ -59,7 +59,11 @@ TYPE_WORDS = {
     "mask": r"マスク|パック",
 }
 TONER_COMPOUND = re.compile(r"(エッセンス|セラム|クリーミー)トナー")  # 이름에 다른 종류 단어가 들어 있어도 토너다
-TARGET_TYPE = {"toner": "toner"}  # 수집 카테고리 → 비교 대상 종류
+# 에센스 카테고리에서는 エッセンス · ショット · ブースター도 에센스 단어다 (화장수 쪽에서는 에센스형 토너 때문에 뺐지만, 여기서는 대상 종류다).
+TYPE_WORDS_SERUM = {**TYPE_WORDS, "serum": r"美容液|アンプル|セラム|エッセンス|ショット|ブースター"}
+WORDS_BY_CATEGORY = {"toner": TYPE_WORDS, "serum": TYPE_WORDS_SERUM}
+TARGET_TYPE = {"toner": "toner", "serum": "serum"}  # 수집 카테고리 → 비교 대상 종류
+# not_toner는 "수집 카테고리의 대상 종류가 아님"이라는 뜻이다 (에센스 카테고리에서도 같은 값을 쓴다. DB의 check 값을 바꾸지 않으려고 이름을 그대로 둠).
 EXCLUDE_REASONS = ("set", "multi_type", "not_toner")  # 세트·기획 상품 / 여러 종류를 함께 파는 상품 / 대상 종류가 아닌 제품
 
 
@@ -71,7 +75,8 @@ def classify_listing(title: str, category: str) -> str | None:
     if target is None:
         return None
     text = TONER_COMPOUND.sub("トナー", title)
-    kinds = {name for name, pattern in TYPE_WORDS.items() if re.search(pattern, text)}
+    words = WORDS_BY_CATEGORY.get(category, TYPE_WORDS)
+    kinds = {name for name, pattern in words.items() if re.search(pattern, text)}
     if len(kinds) >= 2:
         return "multi_type"
     if kinds and target not in kinds:
