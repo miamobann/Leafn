@@ -90,3 +90,46 @@ export const AdCheck = WorkspaceRow.merge(AiMeta).extend({
   is_expert_review_requested: z.boolean().nullable(),
 });
 export type AdCheck = z.infer<typeof AdCheck>;
+
+// ── DB 행 모양 (supabase/migrations/20261024130000_create_ad_checks.sql, docs/tab3-db-plan.md) ──
+// 위 AdCheck는 지금 화면(가짜 데이터)이 쓰는 모양이라 그대로 둔다. 화면을 DB에 연결할 때 lib/data에서 아래 행을 AdCheck로 바꿔 준다
+
+export const AdCheckSource = z.enum(["manual", "content_guide"]);
+export type AdCheckSource = z.infer<typeof AdCheckSource>;
+
+export const AdCheckRow = WorkspaceRow.merge(AiMeta).extend({
+  updated_at: Timestamp,
+  created_by: Id.nullable(),
+  source: AdCheckSource,
+  input_text: z.string().min(1),
+  input_lang: Lang,
+  usage: AdUsage.nullable(),
+  product_category: ProductCategory.nullable(),
+  product_id: Id.nullable(),
+  promo_event_id: Id.nullable(),
+  overall_risk: Risk.nullable(),
+  overall_action: AdAction.nullable(),
+  review_status: ReviewStatus,
+  reviewer_id: Id.nullable(),
+  reviewer_note: z.string().nullable(),
+  reviewed_at: Timestamp.nullable(),
+  final_text: z.string().nullable(),
+  is_expert_review_requested: z.boolean(),
+  // 화면의 삭제 = 숨김. null이 아니면 목록에서 뺀다
+  deleted_at: Timestamp.nullable(),
+});
+export type AdCheckRow = z.infer<typeof AdCheckRow>;
+
+export const AdCheckLineRow = WorkspaceRow.extend({
+  ad_check_id: Id,
+  line_index: z.number().int().positive(),
+  block_key: z.string().nullable(),
+  original: z.string(),
+  action: AdAction,
+  findings: z.array(AdFinding),
+  ingredient_check: z.string().nullable(),
+  translated_text: z.string().nullable(),
+  back_translation_ko: z.string().nullable(),
+  localized_note: z.string().nullable(),
+});
+export type AdCheckLineRow = z.infer<typeof AdCheckLineRow>;
