@@ -71,7 +71,7 @@ export default async function ReviewsPage() {
             return (
               <Link
                 key={p.id}
-                href={p.ko.length === 0 ? "/reviews/import" : `/reviews/${p.id}`}
+                href={p.ko.length === 0 ? `/reviews/import?type=own&product=${p.id}` : `/reviews/${p.id}`}
                 className="flex flex-col gap-3 rounded-xl border bg-card p-5 transition-colors hover:border-foreground/40"
               >
                 <div className="flex items-start justify-between gap-2">

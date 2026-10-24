@@ -12,10 +12,9 @@ import { readSurveySummary } from "./survey";
 // 연결 환경에서는 현재 팀의 DB를 읽는다. 환경 변수가 없는 개발 환경만 샘플을 쓴다.
 import { mock } from "@/lib/mock";
 import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
-import type { Product } from "@/lib/schemas/product";
 import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
-import { AppealTopic } from "@/lib/schemas/review";
+import { APPEAL_MAX_RATING, buildAppealComparison, reviewProductRank } from "./appeal";
 
 export async function getWorkspace() {
   if (await dataContext()) return (await getMyWorkspace())!.workspace;
@@ -44,7 +43,11 @@ export async function getProduct(id: string) {
 export async function getReviews(opts: { productId?: string; lang?: Lang; sentiment?: Sentiment } = {}) {
   const rows = await readRows("reviews");
   const analysisRows = rows ? await readRows("review_analyses") : null;
-  const analyses = new Map((analysisRows ? analysisRows.map(analysisFromRow) : mock.reviewAnalyses).map((a) => [a.review_id, a]));
+  const validAnalyses = analysisRows ? analysisRows.flatMap((row) => {
+    const analysis = analysisFromRow(row);
+    return analysis ? [analysis] : [];
+  }) : mock.reviewAnalyses;
+  const analyses = new Map(validAnalyses.map((a) => [a.review_id, a]));
   return (rows ? rows.map(reviewFromRow) : mock.reviews)
     .filter((r) => !r.excluded_reason && (!opts.productId || r.product_id === opts.productId) && (!opts.lang || r.lang === opts.lang))
     .map((r) => ({ ...r, analysis: analyses.get(r.id) ?? null }))
@@ -55,76 +58,31 @@ export async function getReviewReport(productId: string) {
   return summarizeReviews(await getReviews({ productId }));
 }
 
-// 소구점 후보 판정 기준 (팀 합의 전 시안)
-const APPEAL_RULE = { minComplaints: 3, minPraises: 3, praiseToComplaintRatio: 2 } as const;
-
-function qoo10Rank(p: Product): number | null {
-  const rank = p.source_raw?.qoo10_rank;
-  return typeof rank === "number" ? rank : null;
-}
-
 /**
- * 소구점 찾기: 같은 카테고리 Qoo10 랭킹 TOP10의 낮은 평점 리뷰 불만(일본) vs 자사 제품의 칭찬(국내)을 주제별로 비교.
+ * 소구점 찾기: 연결된 경쟁 제품의 일본어 저평점 리뷰와 자사 국내 리뷰를 비교한다. 샘플만 같은 카테고리 TOP10을 쓴다.
  * 경쟁 불만이 많고 + 자사 칭찬이 많고 + 자사 불만이 적은 주제가 소구점 후보다.
  */
 export async function getAppealComparison(ownProductId: string, opts: { maxRating?: number } = {}) {
-  const maxRating = opts.maxRating ?? 3;
+  const maxRating = opts.maxRating ?? APPEAL_MAX_RATING;
   const products = await getProducts();
   const own = products.find((p) => p.id === ownProductId && p.kind === "own");
   if (!own) return null;
-
   const links = await readRows("product_competitors");
   const linked = new Set((links ?? []).filter((r) => r.own_product_id === own.id).map((r) => r.competitor_product_id));
-  const competitors = products
-    .flatMap((p) => {
-      const rank = qoo10Rank(p);
-      return p.kind === "competitor" && (links ? linked.has(p.id) : p.platform === "qoo10" && p.category === own.category && rank !== null)
-        ? [{ ...p, rank: rank ?? 0 }]
-        : [];
-    })
-    .sort((a, b) => a.rank - b.rank)
-    .slice(0, 10);
+  const ranked = products.flatMap((p) => {
+    const rank = reviewProductRank(p.source_raw);
+    const matches = links ? linked.has(p.id) : p.platform === "qoo10" && p.category === own.category;
+    return p.kind === "competitor" && matches && rank !== null ? [{ ...p, rank }] : [];
+  }).sort((a, b) => a.rank - b.rank);
+  // 실제 모드는 저장된 경쟁 연결 전체, 샘플 모드는 기존 TOP10 기준을 쓴다.
+  const competitors = links ? ranked : ranked.slice(0, 10);
   const competitorIds = new Set(competitors.map((p) => p.id));
-
   const all = await getReviews();
-  const ownReviews = all.filter((r) => r.product_id === own.id && r.lang === "ko");
-  const lowReviews = all.filter((r) => competitorIds.has(r.product_id) && r.rating <= maxRating);
-  const has = (r: (typeof all)[number], topic: AppealTopic, polarity: "positive" | "negative") =>
-    r.analysis?.topics?.some((t) => t.topic === topic && t.polarity === polarity) ?? false;
-
-  const topics = AppealTopic.options
-    .map((topic) => {
-      const complaints = lowReviews.filter((r) => has(r, topic, "negative"));
-      const praises = ownReviews.filter((r) => has(r, topic, "positive"));
-      const ownComplaints = ownReviews.filter((r) => has(r, topic, "negative"));
-      const complaintShare = lowReviews.length ? complaints.length / lowReviews.length : 0;
-      const praiseShare = ownReviews.length ? praises.length / ownReviews.length : 0;
-      return {
-        topic,
-        complaints,
-        praises,
-        ownComplaints,
-        complaintShare,
-        praiseShare,
-        complaintProductCount: new Set(complaints.map((r) => r.product_id)).size,
-        isCandidate:
-          complaints.length >= APPEAL_RULE.minComplaints &&
-          praises.length >= APPEAL_RULE.minPraises &&
-          praises.length >= ownComplaints.length * APPEAL_RULE.praiseToComplaintRatio,
-        score: complaintShare * praiseShare,
-      };
-    })
-    .sort((a, b) => Number(b.isCandidate) - Number(a.isCandidate) || b.score - a.score);
-
-  return {
-    own,
-    competitors: competitors.map((p) => ({ ...p, lowReviewCount: lowReviews.filter((r) => r.product_id === p.id).length })),
-    ownReviewCount: ownReviews.length,
-    lowReviewCount: lowReviews.length,
-    maxRating,
-    rule: APPEAL_RULE,
-    topics,
-  };
+  return buildAppealComparison({
+    own, competitors, maxRating,
+    ownReviews: all.filter((r) => r.product_id === own.id && r.lang === "ko"),
+    lowReviews: all.filter((r) => competitorIds.has(r.product_id) && r.lang === "ja" && r.rating <= maxRating),
+  });
 }
 
 export async function getReviewTranslations(productId: string) {

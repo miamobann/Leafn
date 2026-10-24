@@ -8,11 +8,12 @@ export function productFromRow(row: Record<string, unknown>) {
 
 export function reviewFromRow(row: Record<string, unknown>) {
   return Review.parse({ ...row, posted_at: row.posted_at ?? row.created_at,
-    body_ko: row.body_ko ?? undefined, reviewer_attrs: row.reviewer_attrs ?? undefined });
+    rating_scale: row.rating_scale ?? undefined, body_ko: row.body_ko ?? undefined, reviewer_attrs: row.reviewer_attrs ?? undefined });
 }
 
 export function analysisFromRow(row: Record<string, unknown>) {
-  return ReviewAnalysis.parse({ ...row, topics: row.topics ?? undefined });
+  const parsed = ReviewAnalysis.safeParse({ ...row, topics: row.topics ?? undefined });
+  return parsed.success ? parsed.data : null;
 }
 
 export function adCheckFromRow(row: Record<string, unknown>) {

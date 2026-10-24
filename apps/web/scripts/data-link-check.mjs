@@ -126,3 +126,35 @@ test('ad generation refuses missing membership before AI and reports insert fail
   mine = { workspace: { id: 'team-a' } };
   assert.equal((await POST(request())).status, 500);
 });
+
+test('merged review reads preserve DB links, ranking, language, exclusions and valid analysis', async () => {
+  const product = (id, kind, rank) => ({ ...base, id, kind, platform_id: 'qoo10', brand: 'Brand', name: id,
+    category: 'toner', url: null, price_jpy: null, volume_ml: null, ingredients: [], features: [], image_path: null,
+    source_raw: rank === undefined ? null : { rank } });
+  const review = (id, product_id, lang, extra = {}) => ({ ...base, id, product_id, source: 'qoo10', external_id: id,
+    lang, rating: 2, body: 'text', posted_at: null, rating_scale: null, body_ko: null, reviewer_attrs: null, raw: null, ...extra });
+  const tables = {
+    products: [product('own', 'own'), product('linked', 'competitor', 2), product('unlinked', 'competitor', 1), product('unranked', 'competitor')],
+    product_competitors: [{ own_product_id: 'own', competitor_product_id: 'linked' }, { own_product_id: 'own', competitor_product_id: 'unranked' }],
+    reviews: [review('own-ko', 'own', 'ko'), review('low-ja', 'linked', 'ja'), review('wrong-lang', 'linked', 'ko'),
+      review('high', 'linked', 'ja', { rating: 5 }), review('excluded', 'linked', 'ja', { excluded_reason: 'shipping' }),
+      review('no-link', 'unlinked', 'ja'), review('no-rank', 'unranked', 'ja')],
+    review_analyses: [{ ...base, review_id: 'own-ko', sentiment: 'positive', keywords: [], pain_points: [], repurchase_factors: [], topics: null, model: 'test', prompt_version: 'test' },
+      { ...base, review_id: 'low-ja', sentiment: 'invalid' }],
+  };
+  let broken = false;
+  const data = load('lib/data/index.ts', {
+    './db': { readRows: async (table) => { if (broken) throw new Error('permission denied'); return tables[table]; } },
+    '@/lib/mock': { mock: {} }, './workspace': {}, './survey': {},
+  });
+  const result = await data.getAppealComparison('own');
+  assert.deepEqual(result.competitors.map((p) => [p.id, p.rank]), [['linked', 2]]);
+  assert.equal(result.ownReviewCount, 1);
+  assert.equal(result.lowReviewCount, 1);
+  assert.equal(result.ownAnalyzedCount, 1);
+  assert.equal(result.lowAnalyzedCount, 0);
+  assert.equal((await data.getReviews({ productId: 'linked' })).some((r) => r.id === 'excluded'), false);
+  assert.equal((await data.getReviewReport('own')).sentiment.positive, 1);
+  broken = true;
+  await assert.rejects(data.getAppealComparison('own'), /permission denied/);
+});

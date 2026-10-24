@@ -170,7 +170,7 @@ export function ReportView({
       {reviews.length === 0 ? (
         <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
           아직 리뷰가 없어요.{" "}
-          <Link href="/reviews/import" className={linkClass}>
+          <Link href={isOwn ? `/reviews/import?type=own&product=${product.id}` : "/reviews/import?type=competitor"} className={linkClass}>
             리뷰 가져오기 →
           </Link>
         </p>
