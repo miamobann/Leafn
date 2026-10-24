@@ -12,7 +12,7 @@ const COPY = {
   minorNotice: "※ 18歳未満の方の回答データはサーバーに保存されず、診断結果の表示のみに使用されます。",
   privacyLink: "個人情報の取扱いについて",
   start: "はじめる",
-  footer: "© Leaf&（デモ）",
+  footer: "© Leaf&",
 };
 
 export default function SurveyPage() {

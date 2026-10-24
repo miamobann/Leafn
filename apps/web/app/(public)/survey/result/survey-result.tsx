@@ -13,7 +13,7 @@ import { calcScores, isUnder18, judge, maxScores } from "@/lib/survey/judge";
 import { clearSession, parseSession, readSessionRaw, subscribeSession } from "../_lib/session";
 import { trackReco } from "../_lib/submit";
 
-// 일본어 문구는 원어민 검수 전, 결과 · 추천 문구는 약기법 검토 전 가안
+// 일본어 문구는 원어민 검수 전. 결과 · 추천 문구는 약기법 기준 자료(knowledge/yakkiho)와 대조해 고침 (2026-10-23, 법률 판정 아님)
 const TYPES: Record<SkinType, { name: string; desc: string; reason: string; tips: string[] }> = {
   dry: {
     name: "乾燥肌",
@@ -46,6 +46,15 @@ const TYPES: Record<SkinType, { name: string; desc: string; reason: string; tips
     tips: ["今のケアを続ける", "季節の変わり目は肌の変化に気をつける", "紫外線対策を忘れずに"],
   },
 };
+
+// 결과 화면 맨 위 포스터 (라인별 1장, 1200×900). 문구는 포스터 이미지 안에 있고 alt에 같은 문구를 적는다.
+// 속건조는 보습이 먼저라 건성, 중성은 판매 중인 Deep Skin이 있는 건성 포스터를 쓴다
+const POSTERS = {
+  dry: { src: "/products/posters/leaf-dew-dry-poster.webp", alt: "乾燥しがちな肌に、たっぷりのうるおいを。化粧水とエッセンスで、肌の乾燥を防ぐ毎日のケア。" },
+  combo: { src: "/products/posters/leaf-dew-mild-poster.webp", alt: "みずみずしく、軽やかに。肌の水分・油分を補い、すこやかに保つ。近日発売" },
+  oily: { src: "/products/posters/leaf-dew-tea-pure-poster.webp", alt: "べたつかない、さっぱりうるおい。肌をひきしめ、キメを整える。近日発売" },
+} as const;
+const POSTER_FOR: Record<SkinType, keyof typeof POSTERS> = { dry: "dry", inner_dry: "dry", normal: "dry", combo: "combo", oily: "oily" };
 
 // MBTI처럼 반대되는 두 성향을 한 막대에 놓고 합 100점으로 나눈다 (팀 결정 2026-10-23)
 type Pole = { code: string; label: string };
@@ -91,12 +100,10 @@ const COPY = {
   tipsTitle: "毎日のケアのポイント",
   concerns: "気になる悩み：",
   recoTitle: "この肌タイプにおすすめのLeaf&製品",
-  poster: "広告ポスター（準備中）",
   productImage: "商品画像",
-  ingredients: "主な成分：",
+  ingredients: "保湿成分：",
   status: { on_sale: "発売中", in_development: "開発中" },
   buy: "購入する",
-  buyDemo: "デモ版のため、実際のショップには移動しません。",
   notifyOpen: "発売のお知らせを受け取る",
   notifyMinor: "18歳未満の方はお申し込みいただけません",
   notifyDone: (via: string) => `発売のお知らせを申し込みました（${via}）`,
@@ -109,7 +116,7 @@ const COPY = {
     line: "LINE",
     emailLabel: "メールアドレス",
     lineNote:
-      "LINEはIDの入力は不要です。ボタンを押すとLeaf&公式アカウントの友だち追加画面が開き、追加が完了するとお知らせの対象として登録されます。（デモ版のため移動しません）",
+      "LINEはIDの入力は不要です。ボタンを押すとLeaf&公式アカウントの友だち追加画面が開き、追加が完了するとお知らせの対象として登録されます。",
     consent: "[必須] 新商品の発売案内など、Leaf&からのお知らせ（メール／LINE）の受信に同意します",
     separate: "連絡先は診断の回答とは別に保管し、診断結果とはひも付けません。配信はいつでも停止できます。",
     close: "閉じる",
@@ -132,7 +139,6 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
   // 서버 렌더에는 세션이 없으므로 undefined(불러오는 중)로 두고, 브라우저에서 읽는다
   const raw = useSyncExternalStore(subscribeSession, readSessionRaw, () => undefined);
   const [tab, setTab] = useState<Tab>("reco");
-  const [bought, setBought] = useState(false);
   const [notifyLine, setNotifyLine] = useState<string | null>(null);
   const [via, setVia] = useState<Via>("email");
   const [email, setEmail] = useState("");
@@ -229,13 +235,15 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
             <CardContent className="space-y-4">
               <h2 className="font-semibold">{COPY.recoTitle}</h2>
               <TrackShown lineIds={recos.map((l) => l.id)} skinType={skinType} under18={under18} />
-              <div
-                role="img"
-                aria-label={COPY.poster}
-                className="flex aspect-[4/3] items-center justify-center rounded-lg border border-dashed bg-muted text-sm text-muted-foreground"
-              >
-                {COPY.poster}
-              </div>
+              <Image
+                src={POSTERS[POSTER_FOR[skinType]].src}
+                alt={POSTERS[POSTER_FOR[skinType]].alt}
+                width={1200}
+                height={895}
+                sizes="(min-width: 1024px) 33vw, 100vw"
+                priority
+                className="h-auto w-full rounded-lg border"
+              />
               {recos.length === 0 && <p className="text-sm text-muted-foreground">{COPY.noReco}</p>}
               {recos.map((line) => (
                 <div key={line.id} className="space-y-3 rounded-lg border p-3">
@@ -272,10 +280,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
                   </div>
                   {line.status === "on_sale" && (
                     <Button
-                      onClick={() => {
-                        trackReco({ event: "buy_click", lineId: line.id, skinType, under18 });
-                        setBought(true);
-                      }}
+                      onClick={() => trackReco({ event: "buy_click", lineId: line.id, skinType, under18 })}
                       className="h-11 w-full"
                     >
                       {COPY.buy}
@@ -296,7 +301,6 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
                   )}
                 </div>
               ))}
-              {bought && <p className="text-xs text-muted-foreground">{COPY.buyDemo}</p>}
               {openLine && (
                 <div className="space-y-3 rounded-lg bg-muted p-4">
                   <p className="text-sm font-semibold">{COPY.notify.title(openLine.name_ja)}</p>
