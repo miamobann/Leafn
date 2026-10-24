@@ -19,9 +19,10 @@ export const Product = WorkspaceRow.extend({
   price_kind: z.enum(["regular", "sale"]).optional(),
   category: z.string().optional(),
   // 프로젝트(제품군)에 속한 자사 제품이면 채운다 (2026-10-24 총괄 결정). 경쟁 제품은 null
-  project_id: Id.nullable(),
-  sale_status: SaleStatus.nullable(),
-  skin_line: SkinLine.nullable(),
+  // 이 칸을 모르는 기존 화면(경쟁제품 등록 등)이 안 깨지게 빠지면 null로 채운다
+  project_id: Id.nullable().default(null),
+  sale_status: SaleStatus.nullable().default(null),
+  skin_line: SkinLine.nullable().default(null),
 });
 export type Product = z.infer<typeof Product>;
 
