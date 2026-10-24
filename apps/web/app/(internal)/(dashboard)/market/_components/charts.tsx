@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 
 // 팀 테마(globals.css)의 무채색 차트 색을 쓴다. 색만으로 구분하지 않도록 선 모양(실선·점선)과 범례·라벨을 같이 쓴다.
 const AXIS = { fontSize: 11, fill: "var(--muted-foreground)" };
@@ -159,11 +159,12 @@ export function StackedBarChart({
   );
 }
 
-export type PriceDot = { id: string; label: string; x: number; y: number; promo: string | null };
+export type PriceDot = { id: string; label: string; x: number; y: number; listPrice: number; salePrice: number | null; discountRate: number | null; promo: string | null };
 
 /**
- * 가격 포지셔닝 맵: X = 판매가, Y = ml당 실질 가격. 가운데 점선 = 각 축의 중앙값 (네 칸으로 나눠 읽는다).
- * 프로모션 없음 = 회색 원, 프로모션 진행 중 = 파랑 세모, 자사 = 진한 마름모 (색과 모양을 같이 바꿔 색만으로 구분하지 않는다)
+ * 가격 포지셔닝 맵: X = 판매가, Y = ml당 실질 가격 (보기 기준에 따라 정가 또는 할인 적용가). 가운데 점선 = 각 축의 중앙값.
+ * 할인·프로모션 없음 = 회색 원, 진행 중 = 파랑 세모, 자사 = 진한 마름모 (색과 모양을 같이 바꿔 색만으로 구분하지 않는다).
+ * 축 범위는 데이터에 맞춰 좁혀서 점이 한쪽에 몰리지 않게 한다
  */
 export function PriceMapChart({
   plain,
@@ -171,14 +172,21 @@ export function PriceMapChart({
   own,
   medianX,
   medianY,
+  domainX,
+  domainY,
+  priceLabel,
   onSelect,
-  height = 340,
+  height = 440,
 }: {
   plain: PriceDot[];
   promo: PriceDot[];
   own: PriceDot[];
   medianX: number | null;
   medianY: number | null;
+  domainX: [number, number] | null;
+  domainY: [number, number] | null;
+  /** 축 이름 (예: "판매가 (정가)") */
+  priceLabel: string;
   onSelect?: (id: string) => void;
   height?: number;
 }) {
@@ -186,12 +194,34 @@ export function PriceMapChart({
     const id = (d as { payload?: { id?: string } }).payload?.id;
     if (id && onSelect) onSelect(id);
   };
+  const yen = (v: number) => `¥${v.toLocaleString("ja-JP")}`;
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <ScatterChart margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
+      <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: 8 }}>
         <CartesianGrid stroke="var(--border)" />
-        <XAxis type="number" dataKey="x" name="판매가" tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--border)" }} domain={["auto", "auto"]} tickFormatter={(v: number) => `¥${v.toLocaleString("ja-JP")}`} />
-        <YAxis type="number" dataKey="y" name="ml당 실질 가격" tick={AXIS} tickLine={false} axisLine={false} width={56} domain={["auto", "auto"]} tickFormatter={(v: number) => `${v}円`} />
+        <XAxis
+          type="number"
+          dataKey="x"
+          tick={AXIS}
+          tickLine={false}
+          axisLine={{ stroke: "var(--border)" }}
+          domain={domainX ?? ["auto", "auto"]}
+          tickFormatter={yen}
+          label={{ value: priceLabel, position: "insideBottom", offset: -12, fontSize: 12, fill: "var(--muted-foreground)" }}
+        />
+        <YAxis
+          type="number"
+          dataKey="y"
+          tick={AXIS}
+          tickLine={false}
+          axisLine={false}
+          width={64}
+          domain={domainY ?? ["auto", "auto"]}
+          tickFormatter={(v: number) => `${v}円`}
+          label={{ value: "ml당 실질 가격", angle: -90, position: "insideLeft", fontSize: 12, fill: "var(--muted-foreground)" }}
+        />
+        {/* 점 크기를 키워 겹쳐도 알아보기 쉽게 */}
+        <ZAxis range={[110, 110]} />
         {medianX !== null && <ReferenceLine x={medianX} stroke="var(--muted-foreground)" strokeDasharray="4 3" label={{ value: "판매가 중앙값", position: "insideTopRight", fontSize: 11, fill: "var(--muted-foreground)" }} />}
         {medianY !== null && <ReferenceLine y={medianY} stroke="var(--muted-foreground)" strokeDasharray="4 3" label={{ value: "ml당 중앙값", position: "insideBottomRight", fontSize: 11, fill: "var(--muted-foreground)" }} />}
         <Tooltip
@@ -203,17 +233,21 @@ export function PriceMapChart({
               <div style={TOOLTIP_STYLE} className="px-2 py-1">
                 <p className="font-medium">{dot.label}</p>
                 <p>
-                  판매가 ¥{dot.x.toLocaleString("ja-JP")} · ml당 {dot.y}円
+                  정가 {yen(dot.listPrice)}
+                  {dot.salePrice !== null && dot.discountRate !== null ? ` → 할인가 ${yen(dot.salePrice)} (${dot.discountRate}% 할인)` : " · 할인 없음"}
                 </p>
-                <p>{dot.promo ? `프로모션: ${dot.promo}` : "프로모션 없음"}</p>
+                <p>
+                  지금 보기: {yen(dot.x)} · ml당 {dot.y}円
+                </p>
+                {dot.promo && <p>프로모션: {dot.promo}</p>}
               </div>
             );
           }}
         />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Scatter name="프로모션 없음" data={plain} fill="var(--chart-2)" stroke="var(--card)" strokeWidth={2} onClick={click} className="cursor-pointer" isAnimationActive={false} />
-        <Scatter name="프로모션 진행 중" data={promo} fill="var(--chart-promo)" shape="triangle" stroke="var(--card)" strokeWidth={2} onClick={click} className="cursor-pointer" isAnimationActive={false} />
-        <Scatter name="자사" data={own} fill="var(--primary)" shape="diamond" stroke="var(--card)" strokeWidth={2} isAnimationActive={false} />
+        <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
+        <Scatter name="할인·프로모션 없음" data={plain} fill="var(--chart-2)" stroke="var(--card)" strokeWidth={2} onClick={click} className="cursor-pointer" isAnimationActive={false} />
+        <Scatter name="할인·프로모션 진행 중" data={promo} fill="var(--chart-promo)" shape="triangle" stroke="var(--card)" strokeWidth={2} onClick={click} className="cursor-pointer" isAnimationActive={false} />
+        <Scatter name="자사 (정가)" data={own} fill="var(--primary)" shape="diamond" stroke="var(--card)" strokeWidth={2} isAnimationActive={false} />
       </ScatterChart>
     </ResponsiveContainer>
   );

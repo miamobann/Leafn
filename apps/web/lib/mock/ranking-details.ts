@@ -35,6 +35,9 @@ const NAME_KO: Record<string, string> = {
   "ブライトニングトナー": "브라이트닝 토너",
   "ニードルトナー": "니들 토너",
   "ドクダミパッドトナー": "어성초 패드 토너",
+  "ナイアシンアミドセラム": "나이아신아마이드 세럼",
+  "PDRNアンプル": "PDRN 앰플",
+  "CICAアンプル": "시카 앰플",
   "セラミド化粧水": "세라마이드 화장수",
   "ビタミンCローション": "비타민C 로션",
   "ハトムギ化粧水": "율무 화장수",
@@ -160,4 +163,15 @@ export function rankingDetail(brand: string, name: string, category: string, ban
     promo_text,
     badges,
   };
+}
+
+// Qoo10 할인 샘플: 순위권 제품 대부분이 할인 중이고, 광고(PR) 노출 제품 등 일부만 할인이 없다고 가정
+const DISCOUNT_RATES = [10, 15, 20, 25, 30, 35, 40];
+
+/** Qoo10 정가·할인율·할인 적용가 (배너 문구에 「○%OFF」가 있으면 그 할인율을 쓴다) */
+export function qoo10Discount(brand: string, name: string, price_jpy: number, hookTexts: string[] = []) {
+  const fromHook = hookTexts.map((t) => t.match(/(\d+)%OFF/)?.[1]).find(Boolean);
+  const h = hash(`${brand}|${name}|qoo10`);
+  const rate = fromHook ? Number(fromHook) : h % 8 === 0 ? null : DISCOUNT_RATES[h % DISCOUNT_RATES.length];
+  return { discount_rate: rate, sale_price_jpy: rate === null ? null : Math.round(price_jpy * (1 - rate / 100)) };
 }

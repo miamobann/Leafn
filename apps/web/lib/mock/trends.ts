@@ -1,6 +1,7 @@
 import { TrendSnapshot } from "@/lib/schemas/trend";
 import { findBanner, qoo10Banners, sampleAppeal } from "./appeal-samples";
-import { rankingDetail } from "./ranking-details";
+import { products } from "./products";
+import { qoo10Discount, rankingDetail } from "./ranking-details";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 楽天ランキング 화면의 항목 구성을 흉내 낸 합성 시계열 (샘플)
@@ -189,7 +190,8 @@ const rakutenSnapshots = parseAll(
   "trendSnapshots",
 );
 
-// Qoo10 化粧水 최신 주 1회분 (더미 크롤링 결과). 楽天과 같은 제품이 있어도 합치지 않는다
+// Qoo10 최신 주 1회분 (더미 크롤링 결과). 楽天과 같은 제품이 있어도 합치지 않는다
+// 化粧水 = 이미지 분석 배너 샘플, 美容液 = products.ts의 Qoo10 美容液 랭킹 제품 (리뷰가 붙은 p-qes-*)
 const LAST_WEEK = weeks[WEEK_COUNT - 1];
 const qoo10Snapshots = parseAll(
   TrendSnapshot,
@@ -210,8 +212,37 @@ const qoo10Snapshots = parseAll(
           review_count: b.review_count,
           is_kbeauty: b.is_kbeauty,
           ...rankingDetail(b.brand, b.name, APPEAL_CATEGORY, b),
+          ...qoo10Discount(b.brand, b.name, b.price_jpy, b.hooks.map((h) => h[1])),
           appeal: b.rank <= APPEAL_TOP_N ? sampleAppeal(b, ts(LAST_WEEK, "07:00")) : undefined,
         })),
+        ingredients: [],
+      },
+    },
+    {
+      id: "ts-qoo10-2",
+      workspace_id: WORKSPACE_ID,
+      created_at: ts(LAST_WEEK, "07:05"),
+      captured_at: ts(LAST_WEEK, "07:05"),
+      source: "qoo10_ranking",
+      category: "美容液",
+      data: {
+        ranking: products
+          .filter((p) => p.platform === "qoo10" && p.category === "美容液" && typeof p.source_raw?.qoo10_rank === "number")
+          .map((p) => ({ p, rank: p.source_raw?.qoo10_rank as number }))
+          .toSorted((a, b) => a.rank - b.rank)
+          .map(({ p, rank }, i) => {
+            const detail = rankingDetail(p.brand, p.name, "美容液");
+            return {
+              rank,
+              name: p.name,
+              brand: p.brand,
+              price_jpy: p.price_jpy ?? 0,
+              review_count: 3200 - i * 260,
+              is_kbeauty: true,
+              ...detail,
+              ...qoo10Discount(p.brand, p.name, p.price_jpy ?? 0, detail.promo_text ? [detail.promo_text] : []),
+            };
+          }),
         ingredients: [],
       },
     },
