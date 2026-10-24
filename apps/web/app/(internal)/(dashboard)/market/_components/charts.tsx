@@ -21,6 +21,7 @@ export function TrendLineChart({
   reversed = false,
   domain,
   height = 260,
+  onPointClick,
 }: {
   data: Record<string, string | number | null>[];
   series: LineSeries[];
@@ -29,10 +30,17 @@ export function TrendLineChart({
   reversed?: boolean;
   domain?: [number, number];
   height?: number;
+  /** 주(x축 한 칸)를 누르면 그 데이터의 순서를 넘긴다 */
+  onPointClick?: (index: number) => void;
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+      <LineChart
+        data={data}
+        margin={{ top: 8, right: 16, bottom: 0, left: 0 }}
+        onClick={onPointClick ? (state) => state.activeTooltipIndex != null && onPointClick(Number(state.activeTooltipIndex)) : undefined}
+        className={onPointClick ? "cursor-pointer" : undefined}
+      >
         <CartesianGrid stroke="var(--border)" vertical={false} />
         <XAxis dataKey="week" tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--border)" }} />
         <YAxis
