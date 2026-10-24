@@ -3,12 +3,28 @@
 // 시장 분석·광고 검토 같은 다른 탭이 쓰는 getProducts/getReviews(lib/data/index.ts)는 건드리지 않는다. 그쪽은 샘플 제품 id(p-own-1)를 가리키기 때문이다.
 // 읽는 리뷰는 제품 외 불만으로 제외되지 않은 것(excluded_reason is null)만이다. 분석 결과(review_analyses)와 집계(review_insights)는 아직 DB에서 읽지 않는다.
 import type { Lang } from "@/lib/schemas/common";
+import type { SaleStatus, SkinLine } from "@/lib/schemas/project";
 import { Review, type ReviewAnalysis, type ReviewInsight } from "@/lib/schemas/review";
 import { createClient } from "@/lib/supabase/server";
 import { getProduct, getProducts, getReviewReport, getReviews } from "./index";
 import { getMyWorkspace, isSupabaseConfigured } from "./workspace";
 
-export type ReviewProductView = { id: string; brand: string; name: string; kind: "own" | "competitor"; ko: number; ja: number };
+export type ReviewProductView = {
+  id: string;
+  brand: string;
+  name: string;
+  kind: "own" | "competitor";
+  ko: number;
+  ja: number;
+  /** 化粧水 · 美容液처럼 랭킹 카테고리 이름. 모르면 null */
+  category: string | null;
+  platform: string;
+  /** 경쟁 제품의 랭킹 순위 (source_raw.qoo10_rank). 모르면 null */
+  rank: number | null;
+  /** 자사 제품의 피부 라인 · 판매 상태. 경쟁 제품은 null */
+  skinLine: SkinLine | null;
+  saleStatus: SaleStatus | null;
+};
 export type ReviewWithAnalysis = Review & { analysis: ReviewAnalysis | null };
 export type ReviewReportView = {
   reviews: ReviewWithAnalysis[];
@@ -49,6 +65,11 @@ async function viaDb<T>(run: (supabase: Supabase) => Promise<T>, sample: () => P
   }
 }
 
+function rankOf(sourceRaw: unknown): number | null {
+  const rank = (sourceRaw as Record<string, unknown> | null)?.qoo10_rank;
+  return typeof rank === "number" ? rank : null;
+}
+
 function toReview(row: Record<string, unknown>): Review {
   return Review.parse({
     ...row,
@@ -74,7 +95,10 @@ async function countReviews(supabase: Supabase, productId: string, lang: Lang): 
 export async function getReviewProductList(): Promise<ReviewProductView[]> {
   return viaDb(
     async (supabase) => {
-      const { data, error } = await supabase.from("products").select("id, brand, name, kind").order("created_at", { ascending: true });
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, brand, name, kind, category, platform_id, source_raw, skin_line, sale_status")
+        .order("created_at", { ascending: true });
       if (error) failed("제품을 불러오지 못했습니다", error);
       const rows = await Promise.all(
         data.map(async (p) => ({
@@ -84,6 +108,11 @@ export async function getReviewProductList(): Promise<ReviewProductView[]> {
           kind: p.kind as "own" | "competitor",
           ko: await countReviews(supabase, p.id, "ko"),
           ja: await countReviews(supabase, p.id, "ja"),
+          category: (p.category as string | null) ?? null,
+          platform: p.platform_id as string,
+          rank: rankOf(p.source_raw),
+          skinLine: (p.skin_line as SkinLine | null) ?? null,
+          saleStatus: (p.sale_status as SaleStatus | null) ?? null,
         })),
       );
       return rows.toSorted((a, b) => Number(b.kind === "own") - Number(a.kind === "own")); // 우리 제품이 먼저
@@ -92,7 +121,19 @@ export async function getReviewProductList(): Promise<ReviewProductView[]> {
       const [products, reviews] = await Promise.all([getProducts(), getReviews()]);
       return products.map((p) => {
         const mine = reviews.filter((r) => r.product_id === p.id);
-        return { id: p.id, brand: p.brand, name: p.name, kind: p.kind, ko: mine.filter((r) => r.lang === "ko").length, ja: mine.filter((r) => r.lang === "ja").length };
+        return {
+          id: p.id,
+          brand: p.brand,
+          name: p.name,
+          kind: p.kind,
+          ko: mine.filter((r) => r.lang === "ko").length,
+          ja: mine.filter((r) => r.lang === "ja").length,
+          category: p.category ?? null,
+          platform: p.platform,
+          rank: rankOf(p.source_raw),
+          skinLine: p.skin_line,
+          saleStatus: p.sale_status,
+        };
       });
     },
   );
