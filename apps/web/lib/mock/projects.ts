@@ -1,16 +1,32 @@
-import { Project, ProjectStage } from "@/lib/schemas/project";
-import { ownProductName } from "@/lib/own-products";
+import { BoardProject, Project, ProjectStage } from "@/lib/schemas/project";
+import { OWN_PRODUCT_LINE, ownProductName } from "@/lib/own-products";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
-// 프로젝트 하나 = 자사 제품 하나. 두 번째 제품(Mild Skin, 개발중)은 products에 아직 등록되지 않은 것으로 둔다.
-// products에 넣으면 리뷰 분석·경쟁제품 비교 같은 다른 탭 화면에도 나타나기 때문이다.
+// 프로젝트(제품군) 하나 = Leaf& Dew. 자사 제품(products kind=own)이 project_id로 여기에 붙는다 (lib/mock/products.ts)
+export const OWN_PROJECT_ID = "pj-1";
+
 export const projects = parseAll(
   Project,
+  [
+    {
+      id: OWN_PROJECT_ID,
+      name: OWN_PRODUCT_LINE,
+      platform_id: "qoo10",
+      description: "건성·지성·복합성 3라인 6종의 Qoo10 진출",
+    },
+  ].map((p) => ({ ...p, workspace_id: WORKSPACE_ID, created_at: ts("2026-09-20") })),
+  "projects",
+);
+
+// 홈 진행 현황판의 한 줄 = 자사 제품 하나. 두 번째 제품(Mild Skin, 개발중)은 products에 아직 등록되지 않은 것으로 둔다.
+// products에 넣으면 리뷰 분석·경쟁제품 비교 같은 다른 탭 화면에도 나타나기 때문이다.
+export const boardProjects = parseAll(
+  BoardProject,
   [
     { id: "prj-1", name: ownProductName("deep-skin"), platform: "Qoo10", product_id: "p-own-1" },
     { id: "prj-2", name: ownProductName("mild-skin"), platform: "楽天市場", product_id: null },
   ].map((p) => ({ ...p, workspace_id: WORKSPACE_ID, created_at: ts("2026-09-20") })),
-  "projects",
+  "boardProjects",
 );
 
 const EMPTY_STAGE = { start_date: null, due_date: null, owner_id: null, blocker: null, next_step: null, log: [] };

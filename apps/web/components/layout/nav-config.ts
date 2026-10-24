@@ -57,6 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "새 검토", href: "/ad-check", featureId: "A" },
       // /ad-check/<검토 ID> 상세는 저장된 검토라 이력에 속한다 (안내 화면 /ad-check/guide는 제외)
       { label: "검토 이력", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/(?!history$|guide$)[^/]+$/ },
+      { label: "콘텐츠 제작", href: "/ad-check/guide", featureId: "A" },
     ],
   },
   {

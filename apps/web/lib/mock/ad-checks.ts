@@ -13,6 +13,8 @@ export const adChecks = parseAll(
       created_at: ts("2026-10-18", "10:00"),
       input_text: "肌荒れが治りました。",
       input_lang: "ja",
+      // 일본어 입력의 한국어 번역 (담당자 확인용)
+      back_translation_ko: "피부 트러블이 나았어요.",
       overall_risk: "high",
       overall_action: "must_fix",
       findings: [
@@ -57,6 +59,8 @@ export const adChecks = parseAll(
       created_at: ts("2026-10-19", "14:00"),
       input_text: "やさしくてしっとりするのでリピートしました。",
       input_lang: "ja",
+      // 일본어 입력의 한국어 번역 (담당자 확인용)
+      back_translation_ko: "순하고 촉촉해서 재구매했어요.",
       overall_risk: "low",
       overall_action: "ok",
       findings: [],
@@ -169,6 +173,8 @@ export const adChecks = parseAll(
       created_at: ts("2026-10-20", "11:00"),
       input_text: "うるおいを与え、キメを整えます。",
       input_lang: "ja",
+      // 일본어 입력의 한국어 번역 (담당자 확인용)
+      back_translation_ko: "수분을 주고 피부결을 정돈합니다.",
       overall_risk: "low",
       overall_action: "ok",
       findings: [],

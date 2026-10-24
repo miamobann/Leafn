@@ -4,17 +4,14 @@ import { StatusBadge } from "@/components/common/badges";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
 import { TextReviewTemplate } from "@/components/templates";
-import { getAdCheck, getProduct, getProducts, getReviews, getReviewTranslations } from "@/lib/data";
-
-export async function generateStaticParams() {
-  return (await getProducts()).map((p) => ({ productId: p.id }));
-}
+import { getAdCheck, getReviewTranslations } from "@/lib/data";
+import { getReviewProductById, getReviewsOf } from "@/lib/data/reviews";
 
 export default async function ReviewTranslatePage({ params }: { params: Promise<{ productId: string }> }) {
   const { productId } = await params;
-  const product = await getProduct(productId);
+  const product = await getReviewProductById(productId);
   if (!product) notFound();
-  const [reviews, translations] = await Promise.all([getReviews({ productId, lang: "ko" }), getReviewTranslations(productId)]);
+  const [reviews, translations] = await Promise.all([getReviewsOf(productId, { lang: "ko" }), getReviewTranslations(productId)]);
   const checks = await Promise.all(translations.map((t) => (t.ad_check_id ? getAdCheck(t.ad_check_id) : null)));
 
   return (

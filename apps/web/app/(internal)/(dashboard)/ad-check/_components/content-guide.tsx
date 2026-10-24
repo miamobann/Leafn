@@ -27,11 +27,14 @@ import {
   type GalleryShot,
   type GuideBlock,
   type GuideChannel,
-  type GuideDraft,
+  GuideDraft,
   type Hashtags,
   type PostType,
 } from "../_lib/content-guide-samples";
 import type { LabProduct } from "../_lib/products";
+import { type ContentGuideInput, GuideBodyResult, type GuideTitle, GuideTitlesResult } from "@/lib/schemas/content-guide";
+import { buildCutList, PHOTO_DONTS, PHOTO_RULES } from "../_lib/photo-guide";
+import { ContentGuideReport, memoLocation, type ReportAuthor } from "./content-guide-report";
 
 const LABEL = "mb-1 block text-sm font-medium";
 // shadcn select는 아직 설치되지 않아 기본 select를 같은 모양으로 쓴다 (components/ui는 공용 영역)
@@ -49,13 +52,26 @@ const DIRECTION_EXAMPLES = ["연말 선물", "첫 구매 고객", "재구매 유
 const SAMPLE_DELAY_MS = 700;
 
 /** 제품별로 반영한 재료 (리뷰 소구점 · 검색어 순위). 가짜 데이터 */
-export type GuideMaterials = Record<string, { hasReviews: boolean; appeals: string[]; keywords: string[] }>;
+export type GuideMaterials = Record<
+  string,
+  { hasReviews: boolean; appeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; megaSale: string | null }
+>;
 
 type ContentGuideProps = {
   products: LabProduct[];
   drafts: GuideDraft[];
   materials: GuideMaterials;
+  /** PDF 머리글의 작성자 (로그인한 사람 이름 · 팀) */
+  author: ReportAuthor;
+  /** 서버에 AI 키가 있으면 true → 「제작하기」가 /api/content-guide 를 부른다. 없으면 샘플 */
+  aiEnabled: boolean;
 };
+
+/** 약기법 판정 행동 이름 (광고 검토와 같은 말) */
+const ACTION_LABEL: Record<string, string> = { must_fix: "수정 필수", should_fix: "수정 권장", expert: "전문가 확인" };
+
+/** AI가 블록마다 남긴 주의 (금지어 검사 · 약기법 판정). 블록 key → 문구 */
+type BlockWarnings = Record<string, string[]>;
 
 type Fill = (text: string) => string;
 
@@ -113,12 +129,15 @@ function BodyPager({
   fill,
   memos,
   onMemo,
+  memoWhere,
 }: {
   blocks: GuideBlock[];
   fill: Fill;
   /** 블록 key → 메모 */
   memos: Record<string, string>;
   onMemo: (blockKey: string, text: string) => void;
+  /** 이 블록의 메모가 PDF 어디에 나오는지 */
+  memoWhere: (blockKey: string) => string;
 }) {
   const [index, setIndex] = useState(0);
   const at = Math.min(index, blocks.length - 1);
@@ -189,7 +208,7 @@ function BodyPager({
           placeholder="이 블록에 대한 검토 의견을 적어 주세요"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          메모는 PDF 출력(준비 중)에 함께 넣을 예정이에요 · 아직 저장되지 않아 새로고침하거나 다시 제작하면 사라져요.
+          PDF에서는 <span className="font-medium text-foreground">{memoWhere(b.key)}</span>에 적혀요 · 아직 저장되지 않아 새로고침하거나 다시 제작하면 사라져요.
         </p>
       </div>
     </div>
@@ -270,10 +289,27 @@ function DetailSlices({ blocks, fill }: { blocks: GuideBlock[]; fill: Fill }) {
   );
 }
 
-/** 제품명 앞의 브랜드(Leaf&)는 따로 강조해서 보여 주므로 뗀다 */
-const withoutBrand = (name: string) => name.replace(/^Leaf&\s*/, "");
 
-type Qoo10Props = { blocks: GuideBlock[]; gallery: GalleryShot[]; fill: Fill; productName: string; category: string };
+/** 큐텐 상품명(타이틀). 맨 앞 브랜드 카타카나는 실제 화면처럼 색을 달리한다 */
+const QOO10_BRAND = "リーフアンド(Leaf&)";
+
+type Qoo10Props = { blocks: GuideBlock[]; gallery: GalleryShot[]; fill: Fill; title: string; priceJpy: number; category: string };
+
+function Qoo10Title({ title, className }: { title: string; className: string }) {
+  // 브랜드 표기만 실제 화면처럼 색을 달리한다 (【公式】 뒤에 온다)
+  const [before, ...after] = title.split(QOO10_BRAND);
+  return (
+    <p className={className}>
+      {after.length === 0 ? title : (
+        <>
+          {before}
+          <span className="font-bold text-primary">{QOO10_BRAND}</span>
+          {after.join(QOO10_BRAND)}
+        </>
+      )}
+    </p>
+  );
+}
 
 /** 대표 이미지 (정사각형). 실제 큐텐처럼 사진 양 끝 화살표 + 「n / 전체」 */
 function GalleryViewer({ gallery, className = "" }: { gallery: GalleryShot[]; className?: string }) {
@@ -325,20 +361,19 @@ function GalleryGuide({ gallery }: { gallery: GalleryShot[] }) {
   );
 }
 
-/** 가격은 정가만 (이중 가격 표시 X). 아직 정해지지 않아 価格未定. 할인·쿠폰·送料無料·プレゼント 표시는 근거가 없어 넣지 않는다 */
-function PriceBox() {
+/** 가격은 판매가만 (가상 가격표, 세금 포함). 이중 가격·할인·쿠폰·送料無料·プレゼント 표시는 근거가 없어 넣지 않는다 */
+function PriceBox({ priceJpy }: { priceJpy: number }) {
   return (
     <div className="border-b pb-3">
-      <p className="text-xs text-muted-foreground">価格</p>
       <p className="text-xl font-black" lang="ja">
-        価格未定
+        {priceJpy.toLocaleString("ja-JP")}円 <span className="text-xs font-normal text-muted-foreground">(税込)</span>
       </p>
     </div>
   );
 }
 
 /** Qoo10 모바일 앱 상품 페이지 틀 (팀이 만든 목업 기준) */
-function Qoo10Mobile({ blocks, gallery, fill, productName, category }: Qoo10Props) {
+function Qoo10Mobile({ blocks, gallery, fill, title, priceJpy, category }: Qoo10Props) {
   const hook = blocks.find((b) => b.key === "hook");
   const banner = hook?.options[0].text_ja.split("\n").filter((l) => !l.startsWith("*")).join(" ").replaceAll("*", "") ?? "";
   return (
@@ -359,11 +394,8 @@ function Qoo10Mobile({ blocks, gallery, fill, productName, category }: Qoo10Prop
       <p className="truncate bg-primary px-3 py-1.5 text-center text-xs font-bold text-primary-foreground">{fill(banner)}</p>
       <div className="space-y-2 p-3">
         <span className="inline-block rounded-sm bg-primary px-1.5 text-[0.65rem] font-bold text-primary-foreground">公式ショップ</span>
-        <p className="font-semibold">
-          <span className="mr-1 text-primary">Leaf&</span>
-          {withoutBrand(productName)}
-        </p>
-        <PriceBox />
+        <Qoo10Title title={title} className="text-sm leading-snug" />
+        <PriceBox priceJpy={priceJpy} />
       </div>
       <p className="bg-muted-foreground px-3 py-2 text-xs text-background">スキンケア &gt; 基礎化粧品 &gt; {category}</p>
       <div className="flex border-b text-center text-xs">
@@ -386,7 +418,7 @@ function Qoo10Mobile({ blocks, gallery, fill, productName, category }: Qoo10Prop
 }
 
 /** Qoo10 PC 상품 페이지 틀 (모달에서 크게 본다). 실제 PC 화면 배치를 따르되 근거 없는 평점·할인·배송 문구는 넣지 않는다 */
-function Qoo10Pc({ blocks, gallery, fill, productName, category }: Qoo10Props) {
+function Qoo10Pc({ blocks, gallery, fill, title, priceJpy, category }: Qoo10Props) {
   return (
     <div className="mx-auto max-w-5xl overflow-hidden rounded-md border bg-background text-sm" lang="ja">
       <div className="flex items-center gap-6 border-b px-6 py-3">
@@ -415,11 +447,8 @@ function Qoo10Pc({ blocks, gallery, fill, productName, category }: Qoo10Props) {
         </div>
         <div className="space-y-3">
           <span className="inline-block rounded-sm bg-primary px-1.5 text-xs font-bold text-primary-foreground">公式ショップ</span>
-          <p className="text-lg leading-snug">
-            <span className="mr-1 font-bold text-primary">Leaf&</span>
-            {withoutBrand(productName)}
-          </p>
-          <PriceBox />
+          <Qoo10Title title={title} className="text-lg leading-snug" />
+          <PriceBox priceJpy={priceJpy} />
           <div className="flex items-center justify-between border-b pb-3 text-xs">
             <span className="font-medium">レビュー</span>
             <span className="text-muted-foreground">販売開始後に表示</span>
@@ -539,7 +568,7 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
     "캡션 8~15줄, 더보기 전 첫 2줄에 핵심",
     "첫 줄 스타일: 마침표 1줄 선언형(기본) · 【NEW】【お知らせ】(공지) · [ ] 또는 | |(매거진풍) · 감성 스토리텔링 문장. ＼〜／는 쓰지 않아요",
     "말투는 친근하게(〜してね), 이모지 4~8개를 톤에 맞게 (수분 💧🫧 · 계절 ❄️🌸). 상세페이지는 진지한 톤",
-    "해시태그 5개 (브랜드 1 · 성분·제형 1 · 고민·트렌드 2 · 검색어 1)",
+    "해시태그 5개 (브랜드 영문·가타카나 2 · 성분·제형 1 · 고민·트렌드 1 · 검색어 1)",
     "사진 4:5 세로, 1~5장 (제품 35% · 제형 30% · 피부 25%)",
     "링크는 프로필 링크로, 약기법 각주(*浸透：角質層まで 등) 필수",
     "올리는 시간: 점심 11:45~12:45, 저녁 19:30~21:30 (일본 시간)",
@@ -556,7 +585,7 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
   ],
 };
 
-export function ContentGuide({ products, drafts, materials }: ContentGuideProps) {
+export function ContentGuide({ products, drafts, materials, author, aiEnabled }: ContentGuideProps) {
   const [productId, setProductId] = useState(products[0].id);
   const [channel, setChannel] = useState<GuideChannel>("qoo10_detail");
   const [postType, setPostType] = useState<PostType>("general");
@@ -571,14 +600,22 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
   const [direction, setDirection] = useState("");
   /** 제작할 때 실제로 반영한 방향 (제작 뒤에 칸을 고쳐도 결과·PDF는 이 값) */
   const [appliedDirection, setAppliedDirection] = useState("");
+  /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
+  const [withPhotoGuide, setWithPhotoGuide] = useState(true);
+  /** AI로 만든 제목·본문 (AI 모드). 본문은 제목을 고를 때 채운다 */
+  const [aiDrafts, setAiDrafts] = useState<GuideDraft[]>([]);
+  /** AI 모드에서 고른 제목 정보 (본문 요청에 다시 보낸다) */
+  const [aiTitles, setAiTitles] = useState<Record<string, GuideTitle>>({});
+  const [warnings, setWarnings] = useState<Record<string, BlockWarnings>>({});
+  const [aiError, setAiError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], keywords: [] };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], megaSale: null };
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
-  const list = drafts
+  const list = (aiEnabled ? aiDrafts : drafts)
     .filter((d) => d.channel === channel && (!hasPostType || d.post_type === postType))
     .toSorted((a, b) => Number(b.recommended) - Number(a.recommended));
   // 제품·채널·게시물 종류가 바뀌면 다시 제작해야 한다
@@ -592,7 +629,9 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
       // 인스타그램은 고른 장 수까지만 (1장 = 단일 게시물, 2~5장 = 여러 장)
       (channel !== "instagram" || !b.key.startsWith("slide") || Number(b.key.slice(5)) <= slideCount),
   );
-  const fill = (text: string) => fillProduct(text, product.name_ko, product.ingredients);
+  const isEssence = product.line.includes("에센스");
+  const fill = (text: string) =>
+    fillProduct(text, product.name_ko, product.ingredients, { kind_ja: isEssence ? "美容液" : "化粧水", kind_ko: isEssence ? "에센스" : "스킨", volume: product.volume, product_ja: product.name_ja });
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
   const detailBlocked = channel === "qoo10_detail" && product.launch_status === "developing";
 
@@ -603,13 +642,13 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
     ? { brand: [], ingredient: [], trend: [] }
     : channel === "instagram"
       ? {
-          brand: current.hashtags.brand.slice(0, 1),
+          brand: current.hashtags.brand.slice(0, 2),
           ingredient: current.hashtags.ingredient.slice(0, 1),
-          trend: [...new Set([...current.hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 2 - KEYWORD_TAGS), ...keywordTags])],
+          trend: [...new Set([...current.hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 3 - KEYWORD_TAGS), ...keywordTags])],
         }
       : current.hashtags;
   const hashtags = [...groups.brand, ...groups.ingredient, ...groups.trend];
-  const category = product.line.includes("에센스") ? "美容液" : "化粧水";
+  const category = isEssence ? "美容液" : "化粧水";
 
   /** AI 연결 전: 잠깐 기다렸다가 샘플을 보여 준다 */
   function wait(step: "titles" | "body", done: () => void) {
@@ -620,15 +659,90 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
       done();
     }, SAMPLE_DELAY_MS);
   }
-  function generate() {
+  /** AI 요청 재료 (프롬프트 2장 입력 블록). 다른 탭의 결과(소구점·검색어·리뷰·행사)를 모아 넘긴다 */
+  function aiInput(): ContentGuideInput {
+    return {
+      product: {
+        name: product.name_ko,
+        name_ja: product.name_ja,
+        kind: isEssence ? "에센스(美容液)" : "스킨(化粧水)",
+        category: product.product_category,
+        launch_status: product.launch_status,
+        volume: product.volume,
+        price_jpy: product.price_jpy,
+        ingredients_ja: product.ingredients.map((i) => i.ja),
+        line_products: products.filter((p) => p.id !== product.id && p.launch_status === "live").map((p) => p.name_ja),
+      },
+      appeals: { praised: material.appeals, competitor_complaints: material.complaints, candidates: material.candidates },
+      keywords: { search: material.keywords, ingredients: [] },
+      review_quotes: material.hasReviews ? material.reviewQuotes : [],
+      evidence: [],
+      promo: postType === "mega_sale" && hasPostType ? material.megaSale : null,
+      channel,
+      post_type: hasPostType ? postType : "general",
+      season: null,
+      slide_count: slideCount,
+      sponsored: false,
+      direction: direction.trim(),
+    };
+  }
+
+  async function postAi(payload: unknown): Promise<Record<string, unknown>> {
+    const res = await fetch("/api/content-guide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "AI 제작에 실패했습니다");
+    return json;
+  }
+
+  async function generate() {
     const key = genKey;
     setPickedId(null);
     setMemos({});
+    setAiError(null);
     setAppliedDirection(direction.trim());
-    wait("titles", () => setGeneratedKey(key));
+    if (!aiEnabled) return wait("titles", () => setGeneratedKey(key));
+    setLoading("titles");
+    try {
+      const json = await postAi({ step: "titles", input: aiInput() });
+      const titles = GuideTitlesResult.parse({ titles: json.titles }).titles;
+      const made = titles.map((t, i) => ({ id: `ai-${Date.now()}-${i}`, title: t }));
+      setAiTitles(Object.fromEntries(made.map((m) => [m.id, m.title])));
+      setAiDrafts(made.map((m) => GuideDraft.parse({ id: m.id, channel, post_type: hasPostType ? postType : "general", title_ja: m.title.title_ja, title_ko: m.title.title_ko, recommended: m.title.recommended, reason: m.title.reason, blocks: [] })));
+      setWarnings({});
+      setGeneratedKey(key);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "AI 제작에 실패했습니다");
+    } finally {
+      setLoading(null);
+    }
   }
-  function pick(id: string) {
-    if (id !== pickedId) wait("body", () => setPickedId(id));
+
+  async function pick(id: string) {
+    if (id === pickedId) return;
+    const draft = aiDrafts.find((d) => d.id === id);
+    if (!aiEnabled || !draft || draft.blocks.length > 0) {
+      if (!aiEnabled) return wait("body", () => setPickedId(id));
+      return setPickedId(id);
+    }
+    setAiError(null);
+    setLoading("body");
+    try {
+      const json = await postAi({ step: "body", input: aiInput(), picked: aiTitles[id] });
+      const body = GuideBodyResult.parse(json.body);
+      const blockWarnings: BlockWarnings = {};
+      const add = (key: string, text: string) => (blockWarnings[key] = [...(blockWarnings[key] ?? []), text]);
+      for (const h of (json.lintHits as { key: string; text: string; reason: string }[]) ?? []) add(h.key, `「${h.text}」 ${h.reason}`);
+      for (const c of (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? []) {
+        if (c.action !== "ok") add(c.key, `약기법 판정 ${ACTION_LABEL[c.action] ?? c.action}${c.findings.length ? `: ${c.findings.map((f) => f.text).join(", ")}` : ""}`);
+      }
+      setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
+      setWarnings((w) => ({ ...w, [id]: blockWarnings }));
+      setPickedId(id);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "AI 제작에 실패했습니다");
+    } finally {
+      setLoading(null);
+    }
   }
 
   return (
@@ -777,6 +891,12 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
         </CardContent>
       </Card>
 
+      {aiError && (
+        <div role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm">
+          <p className="font-medium text-destructive">⚠ {aiError}</p>
+          <p className="mt-1 text-muted-foreground">잠시 후 다시 눌러 주세요.</p>
+        </div>
+      )}
       {detailBlocked ? (
         <EmptyState message="개발 중인 제품은 아직 상세페이지를 만들지 않아요" action="출시된 스킨·에센스를 고르거나 다른 채널을 골라 주세요" />
       ) : loading === "titles" ? (
@@ -813,10 +933,10 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
                           <span className="flex flex-wrap items-center gap-2">
                             {d.recommended && <span className={RECOMMENDED}>가장 추천</span>}
                             <span className="font-medium" lang="ja">
-                              {i + 1}. {d.title_ja}
+                              {i + 1}. {fill(d.title_ja)}
                             </span>
                           </span>
-                          <span className="mt-1 block text-muted-foreground">{d.title_ko}</span>
+                          <span className="mt-1 block text-muted-foreground">{fill(d.title_ko)}</span>
                           <span className="mt-2 block border-t pt-2 text-xs text-muted-foreground">
                             {d.recommended ? "추천 이유" : "참고"}: {d.reason}
                           </span>
@@ -839,7 +959,7 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
                   <EmptyState message="왼쪽에서 제목을 골라 주세요" action="고른 제목으로 미리보기와 본문을 만들어요" />
                 ) : (
                   <>
-                    {channel === "qoo10_detail" && <Qoo10Preview blocks={blocks} gallery={current.gallery} fill={fill} productName={product.name_ko} category={category} />}
+                    {channel === "qoo10_detail" && <Qoo10Preview blocks={blocks} gallery={current.gallery} fill={fill} title={fill(current.title_ja)} priceJpy={product.price_jpy} category={category} />}
                     {channel === "instagram" && <InstagramPreview key={`${current.id}-${slideCount}`} blocks={blocks} hashtags={hashtags} fill={fill} />}
                     {channel === "x" && <XPreview blocks={blocks} hashtags={hashtags} fill={fill} />}
                     {channel === "banner" && <BannerPreview blocks={blocks} fill={fill} />}
@@ -855,12 +975,28 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
                 <CardTitle>3. 본문 추천 · 메모</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
+                {Object.keys(warnings[current.id] ?? {}).length > 0 && (
+                  <section role="alert" className="space-y-1 rounded-md border border-risk-medium/50 p-3">
+                    <p className="font-semibold text-risk-medium">약기법 주의 · 게시 전에 고쳐 주세요</p>
+                    <ul className="list-disc pl-5 text-xs">
+                      {Object.entries(warnings[current.id] ?? {}).flatMap(([key, items]) =>
+                        items.map((w) => (
+                          <li key={`${key}-${w}`}>
+                            {(blocks.findIndex((b) => b.key === key) + 1) || "-"}. {blocks.find((b) => b.key === key)?.heading ?? key}: {w}
+                          </li>
+                        )),
+                      )}
+                    </ul>
+                    <p className="text-xs text-muted-foreground">「새 검토」에서 문구를 고쳐 다시 판정할 수 있어요.</p>
+                  </section>
+                )}
                 <BodyPager
                   key={`${current.id}-${slideCount}`}
                   blocks={blocks}
                   fill={fill}
                   memos={Object.fromEntries(blocks.map((b) => [b.key, memos[`${current.id}:${b.key}`] ?? ""]))}
                   onMemo={(blockKey, text) => setMemos((m) => ({ ...m, [`${current.id}:${blockKey}`]: text }))}
+                  memoWhere={(blockKey) => memoLocation(channel, blocks, blockKey)}
                 />
 
                 {channel === "qoo10_detail" && <GalleryGuide gallery={current.gallery} />}
@@ -887,6 +1023,29 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
                   </section>
                 )}
 
+                {/* 촬영 가이드는 가장 중요한 내용이 아니라 항상 맨 아래에 둔다 (PDF에서도 붙임) */}
+                <details className="rounded-md border p-3">
+                  <summary className="cursor-pointer font-semibold">촬영 가이드 (컷 리스트 {buildCutList(channel, blocks, current.gallery).length}컷 · PDF 붙임)</summary>
+                  <div className="mt-2 grid gap-3 text-xs sm:grid-cols-2">
+                    <div>
+                      <p className="font-medium">공통 규칙</p>
+                      <ul className="list-disc pl-5 text-muted-foreground">
+                        {PHOTO_RULES.map((r) => (
+                          <li key={r}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="font-medium">찍으면 안 되는 것</p>
+                      <ul className="list-disc pl-5 text-muted-foreground">
+                        {PHOTO_DONTS.map((r) => (
+                          <li key={r}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">컷 리스트는 사진 칸 설명을 모아 만들어요 (AI를 따로 부르지 않아요).</p>
+                </details>
               </CardContent>
             </Card>
           )}
@@ -894,11 +1053,37 @@ export function ContentGuide({ products, drafts, materials }: ContentGuideProps)
       )}
 
       <div className="flex items-center justify-end gap-2">
-        <span className="text-xs text-muted-foreground">다른 부서 공유용 · 준비 중</span>
-        <Button type="button" disabled>
+        <span className="text-xs text-muted-foreground">
+          {current ? "고른 제목·메모가 들어가요. 인쇄 창에서 「PDF로 저장」을 고르세요" : "제목을 고르면 PDF로 출력할 수 있어요"}
+        </span>
+        <label className="flex items-center gap-1 text-xs">
+          <input type="checkbox" checked={withPhotoGuide} onChange={(e) => setWithPhotoGuide(e.target.checked)} />
+          촬영 가이드 붙이기
+        </label>
+        <Button type="button" disabled={!current || loading !== null} onClick={() => window.print()}>
           PDF 출력
         </Button>
       </div>
+
+      {current && (
+        <ContentGuideReport
+          channel={channel}
+          productName={product.name_ko}
+          channelLabel={GUIDE_CHANNELS.find((c) => c.id === channel)?.label ?? channel}
+          postTypeLabel={hasPostType ? (POST_TYPES.find((t) => t.id === postType)?.label ?? null) : null}
+          author={author}
+          title={{ ja: fill(current.title_ja), ko: fill(current.title_ko), reason: current.reason }}
+          appeals={material.hasReviews ? material.appeals : []}
+          keywords={material.keywords}
+          blocks={blocks}
+          gallery={channel === "qoo10_detail" ? current.gallery : []}
+          hashtags={hasPostType ? hashtags : []}
+          memos={Object.fromEntries(blocks.map((b) => [b.key, memos[`${current.id}:${b.key}`] ?? ""]))}
+          fill={fill}
+          cutList={withPhotoGuide ? buildCutList(channel, blocks, current.gallery) : null}
+          direction={appliedDirection}
+        />
+      )}
     </div>
   );
 }
