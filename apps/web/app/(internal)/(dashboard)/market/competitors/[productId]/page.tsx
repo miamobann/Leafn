@@ -4,9 +4,7 @@ import { getGeoSnapshots, getProduct, getProducts, getTrendSnapshots } from "@/l
 import { ProductDetailView } from "@/app/(internal)/(dashboard)/market/_components/product-detail-view";
 import { COMMON_INGREDIENTS, rankHistory } from "@/app/(internal)/(dashboard)/market/_lib/market";
 
-export async function generateStaticParams() {
-  return (await getProducts()).map((p) => ({ productId: p.id }));
-}
+
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ productId: string }> }) {
   const product = await getProduct((await params).productId);
@@ -18,7 +16,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <PageHeader title={`${product.brand} ${product.name}`} description="제품 상세 · 全成分 · 특징 · 출처 · 추출 원본 (샘플)" featureId="C" />
+      <PageHeader title={`${product.brand} ${product.name}`} description="제품 상세 · 全成分 · 특징 · 출처 · 추출 원본" featureId="C" />
       <ProductDetailView
         product={product}
         sharedWithOwn={sharedWithOwn}

@@ -630,7 +630,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
       // 인스타그램은 고른 장 수까지만 (1장 = 단일 게시물, 2~5장 = 여러 장)
       (channel !== "instagram" || !b.key.startsWith("slide") || Number(b.key.slice(5)) <= slideCount),
   );
-  const isEssence = product.line.includes("에센스");
+  const isEssence = product.line.includes("에센스") || product.line.includes("美容液");
   const fill = (text: string) =>
     fillProduct(text, product.name_ko, product.ingredients, { kind_ja: isEssence ? "美容液" : "化粧水", kind_ko: isEssence ? "에센스" : "스킨", volume: product.volume, product_ja: product.name_ja });
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
@@ -704,7 +704,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
     if (!aiEnabled) return wait("titles", () => setGeneratedKey(key));
     setLoading("titles");
     try {
-      const json = await postAi({ step: "titles", input: aiInput() });
+      const json = await postAi({ step: "titles", product_id: product.id, input: aiInput() });
       const titles = GuideTitlesResult.parse({ titles: json.titles }).titles;
       const made = titles.map((t, i) => ({ id: `ai-${Date.now()}-${i}`, title: t }));
       setAiTitles(Object.fromEntries(made.map((m) => [m.id, m.title])));
@@ -728,7 +728,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
     setAiError(null);
     setLoading("body");
     try {
-      const json = await postAi({ step: "body", input: aiInput(), picked: aiTitles[id] });
+      const json = await postAi({ step: "body", product_id: product.id, input: aiInput(), picked: aiTitles[id] });
       const body = GuideBodyResult.parse(json.body);
       const blockWarnings: BlockWarnings = {};
       const add = (key: string, text: string) => (blockWarnings[key] = [...(blockWarnings[key] ?? []), text]);

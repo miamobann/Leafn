@@ -16,7 +16,7 @@ export default async function CalendarPage() {
         <ChevronLeft aria-hidden className="size-4" />
         홈으로
       </Link>
-      <PageHeader title="프로모션 캘린더" description="행사 기간과 준비 마감 (날짜는 샘플)" featureId="I" />
+      <PageHeader title="프로모션 캘린더" description="저장된 행사 기간과 준비 마감" featureId="I" />
       <ViewStateGate state={events.length === 0 ? "empty" : "ready"}>
         <CalendarClient events={events} platformKeys={platforms.map((p) => p.key)} today={today} />
       </ViewStateGate>

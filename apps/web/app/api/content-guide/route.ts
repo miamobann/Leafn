@@ -1,5 +1,4 @@
-// POST /api/content-guide: 콘텐츠 제작 가이드 ① 제목 3개(대량 등급) / ② 고른 제목으로 본문(정밀 등급) + 금지어 검사 + 약기법 판정.
-// 저장하지 않고 결과만 돌려준다. 키는 서버에서만 쓰고, 오류 문구는 아래에서 고른 것만 보낸다.
+// POST /api/content-guide: 콘텐츠 제작 가이드 ① 제목 3개(대량 등급) / ② 고른 제목으로 본문(정밀 등급) + 금지어 검사 + 약기법 판정 + content_guides 자동 저장.
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AdCheckParseError } from "@/lib/ai/ad-check/judge";
@@ -7,21 +6,23 @@ import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
 import { checkBody } from "@/lib/ai/content-guide/check";
 import { ContentGuideParseError, generateBody, generateTitles } from "@/lib/ai/content-guide/generate";
+import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { ContentGuideInput, GuideTitle } from "@/lib/schemas/content-guide";
 import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60; // 본문 + 판정에 20~40초 걸린다
 
 const MAX_BODY_BYTES = 32 * 1024;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const Request = z.discriminatedUnion("step", [
-  z.object({ step: z.literal("titles"), input: ContentGuideInput }),
-  z.object({ step: z.literal("body"), input: ContentGuideInput, picked: GuideTitle }),
+  z.object({ step: z.literal("titles"), input: ContentGuideInput, product_id: z.string().optional() }),
+  z.object({ step: z.literal("body"), input: ContentGuideInput, picked: GuideTitle, product_id: z.string().optional() }),
 ]);
 
 /** 로그인 확인 (POST /api/ad-check 와 같은 기준): Supabase 를 연결하지 않은 로컬이면 통과 */
 async function isAllowed(): Promise<boolean> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return true;
+  if (!isSupabaseConfigured()) return true;
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
@@ -48,6 +49,8 @@ export async function POST(request: Request) {
   const req = parsed.data;
 
   try {
+    const mine = isSupabaseConfigured() ? await getMyWorkspace() : null;
+    if (isSupabaseConfigured() && !mine) return fail(403, "워크스페이스에 참여한 뒤 다시 시도해 주세요.");
     if (req.step === "titles") {
       const made = await generateTitles(req.input);
       return NextResponse.json({ titles: made.result.titles, meta: { model: made.model, promptVersion: made.promptVersion, usage: made.usage } });
@@ -55,10 +58,37 @@ export async function POST(request: Request) {
     const made = await generateBody(req.input, req.picked);
     const p = req.input.product;
     const checked = await checkBody(req.input.channel, { name: p.name, product_category: p.category, ingredients: p.ingredients_ja }, made.result);
+    const checks = checked.blocks.map((b) => ({ key: b.key, action: b.line.action, findings: b.line.findings.map((f) => ({ text: f.text, reason: f.reason })) }));
+
+
+    if (mine) {
+      const supabase = await createClient();
+      const { error: dbErr } = await supabase.from("content_guides").insert({
+        workspace_id: mine.workspace.id,
+        product_id: req.product_id && UUID_RE.test(req.product_id) ? req.product_id : null,
+        channel: req.input.channel,
+        post_type: req.input.post_type,
+        direction: req.input.direction,
+        title_ja: req.picked.title_ja,
+        title_ko: req.picked.title_ko,
+        angle: req.picked.angle,
+        recommended: req.picked.recommended,
+        reason: req.picked.reason,
+        blocks: made.result.blocks,
+        hashtags: made.result.hashtags,
+        gallery: made.result.gallery,
+        lint_hits: made.lintHits,
+        checks,
+        model: made.model,
+        prompt_version: `content-guide.${made.promptVersion}`,
+      });
+      if (dbErr) return fail(500, "결과를 DB에 저장하지 못했습니다. 관리자에게 테이블 적용 상태와 권한을 확인해 주세요.");
+    }
+
     return NextResponse.json({
       body: made.result,
       lintHits: made.lintHits,
-      checks: checked.blocks.map((b) => ({ key: b.key, action: b.line.action, findings: b.line.findings.map((f) => ({ text: f.text, reason: f.reason })) })),
+      checks,
       meta: { model: made.model, promptVersion: made.promptVersion, usage: made.usage, checkUsage: checked.usage },
     });
   } catch (e) {

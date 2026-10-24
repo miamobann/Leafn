@@ -1,9 +1,11 @@
+import { z } from "zod";
+import { readRows, dataContext } from "./db";
+import { platformLabel } from "@/lib/platforms";
 // 진출 실행 탭(플랫폼별 강점, 프로모션 캘린더)이 부르는 읽기·쓰기 함수.
 // 화면은 아래 View 타입만 안다. 테이블 구조(slug, platforms FK, promo_milestones)가 바뀌면 이 파일만 고친다.
-import { mock } from "@/lib/mock";
 import { PROTOTYPE_TODAY } from "@/lib/mock/helpers";
 import type { ReviewStatus } from "@/lib/schemas/common";
-import { getMemberName } from "./index";
+import { getMemberName, getPlatforms, getPromoEvents, getAdChecks } from "./index";
 
 export type ChannelType = "ec" | "review_sns" | "offline";
 export type PlatformStatus = "reviewing" | "preparing" | "live";
@@ -39,10 +41,10 @@ export type PromoEventView = {
 
 export async function getPlatformViews(): Promise<PlatformView[]> {
   return Promise.all(
-    mock.platforms.map(async (p) => ({
+    (await getPlatforms()).map(async (p) => ({
       id: p.id,
       key: p.platform,
-      name: p.platform,
+      name: platformLabel(p.platform),
       channel: p.channel_type ?? null,
       status: p.status ?? null,
       strengths: p.strengths,
@@ -59,21 +61,24 @@ export async function getPlatformView(id: string): Promise<PlatformView | null> 
 }
 
 export async function getPromoEventViews(opts: { platformKey?: string } = {}): Promise<PromoEventView[]> {
-  return mock.promoEvents
+  const rows = await readRows("promo_milestones");
+  const deadlines = rows ? z.array(z.object({ id: z.string(), promo_event_id: z.string(), label: z.string(), due_date: z.string(), done_at: z.string().nullable() })).parse(rows) : null;
+  const checks = await getAdChecks();
+  return (await getPromoEvents())
     .filter((e) => !opts.platformKey || e.platform === opts.platformKey)
     .toSorted((a, b) => a.start_date.localeCompare(b.start_date))
     .map((e) => {
-      const check = mock.adChecks.find((c) => c.promo_event_id === e.id);
+      const check = checks.find((c) => c.promo_event_id === e.id);
       const milestones = e.milestones ?? [{ label: "준비 마감", due_date: e.prep_due_date }];
       return {
         id: e.id,
         platformKey: e.platform,
-        platformName: e.platform,
+        platformName: e.platform ? platformLabel(e.platform) : "자사 캠페인",
         kind: e.kind ?? "platform_event",
         title: e.title,
         startDate: e.start_date,
         endDate: e.end_date,
-        milestones: milestones.map((m, i) => ({ id: `${e.id}-m${i}`, label: m.label, dueDate: m.due_date, done: false })),
+        milestones: deadlines ? deadlines.filter((m) => m.promo_event_id === e.id).map((m) => ({ id: m.id, label: m.label, dueDate: m.due_date, done: m.done_at !== null })) : milestones.map((m, i) => ({ id: `${e.id}-m${i}`, label: m.label, dueDate: m.due_date, done: false })),
         adCheck: check ? { id: check.id, status: check.review_status } : null,
       };
     });
@@ -81,7 +86,7 @@ export async function getPromoEventViews(opts: { platformKey?: string } = {}): P
 
 /** 캘린더의 "오늘". 프로토타입은 샘플 날짜에 맞춘 고정값, DB 연결 후 실제 오늘 */
 export async function getToday(): Promise<string> {
-  return PROTOTYPE_TODAY;
+  return await dataContext() ? new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date()) : PROTOTYPE_TODAY;
 }
 
 /** 가장 이른 미완료 마감 (화면의 "준비 마감") */
