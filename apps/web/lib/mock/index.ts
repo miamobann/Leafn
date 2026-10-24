@@ -4,7 +4,6 @@ import { geoSnapshots } from "./geo";
 import { platforms } from "./platforms";
 import { products } from "./products";
 import { boardProjects, projectStages, projects } from "./projects";
-import { rankingSources } from "./ranking-sources";
 import { searchSnapshots } from "./search";
 import { snsPatterns, snsVideoNotes } from "./sns-notes";
 import { claimJudgments } from "./claim-judgments";
@@ -121,7 +120,6 @@ export const mock = {
   reviewTranslations,
   adChecks,
   trendSnapshots,
-  rankingSources,
   searchSnapshots,
   snsVideoNotes,
   snsPatterns,

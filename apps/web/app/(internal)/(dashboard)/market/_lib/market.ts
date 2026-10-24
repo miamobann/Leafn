@@ -1,7 +1,7 @@
 // 시장 분석(TAB 1) 화면이 같이 쓰는 계산. 데이터는 lib/data에서 받아 여기서 가공만 한다.
 import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
-import type { PromoHookType, RankingItem, SkinConcern, TrendSnapshot } from "@/lib/schemas/trend";
+import type { PromoHookType, SkinConcern, TrendSnapshot } from "@/lib/schemas/trend";
 import { classifySuggestion } from "@/lib/external/search-terms";
 import { matchIngredient } from "@/lib/ai/appeal-normalize";
 
@@ -139,58 +139,6 @@ export const SKIN_CONCERN_LABEL: Record<SkinConcern, string> = {
   oiliness: "피지",
   other: "기타",
 };
-
-export type HeroIngredientStat = {
-  ingredient: string;
-  count: number;
-  avgPrice: number;
-  avgRank: number;
-  hooks: { type: PromoHookType; count: number }[];
-  concerns: { code: SkinConcern; count: number }[];
-  items: RankingItem[];
-};
-
-function tally<K extends string>(keys: K[]): { key: K; count: number }[] {
-  const m = new Map<K, number>();
-  for (const k of keys) m.set(k, (m.get(k) ?? 0) + 1);
-  return [...m].map(([key, count]) => ({ key, count })).toSorted((a, b) => b.count - a.count);
-}
-
-/** 상위 TOP_N 상품이 이미지에서 내세운 성분별 집계 (제품 수 많은 순, 같으면 평균 순위 높은 순) */
-export function heroIngredientStats(s: Pick<TrendSnapshot, "data"> | undefined): HeroIngredientStat[] {
-  const top = (s?.data.ranking ?? []).filter((r) => r.rank <= TOP_N && r.appeal);
-  const byIngredient = new Map<string, RankingItem[]>();
-  for (const r of top) {
-    for (const ing of new Set(r.appeal?.hero_ingredients.map((h) => h.canonical))) {
-      byIngredient.set(ing, [...(byIngredient.get(ing) ?? []), r]);
-    }
-  }
-  return [...byIngredient]
-    .map(([ingredient, items]) => ({
-      ingredient,
-      count: items.length,
-      avgPrice: Math.round(items.reduce((sum, r) => sum + r.price_jpy, 0) / items.length),
-      avgRank: Math.round((items.reduce((sum, r) => sum + r.rank, 0) / items.length) * 10) / 10,
-      hooks: tally(items.flatMap((r) => [...new Set(r.appeal?.promo_hooks.map((h) => h.type))])).map(({ key, count }) => ({ type: key, count })),
-      concerns: tally(items.flatMap((r) => [...new Set(r.appeal?.skin_concerns.map((c) => c.code))])).map(({ key, count }) => ({ code: key, count })),
-      items,
-    }))
-    .toSorted((a, b) => b.count - a.count || a.avgRank - b.avgRank);
-}
-
-export type HeroCompareRow = { ingredient: string; rakuten: HeroIngredientStat | null; qoo10: HeroIngredientStat | null };
-
-/** 출처별 집계를 성분 이름으로 나란히 놓는다. 제품끼리 합치지 않으므로 같은 제품이 두 곳에 있어도 각자 센다 */
-export function compareHeroStats(rakuten: HeroIngredientStat[], qoo10: HeroIngredientStat[]): HeroCompareRow[] {
-  const names = [...new Set([...rakuten, ...qoo10].map((h) => h.ingredient))];
-  return names
-    .map((ingredient) => ({
-      ingredient,
-      rakuten: rakuten.find((h) => h.ingredient === ingredient) ?? null,
-      qoo10: qoo10.find((h) => h.ingredient === ingredient) ?? null,
-    }))
-    .toSorted((a, b) => (b.rakuten?.count ?? 0) + (b.qoo10?.count ?? 0) - ((a.rakuten?.count ?? 0) + (a.qoo10?.count ?? 0)));
-}
 
 export type SearchTermKind = "concern" | "new";
 export type SearchTermStatus = "new" | "up" | "flat" | "down";
