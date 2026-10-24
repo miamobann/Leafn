@@ -1,5 +1,5 @@
 // 촬영 가이드: 정해진 규칙(AI에 보내지 않음) + 결과물의 사진 칸 설명을 모은 컷 리스트.
-// 공통 규칙·금지 사항은 분석 보고서(큐텐 상세페이지·SNS 전략)와 약기법(E14·E8·F11) 기준. 나중에 knowledge/content-guide/ 문서로 옮긴다.
+// 공통 규칙·금지 사항의 원문은 knowledge/content-guide/04-photo.md (분석 보고서·약기법 E14·E8·F11 기준). 화면(클라이언트)에서 바로 쓰려고 여기 사본을 두니, 고칠 때는 두 곳을 같이 고친다.
 import type { GalleryShot, GuideBlock, GuideChannel } from "./content-guide-samples";
 
 /** 채널별 사진 비율 */
