@@ -62,13 +62,13 @@ function Price({ p }: { p: Product }) {
   );
 }
 
-export function CompetitorsView({ products }: { products: Product[] }) {
+export function CompetitorsView({ products, initialSelected = [] }: { products: Product[]; initialSelected?: string[] }) {
   const [added, setAdded] = useState<Product[]>([]);
   const all = [...products, ...added];
   const categories = ["전체", ...new Set(all.map((p) => p.category ?? "미분류"))];
   const [category, setCategory] = useState("전체");
   const [sort, setSort] = useState<SortKey>("perMl");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(initialSelected.slice(0, MAX_COMPARE));
   const [registering, setRegistering] = useState(false);
 
   // 자사 행을 맨 위에 고정하고, 그 안에서 정렬

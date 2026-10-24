@@ -12,6 +12,7 @@ import { weekLabel } from "@/app/(internal)/(dashboard)/market/_lib/market";
 import { ownBaseline, seriesOf } from "@/app/(internal)/(dashboard)/market/_lib/overview";
 import { ConditionBar } from "./condition-bar";
 import { MarketPart } from "./part0-market";
+import { SupplyPart } from "./part1-supply";
 import { SectionHeader } from "./section-header";
 import { MAX_COMPARE, OverviewPanel, type PanelContent } from "./side-panel";
 
@@ -29,12 +30,11 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 // 아직 만들지 않은 파트의 자리 표시. 기존 상세 화면 링크는 새 탭으로 연다
 const PLACEHOLDER: Partial<Record<SectionId, { message: string; links: { href: string; label: string }[] }>> = {
   summary: { message: "다른 섹션 완성 후 표시", links: [] },
-  supply: { message: "다음 단계에서 표시", links: [{ href: "/market/competitors", label: "경쟁제품 비교" }] },
   demand: { message: "다음 단계에서 표시", links: [{ href: "/market/ingredients", label: "성분 관심도" }] },
   opportunity: { message: "다음 단계에서 표시", links: [] },
 };
 
-export function MarketOverview({ snapshots, products }: { snapshots: TrendSnapshot[]; products: Product[]; promoEvents: PromoEvent[] }) {
+export function MarketOverview({ snapshots, products, promoEvents }: { snapshots: TrendSnapshot[]; products: Product[]; promoEvents: PromoEvent[] }) {
   const [category, setCategory] = useState<MarketCategory>("化粧水");
   const [platform, setPlatform] = useState<MarketPlatform>("rakuten_ranking");
   const [panel, setPanel] = useState<PanelContent | null>(null);
@@ -43,6 +43,7 @@ export function MarketOverview({ snapshots, products }: { snapshots: TrendSnapsh
 
   const platformInfo = MARKET_PLATFORMS.find((p) => p.source === platform) ?? MARKET_PLATFORMS[0];
   const series = seriesOf(snapshots, platform, category);
+  const sameSource = snapshots.filter((s) => s.source === platform);
   const latest = series.at(-1);
   const week = latest ? `${weekLabel(latest.captured_at)} 주` : null;
   const basis = week ? `${week} · ${platformInfo.label}` : `${platformInfo.label} · 이 카테고리 데이터 없음`;
@@ -52,6 +53,19 @@ export function MarketOverview({ snapshots, products }: { snapshots: TrendSnapsh
 
   const body: Partial<Record<SectionId, React.ReactNode>> = {
     market: <MarketPart series={series} platformLabel={platformInfo.label} onOpen={setPanel} />,
+    supply: (
+      <SupplyPart
+        series={series}
+        sameSource={sameSource}
+        platformLabel={platformInfo.label}
+        platformName={platformInfo.eventPlatform}
+        promoEvents={promoEvents}
+        products={products}
+        selected={selected}
+        onToggleCompare={toggleCompare}
+        onOpen={setPanel}
+      />
+    ),
   };
 
   return (
