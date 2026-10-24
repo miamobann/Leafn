@@ -27,7 +27,7 @@ export const ContentGuideInput = z.object({
   appeals: z.object({ praised: z.array(z.string()), competitor_complaints: z.array(z.string()), candidates: z.array(z.string()) }),
   keywords: z.object({ search: z.array(z.string()), ingredients: z.array(z.string()) }),
   /** 후기 블록에 쓸 실제 한국어 리뷰 원문 (리뷰 분석 데이터에서 고른 것). 없으면 빈 배열 → 후기를 지어내지 않는다 */
-  review_quotes: z.array(z.string().min(1)).max(3),
+  review_quotes: z.array(z.string().min(1)).max(4),
   evidence: z.array(z.string()),
   promo: z.string().nullable(),
   channel: ContentChannel,

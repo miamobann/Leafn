@@ -3,6 +3,7 @@
 import type { z } from "zod";
 import { callAi, type AiReply, type AiRequest, type AiUsage } from "@/lib/ai/client";
 import { type ContentGuideInput, type GuideTitle, GuideBodyResult, GuideTitlesResult } from "@/lib/schemas/content-guide";
+import { type LintHit, lintBody } from "./lint";
 import { buildSystemPrompt, buildUserMessage, type GuideStep } from "./prompt";
 
 /** 지금 쓰는 프롬프트 버전. 저장하는 prompt_version 은 "content-guide.<버전>" */
@@ -55,8 +56,23 @@ export function generateTitles(input: ContentGuideInput, deps: Deps = {}) {
 /** 채널별 첫 블록 key (규칙 문서 01의 블록 순서) */
 const FIRST_BLOCK: Record<ContentGuideInput["channel"], string> = { qoo10_detail: "hook", instagram: "caption", x: "post", banner: "copy" };
 
-/** ② 고른 제목으로 본문 */
-export function generateBody(input: ContentGuideInput, picked: GuideTitle, deps: Deps = {}) {
+/** ② 고른 제목으로 본문. 금지어가 나오면 한 번 더 만들고, 그래도 남으면 lintHits 로 돌려줘 화면에서 경고한다 */
+export async function generateBody(input: ContentGuideInput, picked: GuideTitle, deps: Deps = {}): Promise<Generated<GuideBodyResult> & { lintHits: LintHit[] }> {
+  let made = await bodyOnce(input, picked, deps);
+  let hits = lintBody(made.result);
+  if (hits.length > 0) {
+    const again = await bodyOnce(input, picked, deps);
+    const againHits = lintBody(again.result);
+    const usage = { input: made.usage.input + again.usage.input, cached: made.usage.cached + again.usage.cached, output: made.usage.output + again.usage.output };
+    if (againHits.length < hits.length) [made, hits] = [again, againHits];
+    made = { ...made, usage };
+  }
+  // 상세페이지·배너는 해시태그를 쓰지 않는다 (검색은 상품명으로 걸린다)
+  const result = input.channel === "qoo10_detail" || input.channel === "banner" ? { ...made.result, hashtags: { brand: [], ingredient: [], trend: [] } } : made.result;
+  return { ...made, result, lintHits: hits };
+}
+
+function bodyOnce(input: ContentGuideInput, picked: GuideTitle, deps: Deps) {
   return run("body", "precise", buildUserMessage(input, picked), GuideBodyResult, (r) => {
     if (r.blocks[0]?.key !== FIRST_BLOCK[input.channel]) throw new Error(`첫 블록은 ${FIRST_BLOCK[input.channel]} 이어야 함`);
     if (r.blocks.some((b) => b.options.length < 1 || b.options.length > 2)) throw new Error("블록마다 안은 1~2개");

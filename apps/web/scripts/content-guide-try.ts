@@ -1,10 +1,11 @@
 // 콘텐츠 제작 가이드 AI 시험 (로컬 전용, PR에 넣지 않는다). 실제 OpenAI 키로 1건 돌려 토큰·비용·결과를 본다.
 // 실행 (apps/web 에서): npx tsx --env-file=.env.local scripts/content-guide-try.ts [채널] [--check]
-//   채널: qoo10_detail(기본) | instagram | x | banner   --check: 만든 문구를 약기법 판정에도 통과 (비용 늘어남)
+//   채널: qoo10_detail(기본) | instagram | x | banner   mega_sale: 메가와리 게시물(캘린더 일정 연결)   --check: 만든 문구를 약기법 판정에도 통과 (비용 늘어남)
 import { checkBody } from "@/lib/ai/content-guide/check";
 import { generateBody, generateTitles } from "@/lib/ai/content-guide/generate";
 import type { AiUsage } from "@/lib/ai/client";
-import { getAppealComparison } from "@/lib/data";
+import { pickMegaSale, pickReviewQuotes } from "@/lib/ai/content-guide/materials";
+import { getAppealComparison, getPromoEvents } from "@/lib/data";
 import { ContentChannel, type ContentGuideInput } from "@/lib/schemas/content-guide";
 
 // gpt-4.1-mini 기준 가격 (100만 토큰당 달러). 바뀔 수 있으니 실제 청구서로 확인
@@ -40,17 +41,14 @@ const input: ContentGuideInput = {
   direction: "",
 };
 
-/** 리뷰 분석 데이터에서 칭찬이 가장 많은 주제의 리뷰 중, 평점이 높고 짧은 것 하나를 고른다 */
-async function pickReview(productId: string): Promise<string[]> {
-  const appeal = await getAppealComparison(productId);
-  const top = appeal?.topics.filter((t) => t.praises.length > 0).toSorted((a, b) => b.praiseShare - a.praiseShare)[0];
-  const best = top?.praises.filter((r) => r.body.length >= 15 && r.body.length <= 80).toSorted((a, b) => b.rating - a.rating || a.body.length - b.body.length)[0];
-  return best ? [best.body] : [];
-}
-
 async function main() {
-  input.review_quotes = await pickReview("p-own-1");
-  console.log(`리뷰 원문: ${input.review_quotes[0] ?? "없음"}`);
+  input.review_quotes = pickReviewQuotes((await getAppealComparison("p-own-1"))?.topics ?? []);
+  if (process.argv.includes("mega_sale")) {
+    input.post_type = "mega_sale";
+    input.promo = pickMegaSale(await getPromoEvents(), "2026-10-24");
+  }
+  console.log(`리뷰 원문: ${input.review_quotes.join(" | ") || "없음"}`);
+  console.log(`행사: ${input.promo ?? "없음"}`);
   const titles = await generateTitles(input);
   show("① 제목", titles.usage);
   titles.result.titles.forEach((t, i) => console.log(`  ${i + 1}. ${t.recommended ? "[추천] " : ""}${t.title_ja}  (${t.title_ko})`));
@@ -58,7 +56,8 @@ async function main() {
   const picked = titles.result.titles[0]!;
   const body = await generateBody(input, picked);
   show("② 본문", body.usage);
-  body.result.blocks.forEach((b) => console.log(`  - ${b.key} · ${b.heading}: ${b.options[0]?.text_ja.replace(/\n/g, " / ").slice(0, 60)}`));
+  body.result.blocks.forEach((b) => console.log(`  - ${b.key} · ${b.heading}: ${b.options[0]?.text_ja.replace(/\n/g, " / ").slice(0, b.key === "review" ? 200 : 60)}`));
+  console.log(`  금지어: ${body.lintHits.length ? body.lintHits.map((h) => `${h.key} 「${h.text}」 ${h.reason}`).join(" · ") : "없음"}`);
   console.log(`  해시태그: ${[...body.result.hashtags.brand, ...body.result.hashtags.ingredient, ...body.result.hashtags.trend].join(" ")}`);
 
   let total = [titles.usage, body.usage];
