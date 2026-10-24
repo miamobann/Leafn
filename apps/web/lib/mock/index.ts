@@ -2,6 +2,7 @@ import { activity } from "./activity";
 import { adChecks } from "./ad-checks";
 import { geoSnapshots } from "./geo";
 import { platforms } from "./platforms";
+import { lineProducts, productLines } from "./product-lines";
 import { products } from "./products";
 import { projectStages, projects } from "./projects";
 import { rankingSources } from "./ranking-sources";
@@ -60,6 +61,12 @@ function checkRefs() {
     if (s.owner_id) expect(userIds.has(s.owner_id), `projectStages ${s.id}.owner_id`);
   }
 
+  const productLineIds = ids(productLines);
+  for (const lp of lineProducts) {
+    expect(productLineIds.has(lp.product_line_id), `lineProducts ${lp.id}.product_line_id`);
+    if (lp.product_id) expect(productIds.has(lp.product_id), `lineProducts ${lp.id}.product_id`);
+  }
+
   // 설문 집계가 가리키는 라인 · 연령대 · 고민 값이 문항과 추천 라인에 있어야 한다
   const lineIds = ids(surveyProductLines);
   const optionValues = (qid: string) => new Set(surveyQuestions.find((q) => q.id === qid)?.options.map((o) => o.value) ?? []);
@@ -110,4 +117,6 @@ export const mock = {
   activity,
   projects,
   projectStages,
+  productLines,
+  lineProducts,
 };
