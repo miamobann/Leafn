@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
-import { buttonVariants } from "@/components/ui/button";
 import { getAppealComparison, getSearchSnapshots, getWorkspace } from "@/lib/data";
 import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/data/workspace";
 import { APPEAL_TOPICS } from "@/lib/schemas/review";
@@ -42,16 +40,11 @@ export default async function ContentGuidePage() {
 
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <PageHeader
-          title="콘텐츠 제작 가이드"
-          description="리뷰 소구점과 검색어를 반영해 채널별로 약기법에 맞는 일본어 문구를 추천합니다"
-          featureId="A"
-        />
-        <Link href="/ad-check" className={`${buttonVariants({ variant: "outline" })} border-foreground/40!`}>
-          새 검토
-        </Link>
-      </div>
+      <PageHeader
+        title="콘텐츠 제작 가이드"
+        description="리뷰 소구점과 검색어를 반영해 채널별로 약기법에 맞는 일본어 문구를 추천합니다"
+        featureId="A"
+      />
       <AdDisclaimer />
       <p className="mt-2 text-xs text-muted-foreground">샘플 데이터 · AI 미연결 · 게시 전에는 새 검토로 다시 확인하세요</p>
       <div className="mt-4">
