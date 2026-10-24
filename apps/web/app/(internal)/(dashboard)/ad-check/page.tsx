@@ -18,12 +18,7 @@ export default async function AdCheckPage({ searchParams }: AdCheckPageProps) {
 
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <PageHeader title="새 광고 검토" description="약기법 위험 표현, 사유·근거, 대체 표현, 현지화를 줄별로 확인합니다" featureId="A" />
-        <Link href="/ad-check/history" className={`${buttonVariants({ variant: "outline" })} border-foreground/40!`}>
-          검토 내역
-        </Link>
-      </div>
+      <PageHeader title="새 광고 검토" description="약기법 위험 표현, 사유·근거, 대체 표현, 현지화를 줄별로 확인합니다" featureId="A" />
       <AdDisclaimer />
       <p className="mt-2 text-xs text-muted-foreground">
         AI 판정(정밀 등급) · 아직 저장되지 않음 · 「내부 검토 완료」는 법적 승인이 아닙니다
