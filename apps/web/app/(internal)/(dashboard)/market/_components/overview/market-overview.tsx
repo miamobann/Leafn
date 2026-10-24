@@ -1,22 +1,23 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
-import { EmptyState } from "@/components/common/states";
 import { ViewStateGate } from "@/components/common/view-state";
 import { MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
 import type { GeoSnap } from "@/lib/schemas/geo";
-import type { SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
+import type { ClaimJudgment, CopyCandidate, SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
 import type { Product } from "@/lib/schemas/product";
 import type { PromoEvent } from "@/lib/schemas/promo";
 import type { SearchSnap } from "@/lib/schemas/search";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
 import { weekLabel } from "@/app/(internal)/(dashboard)/market/_lib/market";
-import { ownBaseline, seriesOf } from "@/app/(internal)/(dashboard)/market/_lib/overview";
+import { ownBaseline, rowsAt, seriesOf, top10 } from "@/app/(internal)/(dashboard)/market/_lib/overview";
 import { ConditionBar } from "./condition-bar";
 import { MarketPart } from "./part0-market";
 import { SupplyPart } from "./part1-supply";
 import { DemandPart } from "./part2-demand";
+import { OpportunityPart } from "./part3-opportunity";
+import { SummaryPart } from "./summary";
+import { AppealReport } from "@/app/(internal)/(dashboard)/market/_components/appeal-report";
 import { SectionHeader } from "./section-header";
 import { MAX_COMPARE, OverviewPanel, type PanelContent } from "./side-panel";
 
@@ -31,11 +32,8 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]["id"];
 
-// 아직 만들지 않은 파트의 자리 표시. 기존 상세 화면 링크는 새 탭으로 연다
-const PLACEHOLDER: Partial<Record<SectionId, { message: string; links: { href: string; label: string }[] }>> = {
-  summary: { message: "다른 섹션 완성 후 표시", links: [] },
-  opportunity: { message: "다음 단계에서 표시", links: [] },
-};
+/** 상세 이미지 분석(楽天·Qoo10 비교)을 하는 카테고리 */
+const APPEAL_CATEGORY = "化粧水";
 
 export function MarketOverview({
   snapshots,
@@ -45,6 +43,8 @@ export function MarketOverview({
   snsNotes,
   snsPatterns,
   geo,
+  judgments,
+  copies,
 }: {
   snapshots: TrendSnapshot[];
   products: Product[];
@@ -53,6 +53,8 @@ export function MarketOverview({
   snsNotes: SnsVideoNote[];
   snsPatterns: SnsPattern[];
   geo: GeoSnap[];
+  judgments: ClaimJudgment[];
+  copies: CopyCandidate[];
 }) {
   const [category, setCategory] = useState<MarketCategory>("化粧水");
   const [platform, setPlatform] = useState<MarketPlatform>("rakuten_ranking");
@@ -70,22 +72,62 @@ export function MarketOverview({
   const toggleCompare = (id: string) =>
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX_COMPARE ? cur : [...cur, id]));
 
-  const body: Partial<Record<SectionId, React.ReactNode>> = {
+  const body: Record<SectionId, React.ReactNode> = {
     market: <MarketPart series={series} platformLabel={platformInfo.label} onOpen={setPanel} />,
-    supply: (
-      <SupplyPart
+    summary: (
+      <SummaryPart
         series={series}
         sameSource={sameSource}
-        platformLabel={platformInfo.label}
-        platformName={platformInfo.eventPlatform}
-        promoEvents={promoEvents}
+        category={category}
+        search={search}
+        snsNotes={snsNotes}
+        snsPatterns={snsPatterns}
+        geo={geo}
+        judgments={judgments}
+      />
+    ),
+    supply: (
+      <div className="space-y-6">
+        <SupplyPart
+          series={series}
+          sameSource={sameSource}
+          platformLabel={platformInfo.label}
+          platformName={platformInfo.eventPlatform}
+          promoEvents={promoEvents}
+          products={products}
+          selected={selected}
+          onToggleCompare={toggleCompare}
+          onOpen={setPanel}
+        />
+        {/* 예전 성분 관심도 화면에서 옮김: 상위 상품 상세 이미지의 소구 성분 (楽天 vs Qoo10, 化粧水만) */}
+        <div>
+          <h3 className="mb-2 text-sm font-semibold">1-C 상세 이미지 소구 성분 · 楽天 vs Qoo10</h3>
+          {category === APPEAL_CATEGORY ? (
+            <AppealReport
+              initial={{ rakuten_ranking: seriesOf(snapshots, "rakuten_ranking", APPEAL_CATEGORY).at(-1), qoo10_ranking: seriesOf(snapshots, "qoo10_ranking", APPEAL_CATEGORY).at(-1) }}
+              products={products}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">상세 이미지 분석은 {APPEAL_CATEGORY}만 하고 있어요</p>
+          )}
+        </div>
+      </div>
+    ),
+    demand: <DemandPart search={search} snsNotes={snsNotes} snsPatterns={snsPatterns} geo={geo} products={products} category={category} onOpen={setPanel} />,
+    opportunity: (
+      <OpportunityPart
+        category={category}
+        top={top10(rowsAt(series, series.length - 1))}
         products={products}
-        selected={selected}
-        onToggleCompare={toggleCompare}
+        search={search}
+        snsNotes={snsNotes}
+        snsPatterns={snsPatterns}
+        geo={geo}
+        judgments={judgments}
+        copies={copies}
         onOpen={setPanel}
       />
     ),
-    demand: <DemandPart search={search} snsNotes={snsNotes} snsPatterns={snsPatterns} geo={geo} category={category} onOpen={setPanel} />,
   };
 
   return (
@@ -93,33 +135,13 @@ export function MarketOverview({
       <ConditionBar category={category} onCategory={setCategory} platform={platform} onPlatform={setPlatform} week={week} sections={SECTIONS} />
       <ViewStateGate>
         <div className="space-y-10">
-          {SECTIONS.map((s) => {
-            const placeholder = PLACEHOLDER[s.id];
-            return (
-              // 바로가기로 이동했을 때 머리말이 고정 바에 가려지지 않게 scroll-margin을 준다
-              <section key={s.id} id={s.id} aria-labelledby={`${s.id}-title`} className="scroll-mt-40">
-                <SectionHeader titleId={`${s.id}-title`} title={s.title} question={s.question} basis={basis} featureIds={[...s.featureIds]} />
-                {body[s.id] ?? (
-                  <>
-                    <EmptyState message={placeholder?.message} />
-                    {placeholder && placeholder.links.length > 0 && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        지금은 기존 화면에서 볼 수 있어요:{" "}
-                        {placeholder.links.map((l, i) => (
-                          <span key={l.href}>
-                            {i > 0 && " · "}
-                            <Link href={l.href} target="_blank" className="underline underline-offset-4">
-                              {l.label} ↗
-                            </Link>
-                          </span>
-                        ))}
-                      </p>
-                    )}
-                  </>
-                )}
-              </section>
-            );
-          })}
+          {SECTIONS.map((s) => (
+            // 바로가기로 이동했을 때 머리말이 고정 바에 가려지지 않게 scroll-margin을 준다
+            <section key={s.id} id={s.id} aria-labelledby={`${s.id}-title`} className="scroll-mt-40">
+              <SectionHeader titleId={`${s.id}-title`} title={s.title} question={s.question} basis={basis} featureIds={[...s.featureIds]} />
+              {body[s.id]}
+            </section>
+          ))}
         </div>
       </ViewStateGate>
       <OverviewPanel

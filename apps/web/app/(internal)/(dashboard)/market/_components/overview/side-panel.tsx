@@ -16,7 +16,16 @@ import { highlightParts } from "@/app/(internal)/(dashboard)/market/_lib/demand"
 export type PanelContent =
   | { kind: "product"; row: OverviewRow }
   | { kind: "list"; title: string; description?: string; rows: { row: OverviewRow; note?: string }[] }
-  | { kind: "quotes"; title: string; description?: string; quotes: { ja: string; ko?: string; note?: string }[]; footnote?: string; link?: { href: string; label: string } }
+  | {
+      kind: "quotes";
+      title: string;
+      description?: string;
+      quotes: { ja: string; ko?: string; note?: string }[];
+      footnote?: string;
+      link?: { href: string; label: string };
+      /** 원문 아래에 붙이는 관련 제품 목록 (예: Top 10에서 이 키워드를 쓴 제품) */
+      rows?: { title: string; items: { row: OverviewRow; note?: string }[] };
+    }
   | { kind: "answers"; title: string; description?: string; answers: { heading: string; text: string; marks: string[]; citations: { url: string; domain: string; title: string | null }[] }[]; footnote?: string };
 
 export const MAX_COMPARE = 4;
@@ -191,6 +200,28 @@ export function OverviewPanel({
             </li>
           ))}
         </ul>
+        {content.rows && (
+          <section>
+            <h3 className="mb-1 text-sm font-semibold">{content.rows.title}</h3>
+            {content.rows.items.length === 0 ? (
+              <p className="text-sm text-muted-foreground">없음</p>
+            ) : (
+              <ul className="divide-y rounded-md border">
+                {content.rows.items.map(({ row, note }) => (
+                  <li key={`${row.brand}|${row.name}`}>
+                    <button type="button" className="flex w-full items-start gap-3 px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => onOpenRow(row)}>
+                      <span className="w-8 shrink-0 font-semibold">{row.rank}위</span>
+                      <span className="min-w-0 flex-1">
+                        <ProductLabel row={row} />
+                        {note && <span className="mt-0.5 block text-xs text-muted-foreground">{note}</span>}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
         {content.link && (
           <Link href={content.link.href} target="_blank" className={buttonVariants({ variant: "outline", size: "sm" })}>
             {content.link.label} ↗
