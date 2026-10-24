@@ -19,7 +19,10 @@ export const LabProduct = z.object({
   launch_status: z.enum(["live", "developing"]),
   /** 일본 제품 구분. 미정이면 null */
   product_category: ProductCategory.nullable(),
+  /** 용량 (큐텐 상품명에 넣는 표기, 예: 200ml). 가상 */
   volume: z.string(),
+  /** 큐텐 판매가 (세금 포함, 엔). 가상 가격표 2026-10-24 */
+  price_jpy: z.number().int().positive(),
   container: z.string(),
   ingredients: z.array(LabIngredient),
 });
@@ -29,11 +32,12 @@ export const LAB_PRODUCTS: unknown[] = [
   {
     id: "p-own-1",
     name_ko: ownProductName("deep-skin"),
-    name_ja: ownProductName("deep-skin"),
+    name_ja: "リーフ＆デュー ディープスキン",
     line: "건성 스킨",
     launch_status: "live",
     product_category: "general_cosmetic",
-    volume: "가상 150 ml",
+    volume: "200ml",
+    price_jpy: 2480,
     container: "플라스틱 통형",
     ingredients: [
       { ko: "히알루론산나트륨", inci: "Sodium Hyaluronate", ja: "ヒアルロン酸Na" },
@@ -55,11 +59,12 @@ export const LAB_PRODUCTS: unknown[] = [
   {
     id: "p-own-2",
     name_ko: ownProductName("core-essence"),
-    name_ja: ownProductName("core-essence"),
+    name_ja: "リーフ＆デュー コアエッセンス",
     line: "건성 에센스",
     launch_status: "live",
     product_category: "general_cosmetic",
-    volume: "가상 30 ml",
+    volume: "50ml",
+    price_jpy: 2980,
     container: "유리 펌프형",
     ingredients: [
       { ko: "히알루론산나트륨", inci: "Sodium Hyaluronate", ja: "ヒアルロン酸Na" },
@@ -83,11 +88,12 @@ export const LAB_PRODUCTS: unknown[] = [
   {
     id: "p-own-3",
     name_ko: ownProductName("tea-pure-skin"),
-    name_ja: ownProductName("tea-pure-skin"),
+    name_ja: "リーフ＆デュー ティーピュアスキン",
     line: "지성 스킨",
     launch_status: "developing",
     product_category: "general_cosmetic",
-    volume: "가상 150 ml (예정)",
+    volume: "150ml",
+    price_jpy: 2480,
     container: "미정",
     ingredients: [
       { ko: "히알루론산나트륨", inci: "Sodium Hyaluronate", ja: "ヒアルロン酸Na" },
@@ -98,11 +104,12 @@ export const LAB_PRODUCTS: unknown[] = [
   {
     id: "p-own-4",
     name_ko: ownProductName("mild-skin"),
-    name_ja: ownProductName("mild-skin"),
+    name_ja: "リーフ＆デュー マイルドスキン",
     line: "복합성 스킨",
     launch_status: "developing",
     product_category: "general_cosmetic",
-    volume: "가상 150 ml (예정)",
+    volume: "150ml",
+    price_jpy: 2480,
     container: "미정",
     ingredients: [
       { ko: "히알루론산나트륨", inci: "Sodium Hyaluronate", ja: "ヒアルロン酸Na" },

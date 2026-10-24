@@ -169,7 +169,8 @@ const DETAIL_GALLERY = [
     rules: [
       "검색 결과 목록에 뜨는 사진이라 작게 봐도 제품이 바로 보이게",
       "라벨이 읽히게 정면, 그림자는 약하게",
-      "글자는 브랜드·제품명 정도만. 순위·할인·「No.1」·「累計」 문구는 넣지 않기",
+      "1:1 정사각형, 좌우 여백 없이 꽉 채우기. 아래쪽 띠에 한 줄 카피(효능 범위 안, 예: 毎日のうるおいケアに) 가능",
+      "순위·할인·「No.1」·「累計」 문구, 실제 행사가 없는 [+Gift] 배지는 넣지 않기",
       "모델·다른 회사 제품·연구소 연출은 넣지 않기",
     ],
   },
@@ -301,8 +302,8 @@ const RAW: unknown[] = [
   detailDraft(
     "dp-1",
     true,
-    ["季節の変わり目に、毎日のうるおいを", "환절기에, 매일의 보습을"],
-    "리뷰 소구점 1위 「오래가는 보습」을 시즌 카피에 담았어요. 마데카21형 시즌 훅 구조를 따르되 1위 배지 없이 만들었어요.",
+    ["【公式】リーフアンド(Leaf&) {product_ja} {kind_ja} {volume} / 保湿・うるおい・キメ", "【공식】리프앤드(Leaf&) {product} {kind_ko} {volume} / 보습·촉촉·피부결"],
+    "【公式】 → 브랜드(가타카나+영문) → 일본어 제품명 → 종류·용량 → 효능 3개 순서예요. 효능은 리뷰 소구점 「오래가는 보습」을 효능 범위 안의 말(保湿·うるおい·キメ)로 골랐어요.",
     [["季節の変わり目に。\n毎日のうるおいを、角質層まで*\n*浸透：角質層まで", "환절기에.\n매일의 보습을, 각질층까지*\n*침투: 각질층까지"], ["乾燥が気になる季節に。\nしっとり続く、毎日の保湿ケア", "건조함이 신경 쓰이는 계절에.\n촉촉함이 이어지는 매일의 보습 케어"]],
     [["洗顔後、すぐにつっぱる。\n乾燥が気になる季節、こんなお悩みありませんか？", "세안 후 금방 당긴다.\n건조함이 신경 쓰이는 계절, 이런 고민 없나요?"], ["乾燥で、メイクのりが気になる日に", "건조해서 화장이 잘 안 먹는 날에"]],
     [["① 角質層まで*うるおう ② べたつかない ③ 毎日使いやすい\n*浸透：角質層まで", "① 각질층까지* 촉촉 ② 끈적이지 않음 ③ 매일 쓰기 쉬움\n*침투: 각질층까지"], ["① しっとり ② さっぱり ③ 香り控えめ", "① 촉촉 ② 산뜻 ③ 은은한 향"]],
@@ -310,8 +311,8 @@ const RAW: unknown[] = [
   detailDraft(
     "dp-2",
     false,
-    ["肌のキメを整える、しっとり習慣", "피부결을 정돈하는 촉촉한 습관"],
-    "「キメを整える」는 효능 범위 안의 표현이에요. 아누아형 미니멀 구성에 맞지만 시즌 훅이 약해요.",
+    ["【公式】リーフアンド(Leaf&) {product_ja} {kind_ja} {volume} / 保湿・乾燥対策・さっぱり", "【공식】리프앤드(Leaf&) {product} {kind_ko} {volume} / 보습·건조 대책·산뜻"],
+    "건조 고민 검색(乾燥対策)과 소구점 「산뜻한 흡수」(さっぱり)를 묶었어요. 1번보다 사용감 쪽에 가까워요.",
     [["肌のキメを整える、\nしっとり習慣。", "피부결을 정돈하는\n촉촉한 습관."], ["なめらかな肌へ、毎日のひと手間。", "매끄러운 피부로, 매일의 한 단계."]],
     [["乾燥で、肌がごわつく日に", "건조해서 피부가 거칠게 느껴지는 날에"], ["洗顔後のつっぱり感が気になる方へ", "세안 후 당김이 신경 쓰이는 분께"]],
     [["① キメを整える ② しっとり ③ すーっとなじむ", "① 피부결 정돈 ② 촉촉 ③ 스르륵 스며듦"], ["① 洗顔後すぐ ② 朝晩使える ③ べたつかない", "① 세안 직후 ② 아침저녁 ③ 끈적이지 않음"]],
@@ -319,8 +320,8 @@ const RAW: unknown[] = [
   detailDraft(
     "dp-3",
     false,
-    ["Qoo10メガ割で、2ステップのうるおいケア", "큐텐 메가와리로 2단계 보습 케어"],
-    "프로모션(메가와리) 시기에 루틴(스킨 → 에센스)을 함께 소개해요. 할인율·한정 수량은 근거가 있을 때만 적어요.",
+    ["【公式】【メガ割】リーフアンド(Leaf&) {product_ja} {kind_ja} {volume} / 保湿・うるおい・しっとり", "【공식】【메가와리】리프앤드(Leaf&) {product} {kind_ko} {volume} / 보습·촉촉·촉촉함 지속"],
+    "메가와리 기간용이에요. 【メガ割】는 실제 행사 기간에만 붙이고, 할인율·「最安値」·「GIFT付」는 실제 행사 내용이 있을 때만 넣어요.",
     [["Qoo10メガ割。\n2ステップで、毎日のうるおいケア", "큐텐 메가와리.\n2단계로 매일의 보습 케어"], ["メガ割期間に、はじめるうるおい習慣", "메가와리 기간에 시작하는 보습 습관"]],
     [["乾燥が気になる季節、ケアに迷っていませんか？", "건조함이 신경 쓰이는 계절, 케어에 고민하고 있지 않나요?"], ["洗顔後、すぐにつっぱる方へ", "세안 후 금방 당기는 분께"]],
     [["① 2ステップでしっとり ② べたつかない ③ 朝晩使える", "① 2단계로 촉촉 ② 끈적이지 않음 ③ 아침저녁 사용"], ["① 化粧水で整える ② 美容液で仕上げる ③ 毎日続けやすい", "① 스킨으로 정돈 ② 에센스로 마무리 ③ 매일 이어 쓰기 쉬움"]],
@@ -669,10 +670,17 @@ const RAW: unknown[] = [
 export const GUIDE_DRAFTS: GuideDraft[] = z.array(GuideDraft).parse(RAW);
 
 /** {product}·{ingredients_*} 자리에 제품 정보를 넣는다. 성분은 주요 성분(전성분에서 정제수 앞, 최대 4개) */
-export function fillProduct(text: string, productName: string, ingredients: { ko: string; ja: string }[] = []): string {
+/** 상품명(큐텐 타이틀)에 넣는 제품 종류·용량 */
+export type ProductFacts = { kind_ja: string; kind_ko: string; volume: string; product_ja: string };
+
+export function fillProduct(text: string, productName: string, ingredients: { ko: string; ja: string }[] = [], facts?: ProductFacts): string {
   const main = ingredients.slice(0, Math.max(0, ingredients.findIndex((i) => i.ja === "水")) || ingredients.length).slice(0, 4);
   return text
     .replaceAll("{product}", productName)
+    .replaceAll("{product_ja}", facts?.product_ja ?? productName)
+    .replaceAll("{kind_ja}", facts?.kind_ja ?? "")
+    .replaceAll("{kind_ko}", facts?.kind_ko ?? "")
+    .replaceAll("{volume}", facts?.volume ?? "")
     .replaceAll("{ingredients_ja}", main.map((i) => `${i.ja}*`).join(" ｜ "))
     .replaceAll("{ingredients_ko}", main.map((i) => `${i.ko}*`).join(" ｜ "))
     .replaceAll("{ingredients_ja_plain}", main.map((i) => i.ja).join("、"))
