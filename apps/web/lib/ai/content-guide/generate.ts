@@ -47,6 +47,8 @@ export function generateTitles(input: ContentGuideInput, deps: Deps = {}) {
   return run("titles", "bulk", buildUserMessage(input), GuideTitlesResult, (r) => {
     if (r.titles.length !== 3) throw new Error(`제목은 3개여야 함: ${r.titles.length}개`);
     if (r.titles.filter((t) => t.recommended).length !== 1 || !r.titles[0]?.recommended) throw new Error("가장 추천은 1개이고 맨 앞이어야 함");
+    // 상품명 끝의 효능 3개에 성분명·각주가 섞이면 다시 만든다 (프롬프트로만은 가끔 섞여 나온다)
+    if (input.channel === "qoo10_detail" && r.titles.some((t) => /[*＊]|配合|酸/.test(t.title_ja.split(" / ").at(-1) ?? ""))) throw new Error("상품명 효능 칸에 성분명·각주가 있음");
   }, deps);
 }
 

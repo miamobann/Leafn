@@ -48,6 +48,7 @@ export function buildUserMessage(input: ContentGuideInput, picked?: GuideTitle):
       ? "[리뷰 소구점]\n없음"
       : `[리뷰 소구점]\n우리 칭찬 많은 주제(많은 순): ${list(input.appeals.praised)}\n경쟁 제품 불만 많은 주제(많은 순): ${list(input.appeals.competitor_complaints)}\n소구점 후보: ${list(input.appeals.candidates)}`,
     `[시장 키워드]\n검색어(많은 순): ${list(input.keywords.search)}\n관심 성분(많은 순): ${list(input.keywords.ingredients)}`,
+    `[리뷰 원문]\n${input.review_quotes.length ? input.review_quotes.map((q, i) => `${i + 1}. ${q}`).join("\n") : "없음"}`,
     `[근거 자료]\n${input.evidence.length ? input.evidence.join("\n") : "없음"}`,
     `[행사]\n${input.promo ?? "없음"}`,
     `[요청]\n채널: ${input.channel}\n게시물 종류: ${input.post_type}\n시즌: ${input.season ?? "없음"}\n사진 장수: ${input.slide_count}\n협찬 게시물: ${input.sponsored ? "예" : "아니오"}`,

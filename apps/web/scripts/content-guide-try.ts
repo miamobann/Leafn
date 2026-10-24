@@ -28,6 +28,7 @@ const input: ContentGuideInput = {
   },
   appeals: { praised: ["오래가는 보습", "산뜻한 흡수", "순함"], competitor_complaints: ["끈적임", "향이 강함"], candidates: ["산뜻한 흡수"] },
   keywords: { search: ["韓国 化粧水 おすすめ", "韓国 化粧水 ドラッグストア"], ingredients: ["ヒアルロン酸"] },
+  review_quotes: ["촉촉한데 끈적이지 않아서 아침저녁으로 잘 쓰고 있어요."],
   evidence: [],
   promo: null,
   channel,
