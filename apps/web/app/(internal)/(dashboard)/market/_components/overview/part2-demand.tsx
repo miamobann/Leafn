@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { GEO_ENGINE_LABEL, type GeoSnap } from "@/lib/schemas/geo";
 import { SNS_PLATFORM_LABEL, type SnsPattern, type SnsPatternKind, type SnsVideoNote } from "@/lib/schemas/market";
+import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
 import { OWN_BRAND } from "@/app/(internal)/(dashboard)/market/_lib/market";
 import {
@@ -27,6 +28,8 @@ import {
   type AutocompleteTab,
 } from "@/app/(internal)/(dashboard)/market/_lib/demand";
 import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/toggle-group";
+import { GeoInsights } from "@/app/(internal)/(dashboard)/market/_components/geo-insights";
+import { SearchTrendCard } from "@/app/(internal)/(dashboard)/market/_components/search-trend";
 import type { PanelContent } from "./side-panel";
 
 // 화면 문구
@@ -331,6 +334,7 @@ export function DemandPart({
   snsNotes,
   snsPatterns,
   geo,
+  products,
   category,
   onOpen,
 }: {
@@ -338,6 +342,7 @@ export function DemandPart({
   snsNotes: SnsVideoNote[];
   snsPatterns: SnsPattern[];
   geo: GeoSnap[];
+  products: Product[];
   category: string;
   onOpen: (c: PanelContent) => void;
 }) {
@@ -347,7 +352,21 @@ export function DemandPart({
         <AutocompleteBlock search={search} category={category} onOpen={onOpen} />
         <SnsBlock notes={snsNotes} patterns={snsPatterns} category={category} onOpen={onOpen} />
       </div>
+      {/* 예전 성분 관심도 화면에서 옮김: 성분 검색 관심도 순위와 지금 수집 버튼 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>성분 검색 관심도 · 지금 수집</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SearchTrendCard initial={search} category={category} />
+        </CardContent>
+      </Card>
       <GeoBlock geo={geo} category={category} onOpen={onOpen} />
+      {/* 예전 시장 트렌드 화면에서 옮김: 여러 답변을 모은 핵심 포인트와 AI 질의(측정) 버튼 */}
+      <div>
+        <h3 className="mb-2 text-sm font-semibold">AI 검색 핵심 포인트 · 측정</h3>
+        <GeoInsights initial={geo.map((g, i) => ({ ...g, id: `geo-row-${i}` }))} ownProducts={products.filter((p) => p.kind === "own")} category={category} />
+      </div>
     </div>
   );
 }

@@ -7,9 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ReportTemplate } from "@/components/templates";
 import { formatDate, formatJpy } from "@/lib/format";
 import type { Product } from "@/lib/schemas/product";
-import type { SearchSnap } from "@/lib/schemas/search";
 import { AppealRunResult, type TrendSnapshot, type TrendSource } from "@/lib/schemas/trend";
-import { SearchTrendCard } from "@/app/(internal)/(dashboard)/market/_components/search-trend";
 import {
   compareHeroStats,
   heroIngredientStats,
@@ -44,7 +42,8 @@ function Cell({ stat }: { stat: HeroIngredientStat | null }) {
   );
 }
 
-export function AppealReport({ initial, searchInitial, products }: { initial: Partial<Record<TrendSource, Snap>>; searchInitial: SearchSnap[]; products: Product[] }) {
+/** 상위 상품 상세 이미지의 소구 성분 (楽天 vs Qoo10, 化粧水만). 시장 분석 원페이지 · 공급 1-C에서 쓴다 */
+export function AppealReport({ initial, products }: { initial: Partial<Record<TrendSource, Snap>>; products: Product[] }) {
   const [snaps, setSnaps] = useState(initial);
   const [runs, setRuns] = useState<Partial<Record<TrendSource, RunState>>>({});
   const own = ownIngredients(products);
@@ -106,7 +105,8 @@ export function AppealReport({ initial, searchInitial, products }: { initial: Pa
       }
       cards={[
         {
-          title: `현재 트렌드 · ${CATEGORY} 상위 ${TOP_N} 소구 성분 (楽天 vs Qoo10)`,
+          title: `상세 이미지 소구 성분 · ${CATEGORY} 상위 ${TOP_N} (楽天 vs Qoo10)`,
+          wide: true,
           content: (
             <>
               <Table>
@@ -139,10 +139,6 @@ export function AppealReport({ initial, searchInitial, products }: { initial: Pa
               </p>
             </>
           ),
-        },
-        {
-          title: "미래 트렌드 · 소비자 검색 관심 추세",
-          content: <SearchTrendCard initial={searchInitial} />,
         },
       ]}
     />
