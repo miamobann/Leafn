@@ -6,7 +6,6 @@ import { products } from "./products";
 import { boardProjects, projectStages, projects } from "./projects";
 import { searchSnapshots } from "./search";
 import { snsPatterns, snsVideoNotes } from "./sns-notes";
-import { claimJudgments } from "./claim-judgments";
 import { promoEvents } from "./promo-events";
 import { reviewAnalyses } from "./review-analyses";
 import { reviewInsights } from "./review-insights";
@@ -123,7 +122,6 @@ export const mock = {
   searchSnapshots,
   snsVideoNotes,
   snsPatterns,
-  claimJudgments,
   geoSnapshots,
   promoEvents,
   platforms,

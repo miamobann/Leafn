@@ -30,8 +30,3 @@ export const APPEAL_TAGS: Record<string, { ko: string; aliases: string[] }> = {
   "アルコールフリー": { ko: "무알코올", aliases: ["アルコールフリー", "ノンアルコール"] },
   "弱酸性": { ko: "약산성", aliases: ["弱酸性"] },
 };
-
-// ── PART 3 기회와 전략 ──────────────────────────────
-
-/** 수요-공급 빈칸: Top 10 중 이 수 이하로만 쓰인 키워드를 "채택이 낮다"고 본다 (참고 기준, 팀 확인 전) */
-export const GAP_MAX_ADOPTION = 3;
