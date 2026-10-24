@@ -47,6 +47,15 @@ const TYPES: Record<SkinType, { name: string; desc: string; reason: string; tips
   },
 };
 
+// 결과 화면 맨 위 포스터 (라인별 1장, 1200×900). 문구는 포스터 이미지 안에 있고 alt에 같은 문구를 적는다.
+// 속건조는 보습이 먼저라 건성, 중성은 판매 중인 Deep Skin이 있는 건성 포스터를 쓴다
+const POSTERS = {
+  dry: { src: "/products/posters/leaf-dew-dry-poster.webp", alt: "乾燥しがちな肌に、たっぷりのうるおいを。化粧水とエッセンスで、肌の乾燥を防ぐ毎日のケア。" },
+  combo: { src: "/products/posters/leaf-dew-mild-poster.webp", alt: "みずみずしく、軽やかに。肌の水分・油分を補い、すこやかに保つ。近日発売" },
+  oily: { src: "/products/posters/leaf-dew-tea-pure-poster.webp", alt: "べたつかない、さっぱりうるおい。肌をひきしめ、キメを整える。近日発売" },
+} as const;
+const POSTER_FOR: Record<SkinType, keyof typeof POSTERS> = { dry: "dry", inner_dry: "dry", normal: "dry", combo: "combo", oily: "oily" };
+
 // MBTI처럼 반대되는 두 성향을 한 막대에 놓고 합 100점으로 나눈다 (팀 결정 2026-10-23)
 type Pole = { code: string; label: string };
 type Axis = { title: string; left: Pole; right: Pole; leftPoints: (sc: Scores, max: Scores) => number };
@@ -91,7 +100,6 @@ const COPY = {
   tipsTitle: "毎日のケアのポイント",
   concerns: "気になる悩み：",
   recoTitle: "この肌タイプにおすすめのLeaf&製品",
-  poster: "広告ポスター（準備中）",
   productImage: "商品画像",
   ingredients: "保湿成分：",
   status: { on_sale: "発売中", in_development: "開発中" },
@@ -227,13 +235,15 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
             <CardContent className="space-y-4">
               <h2 className="font-semibold">{COPY.recoTitle}</h2>
               <TrackShown lineIds={recos.map((l) => l.id)} skinType={skinType} under18={under18} />
-              <div
-                role="img"
-                aria-label={COPY.poster}
-                className="flex aspect-[4/3] items-center justify-center rounded-lg border border-dashed bg-muted text-sm text-muted-foreground"
-              >
-                {COPY.poster}
-              </div>
+              <Image
+                src={POSTERS[POSTER_FOR[skinType]].src}
+                alt={POSTERS[POSTER_FOR[skinType]].alt}
+                width={1200}
+                height={895}
+                sizes="(min-width: 1024px) 33vw, 100vw"
+                priority
+                className="h-auto w-full rounded-lg border"
+              />
               {recos.length === 0 && <p className="text-sm text-muted-foreground">{COPY.noReco}</p>}
               {recos.map((line) => (
                 <div key={line.id} className="space-y-3 rounded-lg border p-3">
