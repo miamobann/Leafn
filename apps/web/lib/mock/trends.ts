@@ -1,5 +1,4 @@
 import { TrendSnapshot } from "@/lib/schemas/trend";
-import { OWN_BRAND, ownProductName } from "@/lib/own-products";
 import { findBanner, qoo10Banners, sampleAppeal } from "./appeal-samples";
 import { rankingDetail } from "./ranking-details";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
@@ -27,7 +26,7 @@ function wiggle(seed: number): number {
 const weeks = Array.from({ length: WEEK_COUNT }, (_, w) => addDays(FIRST_MONDAY, w * 7));
 
 // [brand, name, price_jpy, 기준 리뷰 수, K-뷰티 여부, 기준 점수, 주별 기울기, (선택) 처음 나오는 주]
-// 자사·경쟁 제품(lib/mock/products.ts)과 brand·name이 같으면 제품 상세에서 순위 추이로 이어진다
+// 경쟁 제품(lib/mock/products.ts)과 brand·name이 같으면 제품 상세에서 순위 추이로 이어진다. 자사는 아직 일본 진출 전이라 랭킹에 넣지 않는다
 // 각 카테고리 뒤쪽 후보는 Top 20 경계(15~26위)를 오가는 하위권·신제품 (랭킹 역동성 카드용). 化粧水는 이미지 분석 샘플이 있는 상위 10을 침범하지 않게 점수를 낮게 둔다
 type Candidate = [string, string, number, number, boolean, number, number, number?];
 
@@ -61,7 +60,6 @@ const CANDIDATES: Record<string, Candidate[]> = {
     ["SampleBK", "ブライトニングトナー", 2480, 200, true, 61, 0.9, 4],
   ],
   "美容液": [
-    [OWN_BRAND, ownProductName("core-essence"), 2980, 380, true, 66, 1.6],
     ["SampleD", "セラミドアンプル", 2640, 2800, true, 94, 0.3],
     ["SampleE", "ナイアシンアミド美容液", 3300, 620, false, 88, 0.1],
     ["SampleF", "レチノールセラム", 2890, 1400, true, 85, 0.4],
