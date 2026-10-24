@@ -32,8 +32,6 @@ import {
   type PostType,
 } from "../_lib/content-guide-samples";
 import type { LabProduct } from "../_lib/products";
-import { buildCutList, PHOTO_DONTS, PHOTO_RULES } from "../_lib/photo-guide";
-import { ContentGuideReport, memoLocation, type ReportAuthor } from "./content-guide-report";
 
 const LABEL = "mb-1 block text-sm font-medium";
 // shadcn select는 아직 설치되지 않아 기본 select를 같은 모양으로 쓴다 (components/ui는 공용 영역)
@@ -57,8 +55,6 @@ type ContentGuideProps = {
   products: LabProduct[];
   drafts: GuideDraft[];
   materials: GuideMaterials;
-  /** PDF 머리글의 작성자 (로그인한 사람 이름 · 팀) */
-  author: ReportAuthor;
 };
 
 type Fill = (text: string) => string;
@@ -117,15 +113,12 @@ function BodyPager({
   fill,
   memos,
   onMemo,
-  memoWhere,
 }: {
   blocks: GuideBlock[];
   fill: Fill;
   /** 블록 key → 메모 */
   memos: Record<string, string>;
   onMemo: (blockKey: string, text: string) => void;
-  /** 이 블록의 메모가 PDF 어디에 나오는지 */
-  memoWhere: (blockKey: string) => string;
 }) {
   const [index, setIndex] = useState(0);
   const at = Math.min(index, blocks.length - 1);
@@ -196,7 +189,7 @@ function BodyPager({
           placeholder="이 블록에 대한 검토 의견을 적어 주세요"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          PDF에서는 <span className="font-medium text-foreground">{memoWhere(b.key)}</span>에 적혀요 · 아직 저장되지 않아 새로고침하거나 다시 제작하면 사라져요.
+          메모는 PDF 출력(준비 중)에 함께 넣을 예정이에요 · 아직 저장되지 않아 새로고침하거나 다시 제작하면 사라져요.
         </p>
       </div>
     </div>
@@ -563,7 +556,7 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
   ],
 };
 
-export function ContentGuide({ products, drafts, materials, author }: ContentGuideProps) {
+export function ContentGuide({ products, drafts, materials }: ContentGuideProps) {
   const [productId, setProductId] = useState(products[0].id);
   const [channel, setChannel] = useState<GuideChannel>("qoo10_detail");
   const [postType, setPostType] = useState<PostType>("general");
@@ -578,8 +571,6 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
   const [direction, setDirection] = useState("");
   /** 제작할 때 실제로 반영한 방향 (제작 뒤에 칸을 고쳐도 결과·PDF는 이 값) */
   const [appliedDirection, setAppliedDirection] = useState("");
-  /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
-  const [withPhotoGuide, setWithPhotoGuide] = useState(true);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -870,7 +861,6 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
                   fill={fill}
                   memos={Object.fromEntries(blocks.map((b) => [b.key, memos[`${current.id}:${b.key}`] ?? ""]))}
                   onMemo={(blockKey, text) => setMemos((m) => ({ ...m, [`${current.id}:${blockKey}`]: text }))}
-                  memoWhere={(blockKey) => memoLocation(channel, blocks, blockKey)}
                 />
 
                 {channel === "qoo10_detail" && <GalleryGuide gallery={current.gallery} />}
@@ -897,29 +887,6 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
                   </section>
                 )}
 
-                {/* 촬영 가이드는 가장 중요한 내용이 아니라 항상 맨 아래에 둔다 (PDF에서도 붙임) */}
-                <details className="rounded-md border p-3">
-                  <summary className="cursor-pointer font-semibold">촬영 가이드 (컷 리스트 {buildCutList(channel, blocks, current.gallery).length}컷 · PDF 붙임)</summary>
-                  <div className="mt-2 grid gap-3 text-xs sm:grid-cols-2">
-                    <div>
-                      <p className="font-medium">공통 규칙</p>
-                      <ul className="list-disc pl-5 text-muted-foreground">
-                        {PHOTO_RULES.map((r) => (
-                          <li key={r}>{r}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="font-medium">찍으면 안 되는 것</p>
-                      <ul className="list-disc pl-5 text-muted-foreground">
-                        {PHOTO_DONTS.map((r) => (
-                          <li key={r}>{r}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">컷 리스트는 사진 칸 설명을 모아 만들어요 (AI를 따로 부르지 않아요).</p>
-                </details>
               </CardContent>
             </Card>
           )}
@@ -927,37 +894,11 @@ export function ContentGuide({ products, drafts, materials, author }: ContentGui
       )}
 
       <div className="flex items-center justify-end gap-2">
-        <span className="text-xs text-muted-foreground">
-          {current ? "고른 제목·메모가 들어가요. 인쇄 창에서 「PDF로 저장」을 고르세요" : "제목을 고르면 PDF로 출력할 수 있어요"}
-        </span>
-        <label className="flex items-center gap-1 text-xs">
-          <input type="checkbox" checked={withPhotoGuide} onChange={(e) => setWithPhotoGuide(e.target.checked)} />
-          촬영 가이드 붙이기
-        </label>
-        <Button type="button" disabled={!current || loading !== null} onClick={() => window.print()}>
+        <span className="text-xs text-muted-foreground">다른 부서 공유용 · 준비 중</span>
+        <Button type="button" disabled>
           PDF 출력
         </Button>
       </div>
-
-      {current && (
-        <ContentGuideReport
-          channel={channel}
-          productName={product.name_ko}
-          channelLabel={GUIDE_CHANNELS.find((c) => c.id === channel)?.label ?? channel}
-          postTypeLabel={hasPostType ? (POST_TYPES.find((t) => t.id === postType)?.label ?? null) : null}
-          author={author}
-          title={{ ja: current.title_ja, ko: current.title_ko, reason: current.reason }}
-          appeals={material.hasReviews ? material.appeals : []}
-          keywords={material.keywords}
-          blocks={blocks}
-          gallery={channel === "qoo10_detail" ? current.gallery : []}
-          hashtags={hasPostType ? hashtags : []}
-          memos={Object.fromEntries(blocks.map((b) => [b.key, memos[`${current.id}:${b.key}`] ?? ""]))}
-          fill={fill}
-          cutList={withPhotoGuide ? buildCutList(channel, blocks, current.gallery) : null}
-          direction={appliedDirection}
-        />
-      )}
     </div>
   );
 }
