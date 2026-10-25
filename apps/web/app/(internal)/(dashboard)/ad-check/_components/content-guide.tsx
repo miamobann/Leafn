@@ -35,6 +35,7 @@ import {
 import type { LabProduct } from "../_lib/products";
 import { type ContentGuideInput, GuideBodyResult, type GuideTitle, GuideTitlesResult } from "@/lib/schemas/content-guide";
 import { buildCutList, PHOTO_DONTS, PHOTO_RULES } from "../_lib/photo-guide";
+import { type BlockWarnings, buildWarnings } from "../_lib/guide-warnings";
 import { ContentGuideReport, memoLocation, type ReportAuthor } from "./content-guide-report";
 
 const LABEL = "mb-1 block text-sm font-medium";
@@ -66,13 +67,19 @@ type ContentGuideProps = {
   author: ReportAuthor;
   /** 서버에 AI 키가 있으면 true → 「제작하기」가 /api/content-guide 를 부른다. 없으면 샘플 */
   aiEnabled: boolean;
+  saved?: SavedGuide;
 };
 
-/** 약기법 판정 행동 이름 (광고 검토와 같은 말) */
-const ACTION_LABEL: Record<string, string> = { must_fix: "수정 필수", should_fix: "수정 권장", expert: "전문가 확인" };
-
-/** AI가 블록마다 남긴 주의 (금지어 검사 · 약기법 판정). 블록 key → 문구 */
-type BlockWarnings = Record<string, string[]>;
+/** 저장된 결과물(만든 콘텐츠)을 다시 열 때 넘기는 값. 있으면 제작 칸을 숨기고 AI를 다시 부르지 않는다 */
+export type SavedGuide = {
+  productId: string;
+  channel: GuideChannel;
+  postType: PostType;
+  slideCount: number;
+  direction: string;
+  draft: GuideDraft;
+  warnings: BlockWarnings;
+};
 
 type Fill = (text: string) => string;
 
@@ -586,29 +593,32 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
   ],
 };
 
-export function ContentGuide({ products, drafts, materials, author, aiEnabled }: ContentGuideProps) {
-  const [productId, setProductId] = useState(products[0].id);
-  const [channel, setChannel] = useState<GuideChannel>("qoo10_detail");
-  const [postType, setPostType] = useState<PostType>("general");
-  const [slideCount, setSlideCount] = useState(IG_MAX_SLIDES);
-  // 생성 흐름: 제작하기 → 제목 3개 → 제목 고르기 → 본문·미리보기
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
-  const [pickedId, setPickedId] = useState<string | null>(null);
+export function ContentGuide({ products, drafts, materials, author, aiEnabled, saved }: ContentGuideProps) {
+  const [productId, setProductId] = useState(saved?.productId ?? products[0].id);
+  const [channel, setChannel] = useState<GuideChannel>(saved?.channel ?? "qoo10_detail");
+  const [postType, setPostType] = useState<PostType>(saved?.postType ?? "general");
+  const [slideCount, setSlideCount] = useState(saved?.slideCount ?? IG_MAX_SLIDES);
+  // 생성 흐름: 제작하기 → 제목 3개 → 제목 고르기 → 본문·미리보기. 저장된 결과물은 고른 제목 하나로 바로 연다
+  const savedKey = saved ? `${saved.productId}|${saved.channel}|${saved.channel === "instagram" || saved.channel === "x" ? saved.postType : "-"}` : null;
+  const [generatedKey, setGeneratedKey] = useState<string | null>(savedKey);
+  const [pickedId, setPickedId] = useState<string | null>(saved?.draft.id ?? null);
   const [loading, setLoading] = useState<"titles" | "body" | null>(null);
   /** "제목 id:블록 key" → 메모 (화면에만 둔다) */
   const [memos, setMemos] = useState<Record<string, string>>({});
   /** 강조할 방향 (선택, 50자). 제작할 때 방향 참고로 함께 보낸다 */
-  const [direction, setDirection] = useState("");
+  const [direction, setDirection] = useState(saved?.direction ?? "");
   /** 제작할 때 실제로 반영한 방향 (제작 뒤에 칸을 고쳐도 결과·PDF는 이 값) */
-  const [appliedDirection, setAppliedDirection] = useState("");
+  const [appliedDirection, setAppliedDirection] = useState(saved?.direction ?? "");
   /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
   const [withPhotoGuide, setWithPhotoGuide] = useState(true);
   /** AI로 만든 제목·본문 (AI 모드). 본문은 제목을 고를 때 채운다 */
-  const [aiDrafts, setAiDrafts] = useState<GuideDraft[]>([]);
+  const [aiDrafts, setAiDrafts] = useState<GuideDraft[]>(saved ? [saved.draft] : []);
   /** AI 모드에서 고른 제목 정보 (본문 요청에 다시 보낸다) */
   const [aiTitles, setAiTitles] = useState<Record<string, GuideTitle>>({});
-  const [warnings, setWarnings] = useState<Record<string, BlockWarnings>>({});
+  const [warnings, setWarnings] = useState<Record<string, BlockWarnings>>(saved ? { [saved.draft.id]: saved.warnings } : {});
   const [aiError, setAiError] = useState<string | null>(null);
+  /** 결과물은 저장했지만 약기법 검사 기록 저장에 실패했을 때 (결과물은 살린다) */
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -616,7 +626,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
   const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], megaSale: null };
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
-  const list = (aiEnabled ? aiDrafts : drafts)
+  const list = (aiEnabled || saved ? aiDrafts : drafts)
     .filter((d) => d.channel === channel && (!hasPostType || d.post_type === postType))
     .toSorted((a, b) => Number(b.recommended) - Number(a.recommended));
   // 제품·채널·게시물 종류가 바뀌면 다시 제작해야 한다
@@ -730,12 +740,11 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
     try {
       const json = await postAi({ step: "body", product_id: product.id, input: aiInput(), picked: aiTitles[id] });
       const body = GuideBodyResult.parse(json.body);
-      const blockWarnings: BlockWarnings = {};
-      const add = (key: string, text: string) => (blockWarnings[key] = [...(blockWarnings[key] ?? []), text]);
-      for (const h of (json.lintHits as { key: string; text: string; reason: string }[]) ?? []) add(h.key, `「${h.text}」 ${h.reason}`);
-      for (const c of (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? []) {
-        if (c.action !== "ok") add(c.key, `약기법 판정 ${ACTION_LABEL[c.action] ?? c.action}${c.findings.length ? `: ${c.findings.map((f) => f.text).join(", ")}` : ""}`);
-      }
+      const blockWarnings = buildWarnings(
+        (json.lintHits as { key: string; text: string; reason: string }[]) ?? [],
+        (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? [],
+      );
+      setSaveNotice(json.checkSaved === false ? "결과물은 「만든 콘텐츠」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
       setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
       setWarnings((w) => ({ ...w, [id]: blockWarnings }));
       setPickedId(id);
@@ -748,6 +757,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
 
   return (
     <div className="space-y-4">
+      {!saved && (
       <Card>
         <CardContent className="space-y-4">
           <div className="max-w-sm">
@@ -891,7 +901,13 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
           </div>
         </CardContent>
       </Card>
+      )}
 
+      {saveNotice && (
+        <div role="status" className="rounded-lg border border-risk-medium/50 p-4 text-sm">
+          <p className="font-medium text-risk-medium">⚠ {saveNotice}</p>
+        </div>
+      )}
       {aiError && (
         <div role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm">
           <p className="font-medium text-destructive">⚠ {aiError}</p>
