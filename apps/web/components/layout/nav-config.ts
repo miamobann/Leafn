@@ -58,8 +58,8 @@ export const NAV_GROUPS: NavGroup[] = [
       // /ad-check/guide/history/<콘텐츠 ID> 상세도 이 탭에 속한다 (주소 앞부분이 같아 자동으로 켜진다)
       { label: "만든 가이드", href: "/ad-check/guide/history", featureId: "A" },
       { label: "새 검토", href: "/ad-check", featureId: "A" },
-      // /ad-check/<검토 ID> 상세와 /expert(전문가 확인 자료)는 저장된 검토라 이력에 속한다 (안내 화면 /ad-check/guide는 제외)
-      { label: "검토 이력", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/(?!history$|guide$)[^/]+(?:\/expert)?$/ },
+      // /ad-check/<검토 ID> 상세는 저장된 검토라 이력에 속한다 (안내 화면 /ad-check/guide는 제외)
+      { label: "검토 이력", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/(?!history$|guide$)[^/]+$/ },
     ],
   },
   {
