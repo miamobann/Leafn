@@ -119,7 +119,7 @@ export const ReviewInsight = WorkspaceRow.extend({
 export type ReviewInsight = z.infer<typeof ReviewInsight>;
 
 // (참조 F)
-export const ReviewTranslation = BaseRow.extend({
+export const ReviewTranslation = WorkspaceRow.extend({
   review_id: Id,
   text_ja: z.string(),
   ad_check_id: Id.nullable(),
