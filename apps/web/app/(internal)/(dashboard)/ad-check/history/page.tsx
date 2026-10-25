@@ -11,10 +11,10 @@ import { ActionBadge, ReviewStateBadge, STATUS_LABEL, USAGE_LABEL } from "../_co
 import { DeleteButton } from "../_components/delete-button";
 import { HistoryFilters } from "../_components/history-filters";
 
-/** 출처: 직접 한 검토가 기본. 콘텐츠 가이드 검사는 보기만 한다 (승인 대상 아님) */
+/** 검토 종류: 직접 검토가 기본. 콘텐츠 문구 자동 검사는 보기만 한다 (승인 대상 아님) */
 const SOURCES = [
   { value: "manual", label: "직접 검토" },
-  { value: "content_guide", label: "콘텐츠 가이드 검사" },
+  { value: "content_guide", label: "콘텐츠 문구 자동 검사" },
 ] as const;
 
 type HistoryPageProps = {
@@ -48,7 +48,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
       <div className="mb-4">
         <HistoryFilters
           filters={[
-            { key: "source", label: "출처", options: [...SOURCES], allLabel: null },
+            { key: "source", label: "검토 종류", options: [...SOURCES], allLabel: null },
             { key: "product", label: "제품", options: productOptions },
             ...(isGuide ? [] : [{ key: "status", label: "검토 상태", options: ReviewStatus.options.map((v) => ({ value: v, label: STATUS_LABEL[v] })) }]),
           ]}

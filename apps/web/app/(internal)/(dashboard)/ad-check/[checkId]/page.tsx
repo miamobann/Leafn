@@ -85,7 +85,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
           ]}
         />
         {isGuideCheck ? (
-          <p className="mt-4 text-sm text-muted-foreground">콘텐츠 가이드가 자동으로 돌린 검사예요. 승인·반려 대상이 아니라 보기만 할 수 있어요.</p>
+          <p className="mt-4 text-sm text-muted-foreground">콘텐츠 제작에서 자동으로 돌린 「콘텐츠 문구 자동 검사」예요. 승인·반려 대상이 아니라 보기만 할 수 있어요.</p>
         ) : (
         <DetailReviewBar
           checkId={check.id}
