@@ -3,7 +3,7 @@ import { adChecks } from "./ad-checks";
 import { geoSnapshots } from "./geo";
 import { platforms } from "./platforms";
 import { products } from "./products";
-import { boardProjects, projectStages, projects } from "./projects";
+import { projects } from "./projects";
 import { searchSnapshots } from "./search";
 import { aiAnalyses, memberTabs, submissionReviews, submissionVersions, tabSubmissions } from "./submissions";
 import { snsPatterns, snsVideoNotes } from "./sns-notes";
@@ -16,7 +16,6 @@ import { surveyProductLines, surveyQuestions } from "./survey";
 import { survey, surveyMinorCounts, surveyResponses, surveySummary } from "./survey-responses";
 import { trendSnapshots } from "./trends";
 import { members, workspace } from "./workspace";
-import { StageKey } from "@/lib/schemas/project";
 import { type EvidenceRef, VERSION_BODY_BY_TAB } from "@/lib/schemas/submission";
 
 // 교차 참조 검사: 가리키는 ID가 모두 존재해야 한다. 실패하면 빌드가 멈춘다.
@@ -50,17 +49,6 @@ function checkRefs() {
   }
   for (const p of platforms) expect(userIds.has(p.updated_by), `platforms ${p.id}.updated_by`);
   for (const a of activity) expect(userIds.has(a.actor_id), `activity ${a.id}.actor_id`);
-  const boardProjectIds = ids(boardProjects);
-  for (const p of boardProjects) {
-    if (p.product_id) expect(productIds.has(p.product_id), `projects ${p.id}.product_id`);
-    // 현황판 칸이 비지 않도록 프로젝트마다 8단계가 하나씩 있어야 한다
-    const stages = new Set(projectStages.filter((s) => s.project_id === p.id).map((s) => s.stage));
-    expect(StageKey.options.every((k) => stages.has(k)), `projects ${p.id} 단계 누락`);
-  }
-  for (const s of projectStages) {
-    expect(boardProjectIds.has(s.project_id), `projectStages ${s.id}.project_id`);
-    if (s.owner_id) expect(userIds.has(s.owner_id), `projectStages ${s.id}.owner_id`);
-  }
 
   // 랭킹은 20위까지, 랭킹 항목이 가리키는 제품은 products에 있어야 하고 상품명 해석이 있어야 한다 (시장 분석 원페이지)
   for (const t of trendSnapshots) {
@@ -180,8 +168,6 @@ export const mock = {
   surveySummary,
   activity,
   projects,
-  boardProjects,
-  projectStages,
   memberTabs,
   tabSubmissions,
   submissionVersions,
