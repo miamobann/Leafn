@@ -2,6 +2,7 @@ import { EmptyState } from "@/components/common/states";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTableTemplate } from "@/components/templates";
 import { getAdChecks, getContentGuides, getMembers, getProducts } from "@/lib/data";
+import { getAdProducts } from "@/lib/data/ad-products";
 import { getMyWorkspace } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
 import { ActionBadge } from "../../_components/ad-badges";
@@ -20,21 +21,23 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
   const query = await searchParams;
   const productFilter = typeof query.product === "string" ? query.product : undefined;
   const channelFilter = typeof query.channel === "string" ? query.channel : undefined;
-  const [all, checks, members, products, mine] = await Promise.all([
+  const [all, checks, members, products, mine, adProducts] = await Promise.all([
     getContentGuides(),
     getAdChecks({ source: "content_guide" }),
     getMembers(),
     getProducts(),
     getMyWorkspace().catch(() => null),
+    getAdProducts(),
   ]);
   const isOwner = mine?.role === "owner";
   const guides = all.filter((g) => (!productFilter || g.product_id === productFilter) && (!channelFilter || g.channel === channelFilter));
   const memberName = (id: string | null) => members.find((m) => m.user_id === id)?.display_name ?? "—";
   const productName = (id: string | null) => products.find((p) => p.id === id)?.name ?? "—";
   const actionOf = (checkId: string | null) => checks.find((c) => c.id === checkId)?.overall_action ?? null;
-  // 자사 제품은 모두 고를 수 있게 한다 (콘텐츠는 자사 제품으로만 만든다). 경쟁 제품은 뺀다
+  // 콘텐츠를 만들 수 있는 제품(전성분·가격·용량이 등록된 자사 제품)과 이미 만든 콘텐츠의 제품만 고를 수 있게 한다
+  const usable = new Set(adProducts.filter((p) => p.price_jpy > 0 && p.volume !== "미등록" && p.line !== "미등록").map((p) => p.id));
   const productOptions = products
-    .filter((p) => p.kind === "own" || all.some((g) => g.product_id === p.id))
+    .filter((p) => usable.has(p.id) || all.some((g) => g.product_id === p.id))
     .map((p) => ({ value: p.id, label: p.name }));
 
   return (
