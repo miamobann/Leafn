@@ -881,7 +881,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                 )}
               </section>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">각 탭이 만들어 둔 결과를 읽어 와요 (지금은 샘플 데이터).</p>
+            <p className="mt-2 text-xs text-muted-foreground">각 탭이 만들어 둔 결과를 읽어 와요.</p>
           </details>
           {CHANNEL_RULES[channel] && (
             <details className="rounded-md border p-3 text-sm">
@@ -908,7 +908,6 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
             {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {!aiEnabled && <span className="text-xs text-muted-foreground">AI 미연결 · 샘플 결과</span>}
             <Button type="button" onClick={generate} disabled={detailBlocked || loading !== null}>
               {generated ? "다시 제작하기" : "제작하기"}
             </Button>
@@ -935,7 +934,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
       ) : !generated ? (
         <EmptyState message="「제작하기」를 누르면 제목 3개를 추천해요" action="제목을 고르면 그 제목으로 미리보기와 본문을 만들어요" />
       ) : list.length === 0 ? (
-        <EmptyState message="이 조합의 샘플 문구가 아직 없어요" action="다른 채널이나 게시물 종류를 골라 보세요" />
+        <EmptyState message="이 조합의 문구가 아직 없어요" action="다른 채널이나 게시물 종류를 골라 보세요" />
       ) : (
         <>
           {appliedDirection && (
