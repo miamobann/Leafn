@@ -4,17 +4,18 @@ import type { AdCheck } from "@/lib/schemas/ad-check";
 
 const hasKana = (text: string) => /[぀-ヿ]/.test(text);
 
-export type KoLine = { text: string; untranslated: boolean };
+/** text = 목록에 보일 한국어, original = 그 줄의 입력 원문 (마우스를 올리면 보인다) */
+export type KoLine = { text: string; original: string; untranslated: boolean };
 
 export function koLines(check: AdCheck): KoLine[] {
   const lines = check.line_results ?? [];
-  if (lines.length === 0) return check.input_text.split("\n").map((t) => ({ text: t, untranslated: hasKana(t) }));
+  if (lines.length === 0) return check.input_text.split("\n").map((t) => ({ text: t, original: t, untranslated: hasKana(t) }));
   // 줄별 번역이 없고 검토 전체 번역만 있는 경우(예전 저장 형식)는 줄 수가 같을 때만 줄마다 나눠 쓴다
   const whole = check.back_translation_ko?.split("\n") ?? [];
   const wholeFits = whole.length === lines.length;
   return lines.map((l, i) => {
-    if (!hasKana(l.original)) return { text: l.original, untranslated: false };
+    if (!hasKana(l.original)) return { text: l.original, original: l.original, untranslated: false };
     const ko = l.back_translation_ko?.trim() || (wholeFits ? whole[i]?.trim() : "");
-    return ko ? { text: ko, untranslated: false } : { text: l.original, untranslated: true };
+    return ko ? { text: ko, original: l.original, untranslated: false } : { text: l.original, original: l.original, untranslated: true };
   });
 }

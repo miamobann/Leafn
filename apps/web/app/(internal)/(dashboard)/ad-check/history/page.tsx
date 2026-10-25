@@ -52,16 +52,18 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
         <DataTableTemplate
           columns={[
             { key: "text", label: "문구" },
-            { key: "product", label: "제품 · 사용처" },
+            { key: "product", label: "제품" },
+            { key: "usage", label: "사용처" },
             { key: "action", label: "판정" },
             { key: "status", label: "상태" },
+            { key: "author", label: "작성자" },
             { key: "reviewer", label: "검토자" },
             { key: "date", label: "요청일" },
             { key: "detail", label: "" },
             ...(isOwner ? [{ key: "delete", label: "" }] : []),
           ]}
           rows={checks.map((c) => {
-            // 목록 문구는 한국어로 통일한다 (줄마다 일본어 줄은 번역, 번역이 없으면 원문에 「일본어」 표시). 마우스를 올리면 원문
+            // 목록 문구는 한국어로 통일한다 (줄마다 일본어 줄은 번역, 번역이 없으면 원문에 「일본어」 표시). 마우스를 올리면 첫 줄 원문
             const [first, ...rest] = koLines(c);
             return {
               id: c.id,
@@ -69,7 +71,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
               cells: {
                 text: (
                   // 긴 문구는 한 줄로 자르고 전체는 title로 보여준다
-                  <span title={c.input_text} className="flex max-w-80 items-center gap-1">
+                  <span title={first?.original} className="flex max-w-80 items-center gap-1">
                     {first?.untranslated && <span className="shrink-0 rounded border px-1 text-[0.65rem] text-muted-foreground">일본어</span>}
                     {/* 표 템플릿의 링크 밑줄이 잘린 글자(truncate)까지 내려오지 않아서, 링크에 커서를 올리면 여기서 밑줄을 긋는다 */}
                     <span lang={first?.untranslated ? "ja" : "ko"} className="truncate font-medium underline-offset-4 [a:hover_&]:underline">
@@ -80,11 +82,13 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
                 ),
                 product: (
                   <span className="block max-w-44 truncate" title={productName(c.product_id)}>
-                    {productName(c.product_id)} · {c.usage ? USAGE_LABEL[c.usage] : "—"}
+                    {productName(c.product_id)}
                   </span>
                 ),
+                usage: <span className="whitespace-nowrap">{c.usage ? USAGE_LABEL[c.usage] : "—"}</span>,
                 action: c.overall_action ? <ActionBadge action={c.overall_action} /> : "—",
                 status: <ReviewStateBadge status={c.review_status} expertRequested={c.is_expert_review_requested} />,
+                author: memberName(c.created_by ?? null),
                 reviewer: memberName(c.reviewer_id),
                 date: formatDate(c.created_at),
                 detail: (

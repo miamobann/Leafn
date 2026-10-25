@@ -13,6 +13,15 @@ export function productKind(product: LabProduct): { ko: string; ja: string } {
   return { ko: "스킨", ja: "化粧水" };
 }
 
+/** 피부 라인: DB 값이 있으면 그것, 없으면(샘플) line 글자로 */
+export function skinLineOf(product: LabProduct): "dry" | "oily" | "combo" | null {
+  if (product.skin_line) return product.skin_line;
+  if (product.line.includes("복합성")) return "combo";
+  if (product.line.includes("건성")) return "dry";
+  if (product.line.includes("지성")) return "oily";
+  return null;
+}
+
 /** {product}·{ingredients_*} 자리에 제품 정보를 넣는 함수 */
 export function makeFill(product: LabProduct) {
   const kind = productKind(product);
