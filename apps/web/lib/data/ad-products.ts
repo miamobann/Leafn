@@ -5,14 +5,27 @@ import { PRODUCTS, type LabProduct } from "@/app/(internal)/(dashboard)/ad-check
 /** 광고 검토·콘텐츠 제작에서 성분으로 쓰지 않는 성분. 판테놀은 팀 결정(2026-10-23)으로 뺐다 (제품규격서 값은 그대로 두고 불러올 때만 뺀다) */
 const EXCLUDED_INGREDIENTS = /パンテノール|판테놀|panthenol/i;
 
+/** 제품 종류(DB category)를 화면용 한국어로. 드롭다운에 한자를 보이지 않게 한다 */
+const LINE_KO: Record<string, string> = { 化粧水: "스킨", 美容液: "에센스", 乳液: "에멀전" };
+
+/** 드롭다운 순서: 판매 중 → 개발 중, 그 안에서 스킨 → 에센스 → 나머지 */
+function lineRank(line: string) {
+  return line.includes("스킨") ? 0 : line.includes("에센스") ? 1 : 2;
+}
+function sortForPicker(products: LabProduct[]) {
+  return products.toSorted(
+    (a, b) => Number(a.launch_status === "developing") - Number(b.launch_status === "developing") || lineRank(a.line) - lineRank(b.line),
+  );
+}
+
 /** 이름으로 샘플 제품을 추정 연결하지 않는다. 미등록 정보는 판정에 사실처럼 보내지 않는다. */
 export async function getAdProducts(): Promise<LabProduct[]> {
-  if (!(await dataContext())) return PRODUCTS;
-  return (await getProducts({ kind: "own" })).filter((p) => p.ingredients.length > 0).map((p) => ({
+  if (!(await dataContext())) return sortForPicker(PRODUCTS);
+  return sortForPicker((await getProducts({ kind: "own" })).filter((p) => p.ingredients.length > 0).map((p) => ({
     id: p.id, name_ko: p.name, name_ja: p.name,
-    line: p.category ?? "미등록", launch_status: p.sale_status === "on_sale" ? "live" : "developing",
+    line: p.category ? (LINE_KO[p.category] ?? p.category) : "미등록", launch_status: p.sale_status === "on_sale" ? "live" : "developing",
     product_category: null, volume: p.volume_ml === null ? "미등록" : `${p.volume_ml}ml`,
     price_jpy: p.price_jpy ?? 0, container: "미등록",
     ingredients: p.ingredients.filter((name) => !EXCLUDED_INGREDIENTS.test(name)).map((name) => ({ ko: name, inci: name, ja: name })),
-  }));
+  })));
 }
