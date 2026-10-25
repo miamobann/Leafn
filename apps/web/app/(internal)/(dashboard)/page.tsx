@@ -40,7 +40,7 @@ export default async function HomePage() {
         {/* 위 줄은 현황판(왼쪽)과 탭 요약 카드 2×2(오른쪽, 현황판 높이에 맞춤), 아래 줄은 캘린더가 두 열에 걸친다. 화면 폭과 상관없이 이 배치를 지킨다.
             열 비율을 바꾸면 home-calendar.tsx의 패널 폭 계산도 함께 바꾼다 */}
         <div className="grid grid-cols-[minmax(0,65fr)_minmax(0,35fr)] gap-x-4 gap-y-3">
-          <ProjectBoard projects={projects} />
+          <ProjectBoard projects={projects} today={today} />
           <SummaryCards items={summaries} />
           <div className="col-span-2 min-w-0">
             <HomeCalendar
@@ -53,7 +53,7 @@ export default async function HomePage() {
           </div>
         </div>
       </div>
-      <StageDetail projects={projects} />
+      <StageDetail projects={projects} today={today} />
       <ScrollButtons />
     </ProjectProgress>
   );

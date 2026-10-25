@@ -41,7 +41,7 @@ const TEXT = {
   owner: "담당",
   noOwner: "담당 미정",
   noPeriod: "기간 미정",
-  blocker: "막힌 점",
+  blocker: "멈춘 이유",
   nextStep: "다음 할 일",
   log: "진행 기록",
   noLog: "아직 기록이 없어요",
@@ -49,6 +49,10 @@ const TEXT = {
   stageNav: "단계 이동",
   backToBoard: "현황판으로 ↑",
   stages: "8단계",
+  // 마감일이 지났는데 완료가 아니면 상태와 따로 붙인다 (calendar-edit 제안 2장, 2026-10-26)
+  overdue: "지남",
+  overdueLegend: "마감이 지났는데 완료 전",
+  overdueLabel: "마감 지남",
 };
 
 /** 단계마다 현황판 열 이름, 열 머리 설명, 상세 제목, 관련 화면 (prototype-plan 2장) */
@@ -73,7 +77,8 @@ const STATUS = {
     brick: "bg-sentiment-positive text-white",
     badge: "bg-sentiment-positive/15 text-sentiment-positive",
   },
-  blocked: { label: "막힘", icon: TriangleAlert, brick: "bg-risk-medium text-black/80", badge: "bg-risk-medium/15 text-risk-medium" },
+  // 화면 이름만 "멈춤"이고 DB 값은 blocked 그대로 (calendar-edit 제안 2장, 2026-10-26)
+  blocked: { label: "멈춤", icon: TriangleAlert, brick: "bg-risk-medium text-black/80", badge: "bg-risk-medium/15 text-risk-medium" },
   not_started: { label: "시작 전", icon: null, brick: "border border-border bg-background", badge: "bg-muted text-muted-foreground" },
 } satisfies Record<StageStatus, { label: string; icon: LucideIcon | null; brick: string; badge: string }>;
 
@@ -118,6 +123,11 @@ function nextDue(project: HomeProject): HomeStage | undefined {
 }
 
 /** 끝나지 않은 첫 단계의 담당자 (전체보기의 "지금 담당") */
+/** 마감일이 오늘보다 앞이고 아직 완료가 아닌 단계 */
+function isOverdue(stage: HomeStage, today: string) {
+  return stage.status !== "done" && stage.due_date !== null && stage.due_date < today;
+}
+
 function currentOwner(project: HomeProject): string | null {
   return project.stages.find((s) => s.status !== "done")?.owner_name ?? null;
 }
@@ -231,7 +241,7 @@ function StatusBrick({ status }: { status: StageStatus }) {
   return Icon && <Icon aria-hidden className="size-4" />;
 }
 
-export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
+export function ProjectBoard({ projects, today }: { projects: HomeProject[]; today: string }) {
   const { selection, select, owner, setOwner, picks } = useSelection();
   const shown = projects.filter((p) => picks.includes(p.id));
   // 현황판 높이가 늘 같도록, 2개보다 적게 골랐으면 빈 줄로 채운다
@@ -325,20 +335,26 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
                     const active = selection?.projectId === project.id && selection.stage === stage.stage;
                     // 담당자를 고르면 다른 사람 단계는 흐리게 둔다 (누르면 상세는 그대로 열린다)
                     const dimmed = owner !== null && stage.owner_id !== owner;
+                    const overdue = isOverdue(stage, today);
                     return (
                       <td key={stage.id}>
                         <button
                           type="button"
                           id={brickId(project.id, stage.stage)}
-                          aria-label={`${project.name} ${STAGES[stage.stage].label}: ${STATUS[stage.status].label}`}
+                          aria-label={`${project.name} ${STAGES[stage.stage].label}: ${STATUS[stage.status].label}${overdue ? `, ${TEXT.overdueLabel}` : ""}`}
                           aria-controls={DETAIL_ID}
                           aria-expanded={active}
                           onClick={() => select(project.id, stage.stage)}
-                          className={`flex h-8 w-full items-center justify-center rounded-md hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${STATUS[stage.status].brick} ${
+                          className={`relative flex h-8 w-full items-center justify-center rounded-md hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${STATUS[stage.status].brick} ${
                             active ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""
                           } ${dimmed ? "opacity-30" : ""}`}
                         >
                           <StatusBrick status={stage.status} />
+                          {overdue && (
+                            <span aria-hidden className="absolute -top-1.5 -right-1 rounded-sm bg-destructive px-1 text-[10px] leading-tight font-medium text-white">
+                              {TEXT.overdue}
+                            </span>
+                          )}
                         </button>
                       </td>
                     );
@@ -385,6 +401,12 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
                 {STATUS[status].label}
               </li>
             ))}
+            <li className="flex items-center gap-1.5">
+              <span aria-hidden className="rounded-sm bg-destructive px-1 text-[10px] leading-tight font-medium text-white">
+                {TEXT.overdue}
+              </span>
+              {TEXT.overdueLegend}
+            </li>
           </ul>
           <p className="ml-auto">{TEXT.hint}</p>
         </div>
@@ -500,7 +522,7 @@ function ProjectsSheet({ projects }: { projects: HomeProject[] }) {
   );
 }
 
-export function StageDetail({ projects }: { projects: HomeProject[] }) {
+export function StageDetail({ projects, today }: { projects: HomeProject[]; today: string }) {
   const { selection, select } = useSelection();
   const titleRef = useRef<HTMLHeadingElement>(null);
 
@@ -548,6 +570,11 @@ export function StageDetail({ projects }: { projects: HomeProject[] }) {
             {StatusIcon && <StatusIcon aria-hidden />}
             {status.label}
           </Badge>
+          {isOverdue(stage, today) && stage.due_date && (
+            <Badge variant="destructive">
+              {TEXT.overdueLabel} · {dDay(stage.due_date, today)}
+            </Badge>
+          )}
         </div>
         <p className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1">
