@@ -1,13 +1,16 @@
 "use client";
 
 // 홈 전용: 프로젝트 진행 현황판과 벽돌 상세. 벽돌을 누르면 첫 화면 아래의 상세로 부드럽게 내려간다.
-import { CalendarDays, Check, Ellipsis, Info, TriangleAlert, User, type LucideIcon } from "lucide-react";
+// 현황판에는 고른 2개만 보이고, 전체보기(오른쪽 패널)에서 모든 프로젝트를 보고 홈에 보일 2개를 고른다.
+import { ArrowRight, CalendarDays, Check, Ellipsis, Info, TriangleAlert, User, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import type { getBoardProjects } from "@/lib/data";
 import { dDay } from "@/lib/format";
 import { StageKey, type StageStatus } from "@/lib/schemas/project";
@@ -17,7 +20,16 @@ type HomeStage = HomeProject["stages"][number];
 
 const TEXT = {
   title: "프로젝트 진행 현황",
-  hint: "벽돌을 누르면 아래에 상세가 열려요",
+  hint: "전체보기에서 '홈에 표시'로 2개를 골라요 · 벽돌을 누르면 상세가 열려요",
+  emptyRow: "전체보기에서 '홈에 표시'를 켜면 여기에 보여요",
+  all: "전체보기",
+  sheetTitle: "프로젝트 전체",
+  sheetCount: (n: number) => `${n}개`,
+  sheetDescription: "홈 현황판에는 '홈에 표시'를 켠 프로젝트만 보여요. 단계 칸을 누르면 홈에서 그 상세를 열어요.",
+  pin: "홈에 표시",
+  pinFull: "켜 둔 2개가 홈 현황판에 보여요. 다른 프로젝트를 켜려면 하나를 먼저 꺼 주세요.",
+  pinOpen: (n: number) => `${n}개를 더 켤 수 있어요. 켜면 바로 홈 현황판에 보여요.`,
+  nowOwner: "지금 담당",
   ownerFilter: "담당",
   allOwners: "전체",
   project: "프로젝트",
@@ -70,6 +82,27 @@ const DETAIL_ID = "stage-detail";
 const DETAIL_TITLE_ID = "stage-detail-title";
 const OWNER_SELECT_ID = "board-owner-filter";
 
+// 홈 현황판에 보일 프로젝트 수와, 고른 것을 이 브라우저에 기억하는 키
+const PICK_LIMIT = 2;
+const PICKS_KEY = "leafn.home.boardPicks";
+const SavedPicks = z.array(z.string());
+
+function readSaved(key: string): unknown {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+function save(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // 기억하지 못해도 현황판은 그대로 동작한다 (새로고침하면 처음 2개로 돌아감)
+  }
+}
+
 const brickId = (projectId: string, stage: StageKey) => `brick-${projectId}-${stage}`;
 
 /** 움직임 줄이기를 켠 사용자에게는 미끄러지지 않고 바로 이동한다 */
@@ -82,6 +115,11 @@ function nextDue(project: HomeProject): HomeStage | undefined {
   return project.stages
     .filter((s) => s.status !== "done" && s.due_date)
     .toSorted((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""))[0];
+}
+
+/** 끝나지 않은 첫 단계의 담당자 (전체보기의 "지금 담당") */
+function currentOwner(project: HomeProject): string | null {
+  return project.stages.find((s) => s.status !== "done")?.owner_name ?? null;
 }
 
 /** "2026-10-01" → "10-01" */
@@ -120,6 +158,9 @@ const SelectionContext = createContext<{
   /** 담당자 필터. null이면 전체 */
   owner: string | null;
   setOwner: (owner: string | null) => void;
+  /** 홈 현황판에 보일 프로젝트 ID (프로젝트 순서대로, 최대 PICK_LIMIT개) */
+  picks: string[];
+  togglePick: (projectId: string) => void;
 } | null>(null);
 
 function useSelection() {
@@ -132,12 +173,31 @@ function useSelection() {
 const STAGE_PARAM = "stage";
 export const stageHref = (projectId: string, stage: StageKey) => `/?${STAGE_PARAM}=${projectId}.${stage}`;
 
-/** 현황판과 상세, 캘린더 할 일 목록이 고른 벽돌과 담당자 필터를 함께 보도록 감싼다 */
-export function ProjectProgress({ children }: { children: React.ReactNode }) {
+/** 현황판과 상세, 캘린더 할 일 목록이 고른 벽돌과 담당자 필터, 홈에 보일 프로젝트를 함께 보도록 감싼다 */
+export function ProjectProgress({ projectIds, children }: { projectIds: string[]; children: React.ReactNode }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [owner, setOwner] = useState<string | null>(null);
+  // 처음엔 앞의 2개. 서버 화면과 어긋나지 않도록, 기억해 둔 선택은 화면이 뜬 뒤에 불러온다
+  const [picks, setPicks] = useState(() => projectIds.slice(0, PICK_LIMIT));
   const select = (projectId: string, stage: StageKey) =>
     setSelection((prev) => ({ projectId, stage, request: (prev?.request ?? 0) + 1 }));
+
+  // 지워진 프로젝트 ID는 버린다. 그래서 2개보다 적을 수 있다 (현황판이 빈 줄로 안내)
+  useEffect(() => {
+    const saved = SavedPicks.safeParse(readSaved(PICKS_KEY));
+    if (saved.success) setPicks(projectIds.filter((id) => saved.data.includes(id)).slice(0, PICK_LIMIT));
+  }, [projectIds]);
+
+  // 이미 2개를 켰으면 먼저 하나를 꺼야 켤 수 있다
+  const togglePick = (projectId: string) => {
+    const next = picks.includes(projectId)
+      ? picks.filter((id) => id !== projectId)
+      : picks.length < PICK_LIMIT
+        ? projectIds.filter((id) => id === projectId || picks.includes(id))
+        : picks;
+    setPicks(next);
+    save(PICKS_KEY, next);
+  };
 
   // 주소에 ?stage= 가 있으면 들어오자마자 그 벽돌 상세를 연다
   useEffect(() => {
@@ -146,7 +206,9 @@ export function ProjectProgress({ children }: { children: React.ReactNode }) {
     if (projectId && key.success) setSelection({ projectId, stage: key.data, request: 1 });
   }, []);
 
-  return <SelectionContext.Provider value={{ selection, select, owner, setOwner }}>{children}</SelectionContext.Provider>;
+  return (
+    <SelectionContext.Provider value={{ selection, select, owner, setOwner, picks, togglePick }}>{children}</SelectionContext.Provider>
+  );
 }
 
 /** 현황판 밖(캘린더 할 일 목록)에서 벽돌을 누른 것처럼 상세를 연다. 홈이 아니면(현황판이 없으면) null */
@@ -159,23 +221,31 @@ export function useOwnerFilter() {
   return useContext(SelectionContext)?.owner ?? null;
 }
 
+/** 홈 현황판에 보일 프로젝트 ID. 캘린더 할 일 목록도 이 프로젝트 마감만 넣는다. 홈이 아니면 null(전체) */
+export function useBoardPicks() {
+  return useContext(SelectionContext)?.picks ?? null;
+}
+
 function StatusBrick({ status }: { status: StageStatus }) {
   const Icon = STATUS[status].icon;
   return Icon && <Icon aria-hidden className="size-4" />;
 }
 
 export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
-  const { selection, select, owner, setOwner } = useSelection();
-  // 단계에 담당이 정해진 사람만 고를 수 있다
+  const { selection, select, owner, setOwner, picks } = useSelection();
+  const shown = projects.filter((p) => picks.includes(p.id));
+  // 현황판 높이가 늘 같도록, 2개보다 적게 골랐으면 빈 줄로 채운다
+  const emptyRows = projects.length > 0 ? PICK_LIMIT - shown.length : 0;
+  // 현황판에 보이는 단계에 담당이 정해진 사람만 고를 수 있다
   const owners = [
-    ...new Map(projects.flatMap((p) => p.stages).flatMap((s) => (s.owner_id && s.owner_name ? [[s.owner_id, s.owner_name] as const] : []))),
+    ...new Map(shown.flatMap((p) => p.stages).flatMap((s) => (s.owner_id && s.owner_name ? [[s.owner_id, s.owner_name] as const] : []))),
   ];
 
   return (
     <Card id={BOARD_ID}>
       <CardHeader>
         <CardTitle>{TEXT.title}</CardTitle>
-        <CardAction className="flex items-center gap-4 text-xs text-muted-foreground">
+        <CardAction className="flex items-center gap-3 text-xs text-muted-foreground">
           {owners.length > 0 && (
             <span className="flex items-center gap-1.5">
               <label htmlFor={OWNER_SELECT_ID}>{TEXT.ownerFilter}</label>
@@ -194,17 +264,17 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
               </select>
             </span>
           )}
-          {TEXT.hint}
+          {projects.length > 0 && <ProjectsSheet projects={projects} />}
         </CardAction>
       </CardHeader>
       <CardContent>
         <table className="w-full table-fixed border-separate border-spacing-x-1.5 border-spacing-y-2">
           <colgroup>
-            <col className="w-32" />
+            <col className="w-36" />
             {StageKey.options.map((key) => (
               <col key={key} />
             ))}
-            <col className="w-44" />
+            <col className="w-32" />
           </colgroup>
           <thead>
             <tr className="text-xs text-muted-foreground">
@@ -215,13 +285,14 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
                 <th key={key} scope="col" className="font-normal">
                   {/* 마우스를 올리거나 키보드로 고르면 단계 설명이 보인다 */}
                   <span className="group relative inline-flex">
+                    {/* 칸이 좁아 긴 이름은 두 줄이 된다. 아이콘을 글자와 같은 줄 흐름에 두어 세 줄로 늘지 않게 한다 */}
                     <button
                       type="button"
                       aria-describedby={`stage-hint-${key}`}
-                      className="inline-flex cursor-help items-center gap-1 rounded-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                      className="cursor-help rounded-sm leading-tight hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
                     >
                       {STAGES[key].short}
-                      <Info aria-hidden className="size-3" />
+                      <Info aria-hidden className="ml-0.5 inline size-3 align-[-0.125em]" />
                     </button>
                     <span
                       role="tooltip"
@@ -239,13 +310,15 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
             </tr>
           </thead>
           <tbody>
-            {projects.map((project) => {
+            {shown.map((project) => {
               const due = nextDue(project);
               const doneCount = project.stages.filter((s) => s.status === "done").length;
               return (
                 <tr key={project.id}>
                   <th scope="row" className="text-left leading-tight font-medium">
-                    {project.name}
+                    <span title={project.name} className="block truncate">
+                      {project.name}
+                    </span>
                     <span className="block text-xs font-normal text-muted-foreground">{project.platform}</span>
                   </th>
                   {project.stages.map((stage) => {
@@ -271,17 +344,19 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
                     );
                   })}
                   <td className="text-right text-xs">
-                    <span className="block text-sm">
-                      <span className="font-semibold">
-                        {doneCount}/{project.stages.length}
-                      </span>{" "}
-                      {TEXT.done}
+                    <span className="flex items-center gap-2">
+                      <Progress
+                        value={(doneCount / project.stages.length) * 100}
+                        aria-label={`${project.name} ${project.stages.length}단계 중 ${doneCount}단계 완료`}
+                        className="flex-1"
+                      />
+                      <span className="shrink-0">
+                        <span className="text-sm font-semibold">
+                          {doneCount}/{project.stages.length}
+                        </span>{" "}
+                        {TEXT.done}
+                      </span>
                     </span>
-                    <Progress
-                      value={(doneCount / project.stages.length) * 100}
-                      aria-label={`${project.name} ${project.stages.length}단계 중 ${doneCount}단계 완료`}
-                      className="my-1"
-                    />
                     <span className="block truncate text-muted-foreground">
                       {due?.due_date ? `${TEXT.nextDue} ${dDay(due.due_date)} · ${due.next_step ?? STAGES[due.stage].label}` : TEXT.noDue}
                     </span>
@@ -289,20 +364,139 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
                 </tr>
               );
             })}
+            {Array.from({ length: emptyRows }, (_, i) => (
+              <tr key={`empty-${i}`}>
+                <td colSpan={StageKey.options.length + 2}>
+                  <p className="flex h-10 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
+                    {TEXT.emptyRow}
+                  </p>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
-        <ul aria-label={TEXT.legend} className="mt-2 flex gap-4 text-xs text-muted-foreground">
-          {(Object.keys(STATUS) as StageStatus[]).map((status) => (
-            <li key={status} className="flex items-center gap-1.5">
-              <span className={`flex size-4 items-center justify-center rounded-sm [&>svg]:size-3 ${STATUS[status].brick}`}>
-                <StatusBrick status={status} />
-              </span>
-              {STATUS[status].label}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <ul aria-label={TEXT.legend} className="flex gap-4">
+            {(Object.keys(STATUS) as StageStatus[]).map((status) => (
+              <li key={status} className="flex items-center gap-1.5">
+                <span className={`flex size-4 items-center justify-center rounded-sm [&>svg]:size-3 ${STATUS[status].brick}`}>
+                  <StatusBrick status={status} />
+                </span>
+                {STATUS[status].label}
+              </li>
+            ))}
+          </ul>
+          <p className="ml-auto">{TEXT.hint}</p>
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+/** 현황판 머리의 "전체보기": 오른쪽 패널에서 모든 프로젝트를 보고, 홈 현황판에 보일 2개를 켜고 끈다 */
+function ProjectsSheet({ projects }: { projects: HomeProject[] }) {
+  const { select, picks, togglePick } = useSelection();
+  const [open, setOpen] = useState(false);
+  // 단계 칸을 누르면 패널이 다 닫힌 뒤 상세를 연다. 이때는 초점을 전체보기 버튼으로 돌려보내지 않고 상세 제목에 둔다.
+  // 초점 돌려보내기(finalFocus)는 닫힘이 끝난 뒤에 물어보므로, 고른 칸은 다음에 열 때 비운다
+  const jumpTo = useRef<{ projectId: string; stage: StageKey } | null>(null);
+  const full = picks.length >= PICK_LIMIT;
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (next) jumpTo.current = null;
+        setOpen(next);
+      }}
+      onOpenChangeComplete={(isOpen) => {
+        if (!isOpen && jumpTo.current) select(jumpTo.current.projectId, jumpTo.current.stage);
+      }}
+    >
+      <SheetTrigger render={<Button variant="outline" size="sm" />}>
+        {TEXT.all}
+        <span className="font-normal text-muted-foreground">{projects.length}</span>
+        <ArrowRight aria-hidden />
+      </SheetTrigger>
+      <SheetContent finalFocus={() => !jumpTo.current} className="gap-3 overflow-y-auto data-[side=right]:sm:max-w-[35rem]">
+        <SheetHeader className="pr-12 pb-0">
+          <SheetTitle className="flex items-baseline gap-2 text-lg font-semibold">
+            {TEXT.sheetTitle}
+            <span className="text-sm font-normal text-muted-foreground">{TEXT.sheetCount(projects.length)}</span>
+          </SheetTitle>
+          <SheetDescription>{TEXT.sheetDescription}</SheetDescription>
+        </SheetHeader>
+        <p aria-live="polite" className="mx-4 rounded-lg bg-muted px-2.5 py-2 text-xs text-muted-foreground">
+          {TEXT.pin}{" "}
+          <b className="font-semibold text-foreground">
+            {picks.length}/{PICK_LIMIT}
+          </b>{" "}
+          · {full ? TEXT.pinFull : TEXT.pinOpen(PICK_LIMIT - picks.length)}
+        </p>
+        <ul className="space-y-2 px-4 pb-4">
+          {projects.map((project) => {
+            const on = picks.includes(project.id);
+            const due = nextDue(project);
+            const doneCount = project.stages.filter((s) => s.status === "done").length;
+            const nowOwner = currentOwner(project);
+            return (
+              <li key={project.id} className={`space-y-1.5 rounded-lg border px-3 py-2.5 ${on ? "border-foreground bg-muted/40" : ""}`}>
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 leading-snug">
+                    <span className="block truncate font-semibold">{project.name}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {project.platform}
+                      {nowOwner && ` · ${TEXT.nowOwner} ${nowOwner}`}
+                    </span>
+                  </span>
+                  <span aria-hidden className="text-xs text-muted-foreground">
+                    {TEXT.pin}
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={on}
+                    aria-label={`${project.name} ${TEXT.pin}`}
+                    disabled={!on && full}
+                    onClick={() => togglePick(project.id)}
+                    className={`relative h-5 w-9 shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40 ${
+                      on ? "bg-foreground" : "bg-muted-foreground/50"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-background transition-transform ${on ? "translate-x-4" : ""}`}
+                    />
+                  </button>
+                </div>
+                <div className="grid grid-cols-8 gap-1">
+                  {project.stages.map((stage) => (
+                    <button
+                      key={stage.id}
+                      type="button"
+                      aria-label={`${project.name} ${STAGES[stage.stage].label}: ${STATUS[stage.status].label}`}
+                      onClick={() => {
+                        jumpTo.current = { projectId: project.id, stage: stage.stage };
+                        setOpen(false);
+                      }}
+                      className={`h-3 rounded-sm hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${STATUS[stage.status].brick}`}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs">
+                  <b className="font-semibold">
+                    {doneCount}/{project.stages.length}
+                  </b>{" "}
+                  {TEXT.done} ·{" "}
+                  <span className="text-muted-foreground">
+                    {due?.due_date ? `${TEXT.nextDue} ${dDay(due.due_date)} · ${due.next_step ?? STAGES[due.stage].label}` : TEXT.noDue}
+                  </span>
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      </SheetContent>
+    </Sheet>
   );
 }
 
