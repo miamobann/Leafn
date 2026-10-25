@@ -19,11 +19,13 @@ import { NewEventForm } from "./new-event-form";
 const nextDay = (d: string) => new Date(Date.parse(d) + 86_400_000).toISOString().slice(0, 10);
 const COLOR = { platform_event: "var(--sentiment-positive)", own_campaign: "var(--risk-low)", milestone: "var(--risk-high)" };
 
-// 홈에 넣을 때는 플랫폼 고르기·행사 추가·보기 전환을 빼고 높이를 줄인다. 다 쓰려면 이 화면(전체보기)으로 온다
+// 홈에 넣을 때는 플랫폼 고르기·행사 추가·보기 전환을 빼고 높이를 줄인다. 다 쓰려면 이 화면(전체보기)으로 온다.
+// 홈은 지난 주가 빈칸으로 자리만 차지하지 않게 오늘이 든 주부터 4주만 보여 준다 (2026-10-25)
 const VIEW = {
-  page: { height: 640, headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listMonth" } },
-  home: { height: 520, headerToolbar: { left: "prev,next today", center: "title", right: "" } },
+  page: { initialView: "dayGridMonth", height: 640, headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listMonth" } },
+  home: { initialView: "dayGridFourWeek", height: 440, headerToolbar: { left: "prev,next today", center: "title", right: "" } },
 };
+const FOUR_WEEK_VIEW = { dayGridFourWeek: { type: "dayGrid", duration: { weeks: 4 } } };
 
 export function PromoCalendar({
   events: initial,
@@ -119,7 +121,8 @@ export function PromoCalendar({
         <FullCalendar
           plugins={[dayGridPlugin, listPlugin, interactionPlugin]}
           locale={koLocale}
-          initialView="dayGridMonth"
+          initialView={VIEW[variant].initialView}
+          views={FOUR_WEEK_VIEW}
           initialDate={selected?.startDate ?? today}
           now={today}
           headerToolbar={VIEW[variant].headerToolbar}

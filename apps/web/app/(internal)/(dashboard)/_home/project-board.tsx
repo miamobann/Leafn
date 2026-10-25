@@ -11,7 +11,7 @@ import type { getBoardProjects } from "@/lib/data";
 import { dDay } from "@/lib/format";
 import { StageKey, type StageStatus } from "@/lib/schemas/project";
 
-type HomeProject = Awaited<ReturnType<typeof getBoardProjects>>[number];
+export type HomeProject = Awaited<ReturnType<typeof getBoardProjects>>[number];
 type HomeStage = HomeProject["stages"][number];
 
 const TEXT = {
@@ -77,6 +77,29 @@ function nextDue(project: HomeProject): HomeStage | undefined {
 /** "2026-10-01" → "10-01" */
 const monthDay = (date: string) => date.slice(5);
 
+/** 홈 캘린더 할 일 목록에 넣을 현황판 마감: 끝나지 않은 단계 중 마감일이 있는 것 */
+export function boardDeadlines(projects: HomeProject[]) {
+  return projects.flatMap((project) =>
+    project.stages.flatMap((stage) =>
+      stage.status !== "done" && stage.due_date
+        ? [
+            {
+              projectId: project.id,
+              projectName: project.name,
+              stage: stage.stage,
+              stageLabel: STAGES[stage.stage].label,
+              label: stage.next_step ?? STAGES[stage.stage].label,
+              dueDate: stage.due_date,
+              blocked: stage.status === "blocked",
+            },
+          ]
+        : [],
+    ),
+  );
+}
+
+export type BoardDeadline = ReturnType<typeof boardDeadlines>[number];
+
 // 같은 벽돌을 다시 눌러도 상세로 내려가도록, 누를 때마다 request 번호를 올린다
 type Selection = { projectId: string; stage: StageKey; request: number };
 
@@ -98,6 +121,11 @@ export function ProjectProgress({ children }: { children: React.ReactNode }) {
     setSelection((prev) => ({ projectId, stage, request: (prev?.request ?? 0) + 1 }));
 
   return <SelectionContext.Provider value={{ selection, select }}>{children}</SelectionContext.Provider>;
+}
+
+/** 현황판 밖(캘린더 할 일 목록)에서 벽돌을 누른 것처럼 상세를 연다 */
+export function useStageSelect() {
+  return useSelection().select;
 }
 
 function StatusBrick({ status }: { status: StageStatus }) {

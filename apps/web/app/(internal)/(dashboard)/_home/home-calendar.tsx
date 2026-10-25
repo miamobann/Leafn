@@ -8,6 +8,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PromoEventView } from "@/lib/data/launch";
 import { CalendarTodo, type PendingCopy } from "./calendar-todo";
+import { boardDeadlines, type HomeProject } from "./project-board";
 
 const TEXT = {
   title: "프로모션 캘린더",
@@ -17,10 +18,10 @@ const TEXT = {
 // 플랫폼 고르기·행사 추가·목록 보기는 전체보기(/calendar)에서 한다
 const FULL_VIEW_HREF = "/calendar";
 
-// FullCalendar는 브라우저에서만 그린다 (서버 렌더링 시 window가 없음). 자리 높이는 홈용 캘린더(520px)와 위 줄을 합친 값
+// FullCalendar는 브라우저에서만 그린다 (서버 렌더링 시 window가 없음). 자리 높이는 홈용 캘린더(440px)와 위 줄을 합친 값
 const PromoCalendar = dynamic(() => import("../calendar/promo-calendar").then((m) => m.PromoCalendar), {
   ssr: false,
-  loading: () => <Skeleton className="h-[560px] w-full" />,
+  loading: () => <Skeleton className="h-[480px] w-full" />,
 });
 
 export function HomeCalendar({
@@ -28,12 +29,17 @@ export function HomeCalendar({
   platformKeys,
   today,
   pending,
+  projects,
 }: {
   events: PromoEventView[];
   platformKeys: string[];
   today: string;
   pending: PendingCopy[];
+  /** 현황판의 단계 마감도 할 일 목록에 함께 넣는다 */
+  projects: HomeProject[];
 }) {
+  const board = boardDeadlines(projects);
+
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -52,7 +58,7 @@ export function HomeCalendar({
           platformKeys={platformKeys}
           today={today}
           variant="home"
-          renderIdle={(ctx) => <CalendarTodo {...ctx} pending={pending} today={today} />}
+          renderIdle={(ctx) => <CalendarTodo {...ctx} pending={pending} today={today} board={board} />}
         />
       </CardContent>
     </Card>

@@ -28,6 +28,7 @@ export default async function HomePage() {
           platformKeys={platforms.map((p) => p.key)}
           today={today}
           pending={pending.map((a) => ({ id: a.id, text: a.input_text, eventId: a.promo_event_id ?? null }))}
+          projects={projects}
         />
       </div>
       <StageDetail projects={projects} />
