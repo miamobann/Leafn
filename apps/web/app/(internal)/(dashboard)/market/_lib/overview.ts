@@ -4,7 +4,7 @@ import type { PromoEvent } from "@/lib/schemas/promo";
 import type { PromoHookType, RankingItem, TrendSnapshot } from "@/lib/schemas/trend";
 import { APPEAL_TAGS, type MarketPlatform } from "@/lib/market-config";
 import { fold } from "@/lib/ai/appeal-normalize";
-import { INGREDIENT_MATCH, productKey, TOP_N, weekLabel } from "./market";
+import { INGREDIENT_MATCH, productKey, TOP_N } from "./market";
 
 /** 화면 한 줄: 랭킹 항목 + 전주 순위 + 계산 값 */
 export type OverviewRow = RankingItem & {
@@ -168,11 +168,6 @@ export function ingredientMentions(rows: OverviewRow[]): IngredientMention[] {
     .map(([ingredient, { ko }]) => ({ ingredient, ko, rows: rows.flatMap((r) => r.ingredients.filter((x) => x.ingredient === ingredient).map((x) => ({ ...r, matched: x.matched }))) }))
     .filter((m) => m.rows.length > 0)
     .toSorted((a, b) => b.rows.length - a.rows.length);
-}
-
-/** 성분 하나의 주별 언급 제품 수 (20위까지) */
-export function ingredientTrend(series: TrendSnapshot[], ingredient: string): { week: string; count: number }[] {
-  return series.map((_, i) => ({ week: weekLabel(series[i].captured_at), count: rowsAt(series, i).filter((r) => r.ingredients.some((x) => x.ingredient === ingredient)).length }));
 }
 
 // ── 제품 요약 패널 ────────────────────────────────

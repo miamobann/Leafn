@@ -178,7 +178,7 @@
          │  인증 확인 · 입력 검증(Zod) · SerpApi 호출
                        ↓
       AI: OpenAI API (기본) 또는 Anthropic API  (lib/ai/callAi)
-         │  약기법 검토 · 리뷰 분석 · 번역 · GEO 측정 · SNS 패턴 · (다음) 통합 AI 분석
+         │  약기법 검토 · 리뷰 분석 · 번역 · GEO 측정 · SNS 핵심 니즈 · (다음) 통합 AI 분석
          │  (약기법 기준 문서는 프롬프트에 포함)
                        ↓
       Database: Supabase PostgreSQL + Storage  ←──────┐
@@ -278,7 +278,6 @@
 | `PATCH /api/ad-check/[checkId]` | 담당자 승인·반려 저장 (owner만, RLS와 서버 양쪽에서 확인) | - |
 | `POST /api/content-guide` | 콘텐츠 제작 가이드(제목·본문) 생성 + 금지 표현 검사(`lint_hits`) → `content_guides` 저장 | 정밀·대량 |
 | `POST /api/geo/run` | AI 검색 응답 측정 → `geo_snapshots` | 측정 엔진은 `GEO_MODEL_*`, 키워드 추출은 대량 |
-| `POST /api/market/sns-patterns` | SNS 영상 메모의 공통 패턴 분석 | 대량 |
 | `POST /api/market/sns-trends` | TikTok 영상 링크 → Apify로 캡션·해시태그·발화 자막 → 소비자 핵심 니즈 순위 (저장하지 않음) | 대량 |
 | `POST /api/trends/autocomplete`, `POST /api/trends/search-interest` | SerpApi Google 자동완성·Trends (키는 서버에만) → `search_snapshots` | - |
 
@@ -366,7 +365,7 @@
 - [x] **2. 리뷰 분석 (E, D):** `products`/`reviews`, Qoo10 수집기와 수집 요청 화면, CSV 저장, AI 묶음 분석·번역, 리포트·소구점
 - [x] **3. 약기법 검토 (A):** 기준 자료, 프롬프트 v6, `/api/ad-check`, 자동 저장·owner 승인, 검토 이력, 콘텐츠 제작 가이드
 - [x] **4. 경쟁제품 비교 (C):** Qoo10 수집으로 경쟁 제품 등록, 자사-경쟁 연결, 비교 탭
-- [x] **5. 시장 트렌드 (B, GEO):** Qoo10 랭킹 CSV, 검색 자동완성·Trends, GEO, SNS 공통 패턴, 탭 구성의 시장 분석
+- [x] **5. 시장 트렌드 (B, GEO):** Qoo10 랭킹 CSV, 검색 자동완성·Trends, GEO, SNS 핵심 니즈(Apify), 탭 구성의 시장 분석
 - [x] 홈: 탭 요약 카드·할 일·프로모션 캘린더 (진출 실행 탭 제거)
 
 **다음 (데모 범위, `docs/team-approval-ai-analysis.md` 7장 순서, 단계마다 PR 하나)**
