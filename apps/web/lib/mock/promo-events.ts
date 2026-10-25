@@ -3,12 +3,13 @@ import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 행사 패턴만 반영한 샘플 날짜. 실제 일정은 각 플랫폼 공식 공지로 확인한다.
 // prep_due_date는 홈 화면이 아직 읽어서 남겨 둔다 (= 가장 이른 마감)
+// is_confirmed: 자사 캠페인은 확정, 플랫폼 행사는 공지를 확인한 pe-1만 확정이고 나머지는 지난 패턴으로 넣은 예상 일정
 export const promoEvents = parseAll(
   PromoEvent,
   [
     { id: "pe-4", platform: "Instagram", title: "신제품 런칭 캠페인", start_date: "2026-11-01", end_date: "2026-11-14", kind: "own_campaign",
       milestones: [{ label: "크리에이티브 확정", due_date: "2026-10-25" }, { label: "게시 문구 승인", due_date: "2026-10-28" }] },
-    { id: "pe-1", platform: "Qoo10", title: "メガ割 (샘플)", start_date: "2026-11-20", end_date: "2026-12-02", kind: "platform_event",
+    { id: "pe-1", platform: "Qoo10", title: "メガ割 (샘플)", start_date: "2026-11-20", end_date: "2026-12-02", kind: "platform_event", is_confirmed: true,
       milestones: [{ label: "참가 신청", due_date: "2026-11-06" }, { label: "행사 문구 승인", due_date: "2026-11-10" }, { label: "물류 입고", due_date: "2026-11-13" }] },
     { id: "pe-3", platform: "Amazon.co.jp", title: "대형 세일 (샘플)", start_date: "2026-11-27", end_date: "2026-12-03", kind: "platform_event",
       milestones: [{ label: "딜 신청", due_date: "2026-11-13" }] },
@@ -30,6 +31,6 @@ export const promoEvents = parseAll(
       milestones: [{ label: "참가 신청", due_date: "2027-02-14" }, { label: "물류 입고", due_date: "2027-02-21" }] },
     { id: "pe-12", platform: "Amazon.co.jp", title: "新生活セール (샘플)", start_date: "2027-03-20", end_date: "2027-03-26", kind: "platform_event",
       milestones: [{ label: "딜 신청", due_date: "2027-03-02" }] },
-  ].map((e) => ({ memo: null, prep_due_date: e.milestones[0].due_date, ...e, workspace_id: WORKSPACE_ID, created_at: ts("2026-10-15") })),
+  ].map((e) => ({ memo: null, prep_due_date: e.milestones[0].due_date, is_confirmed: e.kind === "own_campaign", ...e, workspace_id: WORKSPACE_ID, created_at: ts("2026-10-15") })),
   "promoEvents",
 );
