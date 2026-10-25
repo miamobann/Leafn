@@ -6,7 +6,8 @@ import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/dat
 import { APPEAL_TOPICS } from "@/lib/schemas/review";
 import { ContentGuide, type GuideMaterials } from "../_components/content-guide";
 import { GUIDE_DRAFTS } from "../_lib/content-guide-samples";
-import { PRODUCTS } from "../_lib/products";
+import { getAdProducts } from "@/lib/data/ad-products";
+import { isSupabaseConfigured } from "@/lib/data/workspace";
 import { AdDisclaimer } from "../_components/ad-disclaimer";
 
 const MAX_KEYWORDS = 5;
@@ -21,9 +22,10 @@ async function getReportAuthor() {
 }
 
 export default async function ContentGuidePage() {
+  const products = (await getAdProducts()).filter((p) => p.price_jpy > 0 && p.volume !== "미등록" && p.line !== "미등록");
   // 반영할 재료 (가짜 데이터, 읽기만): 리뷰 분석의 소구점 · 시장 분석의 검색어 순위
   const [appeals, snapshots, author, events, today] = await Promise.all([
-    Promise.all(PRODUCTS.map((p) => getAppealComparison(p.id))),
+    Promise.all(products.map((p) => getAppealComparison(p.id))),
     getSearchSnapshots(),
     getReportAuthor(),
     getPromoEvents(),
@@ -35,7 +37,7 @@ export default async function ContentGuidePage() {
   const latest = snapshots.findLast((s) => s.engine === "google_autocomplete");
   const keywords = (latest?.suggestions ?? []).slice(0, MAX_KEYWORDS).map((s) => s.value);
   const materials: GuideMaterials = Object.fromEntries(
-    PRODUCTS.map((p, i) => {
+    products.map((p, i) => {
       const appeal = appeals[i];
       const topics = appeal?.topics ?? [];
       const praised = topics
@@ -59,9 +61,9 @@ export default async function ContentGuidePage() {
         featureId="A"
       />
       <AdDisclaimer />
-      <p className="mt-2 text-xs text-muted-foreground">{aiEnabled ? "AI 제작 (참고 자료는 샘플 데이터)" : "샘플 데이터 · AI 미연결"} · 게시 전에는 새 검토로 다시 확인하세요</p>
+      <p className="mt-2 text-xs text-muted-foreground">{aiEnabled ? "AI 제작 (연결된 제품·리뷰·검색 자료)" : "AI 미연결"} · 게시 전에는 새 검토로 다시 확인하세요</p>
       <div className="mt-4">
-        <ContentGuide products={PRODUCTS} drafts={GUIDE_DRAFTS} materials={materials} author={author} aiEnabled={aiEnabled} />
+        {products.length ? <ContentGuide products={products} drafts={isSupabaseConfigured() ? [] : GUIDE_DRAFTS} materials={materials} author={author} aiEnabled={aiEnabled} /> : <p>전성분·가격·용량이 등록된 제품이 없습니다.</p>}
       </div>
     </>
   );

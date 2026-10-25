@@ -235,7 +235,9 @@
 | `review_analyses` | review_id, sentiment (`positive` / `negative` / `neutral`), keywords jsonb `[{text, category}]` (category: `ingredient` / `texture` / `price` / `scent` / `skin_reaction` / `other`), pain_points text[], repurchase_factors text[], model, prompt_version | E (D는 참조) |
 | `review_insights` | workspace_id, product_id, kind (`pain_point` / `repurchase_factor` / `keyword`), label, count, evidence_review_ids uuid[] | E (원문 근거 연결) |
 | `review_translations` | review_id, text_ja, ad_check_id, status (`draft` / `approved`) | F (참조) |
-| `ad_checks` | workspace_id, input_text, input_lang, findings jsonb (대체 표현은 각 항목 안의 `suggestions`, 7장), model, prompt_version, reviewer_id, review_status (`pending` / `approved` / `rejected`), reviewer_note | A |
+| `ad_checks` | workspace_id, created_by, source (`manual` / `content_guide`), product_id, promo_event_id, input_text, input_lang, usage, product_category, overall_risk, overall_action, final_text, review_status (`pending` / `approved` / `rejected`), is_expert_review_requested, reviewer_id, reviewer_note, reviewed_at, model, prompt_version, deleted_at | A (2026-10-24 확정: 판정 시 자동 저장, 승인 변경은 owner만) |
+| `ad_check_lines` | workspace_id, ad_check_id, line_index, block_key, original, action, findings jsonb, ingredient_check, translated_text, back_translation_ko, localized_note | A (줄별 판정 결과 분리 저장) |
+| `content_guides` | workspace_id, created_by, product_id, promo_event_id, channel, post_type, input jsonb, title jsonb, body jsonb, lint_hits jsonb, ad_check_id, model, prompt_version | A (2026-10-24 확정: 콘텐츠 제작 가이드 결과물 별도 테이블 자동 저장) |
 | `trend_snapshots` | workspace_id, source (`rakuten_ranking` / …), category, captured_at, data jsonb | B |
 | `geo_snapshots` | workspace_id, engine, query, answer, brands_mentioned text[], captured_at | GEO (참조) |
 | `promo_events` | workspace_id, platform, title, start_date, end_date, prep_due_date, memo | I (참조) |

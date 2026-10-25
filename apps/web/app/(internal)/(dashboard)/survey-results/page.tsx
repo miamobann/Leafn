@@ -1,10 +1,11 @@
+import { readDashboardQuestions } from "@/lib/data/survey";
 import { ViewStateGate } from "@/components/common/view-state";
 import { PageHeader } from "@/components/layout/page-header";
-import { getSurveyProductLines, getSurveyQuestions, getSurveySummary } from "@/lib/data";
+import { getSurveyProductLines, getSurveySummary } from "@/lib/data";
 import { SurveyResultsView } from "./survey-results-view";
 
 export default async function SurveyResultsPage() {
-  const [summary, questions, lines] = await Promise.all([getSurveySummary(), getSurveyQuestions(), getSurveyProductLines()]);
+  const [summary, questions, lines] = await Promise.all([getSurveySummary(), readDashboardQuestions(), getSurveyProductLines()]);
 
   return (
     <>

@@ -114,6 +114,8 @@ export function useProjects(base: ProjectWithProducts[]) {
 
   const projects = useMemo<ProjectWithProducts[]>(() => {
     if (source.kind === "db") return source.projects;
+    if (source.kind === "sample" && source.reason !== "not_configured") return [];
+    if (source.kind === "loading") return base;
     const all = [...base, ...saved.projects.map((p) => ({ ...p, products: [] }))];
     return all.map((pj) => ({ ...pj, products: [...pj.products, ...saved.products.filter((p) => p.project_id === pj.id)] }));
   }, [base, saved, source]);
@@ -137,6 +139,7 @@ export function useProjects(base: ProjectWithProducts[]) {
       setState({ saved: { ...now.saved, selectedId: r.row.id }, source: { kind: "db", projects: [...dbProjects, r.row] } });
       return { ok: true, id: r.row.id };
     }
+    if (s.source.kind === "sample" && s.source.reason !== "not_configured") return { ok: false, message: s.source.message ?? "로그인과 워크스페이스를 확인해 주세요" };
     const project = Project.parse({ ...NewProject.parse(input), id: localId("pl"), workspace_id: workspaceId, created_at: new Date().toISOString() });
     setState({ ...s, saved: { ...s.saved, projects: [...s.saved.projects, project], selectedId: project.id } });
     return { ok: true, id: project.id };
@@ -155,6 +158,7 @@ export function useProjects(base: ProjectWithProducts[]) {
       }
       return { ok: true, id: r.row.id };
     }
+    if (s.source.kind === "sample" && s.source.reason !== "not_configured") return { ok: false, message: s.source.message ?? "로그인과 워크스페이스를 확인해 주세요" };
     const product = ProjectProduct.parse({
       ...NewProjectProduct.parse(input),
       id: localId("lp"),

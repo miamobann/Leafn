@@ -320,7 +320,7 @@ function GeoBlock({ geo, category, onOpen }: { geo: GeoSnap[]; category: string;
           </TableBody>
         </Table>
         <p className="text-xs text-muted-foreground">
-          점유 = 그 칸 답변의 브랜드 언급 중 자사 비율 · 인용 출처는 엔진이 줄 때만 · {TEXT.geoNote} · 결정 키워드는 기회와 전략의 재료로 넘어가요
+          점유 = 그 칸 답변의 브랜드 언급 중 자사 비율 · 인용 출처는 엔진이 줄 때만 · {TEXT.geoNote}
         </p>
         {sample && <AiResultMeta model={[...new Set(geo.filter((g) => g.category === category).map((g) => g.model))].join(", ")} promptVersion={sample.prompt_version ?? "사전 대조"} createdAt={m.measuredAt ?? sample.captured_at} />}
       </CardContent>

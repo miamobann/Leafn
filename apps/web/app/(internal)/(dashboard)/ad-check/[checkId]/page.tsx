@@ -4,21 +4,24 @@ import { AiResultMeta } from "@/components/common/ai";
 import { PageHeader } from "@/components/layout/page-header";
 import { DetailTemplate } from "@/components/templates";
 import { buttonVariants } from "@/components/ui/button";
-import { getAdCheck, getAdChecks, getMemberName, getProduct } from "@/lib/data";
+import { getAdCheck, getMemberName, getProduct } from "@/lib/data";
+import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
 import { ActionBadge, ReviewStateBadge, USAGE_LABEL } from "../_components/ad-badges";
+import { DetailReviewBar } from "../_components/detail-review-bar";
 import { LineResultCard } from "../_components/line-result-card";
 import { ResultSummary } from "../_components/result-summary";
 import { AdDisclaimer } from "../_components/ad-disclaimer";
 
-export async function generateStaticParams() {
-  return (await getAdChecks()).map((a) => ({ checkId: a.id }));
-}
-
 export default async function AdCheckDetailPage({ params }: { params: Promise<{ checkId: string }> }) {
   const check = await getAdCheck((await params).checkId);
   if (!check) notFound();
-  const [reviewer, product] = await Promise.all([getMemberName(check.reviewer_id), check.product_id ? getProduct(check.product_id) : null]);
+  const [reviewer, product, mine] = await Promise.all([
+    getMemberName(check.reviewer_id),
+    check.product_id ? getProduct(check.product_id) : null,
+    isSupabaseConfigured() ? getMyWorkspace() : null,
+  ]);
+  const canApprove = !isSupabaseConfigured() || mine?.role === "owner";
 
   return (
     <>
@@ -77,6 +80,14 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
               ),
             },
           ]}
+        />
+        <DetailReviewBar
+          checkId={check.id}
+          initialFinalText={check.final_text ?? check.input_text}
+          initialNote={check.reviewer_note ?? ""}
+          initialStatus={check.review_status}
+          initialExpertRequested={check.is_expert_review_requested ?? false}
+          canApprove={canApprove}
         />
       </div>
     </>

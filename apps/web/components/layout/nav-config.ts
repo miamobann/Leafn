@@ -47,7 +47,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "리뷰 리포트", href: "/reviews", featureId: "E" },
       { label: "소구점 찾기", href: "/reviews/compare", featureId: "E" },
-      { label: "리뷰 가져오기", href: "/reviews/import", featureId: "E" },
     ],
   },
   {

@@ -1,4 +1,4 @@
-// 만든 일본어 문구를 광고 검토 판정(ad-check v5)에 한 번 더 통과시킨다. 약기법이 항상 먼저라서, 제작 결과도 판정을 거친다.
+// 만든 일본어 문구를 광고 검토 판정(ad-check 판정, 기본 버전은 judge.ts의 AD_CHECK_PROMPT_VERSION)에 한 번 더 통과시킨다. 약기법이 항상 먼저라서, 제작 결과도 판정을 거친다.
 // 블록마다 첫 번째 안(가장 추천)만 본다. 줄 수가 많으면 판정 한도(MAX_LINES)씩 나눠 부른다.
 import { MAX_LINES } from "@/lib/ai/ad-check/action";
 import { judgeLines } from "@/lib/ai/ad-check/judge";

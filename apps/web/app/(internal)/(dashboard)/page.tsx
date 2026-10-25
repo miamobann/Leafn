@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/layout/page-header";
 import { getAdChecks, getBoardProjects } from "@/lib/data";
 import { getPlatformViews, getPromoEventViews, getToday } from "@/lib/data/launch";
+import { isSupabaseConfigured } from "@/lib/data/workspace";
 import { HomeCalendar } from "./_home/home-calendar";
 import { ProjectBoard, ProjectProgress, StageDetail } from "./_home/project-board";
 import { ScrollButtons } from "./_home/scroll-buttons";
@@ -20,6 +21,7 @@ export default async function HomePage() {
       <div className="min-h-[calc(100vh-5.5rem)]">
         {/* 다음 행사와 승인 대기 문구는 캘린더 패널(다음 행사 · 문구 검토 대기)에서 본다 */}
         <PageHeader title="홈" description="이번 주 할 일과 프로젝트 진행" featureId="J" />
+        {isSupabaseConfigured() && <p className="my-4 text-sm text-muted-foreground">업무 단계 현황과 활동 기록은 저장 구조 준비 중입니다. 프로젝트·제품은 상단 메뉴에서 확인할 수 있습니다.</p>}
         <ProjectBoard projects={projects} />
         <HomeCalendar
           events={calendarEvents}

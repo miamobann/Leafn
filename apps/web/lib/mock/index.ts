@@ -4,12 +4,8 @@ import { geoSnapshots } from "./geo";
 import { platforms } from "./platforms";
 import { products } from "./products";
 import { boardProjects, projectStages, projects } from "./projects";
-import { rankingSources } from "./ranking-sources";
 import { searchSnapshots } from "./search";
 import { snsPatterns, snsVideoNotes } from "./sns-notes";
-import { claimJudgments } from "./claim-judgments";
-import { copyCandidates } from "./copy-candidates";
-import { POSITIONING } from "@/lib/market-config";
 import { promoEvents } from "./promo-events";
 import { reviewAnalyses } from "./review-analyses";
 import { reviewInsights } from "./review-insights";
@@ -83,26 +79,6 @@ function checkRefs() {
       if (note) expect(note.category === p.category, `snsPatterns ${p.id} 영상 ${vid}의 카테고리가 다름`);
     }
 
-  // 기회와 전략: 후보 영역의 근거 키워드·카피 재료는 판정 사전에 있어야 하고, 카피는 자사 제품의 사실만 써야 한다 (景表法)
-  const judged = new Set(claimJudgments.map((j) => j.keyword));
-  const zoneIds = new Set<string>();
-  for (const [category, axis] of Object.entries(POSITIONING))
-    for (const z of axis.zones) {
-      zoneIds.add(z.id);
-      expect(judged.has(z.gap_keyword), `POSITIONING ${category} ${z.id}.gap_keyword ${z.gap_keyword}`);
-    }
-  // 카피에서 찾는 성분 표기 (전성분 표기에 그대로 들어 있어야 한다)
-  const INGREDIENT_WORDS = ["ヒアルロン酸", "セラミド", "ナイアシンアミド", "ツボクサ", "レチノール", "アスコルビ", "ドクダミ", "パンテノール", "トラネキサム酸", "スクワラン", "PDRN", "アゼライン酸"];
-  for (const c of copyCandidates) {
-    expect(zoneIds.has(c.zone_id), `copyCandidates ${c.id}.zone_id`);
-    for (const m of c.materials) expect(judged.has(m), `copyCandidates ${c.id} 재료 ${m}`);
-    const own = products.find((p) => p.id === c.own_product_id);
-    expect(own?.kind === "own" && own.category === c.category, `copyCandidates ${c.id}.own_product_id`);
-    const words = INGREDIENT_WORDS.filter((w) => c.copy_ja.includes(w));
-    for (const w of words) expect(Boolean(own?.ingredients.some((x) => x.includes(w))), `copyCandidates ${c.id}: 자사 전성분에 없는 ${w}`);
-    if (words.length > 0) expect(Boolean(c.ingredient_purpose), `copyCandidates ${c.id}: 성분 특기에 배합 목적 없음`);
-  }
-
   // 설문 집계가 가리키는 라인 · 연령대 · 고민 값이 문항과 추천 라인에 있어야 한다
   const lineIds = ids(surveyProductLines);
   const optionValues = (qid: string) => new Set(surveyQuestions.find((q) => q.id === qid)?.options.map((o) => o.value) ?? []);
@@ -143,12 +119,9 @@ export const mock = {
   reviewTranslations,
   adChecks,
   trendSnapshots,
-  rankingSources,
   searchSnapshots,
   snsVideoNotes,
   snsPatterns,
-  claimJudgments,
-  copyCandidates,
   geoSnapshots,
   promoEvents,
   platforms,

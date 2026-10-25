@@ -10,9 +10,9 @@ export function formatDate(value: string): string {
 }
 
 /** 프로토타입의 고정된 "오늘" 기준 D-day. 날짜 문자열만으로 계산한다. */
-export function dDay(date: string): string {
+export function dDay(date: string, today = PROTOTYPE_TODAY): string {
   const toDays = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000;
-  const diff = toDays(date) - toDays(PROTOTYPE_TODAY);
+  const diff = toDays(date) - toDays(today);
   if (diff === 0) return "D-day";
   return diff > 0 ? `D-${diff}` : `D+${-diff}`;
 }
