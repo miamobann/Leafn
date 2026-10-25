@@ -1,9 +1,6 @@
-// 콘텐츠 제작 가이드 결과 → 화면·PDF에 보여 줄 블록·해시태그·제품 채우기. 제작 화면(content-guide.tsx)과 묶음 PDF(guide/history/print)가 같이 쓴다.
+// 콘텐츠 제작 가이드 결과 → 화면·PDF에 보여 줄 블록·해시태그·제품 채우기. 제작 화면(content-guide.tsx)이 쓴다.
 import { fillProduct, type GuideBlock, type GuideChannel, type Hashtags, IG_HASHTAG_LIMIT, keywordToHashtag } from "./content-guide-samples";
 import type { LabProduct } from "./products";
-
-/** 묶음 PDF로 한 번에 묶을 수 있는 가이드 수 (2026-10-25 결정) */
-export const MAX_BUNDLE = 5;
 
 /** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
 export const KEYWORD_TAGS = 1;

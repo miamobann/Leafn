@@ -6,11 +6,9 @@ import { getAdProducts } from "@/lib/data/ad-products";
 import { getMyWorkspace } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
 import { ActionBadge } from "../../_components/ad-badges";
-import { BundleCheckbox, BundleSelect } from "../../_components/bundle-select";
 import { DeleteButton } from "../../_components/delete-button";
 import { HistoryFilters } from "../../_components/history-filters";
 import { GUIDE_CHANNELS } from "../../_lib/content-guide-samples";
-import { MAX_BUNDLE } from "../../_lib/guide-report";
 
 type GuideHistoryPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -45,14 +43,13 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
   return (
     <>
       <PageHeader title="만든 가이드" description="콘텐츠 제작 가이드로 만든 결과물과 약기법 자동 검사 결과" featureId="A" />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4">
         <HistoryFilters
           filters={[
             { key: "product", label: "제품", options: productOptions },
             { key: "channel", label: "채널", options: GUIDE_CHANNELS.map((c) => ({ value: c.id, label: c.label })) },
           ]}
         />
-        {guides.length > 0 && <BundleSelect max={MAX_BUNDLE} />}
       </div>
       {guides.length === 0 ? (
         <EmptyState message="조건에 맞는 가이드가 없습니다" action="「콘텐츠 제작 가이드」에서 제목을 고르면 결과물이 자동으로 저장돼요" />
@@ -64,7 +61,6 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
             { key: "action", label: "약기법" },
             { key: "author", label: "만든 사람" },
             { key: "date", label: "만든 날" },
-            { key: "bundle", label: "묶기" },
             ...(isOwner ? [{ key: "delete", label: "" }] : []),
           ]}
           rows={guides.map((g) => {
@@ -89,7 +85,6 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
                 action: action ? <ActionBadge action={action} /> : "—",
                 author: memberName(g.created_by),
                 date: formatDate(g.created_at),
-                bundle: <BundleCheckbox id={g.id} label={g.title.title_ko} />,
                 delete: <DeleteButton endpoint={`/api/content-guide/${g.id}`} confirmMessage="이 가이드를 삭제할까요? 지운 결과물은 되돌릴 수 없습니다. (약기법 검사 기록은 남아요)" />,
               },
             };

@@ -32,8 +32,6 @@ type ContentGuideReportProps = {
   cutList: CutRow[] | null;
   /** 제작할 때 반영한 강조할 방향 (없으면 빈 문자열) */
   direction: string;
-  /** 묶음 PDF: 화면에도 보여 주고(미리보기), 두 번째 보고서부터 새 쪽에서 시작한다 */
-  bundle?: { index: number };
 };
 
 type Fill = ContentGuideReportProps["fill"];
@@ -545,9 +543,7 @@ const PAGES: Record<Channel, (props: ContentGuideReportProps) => ReactNode[]> = 
 export function ContentGuideReport(props: ContentGuideReportProps) {
   const pages = [...PAGES[props.channel](props), ...(props.cutList ? [<PhotoGuide key="photo" cutList={props.cutList} />] : [])];
   return (
-    <div
-      className={`guide-report bg-background text-foreground ${props.bundle ? `rounded-lg border p-4 print:rounded-none print:border-0 print:p-0 ${props.bundle.index > 0 ? "break-before-page" : ""}` : "hidden print:block"}`}
-    >
+    <div className="guide-report hidden bg-background text-foreground print:block">
       <style>{PRINT_CSS}</style>
       {pages.map((content, i) => (
         <Page key={i} page={i + 1} total={pages.length} props={props}>
