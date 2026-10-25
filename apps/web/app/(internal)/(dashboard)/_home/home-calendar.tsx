@@ -18,10 +18,10 @@ const TEXT = {
 // 플랫폼 고르기·행사 추가·목록 보기는 전체보기(/calendar)에서 한다
 const FULL_VIEW_HREF = "/calendar";
 
-// FullCalendar는 브라우저에서만 그린다 (서버 렌더링 시 window가 없음). 자리 높이는 홈용 캘린더(440px)와 위 줄을 합친 값
+// FullCalendar는 브라우저에서만 그린다 (서버 렌더링 시 window가 없음). 자리 높이는 홈용 캘린더(520px)와 위 줄을 합친 값
 const PromoCalendar = dynamic(() => import("../calendar/promo-calendar").then((m) => m.PromoCalendar), {
   ssr: false,
-  loading: () => <Skeleton className="h-[480px] w-full" />,
+  loading: () => <Skeleton className="h-[560px] w-full" />,
 });
 
 export function HomeCalendar({
