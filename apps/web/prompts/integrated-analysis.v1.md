@@ -1,4 +1,4 @@
-# 통합 AI 분석 프롬프트 v1 (초안 · 아직 코드에서 쓰지 않음)
+# 통합 AI 분석 프롬프트 v1 (4단계에서 확정 · `lib/ai/integrated-analysis/config.ts`의 PROMPT_VERSION이 이 버전을 쓴다)
 
 탭별 승인본(시장 분석 · 리뷰 분석 · 광고 검토)을 모아 제품 하나의 일본 진출 판단을 정리한다. 설계: `docs/team-approval-ai-analysis.md` 10장.
 이 파일의 `---` 아래 본문만 system 메시지로 들어간다. 사용자 메시지에는 코드가 만든 `#입력`만 온다.

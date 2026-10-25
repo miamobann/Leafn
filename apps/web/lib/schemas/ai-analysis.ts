@@ -36,6 +36,25 @@ export const AiAnalysisResult = z.object({
 });
 export type AiAnalysisResult = z.infer<typeof AiAnalysisResult>;
 
+/**
+ * AI 응답 그대로의 모양 (프롬프트 #출력 형식). basis는 입력의 ref(예: review@v2)다.
+ * 구조화 출력에 쓰므로 선택 칸 · 숫자 범위를 두지 않고, 범위 확인과 ref → 버전 ID 바꾸기는 lib/ai/integrated-analysis/parse.ts가 한다
+ */
+export const AiAnalysisOutput = z.object({
+  summary: z.string(),
+  sections: z.array(
+    z.object({
+      key: z.string(),
+      title: z.string(),
+      points: z.array(z.object({ text: z.string(), basis: z.array(z.string()) })),
+    }),
+  ),
+  conflicts: z.array(z.object({ text: z.string(), basis: z.array(z.string()) })),
+  data_gaps: z.array(z.string()),
+  actions: z.array(z.object({ text: z.string(), tab: SubmissionTab, priority: z.number().int(), basis: z.array(z.string()) })),
+});
+export type AiAnalysisOutput = z.infer<typeof AiAnalysisOutput>;
+
 export const AiAnalysis = WorkspaceRow.merge(AiMeta).extend({
   updated_at: Timestamp,
   project_id: Id,
