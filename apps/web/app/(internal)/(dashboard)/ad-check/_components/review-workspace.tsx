@@ -1,16 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import type { z } from "zod";
 import { AiResultMeta } from "@/components/common/ai";
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/states";
 import { ViewStateGate } from "@/components/common/view-state";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdCheck, AdUsage } from "@/lib/schemas/ad-check";
 import type { ReviewStatus } from "@/lib/schemas/common";
 import { countLines } from "../_lib/lines";
 import type { LabProduct } from "../_lib/products";
 import { requestAdCheck, updateAdCheckReview, type AiMeta } from "../_lib/request";
+import { CopyButton } from "./copy-button";
 import { LineResultCard } from "./line-result-card";
 import { ResultSummary } from "./result-summary";
 import { ReviewBar } from "./review-bar";
@@ -209,6 +212,21 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
           onReset={() => { setStatus("pending"); setExpertRequested(false); void persistReview("pending", false, note, finalText); }}
           onSaveNote={() => void persistReview(status, expertRequested, note, finalText)}
         />
+      )}
+      {/* 다음 단계: 저장된 검토만 상세·전문가 자료로 넘길 수 있다 */}
+      {check && !busy && persisted && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+          <span>다음 단계 · 최종 문구를 복사하거나, 전문가에게 보낼 확인 자료를 만드세요.</span>
+          <span className="flex flex-wrap gap-2">
+            <CopyButton text={finalText} label="최종 문구 복사" />
+            <Link href={`/ad-check/${check.id}/expert`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              전문가 확인 자료 만들기
+            </Link>
+            <Link href="/ad-check/history" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              검토 이력에서 보기
+            </Link>
+          </span>
+        </div>
       )}
     </ViewStateGate>
   );
