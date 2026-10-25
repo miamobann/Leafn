@@ -16,6 +16,8 @@ export const LabProduct = z.object({
   name_ko: z.string(),
   name_ja: z.string(),
   line: z.string(),
+  /** 피부 라인 (DB products.skin_line). 샘플 데이터는 없고 line 글자(건성·지성·복합성)로 정한다 */
+  skin_line: z.enum(["dry", "oily", "combo"]).nullable().optional(),
   launch_status: z.enum(["live", "developing"]),
   /** 일본 제품 구분. 미정이면 null */
   product_category: ProductCategory.nullable(),

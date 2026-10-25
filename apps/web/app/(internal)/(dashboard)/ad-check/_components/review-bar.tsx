@@ -35,7 +35,7 @@ export function ReviewBar({
   onSaveNote,
   onReset,
 }: ReviewBarProps) {
-  const statusHint = !persisted ? "샘플이라 저장되지 않아요" :
+  const statusHint = !persisted ? "저장되지 않았어요" :
     saveState === "saving"
       ? "저장 중..."
       : saveState === "saved"

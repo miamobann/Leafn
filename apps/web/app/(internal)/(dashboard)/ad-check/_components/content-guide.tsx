@@ -54,7 +54,9 @@ const SAMPLE_DELAY_MS = 700;
 /** 제품별로 반영한 재료 (리뷰 소구점 · 검색어 순위). 가짜 데이터 */
 export type GuideMaterials = Record<
   string,
-  { hasReviews: boolean; appeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; megaSale: string | null }
+  /** keywords = 피부 라인 고민 검색어, trending = 요즘 새로 뜬 검색어(SNS), ingredients = 관심 성분 (모두 약기법·전성분 기준으로 거른 것) */
+  /** droppedAppeals = 약기법 때문에 AI에 넘기지 않은 리뷰 소구점 (예: 순함) */
+  { hasReviews: boolean; appeals: string[]; droppedAppeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; trending: string[]; ingredients: string[]; megaSale: string | null }
 >;
 
 type ContentGuideProps = {
@@ -623,7 +625,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], megaSale: null };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], droppedAppeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null };
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
   const list = (aiEnabled || saved ? aiDrafts : drafts)
@@ -669,7 +671,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
         line_products: products.filter((p) => p.id !== product.id && p.launch_status === "live").map((p) => p.name_ja),
       },
       appeals: { praised: material.appeals, competitor_complaints: material.complaints, candidates: material.candidates },
-      keywords: { search: material.keywords, ingredients: [] },
+      // 요즘 뜨는 말은 SNS(인스타·X)만
+      keywords: { search: material.keywords, ingredients: material.ingredients, trending: hasPostType ? material.trending : [] },
       review_quotes: material.hasReviews ? material.reviewQuotes : [],
       evidence: [],
       promo: postType === "mega_sale" && hasPostType ? material.megaSale : null,
@@ -813,7 +816,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
           {/* 참고 자료: 다른 탭이 만들어 둔 결과를 읽기만 한다 (AI 호출 없음). 화면이 길어지지 않게 접어 둔다 */}
           <details className="rounded-md border p-3 text-sm">
             <summary className="cursor-pointer font-medium">
-              참고 자료 <span className="font-normal text-muted-foreground">· 리뷰 분석 {material.hasReviews ? material.appeals.length : 0}개 · 시장 분석 {material.keywords.length}개</span>
+              참고 자료 <span className="font-normal text-muted-foreground">· 리뷰 분석 {material.hasReviews ? material.appeals.length : 0}개 · 시장 분석 {material.keywords.length + material.ingredients.length}개</span>
             </summary>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <section className="space-y-1 rounded-md bg-muted p-3">
@@ -832,6 +835,9 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                 ) : (
                   <p className="text-xs text-muted-foreground">리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다</p>
                 )}
+                {material.hasReviews && material.droppedAppeals.length > 0 && (
+                  <p className="text-xs text-muted-foreground">약기법상 광고에 쓰지 않는 소구점: {material.droppedAppeals.join(", ")} (근거 자료 없이 저자극을 말할 수 없어요)</p>
+                )}
               </section>
               <section className="space-y-1 rounded-md bg-muted p-3">
                 <p className="flex items-center gap-2 font-medium">
@@ -845,9 +851,37 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                     </li>
                   ))}
                 </ol>
+                {hasPostType && (
+                  <>
+                    <p className="pt-2 font-medium">요즘 뜨는 말 <span className="text-xs font-normal text-muted-foreground">(SNS · 지난 수집에 없던 검색어)</span></p>
+                    {material.trending.length ? (
+                      <ul className="flex flex-wrap gap-1" lang="ja">
+                        {material.trending.map((t) => (
+                          <li key={t} className="rounded-full bg-background px-2 py-0.5 text-xs">
+                            {t}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">새로 뜬 검색어 없음</p>
+                    )}
+                  </>
+                )}
+                <p className="pt-2 font-medium">관심 성분 <span className="text-xs font-normal text-muted-foreground">(우리 전성분에 있는 것만)</span></p>
+                {material.ingredients.length ? (
+                  <ul className="flex flex-wrap gap-1" lang="ja">
+                    {material.ingredients.map((i) => (
+                      <li key={i} className="rounded-full bg-background px-2 py-0.5 text-xs">
+                        {i}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">겹치는 성분 없음 (성분 검색 관심도에 없는 카테고리이거나 전성분에 해당 성분이 없어요)</p>
+                )}
               </section>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">각 탭이 만들어 둔 결과를 읽어 와요 (지금은 샘플 데이터).</p>
+            <p className="mt-2 text-xs text-muted-foreground">각 탭이 만들어 둔 결과를 읽어 와요.</p>
           </details>
           {CHANNEL_RULES[channel] && (
             <details className="rounded-md border p-3 text-sm">
@@ -874,7 +908,6 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
             {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {!aiEnabled && <span className="text-xs text-muted-foreground">AI 미연결 · 샘플 결과</span>}
             <Button type="button" onClick={generate} disabled={detailBlocked || loading !== null}>
               {generated ? "다시 제작하기" : "제작하기"}
             </Button>
@@ -901,7 +934,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
       ) : !generated ? (
         <EmptyState message="「제작하기」를 누르면 제목 3개를 추천해요" action="제목을 고르면 그 제목으로 미리보기와 본문을 만들어요" />
       ) : list.length === 0 ? (
-        <EmptyState message="이 조합의 샘플 문구가 아직 없어요" action="다른 채널이나 게시물 종류를 골라 보세요" />
+        <EmptyState message="이 조합의 문구가 아직 없어요" action="다른 채널이나 게시물 종류를 골라 보세요" />
       ) : (
         <>
           {appliedDirection && (
@@ -912,7 +945,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>1. 제목 고르기</CardTitle>
+                {/* 저장된 결과물은 이미 고른 제목이라 「추천 제목」으로 보여 준다 */}
+                <CardTitle>{saved ? "1. 추천 제목" : "1. 제목 고르기"}</CardTitle>
               </CardHeader>
               <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`}>
                 <ol className="space-y-2">
@@ -979,7 +1013,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                       {Object.entries(warnings[current.id] ?? {}).flatMap(([key, items]) =>
                         items.map((w) => (
                           <li key={`${key}-${w}`}>
-                            {(blocks.findIndex((b) => b.key === key) + 1) || "-"}. {blocks.find((b) => b.key === key)?.heading ?? key}: {w}
+                            {key === "hashtags" ? "해시태그" : `${(blocks.findIndex((b) => b.key === key) + 1) || "-"}. ${blocks.find((b) => b.key === key)?.heading ?? key}`}: {w}
                           </li>
                         )),
                       )}
