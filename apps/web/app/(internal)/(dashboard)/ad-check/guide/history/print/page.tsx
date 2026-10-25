@@ -71,7 +71,6 @@ export default async function GuideBundlePage({ searchParams }: BundlePageProps)
               fill={r.fill}
               cutList={buildCutList(r.guide.channel, r.blocks, r.guide.body.gallery)}
               direction={r.guide.input.direction}
-              footerNote={`AI 제작 · ${r.guide.model} · ${r.guide.prompt_version}`}
             />
           ))}
         </div>

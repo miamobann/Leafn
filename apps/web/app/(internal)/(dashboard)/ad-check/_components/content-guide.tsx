@@ -77,9 +77,6 @@ export type SavedGuide = {
   direction: string;
   draft: GuideDraft;
   warnings: BlockWarnings;
-  /** PDF 바닥글에 적을 제작 정보 */
-  model: string;
-  promptVersion: string;
 };
 
 type Fill = (text: string) => string;
@@ -622,10 +619,6 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   /** 제목(draft) id → 저장된 가이드 id. 「이 문구로 새 검토」·「만든 가이드에서 보기」에 쓴다 (저장된 결과물은 그 id 그대로) */
   const [savedIds, setSavedIds] = useState<Record<string, string>>(saved ? { [saved.draft.id]: saved.draft.id } : {});
-  /** 제목(draft) id → 본문을 만든 모델·프롬프트 (PDF 바닥글) */
-  const [aiMeta, setAiMeta] = useState<Record<string, { model: string; promptVersion: string }>>(
-    saved ? { [saved.draft.id]: { model: saved.model, promptVersion: saved.promptVersion } } : {},
-  );
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -738,11 +731,6 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
       setSaveNotice(json.checkSaved === false ? "결과물은 「만든 가이드」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
       setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
       setWarnings((w) => ({ ...w, [id]: blockWarnings }));
-      const meta = json.meta as { model?: unknown; promptVersion?: unknown } | undefined;
-      if (typeof meta?.model === "string" && typeof meta.promptVersion === "string") {
-        const m = { model: meta.model, promptVersion: `content-guide.${meta.promptVersion}` };
-        setAiMeta((all) => ({ ...all, [id]: m }));
-      }
       if (typeof json.id === "string") {
         const guideId = json.id;
         setSavedIds((m) => ({ ...m, [id]: guideId }));
@@ -1116,7 +1104,6 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
           fill={fill}
           cutList={withPhotoGuide ? buildCutList(channel, blocks, current.gallery) : null}
           direction={appliedDirection}
-          footerNote={aiMeta[current.id] ? `AI 제작 · ${aiMeta[current.id]!.model} · ${aiMeta[current.id]!.promptVersion}` : aiEnabled ? "AI 제작" : "샘플 결과 (AI 미연결)"}
         />
       )}
     </div>

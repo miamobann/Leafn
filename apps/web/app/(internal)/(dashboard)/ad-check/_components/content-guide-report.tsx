@@ -32,8 +32,6 @@ type ContentGuideReportProps = {
   cutList: CutRow[] | null;
   /** 제작할 때 반영한 강조할 방향 (없으면 빈 문자열) */
   direction: string;
-  /** 바닥글의 제작 정보 (예: 「AI 제작 · gpt-4.1-mini · content-guide.v1」, 「샘플 결과 (AI 미연결)」) */
-  footerNote: string;
   /** 묶음 PDF: 화면에도 보여 주고(미리보기), 두 번째 보고서부터 새 쪽에서 시작한다 */
   bundle?: { index: number };
 };
@@ -92,9 +90,8 @@ function Page({ children, page, total, props }: { children: ReactNode; page: num
       )}
       {children}
       <footer className="mt-auto flex justify-between border-t pt-1 text-[8pt] text-muted-foreground">
-        <span>
-          {AD_DISCLAIMER_TEXT} · {props.footerNote}
-        </span>
+        {/* 디자이너에게 넘기는 문서라 모델명 같은 개발 정보는 적지 않는다 (기록은 DB에만) */}
+        <span>{AD_DISCLAIMER_TEXT}</span>
         <span>
           {page} / {total}
         </span>

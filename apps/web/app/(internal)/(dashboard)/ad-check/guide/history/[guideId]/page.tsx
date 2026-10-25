@@ -55,8 +55,6 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
               direction: guide.input.direction,
               draft,
               warnings: buildWarnings(guide.lint_hits, checks),
-              model: guide.model,
-              promptVersion: guide.prompt_version,
             }}
           />
         ) : (
