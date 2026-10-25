@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { LangBadge } from "@/components/common/badges";
+import { HelpTip } from "@/components/common/help-tip";
 import { EmptyState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -18,14 +18,14 @@ import {
   ENTRY_KIND_LABEL,
   entryConditions,
   ingredientMentions,
-  ingredientTrend,
   rowsAt,
   saleEventFor,
   tagShare,
   top10,
   type OverviewRow,
 } from "@/app/(internal)/(dashboard)/market/_lib/overview";
-import { HorizontalBarChart, TrendLineChart } from "@/app/(internal)/(dashboard)/market/_components/charts";
+import { ShareDonut } from "@/app/(internal)/(dashboard)/market/_components/charts";
+import { PriceMapSection } from "./price-map";
 import { MAX_COMPARE, ProductLabel, RankChange, type PanelContent } from "./side-panel";
 
 // 계산 기준 (카드·표 머리의 툴팁과 각주)
@@ -52,9 +52,9 @@ function ConditionCard({ title, definition, value, sub, onClick }: { title: stri
     <button type="button" disabled={!onClick} onClick={onClick} className="rounded-lg border bg-card p-3 text-left hover:bg-muted disabled:cursor-default disabled:hover:bg-card">
       <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         {title}
-        <span title={definition} aria-label={`계산 방법: ${definition}`} className="cursor-help rounded border px-1">
-          계산 방법
-        </span>
+        <HelpTip inline label={`계산 방법: ${definition}`}>
+          {definition}
+        </HelpTip>
       </span>
       <span className="mt-1 block text-xl font-semibold">{value}</span>
       {sub && <span className="block text-xs text-muted-foreground">{sub}</span>}
@@ -90,8 +90,6 @@ export function SupplyPart({
   onToggleCompare: (id: string) => void;
   onOpen: (c: PanelContent) => void;
 }) {
-  const [ingredient, setIngredient] = useState<string | null>(null);
-
   const latest = series.at(-1);
   const conditions = entryConditions(series, sameSource);
   if (!latest || !conditions) return <EmptyState message="이 플랫폼·카테고리의 랭킹 데이터가 없어요" />;
@@ -105,7 +103,6 @@ export function SupplyPart({
   const tags = tagShare(top);
   const mentions = ingredientMentions(rows);
   const own = ownIngredients(products);
-  const activeIngredient = ingredient && mentions.some((m) => m.ingredient === ingredient) ? ingredient : (mentions[0]?.ingredient ?? null);
   const list = (title: string, description: string, items: { row: OverviewRow; note?: string }[]) => onOpen({ kind: "list", title, description, rows: items });
   const { ppm, promo, entries } = conditions;
 
@@ -156,7 +153,10 @@ export function SupplyPart({
     <div className="space-y-6">
       {/* 1-A 상위권 진입 조건 */}
       <div>
-        <h3 className="mb-2 text-sm font-semibold">1-A 상위권 진입 조건 · Top {TOP_N}</h3>
+        <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+          1-A 상위권 진입 조건 · Top {TOP_N}
+          <HelpTip>이번 주 Top {TOP_N}에 든 제품들의 공통 조건이에요. 카드를 누르면 계산에 쓴 제품 목록이 열리고, ? 에 계산 방법이 있어요.</HelpTip>
+        </h3>
         <div className={`grid gap-3 ${entries ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           <ConditionCard
             title="ml당 가격 구간"
@@ -186,14 +186,19 @@ export function SupplyPart({
             />
           )}
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">카드를 누르면 계산에 쓴 제품 목록이 열려요</p>
       </div>
 
-      {/* 1-B Top 10 랭킹 표 */}
+      {/* 1-B 가격 포지셔닝 맵 (2026-10-25 시장 개관 탭에서 옮김) */}
+      <PriceMapSection series={series} platformLabel={platformLabel} products={products} onOpen={onOpen} />
+
+      {/* 1-C Top 10 랭킹 표 */}
       <div>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
-            1-B Top {TOP_N} 랭킹 · {platformLabel} <LangBadge lang="ja" />
+            1-C Top {TOP_N} 랭킹 · {platformLabel} <LangBadge lang="ja" />
+            <HelpTip>
+              행을 누르면 오른쪽에 제품 요약이 열려요. 체크하거나 패널의 [비교에 추가]로 최대 {MAX_COMPARE}개까지 골라 경쟁제품 탭에서 비교해요 (등록된 제품만). 판매가는 평시가예요.
+            </HelpTip>
           </h3>
           {selected.length > 0 ? (
             // 경쟁제품 탭으로 넘어간다 (고른 제품은 그 탭에서 처음부터 골라 둔다)
@@ -204,34 +209,38 @@ export function SupplyPart({
             <span className={`${buttonVariants({ size: "sm", variant: "outline" })} pointer-events-none opacity-50`}>선택 제품 비교 (0)</span>
           )}
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className={STICKY.check}>
-                <span className="sr-only">비교 선택</span>
-              </TableHead>
-              <TableHead className={STICKY.rank}>순위</TableHead>
-              <TableHead className={STICKY.name}>상품명 (원문 · 해석)</TableHead>
-              <TableHead className={STICKY.ppm} title={DEFINITIONS.ppm}>
-                ml당 가격
-              </TableHead>
-              {hasPrev && <TableHead>변동</TableHead>}
-              <TableHead>브랜드</TableHead>
-              <TableHead>K-뷰티</TableHead>
-              <TableHead className="text-right">판매가(税込)</TableHead>
-              <TableHead className="text-right">용량</TableHead>
-              <TableHead className={WIDE_ONLY}>핵심 성분</TableHead>
-              <TableHead className={WIDE_ONLY}>소구 태그·배지</TableHead>
-              <TableHead className={WIDE_ONLY}>프로모션</TableHead>
-              <TableHead className="text-right">평점·리뷰</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>{top.map(rankRow)}</TableBody>
-        </Table>
-        <p className="mt-1 text-xs text-muted-foreground">
-          행을 누르면 오른쪽에 제품 요약이 열려요 · 체크하거나 패널의 [비교에 추가]로 최대 {MAX_COMPARE}개까지 골라 비교 · 등록된 제품만 비교할 수 있어요 · 판매가는 평시가
-          {sale ? ` · 이 주는 ${sale.title} 기간이라 순위가 행사 영향을 받았을 수 있어요` : ""}
-        </p>
+        <details className="rounded-md border">
+          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+            1~{top.length}위 표 펼치기
+            {top[0] && <span className="ml-2 font-normal text-muted-foreground">1위 {top[0].brand}</span>}
+          </summary>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className={STICKY.check}>
+                  <span className="sr-only">비교 선택</span>
+                </TableHead>
+                <TableHead className={STICKY.rank}>순위</TableHead>
+                <TableHead className={STICKY.name}>상품명 (원문 · 해석)</TableHead>
+                <TableHead className={STICKY.ppm} title={DEFINITIONS.ppm}>
+                  ml당 가격
+                </TableHead>
+                {hasPrev && <TableHead>변동</TableHead>}
+                <TableHead>브랜드</TableHead>
+                <TableHead>K-뷰티</TableHead>
+                <TableHead className="text-right">판매가(税込)</TableHead>
+                <TableHead className="text-right">용량</TableHead>
+                <TableHead className={WIDE_ONLY}>핵심 성분</TableHead>
+                <TableHead className={WIDE_ONLY}>소구 태그·배지</TableHead>
+                <TableHead className={WIDE_ONLY}>프로모션</TableHead>
+                <TableHead className="text-right">평점·리뷰</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>{top.map(rankRow)}</TableBody>
+          </Table>
+        </details>
+        {/* 행사 기간 경고는 순위 해석에 꼭 필요해서 ? 에 숨기지 않는다 */}
+        {sale && <p className="mt-1 text-xs text-muted-foreground">이 주는 {sale.title} 기간이라 순위가 행사 영향을 받았을 수 있어요</p>}
         {nearTop.length > 0 && (
           <details className="mt-3 rounded-md border">
             <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
@@ -244,72 +253,63 @@ export function SupplyPart({
         )}
       </div>
 
-      {/* 1-C 상위권 공통 특징 */}
+      {/* 1-D 상위권 공통 특징 */}
       <div>
-        <h3 className="mb-2 text-sm font-semibold">1-C 상위권 공통 특징</h3>
+        <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+          1-D 상위권 공통 특징
+          <HelpTip>상품명·설명에 나온 소구 태그와 성분이에요. 그래프나 이름을 누르면 해당 제품이 열려요.</HelpTip>
+        </h3>
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>소구 태그 비중 · Top {TOP_N}</CardTitle>
+              <CardTitle className="flex items-center gap-1.5">
+                소구 태그 비중 · Top {TOP_N}
+                <HelpTip>
+                  {DEFINITIONS.tags}. % = 전체 태그 언급 중 비율, N/{top.length}개 = 그 태그가 붙은 제품 수 (제품 하나에 태그가 여러 개 붙을 수 있어요).
+                </HelpTip>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {tags.length === 0 ? (
                 <p className="text-sm text-muted-foreground">사전에 있는 소구 태그가 없어요</p>
               ) : (
-                <HorizontalBarChart
-                  items={tags.map((t) => ({ id: t.tag, label: `${t.tag} ${t.ko}`, value: t.rows.length }))}
-                  unit={`/${TOP_N}`}
-                  labelWidth={150}
+                <ShareDonut
+                  items={tags.map((t) => ({ id: t.tag, label: t.ko, hint: t.tag, sub: `${t.rows.length}/${top.length}개`, value: t.rows.length }))}
                   onSelect={(id) => {
                     const t = tags.find((x) => x.tag === id);
                     if (t) list(`소구 태그 · ${t.tag} (${t.ko})`, DEFINITIONS.tags, t.rows.map((row) => ({ row, note: `원문 표기: ${row.matched}` })));
                   }}
                 />
               )}
-              <p className="mt-1 text-xs text-muted-foreground">{DEFINITIONS.tags} · 막대를 누르면 해당 제품</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>성분 관심도 · 20위 안 언급</CardTitle>
+              <CardTitle className="flex items-center gap-1.5">
+                성분 관심도 · 20위 안 언급
+                <HelpTip>
+                  {DEFINITIONS.ingredients}. % = 전체 성분 언급 중 비율, N/{rows.length}개 = 그 성분이 나온 제품 수. 「자사 포함」 = 자사 제품 전성분에 있는 성분.
+                </HelpTip>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {mentions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">사전에 있는 성분이 나온 제품이 없어요</p>
               ) : (
-                <>
-                  <HorizontalBarChart
-                    items={mentions.map((m) => ({
-                      id: m.ingredient,
-                      label: `${m.ko}${own.has(m.ingredient) ? " · 자사 포함" : ""}`,
-                      value: m.rows.length,
-                      highlight: own.has(m.ingredient),
-                      selected: m.ingredient === activeIngredient,
-                    }))}
-                    unit="개"
-                    labelWidth={150}
-                    onSelect={(id) => {
-                      setIngredient(id);
-                      const m = mentions.find((x) => x.ingredient === id);
-                      if (m) list(`성분 · ${m.ko}`, DEFINITIONS.ingredients, m.rows.map((row) => ({ row, note: `원문 표기: ${row.matched}` })));
-                    }}
-                  />
-                  {activeIngredient && (
-                    <>
-                      <p className="mt-3 text-xs font-medium text-muted-foreground">
-                        {INGREDIENT_MATCH[activeIngredient]?.ko ?? activeIngredient} 언급 제품 수 · {series.length}주
-                      </p>
-                      <TrendLineChart
-                        data={ingredientTrend(series, activeIngredient).map((p) => ({ week: p.week, count: p.count }))}
-                        series={[{ key: "count", label: "언급 제품 수", color: "var(--primary)", emphasis: true }]}
-                        unit="개"
-                        height={140}
-                      />
-                    </>
-                  )}
-                </>
+                <ShareDonut
+                  items={mentions.map((m) => ({
+                    id: m.ingredient,
+                    label: m.ko,
+                    hint: own.has(m.ingredient) ? "자사 포함" : undefined,
+                    sub: `${m.rows.length}/${rows.length}개`,
+                    value: m.rows.length,
+                  }))}
+                  onSelect={(id) => {
+                    const m = mentions.find((x) => x.ingredient === id);
+                    if (m) list(`성분 · ${m.ko}`, DEFINITIONS.ingredients, m.rows.map((row) => ({ row, note: `원문 표기: ${row.matched}` })));
+                  }}
+                />
               )}
-              <p className="mt-1 text-xs text-muted-foreground">{DEFINITIONS.ingredients} · 진한 막대·「자사 포함」 = 자사 제품 전성분에 있는 성분 · 막대를 누르면 해당 제품과 추이</p>
             </CardContent>
           </Card>
         </div>
