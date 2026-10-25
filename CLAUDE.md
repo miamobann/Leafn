@@ -74,7 +74,7 @@
 | 순서 | ID | 기능 | 메뉴 | 구분 | 상태 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | J | 팀 워크스페이스 (로그인, 팀별 데이터 분리, 헤더의 워크스페이스 → 프로젝트 → 제품, 프로젝트·제품 관리) | 공통 | 기반 | 연결됨. `projects`·`products` DB, Leaf& Dew 6종 시드·규격 |
-| 1 | K | 공통 대시보드 (홈의 탭 요약 카드·할 일·캘린더) | 홈 | 기반 | 연결됨. 홈의 8단계 현황판은 아직 샘플 (아래 L로 바꿀 예정) |
+| 1 | K | 공통 대시보드 (홈의 탭 요약 카드·할 일·캘린더) | 홈 | 기반 | 연결됨. 홈의 샘플 8단계 현황판은 제품 × 탭 진행 표(L)로 바꿨다 (2026-10-26) |
 | 2 | E | 리뷰 분석 (Qoo10 수집/CSV · 감성 · 키워드 · 페인포인트 · 재구매 요인 · 차트 · 원문 연결 · 소구점) | 리뷰 분석 | 핵심 | 연결됨. Qoo10 수집기, AI 분석, 일본어 → 한국어 번역(`reviews.body_ko`) |
 | 3 | A | 약기법 광고 문구 검토 (입력 · 위험 표현 · 사유/근거 · 대체 표현 · 현지화 · 검토 이력 · 콘텐츠 제작 가이드) | 광고 검토 | 핵심 | 연결됨. 판정 자동 저장, 승인·반려는 owner만 |
 | 4 | C | 경쟁제품 비교 (가격 · 용량 · 성분 · 특징) | 시장 분석 | 핵심 | 연결됨. Qoo10 수집으로 등록, `product_competitors`로 자사와 연결 |
@@ -85,7 +85,7 @@
 | 참조 | G | 피부타입 설문 (일본 소비자용 공개 모바일 웹) | 소비자 설문 | 참조 | 집계 화면은 DB를 읽음. 공개 설문 제출은 아직 보내지 않음 |
 | 참조 | H | 플랫폼별 강점 정리 | - | 참조 | 화면 없앰 (2026-10-24). `platform_notes` 테이블만 남음 |
 | 참조 | I | 메가와리/프로모션 캘린더 | 홈 | 참조 | 홈에 포함 (`/calendar`는 전체보기). 조회는 DB, 추가·마감 변경은 아직 저장하지 않음 |
-| 다음 | L | 제품 × 탭 진행 표 (판매 중 제품 × 시장 분석·리뷰 분석·광고 검토·AI 분석) | 홈/프로젝트 | 핵심 | 구현, 원격 DB 적용 대기. `/projects` 진행 표 (홈 현황판 교체는 아직) |
+| 다음 | L | 제품 × 탭 진행 표 (판매 중 제품 × 시장 분석·리뷰 분석·광고 검토·AI 분석) | 홈/프로젝트 | 핵심 | 구현, 원격 DB 적용 대기. 홈의 진행 표 카드(샘플 8단계 현황판을 대신함)와 `/projects` 진행 표 |
 | 다음 | M | 탭별 시안 제출 · 버전 · 팀장 결재 | 각 탭 + 결재함 | 핵심 | 구현, 원격 DB 적용 대기. 리뷰 리포트 · 광고 검토 상세의 시안 패널, `/approvals`, 설정의 담당 탭 (`docs/team-approval-ai-analysis.md`) |
 | 다음 | N | AI 분석 (탭별 승인본을 모아 통합 분석, 팀 공유) | AI 분석 | 핵심 | 구현, 원격 DB 적용 대기. `/ai-analysis`, 프롬프트 `integrated-analysis.v1` (설계는 7장) |
 
@@ -178,7 +178,7 @@
          │  인증 확인 · 입력 검증(Zod) · SerpApi 호출
                        ↓
       AI: OpenAI API (기본) 또는 Anthropic API  (lib/ai/callAi)
-         │  약기법 검토 · 리뷰 분석 · 번역 · GEO 측정 · SNS 핵심 니즈 · (다음) 통합 AI 분석
+         │  약기법 검토 · 리뷰 분석 · 번역 · GEO 측정 · SNS 핵심 니즈 · 통합 AI 분석
          │  (약기법 기준 문서는 프롬프트에 포함)
                        ↓
       Database: Supabase PostgreSQL + Storage  ←──────┐
@@ -204,7 +204,7 @@
 │  │  │  ├─ (auth)/              # login/, signup/, onboarding/
 │  │  │  └─ (dashboard)/         # 로그인 필요: (홈 page.tsx + _home/), projects/, market/, reviews/, ad-check/,
 │  │  │                          #   calendar/(홈 캘린더 전체보기), survey-results/, library/, settings/
-│  │  │                          #   (다음) approvals/, ai-analysis/
+│  │  │                          #   approvals/(결재함·버전 미리보기), ai-analysis/
 │  │  ├─ (public)/               # 공개용 root layout (<html lang="ja">)
 │  │  │  └─ survey/              # (G) 피부타입 설문, 로그인 불필요. shop/ 은 시연용 Qoo10 상세페이지
 │  │  └─ api/                    # Route Handler (6장)
@@ -285,9 +285,9 @@
 | `POST /api/market/sns-trends` | TikTok 영상 링크 → Apify로 캡션·해시태그·발화 자막 → 소비자 핵심 니즈 순위 (저장하지 않음) | 대량 |
 | `POST /api/trends/autocomplete`, `POST /api/trends/search-interest` | SerpApi Google 자동완성·Trends (키는 서버에만) → `search_snapshots` | - |
 
-**Server Action (`lib/data/*-actions.ts`)**: 리뷰 CSV 저장(`review-import-actions`), 리뷰 묶음 분석·번역(`review-analysis-actions`), 수집 요청(`collection-actions`), 캘린더 쓰기(`launch-actions`, 아직 저장하지 않음), 프로젝트·제품 관리(`projects`).
+**Server Action (`lib/data/*-actions.ts`)**: 리뷰 CSV 저장(`review-import-actions`), 리뷰 묶음 분석·번역(`review-analysis-actions`), 수집 요청(`collection-actions`), 캘린더 쓰기(`launch-actions`, 아직 저장하지 않음), 프로젝트·제품 관리(`projects`), 시안 저장·제출·결재·AI 분석 팀장 확인(`submission-actions`), 통합 AI 분석 실행(`ai-analysis-actions`), 설정의 담당 탭(`member-tab-actions`).
 
-**아직 없는 것:** 상품 정보 추출(`/api/products/extract`), 공개 설문 제출 저장, 리뷰 번역 저장(F). 다음 단계의 결재·AI 분석 API는 설계 문서 7장 순서로 만든다.
+**아직 없는 것:** 상품 정보 추출(`/api/products/extract`), 공개 설문 제출 저장, 리뷰 번역 저장(F). 결재·AI 분석은 Route Handler 없이 Server Action과 DB 함수(rpc: `submit_version`·`decide_version` 등)로 한다.
 
 - 대량 분석은 서버 함수 실행 시간 제한을 넘지 않도록 **묶음 단위로 나눠** 호출한다. 한계에 닿으면 작업 큐 도입 (2장 확장).
 
@@ -372,16 +372,16 @@
 - [x] **5. 시장 트렌드 (B, GEO):** Qoo10 랭킹 CSV, 검색 자동완성·Trends, GEO, SNS 핵심 니즈(Apify), 탭 구성의 시장 분석
 - [x] 홈: 탭 요약 카드·할 일·프로모션 캘린더 (진출 실행 탭 제거)
 
-**다음 (데모 범위, `docs/team-approval-ai-analysis.md` 7장 순서, 단계마다 PR 하나)**
+**결재·AI 분석 (데모 범위, `docs/team-approval-ai-analysis.md` 7장 1~4단계, 원격 DB 적용 대기)**
 
-- [ ] **1단계 권한·테이블:** 결재 공통 층 5개 테이블 + RLS + `has_tab()`, 설정 화면의 멤버별 담당 탭
-- [ ] **2단계 시안 제출·히스토리:** 리뷰 분석·광고 검토 결과에서 시안 저장·제출, 버전 히스토리
-- [ ] **3단계 팀장 결재함 + 제품 × 탭 진행 표(L):** 버전 미리보기 결재, 판매 중 제품만의 진행 표 (홈의 샘플 8단계 현황판을 대신함)
-- [ ] **4단계 AI 분석(N):** 탭별 승인본 선택 → 실행 → 저장·공유·팀장 확인 라벨
+- [x] **1단계 권한·테이블:** 결재 공통 층 5개 테이블 + RLS + `has_tab()`, 설정 화면의 멤버별 담당 탭
+- [x] **2단계 시안 제출·히스토리:** 리뷰 분석·광고 검토 결과에서 시안 저장·제출, 버전 히스토리
+- [x] **3단계 팀장 결재함 + 제품 × 탭 진행 표(L):** 버전 미리보기 결재, 판매 중 제품만의 진행 표 (홈의 샘플 8단계 현황판을 대신함)
+- [x] **4단계 AI 분석(N):** 탭별 승인본 선택 → 실행 → 저장·공유·팀장 확인 라벨
 
 **그 밖에 남은 것:** 공개 설문 제출 저장(G), 캘린더 쓰기 저장(I), 리뷰 번역 저장(F), 시장 화면의 라쿠텐 스냅샷 정리(Qoo10만 원칙).
 
-1단계 마이그레이션은 총괄이 원격 DB에 적용한 뒤 2단계를 시작한다.
+1~4단계는 PR 하나로 올린다 (2026-10-26). 마이그레이션 `20261025115007_team_approval.sql`은 머지 뒤 총괄이 원격 DB에 적용하고, 그 뒤 owner·member 두 계정으로 권한과 저장·결재 흐름을 확인한다.
 
 ---
 
@@ -394,8 +394,8 @@
 - [ ] (G) 설문 결과 페이지의 제품 추천 문구는 광고 → 약기법 검토 대상으로 처리
 - [ ] (F) 국내 플랫폼 리뷰를 일본 상세페이지에 게시할 권리 (리뷰 저작권, 플랫폼 이용약관, 작성자 동의). 콘텐츠 제작 가이드가 한국 리뷰를 일본어 후기로 인용하는 것도 해당 (`docs/tab3-db-plan.md` 4장)
 - [ ] (A) 「化粧品等の適正広告ガイドライン」 개정(2026년 7월 α판 초안)의 정식판 여부와 시점
-- [ ] (M) 탭별 시안의 `body` 모양(`MarketBody`·`ReviewBody`·`AdBody`) 확정. 1단계 PR에서 정한다
-- [ ] (N) 통합 AI 분석의 분석 관점 목록 확정 (지금은 `prompts/integrated-analysis.v1.md`의 초안)
+- [ ] (M) 탭별 시안의 `body` 모양(`MarketBody`·`ReviewBody`·`AdBody`) 확정. 안은 `lib/schemas/submission.ts` (ReviewBody는 리뷰 리포트의 주제별 성적표 포함, MarketBody는 시장 탭 연결(5단계) 전까지 판단 목록만). 총괄 확인 대기
+- [ ] (N) 통합 AI 분석의 분석 관점 목록 확정 (지금은 `prompts/integrated-analysis.v1.md`의 관점 4개를 코드가 쓴다)
 
 ---
 
