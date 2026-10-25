@@ -5,7 +5,7 @@ import type { SearchSnap } from "@/lib/schemas/search";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
 import { PROMO_HOOK_LABEL, TOP_N } from "./market";
 import { ingredientMentions, priceMap, rowsAt, top10 } from "./overview";
-import { autocompleteChanges, AUTOCOMPLETE_STATUS_LABEL } from "./demand";
+import { concernSuggestions } from "./demand";
 
 export type KeyPoint = {
   id: string;
@@ -102,16 +102,19 @@ export function keyPoints(input: { series: TrendSnapshot[]; products: Product[];
 
   // 4) 소비자는 무엇을 찾나: 상위권 상품명에 많이 나온 성분 + 검색 자동완성에 새로 뜬 말
   const mentions = ingredientMentions(rows).slice(0, 3);
-  const rising = autocompleteChanges(search, category).rows.find((r) => r.status === "new") ?? autocompleteChanges(search, category).rows.find((r) => r.status === "up");
+  const auto = concernSuggestions(search);
+  // 지난 수집이 있을 때만 「새로 나타난」 추천어를 말한다 (첫 수집이면 모두 새것처럼 보이므로)
+  const risingGroup = auto.prev ? auto.groups.find((g) => g.rows.some((r) => r.status === "new")) : undefined;
+  const rising = risingGroup?.rows.find((r) => r.status === "new");
   if (mentions.length > 0 || rising) {
     points.push({
       id: "trend",
       label: "소비자가 찾는 성분",
-      headline: mentions.length > 0 ? `상위권 상품명은 ${mentions.map((m) => m.ko).join(" · ")} 중심` : `검색에서 「${rising?.term}」가 뜨는 중`,
+      headline: mentions.length > 0 ? `상위권 상품명은 ${mentions.map((m) => m.ko).join(" · ")} 중심` : `검색에서 「${risingGroup?.seed} ${rising?.term}」가 새로 뜸`,
       detail: [
         mentions.length > 0 ? `상품명 언급 ${mentions.map((m) => `${m.ko} ${m.rows.length}개`).join(", ")} (순위권 ${rows.length}개 중)` : null,
         // 검색 자동완성은 아직 샘플 데이터 (SerpApi 키를 넣고 수집하면 실데이터)
-        rising ? `검색 자동완성(샘플) ${AUTOCOMPLETE_STATUS_LABEL[rising.status]} 「${rising.term}」` : null,
+        rising && risingGroup ? `검색 추천어에 새로 나타남 「${risingGroup.seed} ${rising.term}」` : null,
       ]
         .filter(Boolean)
         .join(" · "),

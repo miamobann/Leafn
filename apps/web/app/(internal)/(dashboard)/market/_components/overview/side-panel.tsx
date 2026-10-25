@@ -10,9 +10,8 @@ import { APPEAL_TAGS } from "@/lib/market-config";
 import type { Product } from "@/lib/schemas/product";
 import { INGREDIENT_MATCH, PROMO_HOOK_LABEL } from "@/app/(internal)/(dashboard)/market/_lib/market";
 import { ownDiff, type OverviewRow } from "@/app/(internal)/(dashboard)/market/_lib/overview";
-import { highlightParts } from "@/app/(internal)/(dashboard)/market/_lib/demand";
 
-/** 오른쪽 패널에 띄울 내용: 제품 요약, 근거 제품 목록, 근거 원문(자동완성·영상 메모), AI 답변 원문 */
+/** 오른쪽 패널에 띄울 내용: 제품 요약, 근거 제품 목록, 근거 원문(자동완성·영상 메모) */
 export type PanelContent =
   | { kind: "product"; row: OverviewRow }
   | { kind: "list"; title: string; description?: string; rows: { row: OverviewRow; note?: string }[] }
@@ -25,8 +24,7 @@ export type PanelContent =
       link?: { href: string; label: string };
       /** 원문 아래에 붙이는 관련 제품 목록 (예: Top 10에서 이 키워드를 쓴 제품) */
       rows?: { title: string; items: { row: OverviewRow; note?: string }[] };
-    }
-  | { kind: "answers"; title: string; description?: string; answers: { heading: string; text: string; marks: string[]; citations: { url: string; domain: string; title: string | null }[] }[]; footnote?: string };
+    };
 
 export const MAX_COMPARE = 4;
 
@@ -68,7 +66,7 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
       <section>
         <h3 className="mb-1 text-sm font-semibold">랭킹 정보</h3>
         <Fact label="순위">
-          {row.rank}위 {row.prevRank !== null ? <span className="text-muted-foreground">(전주 {row.prevRank}위)</span> : <span className="text-muted-foreground">(전주 20위 밖)</span>}
+          {row.rank}위 {!row.hasPrev ? null : row.prevRank !== null ? <span className="text-muted-foreground">(전주 {row.prevRank}위)</span> : <span className="text-muted-foreground">(전주 20위 밖)</span>}
         </Fact>
         <Fact label="K-뷰티">{row.is_kbeauty ? "예" : "아니오"}</Fact>
         <Fact label="판매가 (税込, 정가)">{formatJpy(row.price_jpy)}</Fact>
@@ -81,7 +79,7 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
           {row.volume_ml ? `${row.volume_ml}ml` : "—"}
           {row.extra_volume_ml ? <span className="block text-xs text-muted-foreground">+ 같은 제품 {row.extra_volume_ml}ml</span> : null}
         </Fact>
-        <Fact label="ml당 실질 단가">{row.ppm !== null ? `${row.ppm}円` : "—"}</Fact>
+        <Fact label="ml당 가격 (정가)">{row.ppm !== null ? `${row.ppm}円` : "—"}</Fact>
         <Fact label="평점 · 리뷰">
           {row.rating != null ? `${row.rating.toFixed(1)} / ${row.rating_scale ?? 5}` : "—"} · {row.review_count !== null ? `${row.review_count.toLocaleString("ko-KR")}건` : "리뷰 수 없음"}
         </Fact>
@@ -130,7 +128,7 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
         ) : (
           <>
             <p className="mb-1 text-xs text-muted-foreground">기준: {own.name}</p>
-            <Fact label="ml당 실질 단가 차이">
+            <Fact label="ml당 가격 차이 (정가)">
               {diff.ppmDiff === null ? "—" : `${diff.ppmDiff > 0 ? "+" : ""}${diff.ppmDiff}円 (자사 ${diff.ownPpm}円)`}
             </Fact>
             <Fact label="자사에 없는 핵심 성분">{diff.missingInOwn.length > 0 ? diff.missingInOwn.map((x) => INGREDIENT_MATCH[x]?.ko ?? x).join(", ") : "없음"}</Fact>
@@ -243,35 +241,6 @@ export function OverviewPanel({
             {content.link.label} ↗
           </Link>
         )}
-        {content.footnote && <p className="text-xs text-muted-foreground">{content.footnote}</p>}
-      </EvidenceSheet>
-    );
-  }
-
-  if (content.kind === "answers") {
-    return (
-      <EvidenceSheet open onOpenChange={(open) => !open && onClose()} title={content.title} description={content.description}>
-        {content.answers.map((a, i) => (
-          <section key={i} className="space-y-1">
-            <h3 className="flex items-center gap-2 text-sm font-semibold">
-              {a.heading} <LangBadge lang="ja" />
-            </h3>
-            <p lang="ja" className="rounded-md bg-muted p-2 text-sm leading-relaxed">
-              {highlightParts(a.text, a.marks).map((part, j) =>
-                part.mark ? (
-                  <mark key={j} className="rounded bg-primary/15 px-0.5 font-medium text-foreground underline underline-offset-2">
-                    {part.text}
-                  </mark>
-                ) : (
-                  <span key={j}>{part.text}</span>
-                ),
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              인용 출처: {a.citations.length === 0 ? "엔진이 출처를 주지 않았어요" : a.citations.map((c) => c.domain).join(", ")}
-            </p>
-          </section>
-        ))}
         {content.footnote && <p className="text-xs text-muted-foreground">{content.footnote}</p>}
       </EvidenceSheet>
     );

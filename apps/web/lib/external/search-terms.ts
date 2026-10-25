@@ -3,8 +3,21 @@ import { fold, matchIngredient } from "@/lib/ai/appeal-normalize";
 import type { SkinConcern } from "@/lib/schemas/trend";
 
 /** 끝의 공백까지가 시드다 (그 뒤에 붙는 말을 자동완성으로 받는다) */
-// クリーム는 시장 분석 원페이지에서 카테고리를 바꿔도 자동완성이 나오도록 추가 (2026-10-24)
-export const AUTOCOMPLETE_SEEDS = ["化粧水 ", "化粧水 成分 ", "美容液 ", "韓国 化粧水 ", "クリーム "];
+/**
+ * 자동완성 시드 = 피부 고민 단어 (2026-10-25). 「化粧水 」처럼 카테고리로 치면 「おすすめ」「韓国」 같은 일반어만 나와서,
+ * 고민 단어 뒤에 붙는 관련 고민·성분·방법을 모은다. 뜻이 넓은 말(キメ·鎮静·バリア)은 「肌」, シミ는 「顔」를 앞에 붙인다
+ */
+export const CONCERN_SEEDS = [
+  { seed: "毛穴 ", ko: "모공" },
+  { seed: "皮脂 ", ko: "피지" },
+  { seed: "肌 キメ ", ko: "결" },
+  { seed: "肌 鎮静 ", ko: "진정" },
+  { seed: "肌 バリア ", ko: "장벽" },
+  // 「シミ」만 치면 벌레(シミ 虫)·노래 가사가 섞여서 「顔」를 붙인다 (2026-10-25 실제 수집 확인)
+  { seed: "顔 シミ ", ko: "잡티" },
+  { seed: "美白 ", ko: "미백" },
+] as const;
+export const AUTOCOMPLETE_SEEDS: readonly string[] = CONCERN_SEEDS.map((s) => s.seed);
 export const AUTOCOMPLETE_REGION = { gl: "jp", hl: "ja" } as const;
 
 /** 성분 검색 관심도(Google Trends): 카테고리마다 「카테고리 + 성분」 검색어를 비교한다 · 일본, 최근 3개월 평균 */
