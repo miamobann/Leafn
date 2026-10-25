@@ -55,7 +55,8 @@ const SAMPLE_DELAY_MS = 700;
 export type GuideMaterials = Record<
   string,
   /** keywords = 피부 라인 고민 검색어, trending = 요즘 새로 뜬 검색어(SNS), ingredients = 관심 성분 (모두 약기법·전성분 기준으로 거른 것) */
-  { hasReviews: boolean; appeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; trending: string[]; ingredients: string[]; megaSale: string | null }
+  /** droppedAppeals = 약기법 때문에 AI에 넘기지 않은 리뷰 소구점 (예: 순함) */
+  { hasReviews: boolean; appeals: string[]; droppedAppeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; trending: string[]; ingredients: string[]; megaSale: string | null }
 >;
 
 type ContentGuideProps = {
@@ -624,7 +625,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], droppedAppeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null };
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
   const list = (aiEnabled || saved ? aiDrafts : drafts)
@@ -833,6 +834,9 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                   </ul>
                 ) : (
                   <p className="text-xs text-muted-foreground">리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다</p>
+                )}
+                {material.hasReviews && material.droppedAppeals.length > 0 && (
+                  <p className="text-xs text-muted-foreground">약기법상 광고에 쓰지 않는 소구점: {material.droppedAppeals.join(", ")} (근거 자료 없이 저자극을 말할 수 없어요)</p>
                 )}
               </section>
               <section className="space-y-1 rounded-md bg-muted p-3">

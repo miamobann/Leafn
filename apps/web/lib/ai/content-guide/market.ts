@@ -32,20 +32,21 @@ export function pickTrendIngredients(snapshots: SearchSnapshot[], category: stri
 
 // ── 검색어 · 요즘 뜨는 말 (피부 고민 자동완성) ──────────────────────
 // 자동완성은 피부 고민 단어(lib/external/search-terms.ts CONCERN_SEEDS)로 모은다. 제품 피부 라인에 맞는 고민만 쓴다.
-// 약기법: 「顔 シミ」「美白」「肌 鎮静」 시드는 쓰지 않는다 (잡티·미백은 화장품 효능 범위 밖, 진정은 의약품적 표현).
+// 약기법: 「顔 シミ」「美白」「肌 鎮静」「毛穴」 시드는 쓰지 않는다 (잡티·미백은 화장품 효능 범위 밖, 진정은 의약품적 표현).
 // 그 밖의 시드에서도 질환·효능을 말하는 추천어는 빼고 넘긴다 (프롬프트·자동 약기법 검사 전에 한 번 더 거른다).
 
 export type SkinLineKey = "dry" | "oily" | "combo";
 
+// 「毛穴」도 쓰지 않는다: 금지어 검사(lint.ts)가 효능 범위 밖 표현(E8)으로 잡는 말이라 넣으면 결과마다 경고가 난다
 const SAFE_SEEDS: Record<SkinLineKey, string[]> = {
   dry: ["肌 キメ", "肌 バリア"],
-  oily: ["毛穴", "皮脂", "肌 キメ"],
-  combo: ["毛穴", "肌 キメ", "肌 バリア"],
+  oily: ["皮脂", "肌 キメ"],
+  combo: ["肌 キメ", "肌 バリア", "皮脂"],
 };
 const ALL_SAFE_SEEDS = [...new Set(Object.values(SAFE_SEEDS).flat())];
 
 /** 화장품 광고에 쓸 수 없는 말 (질환·치료·효능 보증). 하나라도 있으면 그 추천어는 넘기지 않는다 */
-const RISKY_TERM = /シミ|しみ|美白|ホワイトニング|鎮静|ニキビ|にきび|治|消え|消す|アトピー|しわ|シワ|肝斑|そばかす|炎症|赤み|薬|改善|効果|効く|再生|機能|医/;
+const RISKY_TERM = /毛穴|シミ|しみ|美白|ホワイトニング|鎮静|ニキビ|にきび|治|消え|消す|アトピー|しわ|シワ|肝斑|そばかす|炎症|赤み|薬|改善|効果|効く|再生|機能|医/;
 
 /** 추천어에 성분 이름이 있으면 우리 전성분에 그 성분이 있을 때만 넘긴다 (없는 성분을 들어간 것처럼 보이게 하지 않는다, 가이드라인 F5.1) */
 function hasOnlyOwnIngredients(word: string, ownIngredients: string[]): boolean {
