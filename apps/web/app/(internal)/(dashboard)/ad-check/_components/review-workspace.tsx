@@ -1,16 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import type { z } from "zod";
 import { AiResultMeta } from "@/components/common/ai";
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/states";
 import { ViewStateGate } from "@/components/common/view-state";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdCheck, AdUsage } from "@/lib/schemas/ad-check";
 import type { ReviewStatus } from "@/lib/schemas/common";
 import { countLines } from "../_lib/lines";
 import type { LabProduct } from "../_lib/products";
-import { requestAdCheck, type AiMeta } from "../_lib/request";
+import { requestAdCheck, updateAdCheckReview, type AiMeta } from "../_lib/request";
+import { CopyButton } from "./copy-button";
 import { LineResultCard } from "./line-result-card";
 import { ResultSummary } from "./result-summary";
 import { ReviewBar } from "./review-bar";
@@ -25,11 +28,12 @@ const COPY = {
 type ReviewWorkspaceProps = {
   products: LabProduct[];
   workspaceId: string;
+  canApprove?: boolean;
   /** 검토 내역의 「이 내용으로 새 검토」에서 넘어온 값. 자동으로 판정하지 않는다 (비용) */
   initial?: { productId?: string; usage?: z.infer<typeof AdUsage>; text?: string };
 };
 
-export function ReviewWorkspace({ products, workspaceId, initial }: ReviewWorkspaceProps) {
+export function ReviewWorkspace({ products, workspaceId, canApprove = true, initial }: ReviewWorkspaceProps) {
   const [productId, setProductId] = useState(
     initial?.productId && products.some((p) => p.id === initial.productId) ? initial.productId : products[0].id,
   );
@@ -42,6 +46,9 @@ export function ReviewWorkspace({ products, workspaceId, initial }: ReviewWorksp
   const [status, setStatus] = useState<ReviewStatus>("pending");
   const [expertRequested, setExpertRequested] = useState(false);
   const [note, setNote] = useState("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [persisted, setPersisted] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [aiMeta, setAiMeta] = useState<AiMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 나중에 끝난 이전 요청이 화면을 덮어쓰지 않게 요청 번호를 둔다
@@ -55,6 +62,26 @@ export function ReviewWorkspace({ products, workspaceId, initial }: ReviewWorksp
     setStatus("pending");
     setExpertRequested(false);
     setNote("");
+    setSaveState("idle");
+    setSaveError(null);
+  }
+
+  async function persistReview(nextStatus: ReviewStatus, nextExpert: boolean, nextNote: string, nextFinal: string) {
+    if (!check || !canApprove) return;
+    setSaveState("saving");
+    setSaveError(null);
+    const res = await updateAdCheckReview(check.id, {
+      review_status: nextStatus,
+      is_expert_review_requested: nextExpert,
+      reviewer_note: nextNote.trim() || null,
+      final_text: nextFinal,
+    });
+    if (res.ok) {
+      setSaveState("saved");
+    } else {
+      setSaveState("error");
+      setSaveError(res.error);
+    }
   }
 
   async function submit() {
@@ -68,10 +95,11 @@ export function ReviewWorkspace({ products, workspaceId, initial }: ReviewWorksp
     const result = await requestAdCheck({ workspaceId, product, usage, text });
     if (id !== requestId.current) return;
     if (result.ok) {
-      // 화면에서 고른 제품을 결과에 남긴다 (API는 제품 이름만 받는다)
+      // 화면에서 고른 제품을 결과에 남긴다
       setCheck({ ...result.check, product_id: productId });
       setAiMeta(result.meta);
       resetReview();
+      setPersisted(result.saved);
     } else {
       setCheck(null);
       setError(result.error);
@@ -168,9 +196,34 @@ export function ReviewWorkspace({ products, workspaceId, initial }: ReviewWorksp
           onNoteChange={setNote}
           status={status}
           expertRequested={expertRequested}
-          onStatusChange={setStatus}
-          onExpertToggle={() => setExpertRequested((v) => !v)}
+          persisted={persisted}
+          canApprove={canApprove && persisted}
+          saveState={saveState}
+          saveError={saveError}
+          onStatusChange={(nextStatus) => {
+            setStatus(nextStatus);
+            void persistReview(nextStatus, expertRequested, note, finalText);
+          }}
+          onExpertToggle={() => {
+            const nextExpert = !expertRequested;
+            setExpertRequested(nextExpert);
+            void persistReview(status, nextExpert, note, finalText);
+          }}
+          onReset={() => { setStatus("pending"); setExpertRequested(false); void persistReview("pending", false, note, finalText); }}
+          onSaveNote={() => void persistReview(status, expertRequested, note, finalText)}
         />
+      )}
+      {/* 다음 단계: 저장된 검토만 상세·전문가 자료로 넘길 수 있다 */}
+      {check && !busy && persisted && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+          <span>다음 단계 · 최종 문구를 복사해 전달하거나, 검토 이력에서 다시 볼 수 있어요.</span>
+          <span className="flex flex-wrap gap-2">
+            <CopyButton text={finalText} label="최종 문구 복사" />
+            <Link href="/ad-check/history" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              검토 이력에서 보기
+            </Link>
+          </span>
+        </div>
       )}
     </ViewStateGate>
   );

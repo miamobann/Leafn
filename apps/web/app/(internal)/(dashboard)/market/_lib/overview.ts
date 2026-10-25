@@ -9,6 +9,8 @@ import { INGREDIENT_MATCH, productKey, TOP_N, weekLabel } from "./market";
 /** 화면 한 줄: 랭킹 항목 + 전주 순위 + 계산 값 */
 export type OverviewRow = RankingItem & {
   prevRank: number | null;
+  /** 비교할 전주 스냅샷이 있는지 (없으면 prevRank를 쓰지 않는다) */
+  hasPrev: boolean;
   /** ml당 실질 단가 (판매가 ÷ 총 용량) */
   ppm: number | null;
   /** 사전에 있는 성분만 (상품명·설명에서 찾음) */
@@ -42,6 +44,7 @@ function toRow(r: RankingItem, prev: TrendSnapshot | undefined): OverviewRow {
   return {
     ...r,
     prevRank: prev?.data.ranking.find((x) => productKey(x.brand, x.name) === productKey(r.brand, r.name))?.rank ?? null,
+    hasPrev: Boolean(prev),
     ppm: effectivePricePerMl(r),
     ingredients: Object.entries(INGREDIENT_MATCH).flatMap(([ingredient, { match }]) => {
       const matched = findAlias(text, match);
@@ -69,26 +72,6 @@ export function top10(rows: OverviewRow[]): OverviewRow[] {
   return rows.filter((r) => r.rank <= TOP_N);
 }
 
-// ── PART 0. 시장 개관 ─────────────────────────────
-
-export type SharePoint = { week: string; index: number; count: number; share: number };
-
-/** 주별 Top 10 중 K-뷰티 제품 비중 (%) */
-export function kbeautyShare(series: TrendSnapshot[]): SharePoint[] {
-  return series.map((s, index) => {
-    const count = s.data.ranking.filter((r) => r.rank <= TOP_N && r.is_kbeauty).length;
-    return { week: weekLabel(s.captured_at), index, count, share: count * (100 / TOP_N) };
-  });
-}
-
-/** 전주 대비 순위가 가장 많이 오른 제품 (20위 안, 새로 들어온 제품 제외) */
-export function risers(rows: OverviewRow[], limit = 5): (OverviewRow & { delta: number })[] {
-  return rows
-    .flatMap((r) => (r.prevRank !== null && r.prevRank > r.rank ? [{ ...r, delta: r.prevRank - r.rank }] : []))
-    .toSorted((a, b) => b.delta - a.delta || a.rank - b.rank)
-    .slice(0, limit);
-}
-
 // ── PART 1-A. 상위권 진입 조건 ─────────────────────
 
 /** 선형 보간 사분위 (q = 0.25, 0.5, 0.75) */
@@ -109,8 +92,6 @@ export const ENTRY_KIND_LABEL: Record<EntryKind, string> = {
 export type EntryConditions = {
   ppm: { q1: number; median: number; q3: number; priceMin: number; priceMedian: number; priceMax: number; rows: OverviewRow[] } | null;
   promo: { type: PromoHookType; count: number; rows: OverviewRow[] } | null;
-  reviews: { min: number; median: number; rows: OverviewRow[] };
-  awards: { count: number; rows: OverviewRow[] };
   /** 전주 Top 10에 없던 제품. 전주 데이터가 없으면 null */
   entries: { count: number; byKind: Record<EntryKind, number>; rows: (OverviewRow & { entryKind: EntryKind })[] } | null;
 };
@@ -128,7 +109,6 @@ export function entryConditions(series: TrendSnapshot[], allSameSource: TrendSna
   for (const r of top) if (r.promo_type) promoCounts.set(r.promo_type, [...(promoCounts.get(r.promo_type) ?? []), r]);
   const topPromo = [...promoCounts.entries()].toSorted((a, b) => b[1].length - a[1].length)[0];
 
-  const reviews = top.map((r) => r.review_count).toSorted((a, b) => a - b);
 
   const prev = series[i - 1];
   let entries: EntryConditions["entries"] = null;
@@ -156,8 +136,6 @@ export function entryConditions(series: TrendSnapshot[], allSameSource: TrendSna
         ? null
         : { q1: round1(quantile(ppms, 0.25)), median: round1(quantile(ppms, 0.5)), q3: round1(quantile(ppms, 0.75)), priceMin: prices[0], priceMedian: Math.round(quantile(prices, 0.5)), priceMax: prices.at(-1) as number, rows: withPpm.toSorted((a, b) => (a.ppm as number) - (b.ppm as number)) },
     promo: topPromo ? { type: topPromo[0], count: topPromo[1].length, rows: topPromo[1] } : null,
-    reviews: { min: reviews[0], median: Math.round(quantile(reviews, 0.5)), rows: top.toSorted((a, b) => a.review_count - b.review_count) },
-    awards: { count: top.filter((r) => (r.badges ?? []).length > 0).length, rows: top.filter((r) => (r.badges ?? []).length > 0) },
     entries,
   };
 }
@@ -216,5 +194,86 @@ export function ownDiff(row: OverviewRow, own: Product) {
     missingInOwn: [...rowHas].filter((x) => !ownHas.has(x)),
     /** 자사에만 있는 핵심 성분 */
     onlyOwn: [...ownHas].filter((x) => !rowHas.has(x)),
+  };
+}
+
+// ── PART 0. 가격 포지셔닝 맵 ──────────────────────
+// [심리적 가격 저항선 × 실질 가치]: 장바구니에서 느끼는 판매가와 실제 용량 대비 ml당 실질 가격의 괴리를 본다.
+// 정가 기준이 기본이고, 할인 적용가 기준으로 바꿔 보면 순위권 제품을 실제로 얼마에 사는지 보인다 (Qoo10은 대부분 할인 중)
+
+export type PriceMode = "list" | "sale";
+
+export type PricePoint = {
+  id: string;
+  label: string;
+  /** 지금 보기 기준의 판매가 (정가 또는 할인 적용가) */
+  price: number;
+  /** 지금 보기 기준의 ml당 실질 가격 */
+  ppm: number;
+  listPrice: number;
+  salePrice: number | null;
+  discountRate: number | null;
+  /** 프로모션 문구 (수상 배지는 프로모션이 아님). 없으면 null */
+  promo: string | null;
+  /** 할인 또는 프로모션 진행 중 */
+  onPromo: boolean;
+  own: boolean;
+  row?: OverviewRow;
+};
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return round1(quantile(values.toSorted((a, b) => a - b), 0.5));
+}
+
+export function priceMap(top: OverviewRow[], products: Product[], category: string, mode: PriceMode) {
+  const points: PricePoint[] = top.flatMap((r) => {
+    if (r.ppm === null || !r.volume_ml) return [];
+    const volume = r.volume_ml + (r.extra_volume_ml ?? 0);
+    const salePrice = r.sale_price_jpy ?? null;
+    const price = mode === "sale" && salePrice !== null ? salePrice : r.price_jpy;
+    const promo = r.promo_type && r.promo_type !== "award" ? (r.promo_text ?? null) : null;
+    return [
+      {
+        id: `${r.brand}|${r.name}`,
+        label: `${r.rank}위 ${r.brand} ${r.name}`,
+        price,
+        ppm: round1(price / volume),
+        listPrice: r.price_jpy,
+        salePrice,
+        discountRate: r.discount_rate ?? null,
+        promo,
+        onPromo: (r.discount_rate ?? 0) > 0 || promo !== null,
+        own: false,
+        row: r,
+      },
+    ];
+  });
+  // 자사는 가격이 정해져 있어 정가 그대로 찍는다 (할인 전략을 정할 때 비교 기준)
+  const own: PricePoint[] = products
+    .filter((p) => p.kind === "own" && p.category === category && p.price_jpy != null && p.volume_ml)
+    .map((p) => ({ id: p.id, label: `자사 ${p.name}`, price: p.price_jpy as number, ppm: round1((p.price_jpy as number) / (p.volume_ml as number)), listPrice: p.price_jpy as number, salePrice: null, discountRate: null, promo: null, onPromo: false, own: true }));
+  const rates = points.map((p) => p.discountRate).filter((v): v is number => v !== null && v > 0);
+  const all = [...points, ...own];
+  const pad = (lo: number, hi: number): [number, number] => {
+    const gap = Math.max((hi - lo) * 0.12, hi * 0.05);
+    return [Math.max(0, Math.floor(lo - gap)), Math.ceil(hi + gap)];
+  };
+  return {
+    points,
+    own,
+    medianPrice: median(points.map((p) => p.price)),
+    medianPpm: median(points.map((p) => p.ppm)),
+    /** 할인 데이터가 하나라도 있는지 (없으면 할인 적용가 보기를 막는다) */
+    hasDiscount: rates.length > 0,
+    discountedCount: rates.length,
+    medianRate: median(rates),
+    /** 자사 제품마다 지금 보기 기준으로 ml당이 더 싼 순위권 제품 수 */
+    ownCheaperThan: own.map((o) => ({ id: o.id, name: o.label, ppm: o.ppm, cheaper: points.filter((p) => p.ppm < o.ppm).length })),
+    /** 점이 화면을 꽉 채우도록 축 범위를 데이터에 맞춘다 */
+    domainX: all.length > 0 ? pad(Math.min(...all.map((p) => p.price)), Math.max(...all.map((p) => p.price))) : null,
+    domainY: all.length > 0 ? pad(Math.min(...all.map((p) => p.ppm)), Math.max(...all.map((p) => p.ppm))) : null,
+    /** 용량 정보가 없어 찍지 못한 제품 */
+    unplaced: top.filter((r) => r.ppm === null || !r.volume_ml),
   };
 }

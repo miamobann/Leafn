@@ -25,9 +25,9 @@ export async function startCollection(raw: StartCollectionInput): Promise<Action
   const parsed = StartCollectionInput.safeParse(raw);
   if (!parsed.success) return fail("고른 조건이 올바르지 않아요.");
   const input = parsed.data;
-  // 수집기가 지금 지원하는 범위 (sources/qoo10.py). 넓히기 전에는 요청 자체를 받지 않는다
-  if (input.platformId !== "qoo10" || input.category !== "toner") {
-    return fail("지금은 Qoo10 화장수(化粧水)만 가져올 수 있어요. 다른 조건은 수집기가 준비되면 열려요.");
+  // 수집기가 지원하는 범위 (sources/qoo10.py): Qoo10의 화장수 · 에센스. 라쿠텐은 선택 칸만 있고 기능 준비 중이다 (수집기가 생기면 이 조건을 넓힌다)
+  if (input.platformId !== "qoo10") {
+    return fail("라쿠텐 가져오기는 기능 준비 중이에요. 지금은 Qoo10을 골라 주세요.");
   }
   const mine = await getMyWorkspace();
   if (!mine) return fail("워크스페이스가 없어요. 먼저 로그인하고 워크스페이스를 만들어 주세요.");

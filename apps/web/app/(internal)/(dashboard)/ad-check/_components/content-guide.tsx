@@ -5,20 +5,20 @@
 // 화면 뼈대라 샘플 데이터를 짧게 기다렸다 보여 준다. AI 호출·사진 업로드·저장·PDF 출력은 아직 없다.
 // 블록 메모는 화면에만 두고(저장 안 함) PDF 출력에 함께 넣을 예정이다.
 // 사진 칸에는 어떤 사진이 들어갈지 설명만 보여 준다.
-import { Bell, ChevronLeft, ChevronRight, Heart, Search, ShoppingCart, Store } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Heart, Search, ShoppingCart } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { EmptyState, LoadingState } from "@/components/common/states";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  fillProduct,
   GUIDE_CHANNELS,
   HASHTAG_GROUPS,
   IG_HASHTAG_LIMIT,
   IG_MAX_SLIDES,
-  keywordToHashtag,
   POST_TYPES,
   SNS_ACCOUNTS,
   X_CHAR_LIMIT,
@@ -34,6 +34,8 @@ import {
 import type { LabProduct } from "../_lib/products";
 import { type ContentGuideInput, GuideBodyResult, type GuideTitle, GuideTitlesResult } from "@/lib/schemas/content-guide";
 import { buildCutList, PHOTO_DONTS, PHOTO_RULES } from "../_lib/photo-guide";
+import { type BlockWarnings, buildWarnings } from "../_lib/guide-warnings";
+import { makeFill, productKind, pickHashtags, visibleBlocks } from "../_lib/guide-report";
 import { ContentGuideReport, memoLocation, type ReportAuthor } from "./content-guide-report";
 
 const LABEL = "mb-1 block text-sm font-medium";
@@ -42,11 +44,9 @@ const SELECT = "h-9 w-full rounded-md border border-input bg-transparent px-3 te
 // 좌(제목)·우(미리보기) 칸의 세로 길이를 같게 둔다. 내용이 길면 칸 안에서 스크롤한다
 const PANEL_HEIGHT = "h-[32rem]";
 const RECOMMENDED = "rounded px-1.5 text-xs bg-risk-low/15 text-risk-low";
-/** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
-const KEYWORD_TAGS = 1;
 /** 강조할 방향 글자 수 제한 (AI에 방향 참고로만 보낸다. 약기법이 항상 먼저) */
 const DIRECTION_MAX = 50;
-/** 강조할 방향 예시: 대화가 아니라 키워드로 쓰게 짧은 낱말로 둔다. 누르면 칸에 채워진다 */
+/** 강조할 방향 예시: 대화가 아니라 키워드로 쓰게 짧은 낱말로 둔다. 입력칸 안 예시 글로만 보여 준다 */
 const DIRECTION_EXAMPLES = ["연말 선물", "첫 구매 고객", "재구매 유도", "보습 강조"];
 /** AI 연결 전, 생성 순서를 보여 주려고 샘플을 띄우기 전에 잠깐 기다리는 시간 */
 const SAMPLE_DELAY_MS = 700;
@@ -65,13 +65,19 @@ type ContentGuideProps = {
   author: ReportAuthor;
   /** 서버에 AI 키가 있으면 true → 「제작하기」가 /api/content-guide 를 부른다. 없으면 샘플 */
   aiEnabled: boolean;
+  saved?: SavedGuide;
 };
 
-/** 약기법 판정 행동 이름 (광고 검토와 같은 말) */
-const ACTION_LABEL: Record<string, string> = { must_fix: "수정 필수", should_fix: "수정 권장", expert: "전문가 확인" };
-
-/** AI가 블록마다 남긴 주의 (금지어 검사 · 약기법 판정). 블록 key → 문구 */
-type BlockWarnings = Record<string, string[]>;
+/** 저장된 결과물(만든 가이드)을 다시 열 때 넘기는 값. 있으면 제작 칸을 숨기고 AI를 다시 부르지 않는다 */
+export type SavedGuide = {
+  productId: string;
+  channel: GuideChannel;
+  postType: PostType;
+  slideCount: number;
+  direction: string;
+  draft: GuideDraft;
+  warnings: BlockWarnings;
+};
 
 type Fill = (text: string) => string;
 
@@ -225,7 +231,7 @@ function InstagramPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; ha
   return (
     <div className="mx-auto max-w-sm rounded-md border">
       <div className="flex items-center gap-2 border-b px-3 py-2">
-        <span className="size-7 rounded-full bg-muted" aria-hidden />
+        <BrandAvatar className="size-7" />
         <span className="text-sm font-semibold">{SNS_ACCOUNTS.instagram.handle}</span>
       </div>
       {slide && (
@@ -381,7 +387,7 @@ function Qoo10Mobile({ blocks, gallery, fill, title, priceJpy, category }: Qoo10
       <div className="flex h-11 items-center justify-between border-b px-3">
         <span className="flex items-center gap-2 font-bold">
           <ChevronLeft className="size-5" aria-hidden />
-          <Store className="size-4" aria-hidden />
+          <BrandAvatar className="size-5" />
           Leaf& 公式ショップ
         </span>
         <span className="flex gap-3" aria-hidden>
@@ -441,7 +447,7 @@ function Qoo10Pc({ blocks, gallery, fill, title, priceJpy, category }: Qoo10Prop
             <span className="text-xs text-muted-foreground">ショップへ &gt;</span>
           </div>
           <p className="flex items-center gap-2">
-            <Store className="size-4" aria-hidden />
+            <BrandAvatar className="size-5" />
             Leaf& 公式ショップ
           </p>
         </div>
@@ -516,7 +522,7 @@ function XPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; hashtags: 
   return (
     <div className="mx-auto max-w-md rounded-md border p-3">
       <div className="flex gap-3">
-        <div className="size-10 shrink-0 rounded-full bg-muted" aria-hidden />
+        <BrandAvatar className="size-10 shrink-0" />
         <div className="min-w-0 flex-1 space-y-2 text-sm">
           <p className="font-semibold">
             {SNS_ACCOUNTS.x.name} <span className="font-normal text-muted-foreground">{SNS_ACCOUNTS.x.handle}</span>
@@ -585,29 +591,34 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
   ],
 };
 
-export function ContentGuide({ products, drafts, materials, author, aiEnabled }: ContentGuideProps) {
-  const [productId, setProductId] = useState(products[0].id);
-  const [channel, setChannel] = useState<GuideChannel>("qoo10_detail");
-  const [postType, setPostType] = useState<PostType>("general");
-  const [slideCount, setSlideCount] = useState(IG_MAX_SLIDES);
-  // 생성 흐름: 제작하기 → 제목 3개 → 제목 고르기 → 본문·미리보기
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
-  const [pickedId, setPickedId] = useState<string | null>(null);
+export function ContentGuide({ products, drafts, materials, author, aiEnabled, saved }: ContentGuideProps) {
+  const [productId, setProductId] = useState(saved?.productId ?? products[0].id);
+  const [channel, setChannel] = useState<GuideChannel>(saved?.channel ?? "qoo10_detail");
+  const [postType, setPostType] = useState<PostType>(saved?.postType ?? "general");
+  const [slideCount, setSlideCount] = useState(saved?.slideCount ?? IG_MAX_SLIDES);
+  // 생성 흐름: 제작하기 → 제목 3개 → 제목 고르기 → 본문·미리보기. 저장된 결과물은 고른 제목 하나로 바로 연다
+  const savedKey = saved ? `${saved.productId}|${saved.channel}|${saved.channel === "instagram" || saved.channel === "x" ? saved.postType : "-"}` : null;
+  const [generatedKey, setGeneratedKey] = useState<string | null>(savedKey);
+  const [pickedId, setPickedId] = useState<string | null>(saved?.draft.id ?? null);
   const [loading, setLoading] = useState<"titles" | "body" | null>(null);
   /** "제목 id:블록 key" → 메모 (화면에만 둔다) */
   const [memos, setMemos] = useState<Record<string, string>>({});
   /** 강조할 방향 (선택, 50자). 제작할 때 방향 참고로 함께 보낸다 */
-  const [direction, setDirection] = useState("");
+  const [direction, setDirection] = useState(saved?.direction ?? "");
   /** 제작할 때 실제로 반영한 방향 (제작 뒤에 칸을 고쳐도 결과·PDF는 이 값) */
-  const [appliedDirection, setAppliedDirection] = useState("");
+  const [appliedDirection, setAppliedDirection] = useState(saved?.direction ?? "");
   /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
   const [withPhotoGuide, setWithPhotoGuide] = useState(true);
   /** AI로 만든 제목·본문 (AI 모드). 본문은 제목을 고를 때 채운다 */
-  const [aiDrafts, setAiDrafts] = useState<GuideDraft[]>([]);
+  const [aiDrafts, setAiDrafts] = useState<GuideDraft[]>(saved ? [saved.draft] : []);
   /** AI 모드에서 고른 제목 정보 (본문 요청에 다시 보낸다) */
   const [aiTitles, setAiTitles] = useState<Record<string, GuideTitle>>({});
-  const [warnings, setWarnings] = useState<Record<string, BlockWarnings>>({});
+  const [warnings, setWarnings] = useState<Record<string, BlockWarnings>>(saved ? { [saved.draft.id]: saved.warnings } : {});
   const [aiError, setAiError] = useState<string | null>(null);
+  /** 결과물은 저장했지만 약기법 검사 기록 저장에 실패했을 때 (결과물은 살린다) */
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  /** 제목(draft) id → 저장된 가이드 id. 「이 문구로 새 검토」·「만든 가이드에서 보기」에 쓴다 (저장된 결과물은 그 id 그대로) */
+  const [savedIds, setSavedIds] = useState<Record<string, string>>(saved ? { [saved.draft.id]: saved.draft.id } : {});
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -615,40 +626,24 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
   const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], megaSale: null };
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
-  const list = (aiEnabled ? aiDrafts : drafts)
+  const list = (aiEnabled || saved ? aiDrafts : drafts)
     .filter((d) => d.channel === channel && (!hasPostType || d.post_type === postType))
     .toSorted((a, b) => Number(b.recommended) - Number(a.recommended));
   // 제품·채널·게시물 종류가 바뀌면 다시 제작해야 한다
   const genKey = `${productId}|${channel}|${hasPostType ? postType : "-"}`;
   const generated = generatedKey === genKey;
   const current = generated ? list.find((d) => d.id === pickedId) : undefined;
-  const blocks = (current?.blocks ?? []).filter(
-    (b) =>
-      // 리뷰가 없는 제품(개발 중)은 리뷰 블록을 뺀다
-      (!b.needs_reviews || material.hasReviews) &&
-      // 인스타그램은 고른 장 수까지만 (1장 = 단일 게시물, 2~5장 = 여러 장)
-      (channel !== "instagram" || !b.key.startsWith("slide") || Number(b.key.slice(5)) <= slideCount),
-  );
-  const isEssence = product.line.includes("에센스");
-  const fill = (text: string) =>
-    fillProduct(text, product.name_ko, product.ingredients, { kind_ja: isEssence ? "美容液" : "化粧水", kind_ko: isEssence ? "에센스" : "스킨", volume: product.volume, product_ja: product.name_ja });
+  const blocks = visibleBlocks(current?.blocks ?? [], channel, slideCount, material.hasReviews);
+  const kind = productKind(product);
+  const fill = makeFill(product);
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
   const detailBlocked = channel === "qoo10_detail" && product.launch_status === "developing";
 
   // 해시태그: 인스타그램은 시장 분석 검색어 상위 태그를 고민·트렌드에 덧붙인다 (X는 1~3개라 덧붙이지 않는다)
-  const keywordTags = channel === "instagram" ? material.keywords.slice(0, KEYWORD_TAGS).map(keywordToHashtag) : [];
-  // 인스타그램은 5개: 브랜드 1 + 성분·제형 1 + 고민·트렌드 2 + 검색어 1
-  const groups: Hashtags = !current
-    ? { brand: [], ingredient: [], trend: [] }
-    : channel === "instagram"
-      ? {
-          brand: current.hashtags.brand.slice(0, 2),
-          ingredient: current.hashtags.ingredient.slice(0, 1),
-          trend: [...new Set([...current.hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 3 - KEYWORD_TAGS), ...keywordTags])],
-        }
-      : current.hashtags;
-  const hashtags = [...groups.brand, ...groups.ingredient, ...groups.trend];
-  const category = isEssence ? "美容液" : "化粧水";
+  const { groups, keywordTags, list: hashtags } = current
+    ? pickHashtags(current.hashtags, channel, material.keywords)
+    : { groups: { brand: [], ingredient: [], trend: [] } as Hashtags, keywordTags: [] as string[], list: [] as string[] };
+  const category = kind.ja;
 
   /** AI 연결 전: 잠깐 기다렸다가 샘플을 보여 준다 */
   function wait(step: "titles" | "body", done: () => void) {
@@ -665,7 +660,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
       product: {
         name: product.name_ko,
         name_ja: product.name_ja,
-        kind: isEssence ? "에센스(美容液)" : "스킨(化粧水)",
+        kind: `${kind.ko}(${kind.ja})`,
         category: product.product_category,
         launch_status: product.launch_status,
         volume: product.volume,
@@ -703,7 +698,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
     if (!aiEnabled) return wait("titles", () => setGeneratedKey(key));
     setLoading("titles");
     try {
-      const json = await postAi({ step: "titles", input: aiInput() });
+      const json = await postAi({ step: "titles", product_id: product.id, input: aiInput() });
       const titles = GuideTitlesResult.parse({ titles: json.titles }).titles;
       const made = titles.map((t, i) => ({ id: `ai-${Date.now()}-${i}`, title: t }));
       setAiTitles(Object.fromEntries(made.map((m) => [m.id, m.title])));
@@ -727,16 +722,19 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
     setAiError(null);
     setLoading("body");
     try {
-      const json = await postAi({ step: "body", input: aiInput(), picked: aiTitles[id] });
+      const json = await postAi({ step: "body", product_id: product.id, input: aiInput(), picked: aiTitles[id] });
       const body = GuideBodyResult.parse(json.body);
-      const blockWarnings: BlockWarnings = {};
-      const add = (key: string, text: string) => (blockWarnings[key] = [...(blockWarnings[key] ?? []), text]);
-      for (const h of (json.lintHits as { key: string; text: string; reason: string }[]) ?? []) add(h.key, `「${h.text}」 ${h.reason}`);
-      for (const c of (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? []) {
-        if (c.action !== "ok") add(c.key, `약기법 판정 ${ACTION_LABEL[c.action] ?? c.action}${c.findings.length ? `: ${c.findings.map((f) => f.text).join(", ")}` : ""}`);
-      }
+      const blockWarnings = buildWarnings(
+        (json.lintHits as { key: string; text: string; reason: string }[]) ?? [],
+        (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? [],
+      );
+      setSaveNotice(json.checkSaved === false ? "결과물은 「만든 가이드」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
       setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
       setWarnings((w) => ({ ...w, [id]: blockWarnings }));
+      if (typeof json.id === "string") {
+        const guideId = json.id;
+        setSavedIds((m) => ({ ...m, [id]: guideId }));
+      }
       setPickedId(id);
     } catch (e) {
       setAiError(e instanceof Error ? e.message : "AI 제작에 실패했습니다");
@@ -747,6 +745,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
 
   return (
     <div className="space-y-4">
+      {!saved && (
       <Card>
         <CardContent className="space-y-4">
           <div className="max-w-sm">
@@ -869,28 +868,26 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
               value={direction}
               maxLength={DIRECTION_MAX}
               onChange={(e) => setDirection(e.target.value)}
-              placeholder="예: 연말 선물 · 첫 구매 고객 · 보습 강조"
+              placeholder={`예: ${DIRECTION_EXAMPLES.join(" · ")}`}
             />
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="text-xs text-muted-foreground">예시</span>
-              {DIRECTION_EXAMPLES.map((ex) => (
-                <button key={ex} type="button" onClick={() => setDirection(ex)} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted">
-                  {ex}
-                </button>
-              ))}
-            </div>
             <p className="text-xs text-muted-foreground">제작할 때 방향으로 반영돼요. 부탁하듯 적어도 되지만 답장은 오지 않고, 약기법에 어긋나는 방향(효능 과장 등)은 반영하지 않아요.</p>
             {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <span className="text-xs text-muted-foreground">샘플 데이터 · AI 연결 전</span>
+            {!aiEnabled && <span className="text-xs text-muted-foreground">AI 미연결 · 샘플 결과</span>}
             <Button type="button" onClick={generate} disabled={detailBlocked || loading !== null}>
               {generated ? "다시 제작하기" : "제작하기"}
             </Button>
           </div>
         </CardContent>
       </Card>
+      )}
 
+      {saveNotice && (
+        <div role="status" className="rounded-lg border border-risk-medium/50 p-4 text-sm">
+          <p className="font-medium text-risk-medium">⚠ {saveNotice}</p>
+        </div>
+      )}
       {aiError && (
         <div role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm">
           <p className="font-medium text-destructive">⚠ {aiError}</p>
@@ -1052,6 +1049,23 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
         </>
       )}
 
+      {/* 다음 단계: 만든 가이드를 바로 검토로 넘긴다 (탭을 직접 고르지 않아도 흐름이 이어지게) */}
+      {current && loading === null && savedIds[current.id] && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+          <span>다음 단계 · 게시 전에 이 문구를 새 검토로 한 번 더 판정하세요.</span>
+          <span className="flex flex-wrap gap-2">
+            {!saved && (
+              <Link href={`/ad-check/guide/history/${savedIds[current.id]}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                만든 가이드에서 보기
+              </Link>
+            )}
+            <Link href={`/ad-check?guide=${savedIds[current.id]}`} className={buttonVariants({ size: "sm" })}>
+              이 문구로 새 검토 →
+            </Link>
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-end gap-2">
         <span className="text-xs text-muted-foreground">
           {current ? "고른 제목·메모가 들어가요. 인쇄 창에서 「PDF로 저장」을 고르세요" : "제목을 고르면 PDF로 출력할 수 있어요"}
@@ -1086,4 +1100,9 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
       )}
     </div>
   );
+}
+
+/** 미리보기의 계정·샵 프로필 사진 (Leaf& 로고) */
+function BrandAvatar({ className }: { className: string }) {
+  return <Image src="/brand/leafn-avatar.webp" alt="" width={40} height={40} className={`rounded-full border ${className}`} />;
 }

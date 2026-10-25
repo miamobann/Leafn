@@ -5,7 +5,6 @@ import {
   Folder,
   House,
   MessageSquareText,
-  Rocket,
   Settings,
   ShieldCheck,
   type LucideIcon,
@@ -30,7 +29,8 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-export const HOME_ITEM: NavItem = { label: "홈", href: "/", featureId: "J", icon: House };
+// 프로모션 캘린더는 홈에 들어가고, /calendar는 홈 캘린더의 전체보기 화면으로만 남는다 (2026-10-24 진출 실행 탭 제거)
+export const HOME_ITEM: NavItem = { label: "홈", href: "/", featureId: "J", icon: House, alsoActive: /^\/calendar(\/|$)/ };
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -47,25 +47,19 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "리뷰 리포트", href: "/reviews", featureId: "E" },
       { label: "소구점 찾기", href: "/reviews/compare", featureId: "E" },
-      { label: "리뷰 가져오기", href: "/reviews/import", featureId: "E" },
     ],
   },
   {
     label: "광고 검토",
     icon: ShieldCheck,
     items: [
+      // 업무 순서대로: 만들기 → 만든 것 → 검토 → 이력 (실무자 비판 6번, 2026-10-25). 그룹 줄을 누르면 첫 메뉴(콘텐츠 제작 가이드)로 간다
+      { label: "콘텐츠 제작 가이드", href: "/ad-check/guide", featureId: "A" },
+      // /ad-check/guide/history/<콘텐츠 ID> 상세도 이 탭에 속한다 (주소 앞부분이 같아 자동으로 켜진다)
+      { label: "만든 가이드", href: "/ad-check/guide/history", featureId: "A" },
       { label: "새 검토", href: "/ad-check", featureId: "A" },
       // /ad-check/<검토 ID> 상세는 저장된 검토라 이력에 속한다 (안내 화면 /ad-check/guide는 제외)
       { label: "검토 이력", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/(?!history$|guide$)[^/]+$/ },
-      { label: "콘텐츠 제작", href: "/ad-check/guide", featureId: "A" },
-    ],
-  },
-  {
-    label: "진출 실행",
-    icon: Rocket,
-    items: [
-      { label: "플랫폼별 강점", href: "/platforms", featureId: "H" },
-      { label: "프로모션 캘린더", href: "/calendar", featureId: "I" },
     ],
   },
   {

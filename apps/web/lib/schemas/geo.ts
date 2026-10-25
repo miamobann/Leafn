@@ -42,8 +42,6 @@ export const GeoSnapshot = WorkspaceRow.extend({
   /** 질의 카테고리 (化粧水·美容液·…) */
   category: z.string(),
   query: z.string(),
-  // 제안: 시장 분석 원페이지 (일본어 원문 + 한국어 해석). 질의 틀로 만든 질의는 화면에서 해석을 만들 수 있어 비워 둬도 된다
-  query_ko: z.string().nullable().optional(),
   /** 질의가 겨냥한 피부 고민 (질의 틀에서 정한다) */
   query_concern: SkinConcern.nullable(),
   run_index: z.number().int().positive(),

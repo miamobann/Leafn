@@ -1,7 +1,7 @@
 // 시장 분석(TAB 1) 화면이 같이 쓰는 계산. 데이터는 lib/data에서 받아 여기서 가공만 한다.
 import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
-import type { PromoHookType, RankingItem, SkinConcern, TrendSnapshot } from "@/lib/schemas/trend";
+import type { PromoHookType, SkinConcern, TrendSnapshot } from "@/lib/schemas/trend";
 import { classifySuggestion } from "@/lib/external/search-terms";
 import { matchIngredient } from "@/lib/ai/appeal-normalize";
 
@@ -19,13 +19,18 @@ export const INGREDIENT_MATCH: Record<string, { ko: string; match: string[] }> =
   "ヒアルロン酸": { ko: "히알루론산", match: ["ヒアルロン酸"] },
   "セラミド": { ko: "세라마이드", match: ["セラミド"] },
   "ナイアシンアミド": { ko: "나이아신아마이드", match: ["ナイアシンアミド"] },
-  "ツボクサエキス": { ko: "병풀(시카)", match: ["ツボクサ"] },
+  // 실데이터 상품명은 「センテラ」「TECA」「CICA」로도 쓴다 (Qoo10 랭킹, 2026-10-24)
+  "ツボクサエキス": { ko: "병풀(시카)", match: ["ツボクサ", "センテラ", "TECA", "CICA", "シカ"] },
   "レチノール": { ko: "레티놀", match: ["レチノール"] },
   "ビタミンC誘導体": { ko: "비타민C 유도체", match: ["アスコルビ"] },
   "ドクダミエキス": { ko: "어성초", match: ["ドクダミ"] },
   "パンテノール": { ko: "판테놀", match: ["パンテノール"] },
   "トラネキサム酸": { ko: "트라넥삼산", match: ["トラネキサム酸"] },
   "スクワラン": { ko: "스쿠알란", match: ["スクワラン"] },
+  // Qoo10 化粧水 랭킹 실데이터에 자주 나온 성분 (2026-10-24 추가)
+  "グルタチオン": { ko: "글루타치온", match: ["グルタチオン"] },
+  "アゼライン酸": { ko: "아젤라산", match: ["アゼライン酸", "アゼロイル"] },
+  "PDRN": { ko: "PDRN", match: ["PDRN"] },
 };
 
 export function hasIngredient(p: Pick<Product, "ingredients">, ingredient: string): boolean {
@@ -140,58 +145,6 @@ export const SKIN_CONCERN_LABEL: Record<SkinConcern, string> = {
   other: "기타",
 };
 
-export type HeroIngredientStat = {
-  ingredient: string;
-  count: number;
-  avgPrice: number;
-  avgRank: number;
-  hooks: { type: PromoHookType; count: number }[];
-  concerns: { code: SkinConcern; count: number }[];
-  items: RankingItem[];
-};
-
-function tally<K extends string>(keys: K[]): { key: K; count: number }[] {
-  const m = new Map<K, number>();
-  for (const k of keys) m.set(k, (m.get(k) ?? 0) + 1);
-  return [...m].map(([key, count]) => ({ key, count })).toSorted((a, b) => b.count - a.count);
-}
-
-/** 상위 TOP_N 상품이 이미지에서 내세운 성분별 집계 (제품 수 많은 순, 같으면 평균 순위 높은 순) */
-export function heroIngredientStats(s: Pick<TrendSnapshot, "data"> | undefined): HeroIngredientStat[] {
-  const top = (s?.data.ranking ?? []).filter((r) => r.rank <= TOP_N && r.appeal);
-  const byIngredient = new Map<string, RankingItem[]>();
-  for (const r of top) {
-    for (const ing of new Set(r.appeal?.hero_ingredients.map((h) => h.canonical))) {
-      byIngredient.set(ing, [...(byIngredient.get(ing) ?? []), r]);
-    }
-  }
-  return [...byIngredient]
-    .map(([ingredient, items]) => ({
-      ingredient,
-      count: items.length,
-      avgPrice: Math.round(items.reduce((sum, r) => sum + r.price_jpy, 0) / items.length),
-      avgRank: Math.round((items.reduce((sum, r) => sum + r.rank, 0) / items.length) * 10) / 10,
-      hooks: tally(items.flatMap((r) => [...new Set(r.appeal?.promo_hooks.map((h) => h.type))])).map(({ key, count }) => ({ type: key, count })),
-      concerns: tally(items.flatMap((r) => [...new Set(r.appeal?.skin_concerns.map((c) => c.code))])).map(({ key, count }) => ({ code: key, count })),
-      items,
-    }))
-    .toSorted((a, b) => b.count - a.count || a.avgRank - b.avgRank);
-}
-
-export type HeroCompareRow = { ingredient: string; rakuten: HeroIngredientStat | null; qoo10: HeroIngredientStat | null };
-
-/** 출처별 집계를 성분 이름으로 나란히 놓는다. 제품끼리 합치지 않으므로 같은 제품이 두 곳에 있어도 각자 센다 */
-export function compareHeroStats(rakuten: HeroIngredientStat[], qoo10: HeroIngredientStat[]): HeroCompareRow[] {
-  const names = [...new Set([...rakuten, ...qoo10].map((h) => h.ingredient))];
-  return names
-    .map((ingredient) => ({
-      ingredient,
-      rakuten: rakuten.find((h) => h.ingredient === ingredient) ?? null,
-      qoo10: qoo10.find((h) => h.ingredient === ingredient) ?? null,
-    }))
-    .toSorted((a, b) => (b.rakuten?.count ?? 0) + (b.qoo10?.count ?? 0) - ((a.rakuten?.count ?? 0) + (a.qoo10?.count ?? 0)));
-}
-
 export type SearchTermKind = "concern" | "new";
 export type SearchTermStatus = "new" | "up" | "flat" | "down";
 export type SearchTermStat = {
@@ -255,27 +208,48 @@ export type InterestRow = {
   term: string;
   /** 성분 사전 이름 (例: ツボクサエキス). 사전에 없으면 null */
   canonical: string | null;
-  /** 검색 관심도 0~100 (1위 = 100) */
-  interest: number;
+  /** 전체 검색 관심도 중 이 성분이 차지하는 비율 (%). 표에 나온 성분을 모두 더하면 100 */
+  share: number;
   /** 직전 수집의 순위 (처음이면 null) */
   prevRank: number | null;
 };
 
-/** 카테고리의 최신 Google Trends 성분 순위 + 직전 수집 대비 순위 변화 */
+/** 정수 %로 반올림하되 합이 정확히 100이 되게 (큰 나머지 순으로 1씩 더한다) */
+function sharesSummingTo100(values: number[]): number[] {
+  const total = values.reduce((a, b) => a + b, 0);
+  if (total <= 0) return values.map(() => 0);
+  const raw = values.map((v) => (v / total) * 100);
+  const floor = raw.map(Math.floor);
+  let left = 100 - floor.reduce((a, b) => a + b, 0);
+  const order = raw.map((r, i) => ({ i, rest: r - Math.floor(r) })).toSorted((a, b) => b.rest - a.rest);
+  for (const { i } of order) {
+    if (left <= 0) break;
+    floor[i] += 1;
+    left -= 1;
+  }
+  return floor;
+}
+
+/**
+ * 카테고리의 최신 Google Trends 성분 순위 + 직전 수집 대비 순위 변화.
+ * 저장값은 「1위 = 100」 상대값이고, 화면에는 전체 합 = 100% 비율로 바꿔 보여준다.
+ * 검색이 너무 적어 Google Trends가 0을 준 성분은 뺀다 (순위도 0을 뺀 뒤 다시 매긴다)
+ */
 export function ingredientInterestRanking(all: SearchSnap[], category: string) {
   const list = all.filter((s) => s.engine === "google_trends" && s.seed === category).toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
   const latest = list.at(-1);
   const prev = list.at(-2);
   const termOf = (value: string) => value.replace(new RegExp(`^${category}\\s*`), "").trim();
-  const rows: InterestRow[] = (latest?.suggestions ?? []).map((s) => {
+  const ranked = (snap: SearchSnap | undefined) =>
+    (snap?.suggestions ?? []).filter((s) => (s.relevance ?? 0) > 0).toSorted((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0));
+  const current = ranked(latest);
+  const previous = ranked(prev);
+  const shares = sharesSummingTo100(current.map((s) => s.relevance ?? 0));
+  const rows: InterestRow[] = current.map((s, i) => {
     const term = termOf(s.value);
-    return {
-      rank: s.position,
-      term,
-      canonical: matchIngredient(term),
-      interest: s.relevance ?? 0,
-      prevRank: prev?.suggestions.find((p) => termOf(p.value) === term)?.position ?? null,
-    };
+    const prevIndex = previous.findIndex((p) => termOf(p.value) === term);
+    return { rank: i + 1, term, canonical: matchIngredient(term), share: shares[i], prevRank: prevIndex >= 0 ? prevIndex + 1 : null };
   });
-  return { rows, capturedAt: latest?.captured_at ?? null, hasPrev: Boolean(prev) };
+  const excluded = (latest?.suggestions ?? []).filter((s) => (s.relevance ?? 0) <= 0).map((s) => termOf(s.value));
+  return { rows, excluded, capturedAt: latest?.captured_at ?? null, hasPrev: Boolean(prev) };
 }

@@ -1,4 +1,4 @@
-// 만든 일본어 문구를 광고 검토 판정(ad-check v5)에 한 번 더 통과시킨다. 약기법이 항상 먼저라서, 제작 결과도 판정을 거친다.
+// 만든 일본어 문구를 광고 검토 판정(ad-check 판정, 기본 버전은 judge.ts의 AD_CHECK_PROMPT_VERSION)에 한 번 더 통과시킨다. 약기법이 항상 먼저라서, 제작 결과도 판정을 거친다.
 // 블록마다 첫 번째 안(가장 추천)만 본다. 줄 수가 많으면 판정 한도(MAX_LINES)씩 나눠 부른다.
 import { MAX_LINES } from "@/lib/ai/ad-check/action";
 import { judgeLines } from "@/lib/ai/ad-check/judge";
@@ -10,8 +10,9 @@ import type { z } from "zod";
 
 const USAGE: Record<ContentChannel, z.infer<typeof AdUsage>> = { qoo10_detail: "detail_page", instagram: "sns", x: "sns", banner: "banner" };
 
-export type BlockCheck = { key: string; line: JudgedLine };
-export type BodyCheck = { blocks: BlockCheck[]; usage: AiUsage; model: string | null; promptVersion: string | null };
+/** text = 판정에 보낸 한 줄 (ad_check_lines.original 로 저장) */
+export type BlockCheck = { key: string; text: string; line: JudgedLine };
+export type BodyCheck = { blocks: BlockCheck[]; adUsage: z.infer<typeof AdUsage>; usage: AiUsage; model: string | null; promptVersion: string | null };
 
 type Deps = { call?: (request: AiRequest) => Promise<AiReply> };
 
@@ -33,7 +34,7 @@ export async function checkBody(channel: ContentChannel, product: AdCheckProduct
     usage.output += judged.usage.output;
     model = judged.model;
     promptVersion = judged.promptVersion;
-    judged.lines.forEach((line, j) => blocks.push({ key: chunk[j]!.key, line }));
+    judged.lines.forEach((line, j) => blocks.push({ key: chunk[j]!.key, text: chunk[j]!.text, line }));
   }
-  return { blocks, usage, model, promptVersion };
+  return { blocks, adUsage: USAGE[channel], usage, model, promptVersion };
 }

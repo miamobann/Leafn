@@ -1,4 +1,4 @@
-// Leaf& Dew 제품 4종. 이름은 lib/own-products.ts (docs/Product.md 기준), 제품 구분(一般化粧品)은 2026-10-23 확정, 전성분·용량은 가상 데이터. 출처: 팀이 만든 leaf_and_japan_marketing_test_data.csv
+// Leaf& Dew 제품 4종. 이름은 lib/own-products.ts (docs/Product.md 기준), 제품 구분(一般化粧品)은 2026-10-23 확정, 전성분·용량은 가상 데이터 (판테놀은 팀 결정 2026-10-23으로 뺐다). 출처: 팀이 만든 leaf_and_japan_marketing_test_data.csv
 // id는 공용 products(lib/mock/products.ts)의 자사 제품 id와 같다. 광고 검토에 필요한 전성분(한국어·INCI·일본어)·용기는 여기에만 있다.
 import { z } from "zod";
 import { ProductCategory } from "@/lib/schemas/ad-check";
@@ -42,7 +42,6 @@ export const LAB_PRODUCTS: unknown[] = [
     ingredients: [
       { ko: "히알루론산나트륨", inci: "Sodium Hyaluronate", ja: "ヒアルロン酸Na" },
       { ko: "글리세린", inci: "Glycerin", ja: "グリセリン" },
-      { ko: "판테놀", inci: "Panthenol", ja: "パンテノール" },
       { ko: "정제수", inci: "Water", ja: "水" },
       { ko: "부틸렌글라이콜", inci: "Butylene Glycol", ja: "BG" },
       { ko: "프로판다이올", inci: "Propanediol", ja: "プロパンジオール" },
@@ -97,7 +96,6 @@ export const LAB_PRODUCTS: unknown[] = [
     container: "미정",
     ingredients: [
       { ko: "히알루론산나트륨", inci: "Sodium Hyaluronate", ja: "ヒアルロン酸Na" },
-      { ko: "판테놀", inci: "Panthenol", ja: "パンテノール" },
       { ko: "녹차추출물", inci: "Camellia Sinensis Leaf Extract", ja: "チャ葉エキス" },
     ],
   },

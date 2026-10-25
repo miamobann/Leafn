@@ -44,46 +44,47 @@ export const SnsPattern = WorkspaceRow.extend({
 }).extend(AiMeta.shape);
 export type SnsPattern = z.infer<typeof SnsPattern>;
 
-// ── PART 3 기회와 전략 ──────────────────────────────
+// ── SNS 공통 패턴 분석 (POST /api/market/sns-patterns) ─────────────
 
-/** 광고 사용 판정: 사용 가능(사용감·허용 효능) / 근거 자료 필요 / 광고 사용 불가 */
-export const ClaimVerdict = z.enum(["usable", "needs_evidence", "not_allowed"]);
-export type ClaimVerdict = z.infer<typeof ClaimVerdict>;
+/** 분석 입력: 마케터가 고른 영상 링크와 영상별 메모 (핵심 발화·댓글) */
+export const SnsAnalyzeInput = z.object({
+  category: z.string().min(1),
+  videos: z
+    .array(z.object({ url: z.string().url(), memo: z.string().trim().min(1, "영상 메모를 적어 주세요").max(2000) }))
+    .min(3, "영상을 3개 이상 등록하세요")
+    .max(10),
+});
+export type SnsAnalyzeInput = z.infer<typeof SnsAnalyzeInput>;
 
-/** 키워드 하나의 약기법 판정 (제품 구분별). 근거는 knowledge/yakkiho/의 조항 (AI 판정을 가정한 샘플) */
-export const ClaimJudgment = WorkspaceRow.extend({
-  /** 통일 이름 (일본어) */
-  keyword: z.string(),
-  label_ko: z.string(),
-  /** 수요 신호·상위권 채택을 찾을 때 대조하는 표기 */
-  aliases: z.array(z.string()).min(1),
-  general_cosmetic: ClaimVerdict,
-  quasi_drug: ClaimVerdict,
-  /** 판정 근거 조항 (knowledge/yakkiho/ 파일·항목) */
-  basis: z.string(),
-  /** 쓰는 방법·주의 (한국어) */
-  note_ko: z.string(),
-}).extend(AiMeta.shape);
-export type ClaimJudgment = z.infer<typeof ClaimJudgment>;
+/** AI 응답 모양 (prompts/sns-patterns.v1.md). quote_ja는 그 영상 메모에 그대로 있어야 하고, 서버가 대조한다 */
+export const SnsPatternAiOutput = z.object({
+  patterns: z.array(
+    z.object({
+      kind: SnsPatternKind,
+      label_ja: z.string().nullable(),
+      label_ko: z.string(),
+      evidence: z.array(z.object({ video: z.number().int().positive(), quote_ja: z.string() })),
+    }),
+  ),
+});
+export type SnsPatternAiOutput = z.infer<typeof SnsPatternAiOutput>;
 
-/** 사용 위치 */
-export const CopyPlacement = z.enum(["product_name", "detail_page", "qa", "ad"]);
-export type CopyPlacement = z.infer<typeof CopyPlacement>;
-
-/** 카피 후보 (AI가 재료로 만든다고 가정한 샘플). 재료는 수요-공급 빈칸·AI 검색 결정 키워드 중 자사 스펙으로 사실인 것만 */
-export const CopyCandidate = WorkspaceRow.extend({
+/** 분석 결과 (대조를 통과한 근거만 남긴다). 저장하지 않고 화면에 바로 보여준다 */
+export const SnsAnalyzeResult = z.object({
   category: z.string(),
-  /** 이 카피가 겨냥하는 후보 영역 (lib/market-config.ts) */
-  zone_id: z.string(),
-  own_product_id: z.string(),
-  copy_ja: z.string(),
-  copy_ko: z.string(),
-  /** 재료 키워드 (ClaimJudgment.keyword) */
-  materials: z.array(z.string()).min(1),
-  placements: z.array(CopyPlacement).min(1),
-  /** 성분을 특기하면 그 성분의 배합 목적 (F5.5). 성분을 안 쓰면 null */
-  ingredient_purpose: z.string().nullable(),
-  /** 검증 지표와 측정 방법. 목표 수치·표본 수는 지어내지 않는다 */
-  verification: z.object({ metric: z.string(), method: z.string() }),
-}).extend(AiMeta.shape);
-export type CopyCandidate = z.infer<typeof CopyCandidate>;
+  videos: z.array(z.object({ index: z.number().int().positive(), url: z.string(), author: z.string(), kind: z.enum(["video", "photo"]) })),
+  patterns: z.array(
+    z.object({
+      kind: SnsPatternKind,
+      label_ja: z.string().nullable(),
+      label_ko: z.string(),
+      evidence: z.array(z.object({ video: z.number().int().positive(), quote_ja: z.string() })).min(1),
+    }),
+  ),
+  /** 원문(메모)에 없어 버린 근거 수 (할루시네이션 의심) */
+  dropped: z.number().int().nonnegative(),
+  model: z.string(),
+  prompt_version: z.string(),
+  analyzed_at: Timestamp,
+});
+export type SnsAnalyzeResult = z.infer<typeof SnsAnalyzeResult>;

@@ -62,9 +62,9 @@ const SCENES_PER_PAGE = 6;
 const PRINT_CSS = `
 @page { size: A4 landscape; margin: 10mm; }
 @media print {
-  body *:not(:has(#guide-report)):not(#guide-report):not(#guide-report *) { display: none !important; }
-  *:has(#guide-report) { display: block !important; position: static !important; overflow: visible !important; height: auto !important; min-height: 0 !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; }
-  #guide-report { font-family: var(--font-noto-kr), "Noto Sans KR", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body *:not(:has(.guide-report)):not(.guide-report):not(.guide-report *) { display: none !important; }
+  *:has(.guide-report) { display: block !important; position: static !important; overflow: visible !important; height: auto !important; min-height: 0 !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; }
+  .guide-report { font-family: var(--font-noto-kr), "Noto Sans KR", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 `;
 
@@ -88,7 +88,8 @@ function Page({ children, page, total, props }: { children: ReactNode; page: num
       )}
       {children}
       <footer className="mt-auto flex justify-between border-t pt-1 text-[8pt] text-muted-foreground">
-        <span>{AD_DISCLAIMER_TEXT} · 샘플 데이터 (AI 미연결 · 모델·프롬프트 버전은 AI 연결 후 표시)</span>
+        {/* 디자이너에게 넘기는 문서라 모델명 같은 개발 정보는 적지 않는다 (기록은 DB에만) */}
+        <span>{AD_DISCLAIMER_TEXT}</span>
         <span>
           {page} / {total}
         </span>
@@ -542,7 +543,7 @@ const PAGES: Record<Channel, (props: ContentGuideReportProps) => ReactNode[]> = 
 export function ContentGuideReport(props: ContentGuideReportProps) {
   const pages = [...PAGES[props.channel](props), ...(props.cutList ? [<PhotoGuide key="photo" cutList={props.cutList} />] : [])];
   return (
-    <div id="guide-report" className="hidden bg-background text-foreground print:block">
+    <div className="guide-report hidden bg-background text-foreground print:block">
       <style>{PRINT_CSS}</style>
       {pages.map((content, i) => (
         <Page key={i} page={i + 1} total={pages.length} props={props}>

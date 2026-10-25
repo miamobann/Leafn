@@ -1,6 +1,7 @@
 import { TrendSnapshot } from "@/lib/schemas/trend";
-import { findBanner, qoo10Banners, sampleAppeal } from "./appeal-samples";
-import { rankingDetail } from "./ranking-details";
+import { findBanner, qoo10Banners } from "./appeal-samples";
+import { products } from "./products";
+import { qoo10Discount, rankingDetail } from "./ranking-details";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 
 // 楽天ランキング 화면의 항목 구성을 흉내 낸 합성 시계열 (샘플)
@@ -131,14 +132,8 @@ const INGREDIENTS: [string, number, number][] = [
 ];
 const CATEGORY_SCALE: Record<string, number> = { "化粧水": 1, "美容液": 0.85, "クリーム": 0.55 };
 
-// 상세 이미지 분석 샘플은 化粧水 최신 주 상위 10개에만 붙인다 (문구: ranking-banners.json)
-const APPEAL_CATEGORY = "化粧水";
-const APPEAL_TOP_N = 10;
-
-function appealFor(brand: string, name: string, capturedAt: string) {
-  const banner = findBanner("rakuten_ranking", brand, name);
-  return banner ? sampleAppeal(banner, capturedAt) : undefined;
-}
+// Qoo10 化粧水 랭킹과 楽天 프로모션 문구는 ranking-banners.json 샘플을 쓴다
+const BANNER_CATEGORY = "化粧水";
 
 const rakutenSnapshots = parseAll(
   TrendSnapshot,
@@ -166,10 +161,6 @@ const rakutenSnapshots = parseAll(
           review_count: item.review_count,
           is_kbeauty: item.is_kbeauty,
           ...rankingDetail(item.brand, item.name, category, findBanner("rakuten_ranking", item.brand, item.name)),
-          appeal:
-            category === APPEAL_CATEGORY && w === WEEK_COUNT - 1 && r < APPEAL_TOP_N
-              ? appealFor(item.brand, item.name, ts(date, "06:00"))
-              : undefined,
         }));
       const ingredients = INGREDIENTS.map(([ingredient, start, growth], i) => ({
         ingredient,
@@ -189,7 +180,8 @@ const rakutenSnapshots = parseAll(
   "trendSnapshots",
 );
 
-// Qoo10 化粧水 최신 주 1회분 (더미 크롤링 결과). 楽天과 같은 제품이 있어도 합치지 않는다
+// Qoo10 최신 주 1회분 (더미 크롤링 결과). 楽天과 같은 제품이 있어도 합치지 않는다
+// 化粧水 = 이미지 분석 배너 샘플, 美容液 = products.ts의 Qoo10 美容液 랭킹 제품 (리뷰가 붙은 p-qes-*)
 const LAST_WEEK = weeks[WEEK_COUNT - 1];
 const qoo10Snapshots = parseAll(
   TrendSnapshot,
@@ -200,7 +192,7 @@ const qoo10Snapshots = parseAll(
       created_at: ts(LAST_WEEK, "07:00"),
       captured_at: ts(LAST_WEEK, "07:00"),
       source: "qoo10_ranking",
-      category: APPEAL_CATEGORY,
+      category: BANNER_CATEGORY,
       data: {
         ranking: qoo10Banners.map((b) => ({
           rank: b.rank,
@@ -209,9 +201,37 @@ const qoo10Snapshots = parseAll(
           price_jpy: b.price_jpy,
           review_count: b.review_count,
           is_kbeauty: b.is_kbeauty,
-          ...rankingDetail(b.brand, b.name, APPEAL_CATEGORY, b),
-          appeal: b.rank <= APPEAL_TOP_N ? sampleAppeal(b, ts(LAST_WEEK, "07:00")) : undefined,
+          ...rankingDetail(b.brand, b.name, BANNER_CATEGORY, b),
+          ...qoo10Discount(b.brand, b.name, b.price_jpy, b.hooks.map((h) => h[1])),
         })),
+        ingredients: [],
+      },
+    },
+    {
+      id: "ts-qoo10-2",
+      workspace_id: WORKSPACE_ID,
+      created_at: ts(LAST_WEEK, "07:05"),
+      captured_at: ts(LAST_WEEK, "07:05"),
+      source: "qoo10_ranking",
+      category: "美容液",
+      data: {
+        ranking: products
+          .filter((p) => p.platform === "qoo10" && p.category === "美容液" && typeof p.source_raw?.qoo10_rank === "number")
+          .map((p) => ({ p, rank: p.source_raw?.qoo10_rank as number }))
+          .toSorted((a, b) => a.rank - b.rank)
+          .map(({ p, rank }, i) => {
+            const detail = rankingDetail(p.brand, p.name, "美容液");
+            return {
+              rank,
+              name: p.name,
+              brand: p.brand,
+              price_jpy: p.price_jpy ?? 0,
+              review_count: 3200 - i * 260,
+              is_kbeauty: true,
+              ...detail,
+              ...qoo10Discount(p.brand, p.name, p.price_jpy ?? 0, detail.promo_text ? [detail.promo_text] : []),
+            };
+          }),
         ingredients: [],
       },
     },

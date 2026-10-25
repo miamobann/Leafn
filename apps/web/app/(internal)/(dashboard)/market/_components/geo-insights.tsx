@@ -17,6 +17,12 @@ import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/tog
 // 질의는 항상 정밀 모드(질의마다 3회)로 돌려 평균을 쓴다
 
 type GeoRow = GeoSnap & { id: string };
+type Card = { title: string; content: React.ReactNode; wide?: boolean };
+
+/** Gap 액션 플랜(마지막 카드)을 맨 앞으로 */
+function orderCards(cards: Card[], gapFirst: boolean): Card[] {
+  return gapFirst ? [cards[cards.length - 1], ...cards.slice(0, -1)] : cards;
+}
 
 const CATEGORY_OPTIONS = GEO_CATEGORIES.map((c) => c.category);
 /** 버튼 한 번에 차례로 묻는 엔진. 키가 없는 엔진은 건너뛴다 */
@@ -32,7 +38,18 @@ const GAP_LABEL: Record<GapStatus, { badge: string; variant: "default" | "second
 type EngineResult = { engine: GeoEngine; ok: true; result: GeoRunResult } | { engine: GeoEngine; ok: false; message: string };
 
 /** category를 넘기면 원페이지 조건 바의 카테고리를 따르고 카테고리 버튼을 숨긴다 */
-export function GeoInsights({ initial, ownProducts, category: fixedCategory }: { initial: GeoRow[]; ownProducts: Product[]; category?: string }) {
+export function GeoInsights({
+  initial,
+  ownProducts,
+  category: fixedCategory,
+  gapFirst = false,
+}: {
+  initial: GeoRow[];
+  ownProducts: Product[];
+  category?: string;
+  /** Gap 액션 플랜을 맨 앞에 (원페이지 「우리 제품 대응」) */
+  gapFirst?: boolean;
+}) {
   const [all, setAll] = useState(initial);
   const [pickedCategory, setCategory] = useState<string>(CATEGORY_OPTIONS[0]);
   const category = fixedCategory ?? pickedCategory;
@@ -101,9 +118,9 @@ export function GeoInsights({ initial, ownProducts, category: fixedCategory }: {
           </div>
         </div>
       }
-      cards={[
+      cards={orderCards([
         {
-          title: "결정 키워드 · 경쟁사 추천 문장",
+          title: "AI가 경쟁 제품을 추천한 이유",
           content: (
             <>
               <HorizontalBarChart
@@ -111,7 +128,7 @@ export function GeoInsights({ initial, ownProducts, category: fixedCategory }: {
                 unit="문장"
                 labelWidth={200}
               />
-              <p className="mt-2 text-xs text-muted-foreground">AI가 경쟁 브랜드를 추천하며 든 이유 (같은 문장에서 그 브랜드 바로 뒤에 나온 말) · ＋ = 사전에 없어 LLM이 찾은 말 (원문 대조 통과)</p>
+              <p className="mt-2 text-xs text-muted-foreground">AI 답변에서 경쟁 브랜드를 추천하며 든 말 (같은 문장 안) · ＋ = 미리 정한 목록에 없던 말 (답변 원문에 그대로 있는 것만)</p>
             </>
           ),
         },
@@ -185,7 +202,7 @@ export function GeoInsights({ initial, ownProducts, category: fixedCategory }: {
             </div>
           ),
         },
-      ]}
+      ], gapFirst)}
     />
   );
 }

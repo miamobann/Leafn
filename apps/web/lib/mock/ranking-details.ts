@@ -35,6 +35,9 @@ const NAME_KO: Record<string, string> = {
   "ブライトニングトナー": "브라이트닝 토너",
   "ニードルトナー": "니들 토너",
   "ドクダミパッドトナー": "어성초 패드 토너",
+  "ナイアシンアミドセラム": "나이아신아마이드 세럼",
+  "PDRNアンプル": "PDRN 앰플",
+  "CICAアンプル": "시카 앰플",
   "セラミド化粧水": "세라마이드 화장수",
   "ビタミンCローション": "비타민C 로션",
   "ハトムギ化粧水": "율무 화장수",
@@ -134,8 +137,9 @@ export function rankingDetail(brand: string, name: string, category: string, ban
 
   const hook = banner?.hooks[0];
   const [promo_type, promo_text] = banner ? (hook ?? [null, null]) : h % 5 === 4 ? [null, null] : PROMOS[h % 4];
-  // 같은 제품 미니어처를 주는 경우만 총 용량에 더한다
+  // 같은 제품을 더 주는 경우만 총 용량에 더한다: 미니어처 증정, 1+1(같은 제품 1개 더)
   const sameProductMini = promo_type === "gift" && (promo_text === "同品ミニサイズ付き" || promo_text === "ミニサイズおまけ付き");
+  const onePlusOne = promo_text === "1+1";
 
   const awardHook = banner?.hooks.find(([type]) => type === "award");
   const badges = awardHook ? [awardHook[1]] : h % 9 === 0 ? ["ランキング1位獲得"] : h % 13 === 0 ? ["ベストコスメ受賞"] : [];
@@ -152,11 +156,22 @@ export function rankingDetail(brand: string, name: string, category: string, ban
     name_ko: NAME_KO[name],
     description_ja,
     volume_ml: volume,
-    ...(sameProductMini ? { extra_volume_ml: MINI_ML[category] } : {}),
+    ...(sameProductMini ? { extra_volume_ml: MINI_ML[category] } : onePlusOne ? { extra_volume_ml: volume } : {}),
     rating: listing?.rating ?? Math.round((3.8 + (h % 10) / 10) * 10) / 10,
     rating_scale: listing?.rating_scale ?? 5,
     promo_type,
     promo_text,
     badges,
   };
+}
+
+// Qoo10 할인 샘플: 순위권 제품 대부분이 할인 중이고, 광고(PR) 노출 제품 등 일부만 할인이 없다고 가정
+const DISCOUNT_RATES = [10, 15, 20, 25, 30, 35, 40];
+
+/** Qoo10 정가·할인율·할인 적용가 (배너 문구에 「○%OFF」가 있으면 그 할인율을 쓴다) */
+export function qoo10Discount(brand: string, name: string, price_jpy: number, hookTexts: string[] = []) {
+  const fromHook = hookTexts.map((t) => t.match(/(\d+)%OFF/)?.[1]).find(Boolean);
+  const h = hash(`${brand}|${name}|qoo10`);
+  const rate = fromHook ? Number(fromHook) : h % 8 === 0 ? null : DISCOUNT_RATES[h % DISCOUNT_RATES.length];
+  return { discount_rate: rate, sale_price_jpy: rate === null ? null : Math.round(price_jpy * (1 - rate / 100)) };
 }
