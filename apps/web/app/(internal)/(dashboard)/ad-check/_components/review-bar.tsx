@@ -35,16 +35,16 @@ export function ReviewBar({
   onSaveNote,
   onReset,
 }: ReviewBarProps) {
-  const statusHint = !persisted ? "샘플 모드 · 저장되지 않음" :
+  const statusHint = !persisted ? "샘플이라 저장되지 않아요" :
     saveState === "saving"
       ? "저장 중..."
       : saveState === "saved"
-        ? "DB에 저장됨"
+        ? "저장됨"
         : saveState === "error"
           ? saveError ?? "저장 실패"
           : canApprove
-            ? "판정 결과 자동 저장됨 · 상태 변경 시 DB에 반영"
-            : "판정 결과 자동 저장됨 · 승인/반려는 관리자(owner)만 가능";
+            ? "자동 저장됨"
+            : "자동 저장됨 · 승인·반려는 팀장만 할 수 있어요";
 
   return (
     <Card className="mt-4">

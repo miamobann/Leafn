@@ -4,7 +4,8 @@ import { z } from "zod";
 import { AdCheckParseError } from "@/lib/ai/ad-check/judge";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
-import { checkBody } from "@/lib/ai/content-guide/check";
+import { type BodyCheck, checkBody } from "@/lib/ai/content-guide/check";
+import { toAdCheck } from "@/lib/ai/ad-check/to-ad-check";
 import { ContentGuideParseError, generateBody, generateTitles } from "@/lib/ai/content-guide/generate";
 import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { ContentGuideInput, GuideTitle } from "@/lib/schemas/content-guide";
@@ -41,6 +42,56 @@ function logFailure(e: unknown) {
   console.error(`[api/content-guide] ${e instanceof Error ? e.name : "Error"}: ${detail}`);
 }
 
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
+/** 콘텐츠 가이드 판정을 검토 기록으로 남긴다. 블록 한 개 = 한 줄 (block_key 로 어느 블록인지). 판정할 블록이 없으면 null */
+async function saveGuideCheck(supabase: Supabase, workspaceId: string, productId: string | null, category: ContentGuideInput["product"]["category"], checked: BodyCheck): Promise<string | null> {
+  if (checked.blocks.length === 0 || !checked.model || !checked.promptVersion) return null;
+  const check = toAdCheck({
+    id: crypto.randomUUID(),
+    workspaceId,
+    createdAt: new Date().toISOString(),
+    lines: checked.blocks.map((b) => b.text),
+    judged: checked.blocks.map((b) => b.line),
+    usage: checked.adUsage,
+    model: checked.model,
+    promptVersion: `ad-check.${checked.promptVersion}`,
+  });
+  const { error } = await supabase.from("ad_checks").insert({
+    id: check.id,
+    created_at: check.created_at,
+    workspace_id: workspaceId,
+    source: "content_guide",
+    product_id: productId,
+    input_text: check.input_text,
+    input_lang: check.input_lang,
+    usage: check.usage ?? null,
+    product_category: category,
+    overall_risk: check.overall_risk ?? null,
+    overall_action: check.overall_action ?? null,
+    review_status: check.review_status,
+    model: check.model,
+    prompt_version: check.prompt_version,
+  });
+  if (error) throw new Error(`ad_checks 저장 실패: ${error.message}`);
+  const lineRows = (check.line_results ?? []).map((line, i) => ({
+    workspace_id: workspaceId,
+    ad_check_id: check.id,
+    line_index: line.line_index,
+    block_key: checked.blocks[i]!.key,
+    original: line.original,
+    action: line.action,
+    findings: check.findings.filter((f) => f.line_index === line.line_index),
+    ingredient_check: line.ingredient_check,
+    translated_text: line.translated_text,
+    back_translation_ko: line.back_translation_ko,
+    localized_note: line.localized_note,
+  }));
+  const { error: lineErr } = await supabase.from("ad_check_lines").insert(lineRows);
+  if (lineErr) throw new Error(`ad_check_lines 저장 실패: ${lineErr.message}`);
+  return check.id;
+}
+
 export async function POST(request: Request) {
   if (!(await isAllowed())) return fail(401, "로그인이 필요합니다");
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return fail(413, "요청이 너무 큽니다");
@@ -60,18 +111,30 @@ export async function POST(request: Request) {
     const checked = await checkBody(req.input.channel, { name: p.name, product_category: p.category, ingredients: p.ingredients_ja }, made.result);
     const checks = checked.blocks.map((b) => ({ key: b.key, action: b.line.action, findings: b.line.findings.map((f) => ({ text: f.text, reason: f.reason })) }));
 
+    let id: string | null = null;
+    let checkSaved = true;
     if (mine) {
       const supabase = await createClient();
+      const productId = req.product_id && UUID_RE.test(req.product_id) ? req.product_id : null;
+      // 1) 약기법 판정 기록 (ad_checks.source = content_guide). 실패해도 결과물은 저장하고 화면에 알린다 (수연 결정 2026-10-25)
+      const adCheckId = await saveGuideCheck(supabase, mine.workspace.id, productId, req.input.product.category, checked).catch((e: unknown) => {
+        logFailure(e);
+        return null;
+      });
+      checkSaved = adCheckId !== null || checked.blocks.length === 0;
+      // 2) 결과물
+      id = crypto.randomUUID();
       const { error: dbErr } = await supabase.from("content_guides").insert({
+        id,
         workspace_id: mine.workspace.id,
-        product_id: req.product_id && UUID_RE.test(req.product_id) ? req.product_id : null,
+        product_id: productId,
         channel: req.input.channel,
         post_type: req.input.post_type,
         input: req.input,
         title: req.picked,
         body: made.result,
         lint_hits: made.lintHits,
-        ad_check_id: null,
+        ad_check_id: adCheckId,
         model: made.model,
         prompt_version: `content-guide.${made.promptVersion}`,
       });
@@ -79,6 +142,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
+      id,
+      checkSaved,
       body: made.result,
       lintHits: made.lintHits,
       checks,
