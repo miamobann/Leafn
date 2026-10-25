@@ -235,15 +235,16 @@ export const surveySummary = SurveySummary.parse({
       const email = Math.round(notify * 0.45);
       return { line_id: l.id, shown, notify_email: email, notify_line: notify - email };
     }),
-  recent: surveyResponses
+  responses: surveyResponses
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, 10)
     .map((r) => ({
       at: r.created_at,
       age_group: r.age_group,
       skin_type: r.skin_type,
       is_sensitive: r.is_sensitive,
       concerns: r.concerns,
+      concern_other: r.concern_other,
+      concern_other_ko: r.concern_other_ko ?? null,
       source: r.source,
       consent_version: r.consent_version,
     })),

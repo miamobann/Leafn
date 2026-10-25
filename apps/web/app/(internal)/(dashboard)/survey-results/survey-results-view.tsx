@@ -3,15 +3,16 @@
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
-import { BarList } from "@/components/templates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { SurveyProductLine, SurveyQuestion, SurveySource, SurveySummary } from "@/lib/schemas/survey";
 import {
   AGE_KO,
+  AGE_ORDER,
   CONCERN_KO,
   SKIN,
   SOURCE_KO,
@@ -35,13 +36,12 @@ const TABS = [
   { key: "channel", label: "채널" },
   { key: "skin", label: "피부타입 · 고민" },
   { key: "product", label: "제품 · 알림" },
-  { key: "recent", label: "최근 응답" },
+  { key: "all", label: "전체 응답" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
-// 설문 테이블 합의 전 제안안 (docs/db-frame.md "소비자 설문"과 함께 확정)
-// "최근 응답"은 기간이 아니라 최신 건수로 보여 준다. 응답이 뜸해도 비지 않고, 방금 들어온 응답을 바로 확인할 수 있다
-const RECENT_LIMIT = 10;
+// 연령대 세로 막대 아래 짧은 이름
+const AGE_SHORT: Record<string, string> = { ...AGE_KO, "50plus": "50대+" };
 
 export function SurveyResultsView({
   summary,
@@ -79,7 +79,12 @@ export function SurveyResultsView({
   const cellMax = Math.max(1, ...summary.age_by_concern.flatMap((row) => Object.values(row.counts)));
   const normalCount = summary.by_skin_type.find((s) => s.skin_type === "normal")?.count ?? 0;
   const normalLines = lines.filter((l) => l.for_types.includes("normal")).map((l) => lineName(l, l.id));
-  const recent = summary.recent.toSorted((a, b) => b.at.localeCompare(a.at)).slice(0, RECENT_LIMIT);
+  const concernTop3 = concernTotals.filter((c) => c.key !== "other").slice(0, 3);
+  const topAge = byAge.toSorted((a, b) => b.count - a.count)[0];
+  // 판매 중 → 개발 중, 그 안에서는 추천 본 사람이 많은 순
+  const sortedReactions = reactions.toSorted((a, b) => Number(b.onSale) - Number(a.onSale) || b.shown - a.shown);
+  const rate = (r: (typeof reactions)[number]) => (r.reacted === null || !r.shown ? -1 : r.reacted / r.shown);
+  const topReaction = reactions.filter((r) => r.reacted !== null && r.shown > 0).toSorted((a, b) => rate(b) - rate(a))[0];
   const share = (n: number) => pct(n, summary.total);
   // 클릭 · 알림 숫자가 없으면(DB 모드) "—"
   const countOr = (n: number | undefined, unit: string) => (n === undefined ? "—" : `${n}${unit}`);
@@ -164,54 +169,61 @@ export function SurveyResultsView({
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-x-8 gap-y-5 md:grid-cols-2 xl:grid-cols-3">
-              <GlanceSection title="피부타입">
-                <MiniTable
-                  rows={[
-                    ...bySkin.map((s) => [SKIN[s.skin_type].ko, `${s.count}명`, share(s.count)]),
-                    ["민감 경향", `${summary.sensitive_count}명`, share(summary.sensitive_count)],
-                  ]}
-                  mutedLast
-                />
-              </GlanceSection>
-              <GlanceSection title="고민 TOP 3" note="(복수 선택)">
-                <MiniTable rows={concernTotals.filter((c) => c.key !== "other").slice(0, 3).map((c) => [CONCERN_KO[c.key] ?? c.key, `${c.count}명`, share(c.count)])} />
-                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">연령대별 1위: {topConcernByAge(summary)}</p>
-              </GlanceSection>
-              <GlanceSection title="라인별 반응">
-                <MiniTable
-                  head={["라인", "추천 본 사람", "반응"]}
-                  rows={reactions.map((r) => [
-                    <>
-                      {r.name} <span className="text-muted-foreground">{r.onSale ? "판매 중" : "개발 중"}</span>
-                    </>,
-                    `${r.shown}명`,
-                    `${r.onSale ? "구매 클릭" : "출시 알림"} ${r.reacted === null ? "—" : pct(r.reacted, r.shown)}`,
-                  ])}
-                />
-              </GlanceSection>
-              <GlanceSection title="채널 TOP 3">
-                <MiniTable
-                  head={["채널", "응답", "구매 클릭", "출시 알림"]}
-                  rows={bySource.slice(0, 3).map((s) => [SOURCE_KO[s.source], `${s.count}건`, countOr(s.clicks, "회"), countOr(s.notify, "명")])}
-                />
-              </GlanceSection>
+            {/* 칸마다 큰 숫자(1위) 하나 + 막대. 1위만 진하게 칠한다 */}
+            <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <Tile title="피부타입" note={`민감 경향 ${summary.sensitive_count}명 · ${share(summary.sensitive_count)}`}>
+                {topType && <Hero value={share(topType.count)} label={SKIN[topType.skin_type].ko} />}
+                <HBars items={bySkin.map((s) => ({ label: SKIN[s.skin_type].ko, value: s.count }))} total={summary.total} unit="명" />
+              </Tile>
+              <Tile title="고민 TOP 3" note="복수 선택">
+                {concernTop3[0] && <Hero value={share(concernTop3[0].count)} label={CONCERN_KO[concernTop3[0].key] ?? concernTop3[0].key} />}
+                <HBars items={concernTop3.map((c) => ({ label: CONCERN_KO[c.key] ?? c.key, value: c.count }))} total={summary.total} unit="명" />
+                <p className="text-xs leading-relaxed text-muted-foreground">연령대별 1위: {topConcernByAge(summary)}</p>
+              </Tile>
+              <Tile title="라인별 반응" note="추천 본 사람 중">
+                {topReaction && (
+                  <Hero value={pct(topReaction.reacted ?? 0, topReaction.shown)} label={`${topReaction.name} ${topReaction.onSale ? "구매 클릭" : "출시 알림"}`} />
+                )}
+                <div className="flex flex-col gap-2.5">
+                  {sortedReactions.map((r) => (
+                    <div key={r.id} className="grid grid-cols-[7rem_minmax(0,1fr)_3rem] items-center gap-2.5 text-[13px]">
+                      <span>
+                        {r.name}
+                        <small className="block text-[11.5px] text-muted-foreground">
+                          {r.onSale ? "판매 중 · 구매 클릭" : "개발 중 · 출시 알림"}
+                        </small>
+                      </span>
+                      <Track ratio={r.reacted === null || !r.shown ? 0 : r.reacted / r.shown} strong />
+                      <span className="text-right font-semibold tabular-nums">{r.reacted === null ? "—" : pct(r.reacted, r.shown)}</span>
+                    </div>
+                  ))}
+                </div>
+              </Tile>
+              <Tile title="채널 TOP 3" note="응답 수">
+                {bySource[0] && <Hero value={share(bySource[0].count)} label={SOURCE_KO[bySource[0].source]} />}
+                <HBars items={bySource.slice(0, 3).map((s) => ({ label: SOURCE_KO[s.source], value: s.count }))} total={summary.total} unit="건" />
+                {bySource[0] && (bySource[0].clicks !== undefined || bySource[0].notify !== undefined) && (
+                  <p className="text-xs text-muted-foreground">
+                    {SOURCE_KO[bySource[0].source]} 구매 클릭 {countOr(bySource[0].clicks, "회")} · 출시 알림 {countOr(bySource[0].notify, "명")}
+                  </p>
+                )}
+              </Tile>
               {byAge.length > 0 && (
-                <GlanceSection title="연령대">
-                  <MiniTable rows={byAge.map((a) => [AGE_KO[a.age_group] ?? a.age_group, `${a.count}명`, share(a.count)])} />
-                  {summary.under18_count > 0 && (
-                    <p className="mt-1.5 text-xs text-muted-foreground">18세 미만 {summary.under18_count}명은 답을 저장하지 않고 수만 셌어요.</p>
-                  )}
-                </GlanceSection>
+                <Tile title="연령대" note={summary.under18_count > 0 ? `18세 미만 ${summary.under18_count}명은 수만` : undefined}>
+                  {topAge && <Hero value={share(topAge.count)} label={AGE_KO[topAge.age_group] ?? topAge.age_group} />}
+                  <AgeColumns items={byAge.map((a) => ({ label: AGE_SHORT[a.age_group] ?? a.age_group, value: a.count }))} />
+                </Tile>
               )}
               {summary.concern_other.length > 0 && (
-                <GlanceSection title={`'기타' 고민 (직접 입력 ${summary.concern_other.length}건 중)`}>
-                  <ul className="list-disc space-y-1 pl-4 text-sm">
+                <Tile title="'기타' 고민" note={`직접 입력 ${summary.concern_other.length}건 중 ${Math.min(5, summary.concern_other.length)}건`}>
+                  <ul className="flex flex-col gap-2">
                     {summary.concern_other.slice(0, 5).map((o) => (
-                      <li key={`${o.date}-${o.text_ja}`}>{o.text_ko || o.text_ja}</li>
+                      <li key={`${o.date}-${o.text_ja}`}>
+                        <JaKo ja={o.text_ja} ko={o.text_ko} />
+                      </li>
                     ))}
                   </ul>
-                </GlanceSection>
+                </Tile>
               )}
             </CardContent>
           </Card>
@@ -294,10 +306,12 @@ export function SurveyResultsView({
               <CardTitle>피부타입 분포</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <BarList items={bySkin.map((s) => ({ label: SKIN[s.skin_type].ko, value: s.count }))} />
-              <p className="text-xs text-muted-foreground">
-                민감 경향은 피부타입과 함께 따로 표시됩니다. {summary.total}건 중 {summary.sensitive_count}건.
-              </p>
+              {topType && <Hero value={share(topType.count)} label={SKIN[topType.skin_type].ko} />}
+              <HBars items={bySkin.map((s) => ({ label: SKIN[s.skin_type].ko, value: s.count }))} total={summary.total} unit="명" />
+              <div className="border-t pt-3">
+                <HBars items={[{ label: "민감 경향", value: summary.sensitive_count }]} total={summary.total} unit="명" muted />
+              </div>
+              <p className="text-xs text-muted-foreground">민감 경향은 피부타입과 따로 판정해요. 어느 피부타입에도 함께 나올 수 있어요.</p>
             </CardContent>
           </Card>
           <Card>
@@ -305,8 +319,9 @@ export function SurveyResultsView({
               <CardTitle>신경 쓰이는 피부 고민</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <BarList items={concernTotals.map((c) => ({ label: CONCERN_KO[c.key] ?? c.key, value: c.count }))} />
-              <p className="text-xs text-muted-foreground">복수 선택이라 합계가 응답 수보다 많습니다. 가장 많은 고민: {topConcern ? CONCERN_KO[topConcern.key] : "—"}</p>
+              {topConcern && <Hero value={share(topConcern.count)} label={CONCERN_KO[topConcern.key] ?? topConcern.key} />}
+              <HBars items={concernTotals.map((c) => ({ label: CONCERN_KO[c.key] ?? c.key, value: c.count }))} total={summary.total} unit="명" />
+              <p className="text-xs text-muted-foreground">복수 선택이라 %를 더하면 100%가 넘어요. %는 응답 {summary.total}건 중 고른 사람의 비율이에요.</p>
             </CardContent>
           </Card>
           <Card className="lg:col-span-2">
@@ -357,9 +372,7 @@ export function SurveyResultsView({
               <ul className="divide-y text-sm">
                 {summary.concern_other.map((o) => (
                   <li key={`${o.date}-${o.text_ja}`} className="flex justify-between gap-4 py-2">
-                    <span>
-                      {o.text_ja} {o.text_ko && <span className="text-muted-foreground">({o.text_ko})</span>}
-                    </span>
+                    <JaKo ja={o.text_ja} ko={o.text_ko} />
                     <span className="text-xs text-muted-foreground">{o.date}</span>
                   </li>
                 ))}
@@ -376,8 +389,8 @@ export function SurveyResultsView({
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              결과 화면에서 추천을 본 사람과 반응 수입니다. 출시 알림 신청 수는 개발 중인 라인의 수요를 보여 줍니다. 연락처는 따로
-              저장되어 이 화면에는 숫자만 나옵니다.
+              결과 화면에서 추천을 본 사람과 반응 수입니다. 출시 알림 수는 개발 중인 라인의 수요를 보여 줍니다. 연락처는 따로 저장되어 이
+              화면에는 숫자만 나옵니다.
             </p>
             <Table>
               <TableHeader>
@@ -386,39 +399,37 @@ export function SurveyResultsView({
                   <TableHead>상태</TableHead>
                   <TableHead>추천 대상</TableHead>
                   <TableHead className="text-right">추천 본 사람</TableHead>
-                  <TableHead>반응</TableHead>
-                  <TableHead className="text-right">반응률</TableHead>
+                  <TableHead>반응률</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {summary.product_lines.map((p) => {
-                  const line = lines.find((l) => l.id === p.line_id);
+                {sortedReactions.map((r) => {
+                  const p = summary.product_lines.find((x) => x.line_id === r.id);
+                  const line = lines.find((l) => l.id === r.id);
                   // 신청 수(이메일 · LINE)가 없으면(DB 모드) 알림 화면을 연 사람 수로 본다
-                  const signedUp = p.notify_email !== undefined || p.notify_line !== undefined;
-                  const notify = signedUp ? (p.notify_email ?? 0) + (p.notify_line ?? 0) : (p.notify_open ?? 0);
-                  const reacted = line?.status === "on_sale" ? (p.clicks ?? 0) : notify;
+                  const signedUp = p?.notify_email !== undefined || p?.notify_line !== undefined;
+                  const detail = r.onSale
+                    ? `구매하기 클릭 ${p?.clicks ?? 0}회`
+                    : signedUp
+                      ? `출시 알림 ${r.reacted ?? 0}명 (이메일 ${p?.notify_email ?? 0} · LINE ${p?.notify_line ?? 0})`
+                      : `출시 알림 화면 연 사람 ${r.reacted ?? 0}명`;
                   return (
-                    <TableRow key={p.line_id}>
-                      <TableCell>
-                        <span className="font-medium">{lineName(line, p.line_id)}</span>
+                    <TableRow key={r.id}>
+                      <TableCell className="py-3">
+                        <span className="block font-semibold">{lineName(line, r.id)}</span>
                         {line?.products_label && <span className="block text-xs text-muted-foreground">{line.products_label}</span>}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={line?.status === "on_sale" ? "default" : "secondary"}>
-                          {line?.status === "on_sale" ? "판매 중" : "개발 중"}
-                        </Badge>
+                      <TableCell className="py-3">
+                        <Badge variant={r.onSale ? "default" : "secondary"}>{r.onSale ? "판매 중" : "개발 중"}</Badge>
                       </TableCell>
-                      <TableCell>{line?.for_types.map((t) => SKIN[t].ko).join(", ")}</TableCell>
-                      <TableCell className="text-right">{p.shown}명</TableCell>
-                      <TableCell>
-                        {line?.status === "on_sale"
-                          ? `구매하기 클릭 ${p.clicks ?? 0}회`
-                          : signedUp
-                            ? `출시 알림 ${notify}명 (이메일 ${p.notify_email ?? 0} · LINE ${p.notify_line ?? 0})`
-                            : `출시 알림 화면 연 사람 ${notify}명`}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {p.shown ? `${Math.round((reacted / p.shown) * 100)}%` : "—"}
+                      <TableCell className="py-3">{line?.for_types.map((t) => SKIN[t].ko).join(", ")}</TableCell>
+                      <TableCell className="py-3 text-right">{r.shown}명</TableCell>
+                      <TableCell className="py-3">
+                        <div className="grid w-56 grid-cols-[minmax(0,1fr)_3.2rem] items-center gap-2.5">
+                          <Track ratio={r.shown ? (r.reacted ?? 0) / r.shown : 0} strong />
+                          <span className="text-right font-semibold tabular-nums">{r.shown ? pct(r.reacted ?? 0, r.shown) : "—"}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{detail}</span>
                       </TableCell>
                     </TableRow>
                   );
@@ -426,88 +437,253 @@ export function SurveyResultsView({
               </TableBody>
             </Table>
             <p className="text-xs text-muted-foreground">
-              한 사람에게 여러 라인을 함께 추천하므로 &apos;추천 본 사람&apos;의 합은 응답 수보다 많습니다. 예: 중성 결과({normalCount}명)에는{" "}
-              {normalLines.join(", ")}을 함께 추천합니다.
+              판매 중 → 개발 중, 그 안에서는 추천 본 사람이 많은 순. 한 사람에게 여러 라인을 함께 추천하므로 &apos;추천 본 사람&apos;의 합은 응답
+              수보다 많습니다. 예: 중성 결과({normalCount}명)에는 {normalLines.join(", ")}을 함께 추천합니다.
             </p>
           </CardContent>
         </Card>
       )}
 
-      {tab === "recent" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>최근 응답 (최신 {RECENT_LIMIT}건까지)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>응답 시각</TableHead>
-                  <TableHead>연령대</TableHead>
-                  <TableHead>피부타입</TableHead>
-                  <TableHead>민감</TableHead>
-                  <TableHead>고민</TableHead>
-                  <TableHead>유입 경로</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recent.map((r) => (
-                  <TableRow key={r.at}>
-                    <TableCell className="whitespace-nowrap">{`${r.at.slice(0, 10)} ${r.at.slice(11, 16)}`}</TableCell>
-                    <TableCell>{AGE_KO[r.age_group] ?? r.age_group}</TableCell>
-                    <TableCell>{SKIN[r.skin_type].ko}</TableCell>
-                    <TableCell>{r.is_sensitive ? "있음" : "—"}</TableCell>
-                    <TableCell>{r.concerns.map((c) => CONCERN_KO[c] ?? c).join(", ")}</TableCell>
-                    <TableCell>{r.source ? SOURCE_KO[r.source] : "—"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      {tab === "all" && <AllResponses responses={summary.responses} concernKeys={concernKeys} />}
 
     </div>
   );
 }
 
-function GlanceSection({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+function Tile({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   return (
-    <section>
-      <h3 className="mb-2 text-sm font-semibold">
-        {title} {note && <span className="font-normal text-muted-foreground">{note}</span>}
+    <section className="flex min-w-0 flex-col gap-3 rounded-xl border px-[18px] py-4">
+      <h3 className="flex justify-between gap-2 text-[13px] font-medium text-muted-foreground">
+        {title} {note && <span>{note}</span>}
       </h3>
       {children}
     </section>
   );
 }
 
-// 한눈에 보기의 작은 표: 첫 칸은 왼쪽, 나머지는 오른쪽 정렬
-function MiniTable({ head, rows, mutedLast }: { head?: string[]; rows: ReactNode[][]; mutedLast?: boolean }) {
+/** 칸의 1위: 큰 비율 + 이름 */
+function Hero({ value, label }: { value: string; label: string }) {
   return (
-    <table className="w-full text-[13px] tabular-nums">
-      {head && (
-        <thead>
-          <tr className="border-b text-[11px] text-muted-foreground">
-            {head.map((h, i) => (
-              <th key={h} className={cn("py-1 font-medium", i === 0 ? "text-left" : "text-right")}>
-                {h}
-              </th>
+    <p className="flex items-baseline gap-2">
+      <b className="text-[26px] font-bold tabular-nums">{value}</b>
+      <span className="text-sm font-semibold">{label}</span>
+    </p>
+  );
+}
+
+// 막대 길이는 값 비율이라 인라인 스타일이 불가피하다
+function Track({ ratio, strong }: { ratio: number; strong?: boolean }) {
+  return (
+    <span className="block h-2.5 overflow-hidden rounded-full bg-muted">
+      <span
+        className={cn("block h-full rounded-full", strong ? "bg-primary" : "bg-neutral-400 dark:bg-neutral-500")}
+        style={{ width: `${Math.min(100, Math.round(ratio * 100))}%` }}
+      />
+    </span>
+  );
+}
+
+/** 가로 막대 목록. 막대 길이는 1위 대비, 숫자는 "N명 · 전체 대비 %". 첫 줄(1위)만 진하게 */
+function HBars({
+  items,
+  total,
+  unit,
+  muted,
+}: {
+  items: { label: string; value: number }[];
+  total: number;
+  unit: string;
+  muted?: boolean;
+}) {
+  const max = Math.max(1, ...items.map((i) => i.value));
+  return (
+    <ul className="flex flex-col gap-2 text-[13px]">
+      {items.map((item, i) => {
+        const top = i === 0 && !muted;
+        return (
+          <li key={item.label} className={cn("grid grid-cols-[6.5rem_minmax(0,1fr)_5.5rem] items-center gap-2.5", top && "font-semibold")}>
+            <span>{item.label}</span>
+            <Track ratio={muted ? item.value / Math.max(1, total) : item.value / max} strong={top} />
+            <span className={cn("text-right tabular-nums", top ? "text-foreground" : "text-muted-foreground")}>
+              {item.value}
+              {unit} · {pct(item.value, total)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** 연령대 세로 막대. 가장 많은 연령대만 진하게 */
+function AgeColumns({ items }: { items: { label: string; value: number }[] }) {
+  const max = Math.max(1, ...items.map((i) => i.value));
+  return (
+    <div className="grid h-[120px] items-end gap-2.5" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+      {items.map((item) => (
+        <div key={item.label} className="flex h-full flex-col items-center justify-end gap-1 text-xs">
+          <span className="font-semibold tabular-nums">{item.value}</span>
+          <span
+            className={cn("w-full max-w-[38px] rounded-t-md", item.value === max ? "bg-primary" : "bg-neutral-400 dark:bg-neutral-500")}
+            style={{ height: `${Math.round((item.value / max) * 85)}%` }}
+          />
+          <span className="whitespace-nowrap text-muted-foreground">{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** '기타' 직접 입력: 일본어 원문 아래 연한 한국어. 번역 전이면 일본어만 */
+function JaKo({ ja, ko }: { ja: string; ko?: string | null }) {
+  return (
+    <span className="flex flex-col gap-px text-[13px]">
+      <span lang="ja">{ja}</span>
+      {ko && <span className="text-xs text-muted-foreground">{ko}</span>}
+    </span>
+  );
+}
+
+const PAGE_SIZE = 15;
+const selectClass = "h-9 rounded-md border bg-background px-2.5 text-[13px]";
+
+/** 전체 응답: 15건씩 넘기기 + 필터 (피부타입 · 연령대 · 유입 경로 · 고민 · 민감 경향) */
+function AllResponses({ responses, concernKeys }: { responses: SurveySummary["responses"]; concernKeys: string[] }) {
+  const empty = { skin: "", age: "", source: "", concern: "", sensitive: false };
+  const [filter, setFilter] = useState(empty);
+  const [page, setPage] = useState(1);
+  const update = (patch: Partial<typeof empty>) => {
+    setFilter((f) => ({ ...f, ...patch }));
+    setPage(1);
+  };
+
+  const list = responses
+    .toSorted((a, b) => b.at.localeCompare(a.at))
+    .filter(
+      (r) =>
+        (!filter.skin || r.skin_type === filter.skin) &&
+        (!filter.age || r.age_group === filter.age) &&
+        (!filter.source || (r.source ?? "") === filter.source) &&
+        (!filter.concern || r.concerns.includes(filter.concern)) &&
+        (!filter.sensitive || r.is_sensitive),
+    );
+  const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const current = Math.min(page, pages);
+  const rows = list.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  // 쪽 번호는 지금 쪽 앞뒤로 최대 7개
+  const first = Math.max(1, Math.min(current - 3, pages - 6));
+  const numbers = Array.from({ length: Math.min(7, pages) }, (_, i) => first + i);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex flex-wrap items-center justify-between gap-3">
+          전체 응답
+          <span className="text-xs font-normal text-muted-foreground">
+            {responses.length}건 중 {list.length}건
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <select aria-label="피부타입" className={selectClass} value={filter.skin} onChange={(e) => update({ skin: e.target.value })}>
+            <option value="">피부타입 전체</option>
+            {Object.entries(SKIN).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.ko}
+              </option>
             ))}
-          </tr>
-        </thead>
-      )}
-      <tbody>
-        {rows.map((row, r) => (
-          <tr key={r} className={cn("border-b", mutedLast && r === rows.length - 1 && "text-muted-foreground")}>
-            {row.map((cell, i) => (
-              <td key={i} className={cn("py-1.5", i === 0 ? "text-left" : "text-right")}>
-                {cell}
-              </td>
+          </select>
+          <select aria-label="연령대" className={selectClass} value={filter.age} onChange={(e) => update({ age: e.target.value })}>
+            <option value="">연령대 전체</option>
+            {AGE_ORDER.map((k) => (
+              <option key={k} value={k}>
+                {AGE_KO[k]}
+              </option>
             ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+          </select>
+          <select aria-label="유입 경로" className={selectClass} value={filter.source} onChange={(e) => update({ source: e.target.value })}>
+            <option value="">유입 경로 전체</option>
+            {Object.entries(SOURCE_KO).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <select aria-label="고민" className={selectClass} value={filter.concern} onChange={(e) => update({ concern: e.target.value })}>
+            <option value="">고민 전체</option>
+            {concernKeys.map((k) => (
+              <option key={k} value={k}>
+                {CONCERN_KO[k] ?? k}
+              </option>
+            ))}
+          </select>
+          <label className="flex items-center gap-1.5 text-[13px]">
+            <Checkbox checked={filter.sensitive} onCheckedChange={(v) => update({ sensitive: v === true })} />
+            민감 경향만
+          </label>
+          <Button variant="outline" size="sm" onClick={() => update(empty)}>
+            필터 지우기
+          </Button>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>응답 시각</TableHead>
+              <TableHead>연령대</TableHead>
+              <TableHead>피부타입</TableHead>
+              <TableHead>민감</TableHead>
+              <TableHead>고민</TableHead>
+              <TableHead>&apos;기타&apos; 입력</TableHead>
+              <TableHead>유입 경로</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r, i) => (
+              <TableRow key={`${r.at}-${i}`}>
+                <TableCell className="whitespace-nowrap">{`${r.at.slice(0, 10)} ${r.at.slice(11, 16)}`}</TableCell>
+                <TableCell className="whitespace-nowrap">{AGE_KO[r.age_group] ?? r.age_group}</TableCell>
+                <TableCell className="whitespace-nowrap">{SKIN[r.skin_type].ko}</TableCell>
+                <TableCell>{r.is_sensitive ? "있음" : "—"}</TableCell>
+                <TableCell>{r.concerns.map((c) => CONCERN_KO[c] ?? c).join(", ")}</TableCell>
+                <TableCell className="whitespace-normal">{r.concern_other ? <JaKo ja={r.concern_other} ko={r.concern_other_ko} /> : "—"}</TableCell>
+                <TableCell>{r.source ? SOURCE_KO[r.source] : "—"}</TableCell>
+              </TableRow>
+            ))}
+            {rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="text-xs text-muted-foreground">
+                  조건에 맞는 응답이 없어요.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted-foreground">
+          <span>
+            {list.length > 0 && `${(current - 1) * PAGE_SIZE + 1}–${(current - 1) * PAGE_SIZE + rows.length} / ${list.length}건`}
+          </span>
+          <div className="flex gap-1">
+            <Button variant="outline" size="icon-sm" aria-label="이전 쪽" disabled={current === 1} onClick={() => setPage(current - 1)}>
+              ‹
+            </Button>
+            {numbers.map((n) => (
+              <Button
+                key={n}
+                variant={n === current ? "default" : "outline"}
+                size="icon-sm"
+                aria-current={n === current ? "page" : undefined}
+                onClick={() => setPage(n)}
+              >
+                {n}
+              </Button>
+            ))}
+            <Button variant="outline" size="icon-sm" aria-label="다음 쪽" disabled={current === pages} onClick={() => setPage(current + 1)}>
+              ›
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -56,9 +56,10 @@ export async function readSurveySummary() {
       // 알림 신청 완료(이메일 · LINE)는 아직 저장하지 않아, 알림 화면을 연 사람 수로 센다
       notify_open: events.filter((r) => r.product_line === line_id && r.event === "notify_open").length,
     })),
-    recent: responses.sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10).map((r) => ({
+    responses: responses.sort((a, b) => b.created_at.localeCompare(a.created_at)).map((r) => ({
       at: r.created_at, age_group: r.age_group, skin_type: r.skin_type, is_sensitive: r.is_sensitive,
-      concerns: r.concerns, source: r.source, consent_version: r.consent_version,
+      concerns: r.concerns, concern_other: r.concern_other, concern_other_ko: r.concern_other_ko ?? null,
+      source: r.source, consent_version: r.consent_version,
     })),
   });
 }

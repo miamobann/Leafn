@@ -93,9 +93,9 @@ function checkRefs() {
     expect(r.survey_id === survey.id, `surveyResponses ${r.id}.survey_id`);
     for (const c of r.concerns) expect(concernValues.has(c), `surveyResponses ${r.id}.concerns ${c}`);
   }
-  for (const r of surveySummary.recent) {
-    expect(ageValues.has(r.age_group), `surveySummary.recent ${r.at}.age_group`);
-    for (const c of r.concerns) expect(concernValues.has(c), `surveySummary.recent ${r.at}.concerns ${c}`);
+  for (const r of surveySummary.responses) {
+    expect(ageValues.has(r.age_group), `surveySummary.responses ${r.at}.age_group`);
+    for (const c of r.concerns) expect(concernValues.has(c), `surveySummary.responses ${r.at}.concerns ${c}`);
   }
 
   // 제품이 가리키는 프로젝트(제품군)가 있어야 한다

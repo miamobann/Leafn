@@ -144,13 +144,16 @@ export const SurveySummary = z.object({
       notify_open: z.number().int().nonnegative().optional(),
     }),
   ),
-  recent: z.array(
+  /** 전체 응답 (최신순). "전체 응답" 탭이 15건씩 나눠 보여 주고 필터한다 */
+  responses: z.array(
     z.object({
       at: Timestamp,
       age_group: z.string(),
       skin_type: SkinType,
       is_sensitive: z.boolean(),
       concerns: z.array(z.string()),
+      concern_other: z.string().nullable().optional(),
+      concern_other_ko: z.string().nullable().optional(),
       source: SurveySource.nullable(),
       consent_version: z.string(),
     }),

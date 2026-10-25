@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { activeHref, groupOf } from "./nav-config";
 
 /**
@@ -33,13 +35,13 @@ export function SectionTabs() {
           </Link>
         );
       })}
-      {/* 새 창으로 여는 메뉴(공개 설문)는 줄 오른쪽 끝에 둔다 */}
+      {/* 새 창으로 여는 메뉴(공개 설문)는 줄 오른쪽 끝의 검정 버튼으로 둔다 */}
       {links.map((item) => (
         <Link
           key={item.href}
           href={item.href}
           target="_blank"
-          className="ml-auto flex h-10 items-center text-sm whitespace-nowrap text-muted-foreground hover:text-foreground"
+          className={cn(buttonVariants(), "mb-1.5 ml-auto whitespace-nowrap")}
         >
           {item.label}
         </Link>
