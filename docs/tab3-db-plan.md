@@ -1,8 +1,9 @@
 # TAB 3 광고 검토 DB 안
 
-> 상태: 적용됨 (2026-10-25 sub_main 통합, 권한 강화 `20261024172221_harden_ad_review_writes.sql`) · 화면 연결 2026-10-25
+> 상태: **반영 완료** · 안 2026-10-24 · 머지 #66, 권한 보완 `20261024172221_harden_ad_review_writes.sql` · 화면 연결 #78 (2026-10-25) · 정리 2026-10-25 (정리 전 원문: [archive/pre_tab3-db-plan.md](archive/pre_tab3-db-plan.md))
+> 지금 테이블 칸의 기준은 마이그레이션과 [db-frame.md](db-frame.md) "광고 검토" 절이다. 이 문서는 그 결정의 이유를 남긴 기록이다.
 > 근거: `docs/db-frame.md` 2장(ad_checks 세부 칸은 TAB 3 담당자 안을 따른다) · 7장 열린 질문(승인 권한 → TAB 3 담당자) · `docs/DB_RULES.md`
-> 마이그레이션: `supabase/migrations/20261024130000_create_ad_checks.sql` (db-frame 5장 4번 파일)
+> 마이그레이션: `supabase/migrations/20261024130000_create_ad_checks.sql`, `20261024172221_harden_ad_review_writes.sql`
 > Zod: `lib/schemas/ad-check.ts`의 `AdCheckRow`·`AdCheckLineRow`, `lib/schemas/content-guide.ts`의 `ContentGuideRow`
 
 ## 1. 정한 것
@@ -21,7 +22,7 @@
 | 만든 가이드 → 새 검토 | 결과 아래 「이 문구로 새 검토 →」: 제목과 블록별 첫 안을 한 줄씩 새 검토 입력칸에 채운다 (`/ad-check?guide=<id>`, 자동 판정 안 함) | TAB 3 (2026-10-25, 실무자 비판 5번) |
 | 전문가 확인 자료 | 만들지 않는다 (보조 기능이 신뢰를 떨어뜨린다는 피드백) | TAB 3 (2026-10-25) |
 | AI 사용량(토큰) | 저장하지 않는다. 필요해지면 새 마이그레이션으로 추가 | TAB 3 |
-| 승인·수정·삭제 권한 | owner(팀장)만. 저장(insert)은 멤버 누구나 | 총괄 (2026-10-24, harden 마이그레이션) |
+| 승인·수정·삭제 권한 | ~~처음에는 멤버 누구나~~ → **owner(팀장)만** 승인·반려·수정·삭제를 한다 (RLS `owners update` + 서버 확인). 저장(insert)은 멤버 누구나 | 총괄 (2026-10-24, harden 마이그레이션) |
 
 ## 2. 테이블
 
@@ -83,14 +84,14 @@ workspaces ─┬─ ad_checks ──┬── ad_check_lines      (검토를 �
 | 테이블마다 정책 4개 | `ad_checks`·`ad_check_lines`는 delete 정책 없음 | 화면의 삭제가 숨김(update)이라 행 삭제를 막는다. 행 삭제는 DB 관리자만 |
 | (없음) | `ad_check_lines`, `content_guides` 추가 | 위 1장 결정 |
 
-## 4. 총괄(Min)께 확인 부탁
+## 4. 총괄(Min) 확인 결과 (2026-10-25 정리)
 
-1. 위 3장의 차이(특히 delete 정책을 두지 않은 것)가 괜찮은지
-2. 실데이터 전환: 콘텐츠 가이드가 읽는 리뷰 원문·메가와리 일정은 지금 가짜 데이터. TAB 3은 `lib/data` 함수만 바꾸면 되니, TAB 2·진출 실행 화면이 Supabase로 바뀐 뒤에 따라가도 되는지
-3. 열린 질문(CLAUDE.md 11장) 추가: 콘텐츠 가이드가 한국 리뷰를 일본어 후기로 인용한다. (F) "국내 리뷰를 일본 상세페이지에 게시할 권리"와 같은 문제라서 그 줄에 "콘텐츠 가이드도 해당"을 붙이자는 제안
-4. 합의되면 CLAUDE.md 5장·db-frame 2장 표에 세 테이블을 반영
+1. 3장의 차이(delete 정책을 두지 않은 것): 그대로 머지됐다 (#66).
+2. 실데이터 전환: 광고 검토 화면이 DB를 읽고 쓴다 (#66). 콘텐츠 가이드가 읽는 리뷰·행사 일정도 DB 조회로 바뀌었다 (`docs/DATA_CONNECTIONS.md`).
+3. 콘텐츠 가이드의 한국 리뷰 인용 문제: CLAUDE.md 11장 (F) 줄에 함께 적었다.
+4. CLAUDE.md 5장·db-frame 2장 반영: 했다 (2026-10-25 문서 정리).
 
-## 5. 화면 연결 (2026-10-25)
+## 5. 화면 연결 (2026-10-25, 새 검토 자동 저장·조회는 #66, 콘텐츠 가이드 검사 저장·「만든 가이드」는 #78에서 반영)
 
 - 새 검토: 판정하면 `ad_checks` + `ad_check_lines` 자동 저장 (총괄). 검토 이력은 직접 검토만 보여 주고 owner 삭제(숨김) 버튼. 콘텐츠 문구 자동 검사는 「만든 가이드」에서만 본다 (2026-10-25 결정)
 - 콘텐츠 가이드: 만들면 검사(`ad_checks`, source=content_guide, 블록마다 한 줄 + block_key)와 `content_guides`(ad_check_id로 연결) 자동 저장
