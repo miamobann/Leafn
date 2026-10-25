@@ -84,6 +84,7 @@ export function SurveyResultsView({
   const topConcern = concernTotals.toSorted((a, b) => b.count - a.count)[0];
   const cellMax = Math.max(1, ...summary.age_by_concern.flatMap((row) => Object.values(row.counts)));
   const normalCount = summary.by_skin_type.find((s) => s.skin_type === "normal")?.count ?? 0;
+  const normalLines = lines.filter((l) => l.for_types.includes("normal")).map((l) => l.name_ko);
   const recent = summary.recent.toSorted((a, b) => b.at.localeCompare(a.at)).slice(0, RECENT_LIMIT);
   const share = (n: number) => `${Math.round((n / summary.total) * 100)}%`;
 
@@ -314,8 +315,8 @@ export function SurveyResultsView({
               </TableBody>
             </Table>
             <p className="text-xs text-muted-foreground">
-              모이스처 스킨 · 에센스는 같은 사람에게 함께 추천되므로 한 줄로 셉니다. 중성 결과({normalCount}명)에는 모이스처 스킨과 지성 라인(출시
-              알림)을 추천합니다. 실제 수치는 survey_reco_events 기록이 연결되면 보입니다.
+              한 사람에게 여러 라인을 함께 추천하므로 &apos;추천 본 사람&apos;의 합은 응답 수보다 많습니다. 예: 중성 결과({normalCount}명)에는{" "}
+              {normalLines.join(", ")}을 함께 추천합니다.
             </p>
           </CardContent>
         </Card>
