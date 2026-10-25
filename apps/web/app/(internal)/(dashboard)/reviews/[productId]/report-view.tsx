@@ -9,6 +9,7 @@ import { ArrowRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import type { ReviewProductView, ReviewWithAnalysis } from "@/lib/data/reviews";
 import { euroOf, yoOf } from "@/lib/korean";
+import { titleParts } from "@/lib/product-title";
 import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
 import { BackTitle, Chip, EvidencePanel, linkClass, Meter, ReviewCard, SortChips, sortReviews } from "../_components/parts";
 import {
@@ -49,6 +50,7 @@ export function ReportView({
 }) {
   const router = useRouter();
   const isOwn = product.kind === "own";
+  const productTitle = titleParts({ brand: product.brand, name: product.name, title_ai: product.titleAi });
   const stats = topicStats(reviews);
   const analyzedCount = reviews.filter((r) => r.analysis).length;
   const strengths = topThree(stats, "positive");
@@ -151,7 +153,7 @@ export function ReportView({
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <BackTitle href="/reviews" title={isOwn ? product.name : `${product.brand} ${product.name}`}>
+          <BackTitle href="/reviews" title={isOwn ? product.name : productTitle.main}>
             <Chip>{isOwn ? "자사" : "경쟁"}</Chip>
             {isOwn && product.skinLine && <Chip>{SKIN_LINE_LABEL[product.skinLine]}</Chip>}
             {!isOwn && product.rank && (
@@ -160,6 +162,15 @@ export function ReportView({
               </Chip>
             )}
           </BackTitle>
+          {!isOwn && productTitle.caption && <p className="pl-8 text-base">{productTitle.caption}</p>}
+          {!isOwn && productTitle.cleaned && (
+            <details className="pl-8 text-xs text-muted-foreground">
+              <summary className="cursor-pointer underline-offset-4 hover:underline">원문 제품명 보기</summary>
+              <p lang="ja" className="mt-1">
+                {productTitle.full}
+              </p>
+            </details>
+          )}
           <p className="pl-8 text-sm text-muted-foreground">{meta.join(" · ")}</p>
         </div>
         {options.length > 1 && (

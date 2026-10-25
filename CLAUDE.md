@@ -249,7 +249,7 @@
 | --- | --- | --- | --- |
 | 기반 | `profiles`, `workspaces`, `workspace_members` | 사용자, 팀, 팀 멤버 (role `owner` = 팀장 / `member`) | J |
 | 프로젝트·제품 | `projects` | 프로젝트 = 제품군 (예: Leaf& Dew) | J |
-| | `products` | 자사·경쟁 제품 (`kind`). 자사는 `project_id` · `sale_status` · `skin_line`, 규격은 `source_raw.spec` | J, E, C |
+| | `products` | 자사·경쟁 제품 (`kind`). 자사는 `project_id` · `sale_status` · `skin_line`, 규격은 `source_raw.spec`. 경쟁 제품의 정리된 제품명은 `title_ai` | J, E, C |
 | | `product_competitors` | 자사 제품 ↔ 경쟁 제품 연결 | C, E |
 | 리뷰 | `reviews` | 리뷰 원문 (`lang` ja/ko, `body_ko` 번역, `excluded_reason`) | E, D |
 | | `review_analyses` | 리뷰 한 건의 AI 분석 (감성·키워드·페인포인트·재구매 요인·주제) | E |

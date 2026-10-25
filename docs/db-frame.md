@@ -44,7 +44,7 @@
 | 테이블 | 핵심 칸 | 비고 |
 | --- | --- | --- |
 | `projects` | name, platform_id, description, created_by → profiles, updated_at | `unique (workspace_id, name)` |
-| `products` | kind (`own` · `competitor`), brand, name, category, platform_id, external_id, url, price_jpy, price_kind (`regular` · `sale`), volume_ml, ingredients `text[]`, features `text[]`, image_path, source_raw `jsonb`, collected_at, **project_id**, **sale_status** (`on_sale` · `in_development`), **skin_line** (`dry` · `oily` · `combo`) | `unique (workspace_id, platform_id, external_id)`. 자사 제품은 project_id로 프로젝트에 속하고, 프로젝트를 지우면 project_id만 null. 한 프로젝트 안에서 제품 이름은 겹치지 않는다. 자사 규격(일본어명·제형·용기 등)은 `source_raw.spec` |
+| `products` | kind (`own` · `competitor`), brand, name, category, platform_id, external_id, url, price_jpy, price_kind (`regular` · `sale`), volume_ml, ingredients `text[]`, features `text[]`, image_path, source_raw `jsonb`, collected_at, **project_id**, **sale_status** (`on_sale` · `in_development`), **skin_line** (`dry` · `oily` · `combo`), **title_ai** `jsonb` | `unique (workspace_id, platform_id, external_id)`. 자사 제품은 project_id로 프로젝트에 속하고, 프로젝트를 지우면 project_id만 null. 한 프로젝트 안에서 제품 이름은 겹치지 않는다. 자사 규격(일본어명·제형·용기 등)은 `source_raw.spec`. `title_ai`는 경쟁 제품의 긴 제목을 AI가 정리한 결과 `{brand_ko, name_short_ja, name_ko, volume, key_ingredient_ja, key_ingredient_ko, model, prompt_version}`이고 null이면 정리 전(화면은 원문 `name`을 보여 준다). 수집 저장(`save_collection_run`)은 이 칸을 덮어쓰지 않는다 |
 | `product_competitors` | own_product_id → products, competitor_product_id → products | `unique (own_product_id, competitor_product_id)`. 수집 저장(`save_collection_run`)이 만든다 |
 
 - `skin_line`은 제품이 겨냥하는 피부 라인이다. 설문의 `skin_type`(진단 결과, 5종)과는 다른 값이다.
@@ -187,6 +187,7 @@ create policy "members delete" on products for delete using (is_member(workspace
 | `20261024130000_create_ad_checks.sql` | ad_checks, ad_check_lines, content_guides |
 | `20261024172221_harden_ad_review_writes.sql` | 광고 검토 쓰기 권한을 owner로, 작성자 기본값 |
 | `20261026140000_create_review_translations.sql` | review_translations (상세페이지용 리뷰 번역) |
+| `20261026150000_products_add_title_ai.sql` | products.title_ai (AI가 정리한 제품명) |
 
 새 파일은 `npx supabase migration new <이름>`으로 만들고, 원격 적용은 DB 관리자(Min)가 한다 (DB_RULES 6장).
 
