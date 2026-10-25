@@ -1,10 +1,12 @@
+import { OWN_PRODUCT_LINE, ownProductName } from "@/lib/own-products";
 import { AiAnalysis } from "@/lib/schemas/ai-analysis";
 import { MemberTab, SubmissionReview, SubmissionVersion, TabSubmission } from "@/lib/schemas/submission";
 import { parseAll, ts, WORKSPACE_ID } from "./helpers";
 import { OWN_PROJECT_ID } from "./projects";
 
 // 탭별 시안 · 버전 · 결재 · AI 분석 샘플 (docs/team-approval-ai-analysis.md).
-// 팀원 u-2(시장)·u-3(리뷰)·u-4(광고)가 담당 탭에서 올리고 팀장 u-1이 결재한 모습. 판매 중 제품(p-own-1 Deep Skin, p-own-2 Core Essence)만 쓴다.
+// 팀원 u-2(시장)·u-3(리뷰)·u-4(광고)가 담당 탭에서 올리고 팀장 u-1이 결재한 모습. 판매 중 제품(p-own-1 = deep-skin, p-own-2 = core-essence)만 쓴다.
+// 제목은 실제 저장 코드(lib/data/submission-actions.ts · ai-analysis-actions.ts)와 같은 형식이고, 제품명은 lib/own-products.ts 상수만 쓴다.
 // 광고 검토 근거(ac-3 반려, ac-5 승인)는 lib/mock/ad-checks.ts의 review_status와 결정을 맞췄다.
 
 const base = (id: string, date: string, time?: string) => ({ id, workspace_id: WORKSPACE_ID, created_at: ts(date, time) });
@@ -28,7 +30,7 @@ export const tabSubmissions = parseAll(
       project_id: OWN_PROJECT_ID,
       product_id: "p-own-1",
       tab: "review",
-      title: "Deep Skin 국내 리뷰 분석",
+      title: `${ownProductName("deep-skin")} 리뷰 분석`,
       owner_id: "u-3",
       approved_version_id: "ver-1-1",
       status: "in_review",
@@ -39,7 +41,7 @@ export const tabSubmissions = parseAll(
       project_id: OWN_PROJECT_ID,
       product_id: "p-own-1",
       tab: "ad",
-      title: "Deep Skin 상세페이지 문구",
+      title: `${ownProductName("deep-skin")} 광고 문구`,
       owner_id: "u-4",
       approved_version_id: null,
       status: "rejected",
@@ -50,7 +52,7 @@ export const tabSubmissions = parseAll(
       project_id: OWN_PROJECT_ID,
       product_id: null,
       tab: "market",
-      title: "Leaf& Dew 라인 Qoo10 시장 정리",
+      title: `${OWN_PRODUCT_LINE} Qoo10 시장 정리`,
       owner_id: "u-2",
       approved_version_id: null,
       status: "draft",
@@ -61,7 +63,7 @@ export const tabSubmissions = parseAll(
       project_id: OWN_PROJECT_ID,
       product_id: "p-own-2",
       tab: "ad",
-      title: "Core Essence 상세페이지 문구",
+      title: `${ownProductName("core-essence")} 광고 문구`,
       owner_id: "u-4",
       approved_version_id: "ver-4-1",
       status: "approved",
@@ -258,7 +260,7 @@ export const aiAnalyses = parseAll(
       updated_at: ts("2026-10-09"),
       project_id: OWN_PROJECT_ID,
       product_id: "p-own-1",
-      title: "Deep Skin 진출 판단 (리뷰 승인본 v1)",
+      title: `${ownProductName("deep-skin")} 통합 분석`,
       input_version_ids: ["ver-1-1"],
       result: {
         summary: "순한 사용감을 앞세우되, 민감 피부 자극 후기에 대비한 안내가 먼저 필요하다.",
