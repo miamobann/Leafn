@@ -89,9 +89,6 @@ export const ENTRY_KIND_LABEL: Record<EntryKind, string> = {
 export type EntryConditions = {
   ppm: { q1: number; median: number; q3: number; priceMin: number; priceMedian: number; priceMax: number; rows: OverviewRow[] } | null;
   promo: { type: PromoHookType; count: number; rows: OverviewRow[] } | null;
-  /** 리뷰 수가 있는 제품만. 하나도 없으면 null */
-  reviews: { min: number; median: number; rows: OverviewRow[] } | null;
-  awards: { count: number; rows: OverviewRow[] };
   /** 전주 Top 10에 없던 제품. 전주 데이터가 없으면 null */
   entries: { count: number; byKind: Record<EntryKind, number>; rows: (OverviewRow & { entryKind: EntryKind })[] } | null;
 };
@@ -109,8 +106,6 @@ export function entryConditions(series: TrendSnapshot[], allSameSource: TrendSna
   for (const r of top) if (r.promo_type) promoCounts.set(r.promo_type, [...(promoCounts.get(r.promo_type) ?? []), r]);
   const topPromo = [...promoCounts.entries()].toSorted((a, b) => b[1].length - a[1].length)[0];
 
-  const withReviews = top.filter((r): r is OverviewRow & { review_count: number } => r.review_count !== null);
-  const reviews = withReviews.map((r) => r.review_count).toSorted((a, b) => a - b);
 
   const prev = series[i - 1];
   let entries: EntryConditions["entries"] = null;
@@ -138,8 +133,6 @@ export function entryConditions(series: TrendSnapshot[], allSameSource: TrendSna
         ? null
         : { q1: round1(quantile(ppms, 0.25)), median: round1(quantile(ppms, 0.5)), q3: round1(quantile(ppms, 0.75)), priceMin: prices[0], priceMedian: Math.round(quantile(prices, 0.5)), priceMax: prices.at(-1) as number, rows: withPpm.toSorted((a, b) => (a.ppm as number) - (b.ppm as number)) },
     promo: topPromo ? { type: topPromo[0], count: topPromo[1].length, rows: topPromo[1] } : null,
-    reviews: reviews.length === 0 ? null : { min: reviews[0], median: Math.round(quantile(reviews, 0.5)), rows: withReviews.toSorted((a, b) => a.review_count - b.review_count) },
-    awards: { count: top.filter((r) => (r.badges ?? []).length > 0).length, rows: top.filter((r) => (r.badges ?? []).length > 0) },
     entries,
   };
 }

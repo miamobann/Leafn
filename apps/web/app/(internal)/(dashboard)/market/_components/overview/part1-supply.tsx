@@ -33,8 +33,6 @@ import { MAX_COMPARE, ProductLabel, RankChange, type PanelContent } from "./side
 const DEFINITIONS = {
   ppm: "ml당 실질 단가 = 판매가(税込, 평시가) ÷ 총 용량. 총 용량에는 같은 제품의 리필·미니어처만 더하고 다른 제품 증정품은 더하지 않아요",
   promo: "Top 10 상품 페이지의 프로모션 문구를 형태별로 묶어 가장 많은 형태",
-  reviews: "Top 10의 리뷰 수 최솟값과 중앙값",
-  awards: "Top 10 중 수상·랭킹 배지를 표시한 제품 수",
   entries: "전주 Top 10에 없던 제품 수. 20위 안에서 올라온 제품, 이미 랭킹에 있던 브랜드의 신상품, 처음 보는 브랜드로 나눠요",
   tags: "Top 10 상품명·설명에서 소구 태그 사전에 있는 표기만 세요",
   ingredients: "이번 주 20위 안 상품명·설명에 성분 사전의 표기가 나온 제품 수",
@@ -108,7 +106,7 @@ export function SupplyPart({
   const own = ownIngredients(products);
   const activeIngredient = ingredient && mentions.some((m) => m.ingredient === ingredient) ? ingredient : (mentions[0]?.ingredient ?? null);
   const list = (title: string, description: string, items: { row: OverviewRow; note?: string }[]) => onOpen({ kind: "list", title, description, rows: items });
-  const { ppm, promo, reviews, awards, entries } = conditions;
+  const { ppm, promo, entries } = conditions;
 
   const rankRow = (r: OverviewRow) => {
     const checked = r.product_id ? selected.includes(r.product_id) : false;
@@ -156,7 +154,7 @@ export function SupplyPart({
       {/* 1-A 상위권 진입 조건 */}
       <div>
         <h3 className="mb-2 text-sm font-semibold">1-A 상위권 진입 조건 · Top {TOP_N}</h3>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-3">
           <ConditionCard
             title="ml당 실질 단가 구간"
             definition={DEFINITIONS.ppm}
@@ -170,20 +168,6 @@ export function SupplyPart({
             value={promo ? `${promo.count}/${TOP_N}` : "—"}
             sub={promo ? PROMO_HOOK_LABEL[promo.type] : "프로모션 표시 없음"}
             onClick={promo ? () => list(`프로모션 · ${PROMO_HOOK_LABEL[promo.type]}`, DEFINITIONS.promo, promo.rows.map((row) => ({ row, note: row.promo_text ?? undefined }))) : undefined}
-          />
-          <ConditionCard
-            title="리뷰 허들"
-            definition={DEFINITIONS.reviews}
-            value={reviews ? `${reviews.min.toLocaleString("ko-KR")}건` : "—"}
-            sub={reviews ? `최소 · 중앙값 ${reviews.median.toLocaleString("ko-KR")}건` : "수집 데이터에 리뷰 수가 없어요"}
-            onClick={reviews ? () => list("리뷰 수 · 적은 순", DEFINITIONS.reviews, reviews.rows.map((row) => ({ row, note: `리뷰 ${(row.review_count ?? 0).toLocaleString("ko-KR")}건` }))) : undefined}
-          />
-          <ConditionCard
-            title="수상·매체 이력"
-            definition={DEFINITIONS.awards}
-            value={`${awards.count}/${TOP_N}`}
-            sub="배지를 단 제품"
-            onClick={awards.count > 0 ? () => list("수상·랭킹 배지", DEFINITIONS.awards, awards.rows.map((row) => ({ row, note: row.badges?.join(" · ") }))) : undefined}
           />
           <ConditionCard
             title="신규 진입"
