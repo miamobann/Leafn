@@ -1,6 +1,5 @@
 "use client";
 
-import { Maximize2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
@@ -12,10 +11,11 @@ import { boardDeadlines, type HomeProject, useBoardPicks } from "./project-board
 
 const TEXT = {
   title: "프로모션 캘린더",
-  fullView: "전체보기",
+  // 추가 · 수정 · 삭제를 하는 곳이 보이게 이름을 붙인다 (calendar-edit 제안, 2026-10-26)
+  fullView: "일정 관리 →",
 };
 
-// 플랫폼 고르기·행사 추가·목록 보기는 전체보기(/calendar)에서 한다
+// 플랫폼 고르기·행사 추가·수정·삭제·목록 보기는 전체보기(/calendar)에서 한다. 홈에서는 준비 마감 체크만
 const FULL_VIEW_HREF = "/calendar";
 
 // 할 일 패널의 왼쪽 선을 위 탭 요약 카드 열의 왼쪽 끝에 맞춘다 (page.tsx: 65:35 두 열, 열 간격 1rem · 카드 안쪽 여백 1rem).
@@ -52,7 +52,6 @@ export function HomeCalendar({
         <CardAction>
           <Link href={FULL_VIEW_HREF} className={buttonVariants({ variant: "outline", size: "sm" })}>
             {TEXT.fullView}
-            <Maximize2 aria-hidden className="size-3.5" />
           </Link>
         </CardAction>
       </CardHeader>
