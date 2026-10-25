@@ -4,7 +4,6 @@ import type { TrendSource } from "@/lib/schemas/trend";
 
 export const MARKET_CATEGORIES = ["化粧水", "美容液", "クリーム"] as const;
 export type MarketCategory = (typeof MARKET_CATEGORIES)[number];
-export const CATEGORY_KO: Record<string, string> = { "化粧水": "화장수", "美容液": "미용액", "クリーム": "크림", "日焼け止め": "선크림", "クレンジング": "클렌징" };
 
 /** 실데이터(수집 CSV·DB)로 만든 랭킹 스냅샷의 id 접두사. 화면에서 "샘플" 대신 "실데이터"로 표시한다 */
 export const IMPORTED_SNAPSHOT_PREFIX = "import:";

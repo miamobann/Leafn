@@ -9,20 +9,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { GEO_ENGINE_LABEL, type GeoSnap } from "@/lib/schemas/geo";
+import type { GeoSnap } from "@/lib/schemas/geo";
 import { SNS_PLATFORM_LABEL, SnsAnalyzeResult, type SnsPattern, type SnsPatternKind, type SnsVideoNote } from "@/lib/schemas/market";
 import { parseTikTokLink } from "@/lib/external/tiktok";
 import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
-import { OWN_BRAND } from "@/app/(internal)/(dashboard)/market/_lib/market";
 import {
   AUTOCOMPLETE_STATUS_LABEL,
   autocompleteChanges,
   commonPatterns,
-  geoMatrix,
-  geoQueryKo,
   SNS_PATTERN_KIND_LABEL,
   type AutocompleteRow,
   type AutocompleteStatus,
@@ -371,102 +367,7 @@ function SnsBlock({
   );
 }
 
-// ── 2-C ─────────────────────────────────────────
-
-function GeoBlock({ geo, category, onOpen }: { geo: GeoSnap[]; category: string; onOpen: (c: PanelContent) => void }) {
-  const m = geoMatrix(geo, category, OWN_BRAND);
-  const sample = geo.find((g) => g.category === category);
-
-  if (m.queries.length === 0)
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>2-C AI 검색 노출</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <EmptyState message="이 카테고리는 AI 검색 답변을 아직 모으지 않았어요" />
-        </CardContent>
-      </Card>
-    );
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>2-C AI 검색 노출</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-56">
-                질의 <LangBadge lang="ja" />
-              </TableHead>
-              {m.engines.map((e) => (
-                <TableHead key={e} className="min-w-48">
-                  {GEO_ENGINE_LABEL[e]}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {m.queries.map((q) => {
-              const first = geo.find((g) => g.query === q && g.category === category);
-              const ko = first ? geoQueryKo(first) : null;
-              return (
-                <TableRow key={q}>
-                  <TableCell className="whitespace-normal align-top">
-                    <span lang="ja">{q}</span>
-                    {ko && <span className="block text-xs text-muted-foreground">{ko}</span>}
-                  </TableCell>
-                  {m.engines.map((e) => {
-                    const c = m.cell(q, e);
-                    if (!c) return <TableCell key={e} className="align-top text-xs text-muted-foreground">측정 안 함</TableCell>;
-                    return (
-                      <TableCell key={e} className="whitespace-normal p-1 align-top">
-                        <button
-                          type="button"
-                          className="w-full rounded-md p-1.5 text-left text-xs hover:bg-muted"
-                          onClick={() =>
-                            onOpen({
-                              kind: "answers",
-                              title: `${GEO_ENGINE_LABEL[e]} 답변 원문`,
-                              description: `${q}${ko ? ` (${ko})` : ""}`,
-                              answers: c.runs.map((r) => ({
-                                heading: `${r.run_index}회차 · ${r.model}`,
-                                text: r.answer,
-                                marks: [...r.brand_mentions.map((b) => b.matched_text), ...r.keywords.map((k) => k.matched_text)],
-                                citations: r.citations,
-                              })),
-                              footnote: TEXT.geoNote,
-                            })
-                          }
-                        >
-                          <span className="block font-medium">{c.ownMentioned ? `✓ 자사 언급 · 점유 ${c.ownShare}%` : "✕ 자사 언급 없음"}</span>
-                          <span className="block text-muted-foreground">경쟁 {c.competitors.slice(0, 3).join(", ") || "없음"}</span>
-                          <span className="block text-muted-foreground" lang="ja">
-                            결정 키워드 {c.keywords.slice(0, 3).map((k) => k.keyword).join("・") || "없음"}
-                          </span>
-                          <span className="block text-muted-foreground">인용 {c.domains.length > 0 ? c.domains.join(", ") : "출처 없음"}</span>
-                          {c.runs.length > 1 && <span className="block text-muted-foreground">{c.runs.length}회 측정 합계</span>}
-                        </button>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-        <p className="text-xs text-muted-foreground">
-          점유 = 그 칸 답변의 브랜드 언급 중 자사 비율 · 인용 출처는 엔진이 줄 때만 · {TEXT.geoNote}
-        </p>
-        {sample && <AiResultMeta model={[...new Set(geo.filter((g) => g.category === category).map((g) => g.model))].join(", ")} promptVersion={sample.prompt_version ?? "사전 대조"} createdAt={m.measuredAt ?? sample.captured_at} />}
-      </CardContent>
-    </Card>
-  );
-}
-
-/** PART 2. 소비자 트렌드: 검색 자동완성 변화 · SNS 공통 패턴 · AI 검색 노출 */
+/** PART 2. 소비자 트렌드: 검색 자동완성 변화 · SNS 공통 패턴 · 성분 검색 관심도 · AI 검색 핵심 포인트 */
 export function DemandPart({
   search,
   snsNotes,
@@ -502,7 +403,6 @@ export function DemandPart({
           <SearchTrendCard initial={search} category={category} />
         </CardContent>
       </Card>
-      <GeoBlock geo={geo} category={category} onOpen={onOpen} />
       {/* 예전 시장 트렌드 화면에서 옮김: 여러 답변을 모은 핵심 포인트와 AI 질의(측정) 버튼 */}
       <div>
         <h3 className="mb-2 text-sm font-semibold">AI 검색 핵심 포인트 · 측정</h3>

@@ -1,10 +1,8 @@
-// 시장 분석 원페이지 · PART 2 소비자 트렌드의 계산 (AI 없음). 모든 값은 근거 원문(자동완성 문구·영상 메모·AI 답변)과 함께 돌려준다.
-import type { GeoEngine, GeoSnap } from "@/lib/schemas/geo";
+// 시장 분석 원페이지 · PART 2 소비자 트렌드의 계산 (AI 없음). 모든 값은 근거 원문(자동완성 문구·영상 메모)과 함께 돌려준다.
 import type { SnsPattern, SnsPatternKind, SnsVideoNote } from "@/lib/schemas/market";
 import type { SearchSnap } from "@/lib/schemas/search";
 import { AUTOCOMPLETE_SEEDS, classifySuggestion } from "@/lib/external/search-terms";
-import { buildGeoQueries, KEYWORD_DICTIONARY } from "@/lib/external/geo-terms";
-import { CATEGORY_KO } from "@/lib/market-config";
+import { KEYWORD_DICTIONARY } from "@/lib/external/geo-terms";
 import { INGREDIENT_MATCH, SKIN_CONCERN_LABEL } from "./market";
 
 // ── 2-A 검색 자동완성 변화 ────────────────────────
@@ -102,76 +100,4 @@ export function commonPatterns(patterns: SnsPattern[], videos: Pick<SnsVideoNote
     .map((p) => ({ ...p, hits: p.video_ids.filter((id) => ids.has(id)) }))
     .filter((p) => p.hits.length >= half && p.hits.length > 0)
     .toSorted((a, b) => b.hits.length - a.hits.length);
-}
-
-// ── 2-C AI 검색 노출 (GEO) ─────────────────────────
-
-export type GeoCell = {
-  runs: GeoSnap[];
-  /** 자사가 한 번이라도 언급됐는지 */
-  ownMentioned: boolean;
-  /** 자사 언급 수 ÷ 전체 브랜드 언급 수 (%). 언급이 없으면 null */
-  ownShare: number | null;
-  /** 경쟁 브랜드 (언급 많은 순) */
-  competitors: string[];
-  /** 결정 키워드 (나온 답변 수 많은 순) */
-  keywords: { keyword: string; ko: string | null; count: number }[];
-  /** 엔진이 준 인용 출처 도메인 (없으면 빈 목록) */
-  domains: string[];
-};
-
-export function geoMatrix(snaps: GeoSnap[], category: string, ownBrand: string) {
-  const list = snaps.filter((s) => s.category === category);
-  const queries = [...new Set(list.map((s) => s.query))];
-  const engines = [...new Set(list.map((s) => s.engine))] as GeoEngine[];
-  const cell = (query: string, engine: GeoEngine): GeoCell | null => {
-    const runs = list.filter((s) => s.query === query && s.engine === engine).toSorted((a, b) => a.run_index - b.run_index);
-    if (runs.length === 0) return null;
-    const mentions = runs.flatMap((r) => r.brand_mentions.map((m) => m.brand));
-    const own = mentions.filter((b) => b === ownBrand).length;
-    const competitorCounts = new Map<string, number>();
-    for (const b of mentions) if (b !== ownBrand) competitorCounts.set(b, (competitorCounts.get(b) ?? 0) + 1);
-    const keywordCounts = new Map<string, number>();
-    for (const r of runs) for (const k of new Set(r.keywords.map((x) => x.keyword))) keywordCounts.set(k, (keywordCounts.get(k) ?? 0) + 1);
-    return {
-      runs,
-      ownMentioned: own > 0,
-      ownShare: mentions.length === 0 ? null : Math.round((own / mentions.length) * 100),
-      competitors: [...competitorCounts].toSorted((a, b) => b[1] - a[1]).map(([b]) => b),
-      keywords: [...keywordCounts].toSorted((a, b) => b[1] - a[1]).map(([keyword, count]) => ({ keyword, ko: KEYWORD_DICTIONARY[keyword]?.ko ?? null, count })),
-      domains: [...new Set(runs.flatMap((r) => r.citations.map((c) => c.domain)))],
-    };
-  };
-  return { queries, engines, cell, measuredAt: list.map((s) => s.captured_at).toSorted().at(-1) ?? null };
-}
-
-/** 질의 한국어 해석: 저장된 값 → 질의 틀로 만든 질의면 틀에서 만든 해석 → 없음 */
-export function geoQueryKo(s: Pick<GeoSnap, "query" | "query_ko" | "category">): string | null {
-  if (s.query_ko) return s.query_ko;
-  const tpl = buildGeoQueries(s.category).find((q) => q.query === s.query);
-  return tpl ? `${SKIN_CONCERN_LABEL[tpl.concern]} 고민에 추천하는 한국 ${CATEGORY_KO[s.category] ?? s.category}은?` : null;
-}
-
-/** 원문에서 표시할 표기 위치를 찾아 조각으로 나눈다 (겹치면 앞의 것을 쓴다) */
-export function highlightParts(text: string, marks: string[]): { text: string; mark: boolean }[] {
-  const ranges: [number, number][] = [];
-  for (const m of [...new Set(marks)].filter(Boolean).toSorted((a, b) => b.length - a.length)) {
-    let from = 0;
-    for (;;) {
-      const i = text.indexOf(m, from);
-      if (i < 0) break;
-      if (!ranges.some(([s, e]) => i < e && i + m.length > s)) ranges.push([i, i + m.length]);
-      from = i + m.length;
-    }
-  }
-  ranges.sort((a, b) => a[0] - b[0]);
-  const parts: { text: string; mark: boolean }[] = [];
-  let at = 0;
-  for (const [s, e] of ranges) {
-    if (s > at) parts.push({ text: text.slice(at, s), mark: false });
-    parts.push({ text: text.slice(s, e), mark: true });
-    at = e;
-  }
-  if (at < text.length) parts.push({ text: text.slice(at), mark: false });
-  return parts;
 }
