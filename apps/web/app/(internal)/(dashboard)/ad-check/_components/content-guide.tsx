@@ -54,7 +54,8 @@ const SAMPLE_DELAY_MS = 700;
 /** 제품별로 반영한 재료 (리뷰 소구점 · 검색어 순위). 가짜 데이터 */
 export type GuideMaterials = Record<
   string,
-  { hasReviews: boolean; appeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; megaSale: string | null }
+  /** ingredients = 관심 성분 (시장 분석 성분 검색 관심도 중 이 제품 전성분에 있는 것) */
+  { hasReviews: boolean; appeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; ingredients: string[]; megaSale: string | null }
 >;
 
 type ContentGuideProps = {
@@ -623,7 +624,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], megaSale: null };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], ingredients: [], megaSale: null };
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
   const list = (aiEnabled || saved ? aiDrafts : drafts)
@@ -669,7 +670,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
         line_products: products.filter((p) => p.id !== product.id && p.launch_status === "live").map((p) => p.name_ja),
       },
       appeals: { praised: material.appeals, competitor_complaints: material.complaints, candidates: material.candidates },
-      keywords: { search: material.keywords, ingredients: [] },
+      keywords: { search: material.keywords, ingredients: material.ingredients },
       review_quotes: material.hasReviews ? material.reviewQuotes : [],
       evidence: [],
       promo: postType === "mega_sale" && hasPostType ? material.megaSale : null,
@@ -813,7 +814,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
           {/* 참고 자료: 다른 탭이 만들어 둔 결과를 읽기만 한다 (AI 호출 없음). 화면이 길어지지 않게 접어 둔다 */}
           <details className="rounded-md border p-3 text-sm">
             <summary className="cursor-pointer font-medium">
-              참고 자료 <span className="font-normal text-muted-foreground">· 리뷰 분석 {material.hasReviews ? material.appeals.length : 0}개 · 시장 분석 {material.keywords.length}개</span>
+              참고 자료 <span className="font-normal text-muted-foreground">· 리뷰 분석 {material.hasReviews ? material.appeals.length : 0}개 · 시장 분석 {material.keywords.length + material.ingredients.length}개</span>
             </summary>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <section className="space-y-1 rounded-md bg-muted p-3">
@@ -845,6 +846,18 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                     </li>
                   ))}
                 </ol>
+                <p className="pt-2 font-medium">관심 성분 <span className="text-xs font-normal text-muted-foreground">(우리 전성분에 있는 것만)</span></p>
+                {material.ingredients.length ? (
+                  <ul className="flex flex-wrap gap-1" lang="ja">
+                    {material.ingredients.map((i) => (
+                      <li key={i} className="rounded-full bg-background px-2 py-0.5 text-xs">
+                        {i}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">겹치는 성분 없음 (성분 검색 관심도에 없는 카테고리이거나 전성분에 해당 성분이 없어요)</p>
+                )}
               </section>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">각 탭이 만들어 둔 결과를 읽어 와요 (지금은 샘플 데이터).</p>

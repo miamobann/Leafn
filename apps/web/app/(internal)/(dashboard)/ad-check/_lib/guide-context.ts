@@ -1,12 +1,14 @@
 // 콘텐츠 제작 가이드 화면 재료 (서버 전용): 제품 · 리뷰 소구점 · 검색어 · 메가와리 · PDF 작성자.
 // 제작 화면(guide/page.tsx)과 저장된 결과물 화면(guide/history/[guideId])이 같이 쓴다.
 import { pickMegaSale, pickReviewQuotes } from "@/lib/ai/content-guide/materials";
+import { pickTrendIngredients } from "@/lib/ai/content-guide/market";
 import { getAppealComparison, getPromoEvents, getSearchSnapshots, getWorkspace } from "@/lib/data";
 import { getAdProducts } from "@/lib/data/ad-products";
 import { getToday } from "@/lib/data/launch";
 import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/data/workspace";
 import { APPEAL_TOPICS } from "@/lib/schemas/review";
 import type { GuideMaterials } from "../_components/content-guide";
+import { productKind } from "./guide-report";
 
 const MAX_KEYWORDS = 5;
 
@@ -47,7 +49,9 @@ export async function loadGuideContext() {
         .toSorted((a, b) => b.complaintShare - a.complaintShare)
         .map((t) => APPEAL_TOPICS[t.topic].negative.ko);
       const candidates = topics.filter((t) => t.isCandidate).map((t) => APPEAL_TOPICS[t.topic].positive.ko);
-      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), keywords, megaSale }];
+      // 관심 성분: 시장 분석의 성분 검색 관심도 중 이 제품 전성분에 있는 것만 (약기법: 없는 성분은 쓰지 않는다)
+      const ingredients = pickTrendIngredients(snapshots, productKind(p).ja, p.ingredients.map((i) => i.ja));
+      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), keywords, ingredients, megaSale }];
     }),
   );
   return { products, materials, author, aiEnabled };
