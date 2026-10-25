@@ -102,7 +102,7 @@ export function keyPoints(input: { series: TrendSnapshot[]; products: Product[];
 
   // 4) 소비자는 무엇을 찾나: 상위권 상품명에 많이 나온 성분 + 검색 자동완성에 새로 뜬 말
   const mentions = ingredientMentions(rows).slice(0, 3);
-  const rising = autocompleteChanges(search, category).rows.find((r) => r.status === "new") ?? autocompleteChanges(search, category).rows.find((r) => r.status === "up");
+  const rising = autocompleteChanges(search, category).rows.find((r) => r.status === "new");
   if (mentions.length > 0 || rising) {
     points.push({
       id: "trend",

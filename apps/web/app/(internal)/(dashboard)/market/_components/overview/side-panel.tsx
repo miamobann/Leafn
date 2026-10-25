@@ -66,7 +66,7 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
       <section>
         <h3 className="mb-1 text-sm font-semibold">랭킹 정보</h3>
         <Fact label="순위">
-          {row.rank}위 {row.prevRank !== null ? <span className="text-muted-foreground">(전주 {row.prevRank}위)</span> : <span className="text-muted-foreground">(전주 20위 밖)</span>}
+          {row.rank}위 {!row.hasPrev ? null : row.prevRank !== null ? <span className="text-muted-foreground">(전주 {row.prevRank}위)</span> : <span className="text-muted-foreground">(전주 20위 밖)</span>}
         </Fact>
         <Fact label="K-뷰티">{row.is_kbeauty ? "예" : "아니오"}</Fact>
         <Fact label="판매가 (税込, 정가)">{formatJpy(row.price_jpy)}</Fact>
@@ -79,7 +79,7 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
           {row.volume_ml ? `${row.volume_ml}ml` : "—"}
           {row.extra_volume_ml ? <span className="block text-xs text-muted-foreground">+ 같은 제품 {row.extra_volume_ml}ml</span> : null}
         </Fact>
-        <Fact label="ml당 실질 단가">{row.ppm !== null ? `${row.ppm}円` : "—"}</Fact>
+        <Fact label="ml당 가격 (정가)">{row.ppm !== null ? `${row.ppm}円` : "—"}</Fact>
         <Fact label="평점 · 리뷰">
           {row.rating != null ? `${row.rating.toFixed(1)} / ${row.rating_scale ?? 5}` : "—"} · {row.review_count !== null ? `${row.review_count.toLocaleString("ko-KR")}건` : "리뷰 수 없음"}
         </Fact>
@@ -128,7 +128,7 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
         ) : (
           <>
             <p className="mb-1 text-xs text-muted-foreground">기준: {own.name}</p>
-            <Fact label="ml당 실질 단가 차이">
+            <Fact label="ml당 가격 차이 (정가)">
               {diff.ppmDiff === null ? "—" : `${diff.ppmDiff > 0 ? "+" : ""}${diff.ppmDiff}円 (자사 ${diff.ownPpm}円)`}
             </Fact>
             <Fact label="자사에 없는 핵심 성분">{diff.missingInOwn.length > 0 ? diff.missingInOwn.map((x) => INGREDIENT_MATCH[x]?.ko ?? x).join(", ") : "없음"}</Fact>

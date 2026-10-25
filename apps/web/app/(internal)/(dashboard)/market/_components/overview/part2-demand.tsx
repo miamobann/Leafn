@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { AiResultMeta } from "@/components/common/ai";
 import { LangBadge } from "@/components/common/badges";
 import { EvidenceSheet } from "@/components/common/evidence-sheet";
 import { EmptyState } from "@/components/common/states";
@@ -10,10 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { GeoSnap } from "@/lib/schemas/geo";
+import { formatDate } from "@/lib/format";
 import { SNS_PLATFORM_LABEL, SnsAnalyzeResult, type SnsPattern, type SnsPatternKind, type SnsVideoNote } from "@/lib/schemas/market";
 import { parseTikTokLink } from "@/lib/external/tiktok";
-import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
 import {
   AUTOCOMPLETE_STATUS_LABEL,
@@ -25,19 +23,17 @@ import {
   type AutocompleteTab,
 } from "@/app/(internal)/(dashboard)/market/_lib/demand";
 import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/toggle-group";
-import { GeoInsights } from "@/app/(internal)/(dashboard)/market/_components/geo-insights";
 import { SearchTrendCard } from "@/app/(internal)/(dashboard)/market/_components/search-trend";
 import type { PanelContent } from "./side-panel";
 
 // 화면 문구
 const TEXT = {
-  autocompleteNote: "자동완성은 검색량이 아니에요. 이번 주에 보였는지, 몇 번째였는지만 지난주와 비교해요 · おすすめ·ドラッグストア 같은 일반어는 뺐어요",
+  autocompleteNote: "구글 검색창 추천어에 지난주와 비교해 새로 나타난 말과 사라진 말만 보여줘요 (검색량이 아니에요) · おすすめ·ドラッグストア 같은 일반어는 뺐어요",
   snsBasis: "선택한 영상 기준 · 마케터가 고른 영상이라 시장 전체를 대표하지 않아요 · 고정된 샘플 결과 · 저장되지 않음",
   snsRealBasis: "등록한 실제 영상의 메모를 AI가 묶은 결과 · 근거는 메모에 그대로 있는 문구만 · 선택한 영상 기준이라 시장 전체를 대표하지 않아요 · 저장되지 않음",
   memoWhy: "TikTok 공식 공개 기능은 영상 내용(캡션·발화·댓글)을 주지 않아서, 영상을 보고 핵심 발화·자막·댓글을 메모해 주세요. AI는 메모에 적힌 내용만으로 공통 패턴을 찾아요.",
   stealth: "광고 표시가 없어도 광고가 아닌 영상이라는 보장은 없어요 (2023년 10월 시행 ステマ規制). 영상 설명·고정 댓글의 #PR·提供 표기도 확인해 주세요.",
   notReviewed: "소비자 표현은 약기법 검토 전이에요. 효능을 단정하는 말은 광고에 그대로 쓸 수 없을 수 있어요.",
-  geoNote: "브랜드·키워드는 사전 대조와 원문 포함 검사로만 뽑아요. 부정문이나 다른 브랜드 이야기까지 걸러내지는 못하니 칸을 눌러 원문을 확인해 주세요.",
 };
 
 const TABS = ["피부 고민", "성분", "사전에 없는 말"] as const;
@@ -66,7 +62,8 @@ function posText(r: AutocompleteRow): string {
 function AutocompleteBlock({ search, category, onOpen }: { search: SearchSnap[]; category: string; onOpen: (c: PanelContent) => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("피부 고민");
   const data = autocompleteChanges(search, category);
-  const rows = data.rows.filter((r) => r.tab === TAB_KEY[tab]);
+  // 추천어 목록 안의 자리 변화(상승·하락·유지)는 마케터에게 의미가 적어 새로 나온 말과 사라진 말만 보여준다 (2026-10-25 실무자 리뷰)
+  const rows = data.rows.filter((r) => r.tab === TAB_KEY[tab] && (r.status === "new" || r.status === "gone"));
 
   const open = (r: AutocompleteRow) =>
     onOpen({
@@ -89,7 +86,7 @@ function AutocompleteBlock({ search, category, onOpen }: { search: SearchSnap[];
           <>
             <ToggleGroup label="보기" options={TABS} value={tab} onChange={setTab} />
             {rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">이번 주와 지난주 자동완성에 해당하는 말이 없어요</p>
+              <p className="text-sm text-muted-foreground">지난주와 비교해 새로 나타나거나 사라진 말이 없어요</p>
             ) : (
               <ul className="divide-y rounded-md border">
                 {rows.map((r) => (
@@ -258,7 +255,6 @@ function SnsBlock({
         }),
     }));
   }
-  const sampleMeta = patterns.find((p) => p.category === category);
 
   return (
     <Card>
@@ -296,12 +292,11 @@ function SnsBlock({
                   {TEXT.snsRealBasis}
                   {run.result.dropped > 0 ? ` · 메모에 없어 버린 근거 ${run.result.dropped}개` : ""} · 누르면 근거 메모
                 </p>
-                <AiResultMeta model={run.result.model} promptVersion={run.result.prompt_version} createdAt={run.result.analyzed_at} />
+                <p className="text-xs text-muted-foreground">AI 분석 · {formatDate(run.result.analyzed_at)}</p>
               </>
             ) : (
               <>
                 <p className="text-xs text-muted-foreground">{TEXT.snsBasis} · 누르면 해당 영상 메모</p>
-                {sampleMeta && <AiResultMeta model={sampleMeta.model} promptVersion={sampleMeta.prompt_version} createdAt={sampleMeta.analyzed_at} />}
               </>
             )}
           </>
@@ -367,13 +362,11 @@ function SnsBlock({
   );
 }
 
-/** PART 2. 소비자 트렌드: 검색 자동완성 변화 · SNS 공통 패턴 · 성분 검색 관심도 · AI 검색 핵심 포인트 */
+/** PART 2. 소비자 트렌드: 검색 자동완성 변화 · SNS 공통 패턴 · 성분 검색 관심도 */
 export function DemandPart({
   search,
   snsNotes,
   snsPatterns,
-  geo,
-  products,
   snsImported,
   category,
   onOpen,
@@ -381,8 +374,6 @@ export function DemandPart({
   search: SearchSnap[];
   snsNotes: SnsVideoNote[];
   snsPatterns: SnsPattern[];
-  geo: GeoSnap[];
-  products: Product[];
   /** 이 PC에 있는 실제 영상 목록 (없으면 빈 배열 → 샘플) */
   snsImported: { category: string; url: string; memo: string }[];
   category: string;
@@ -403,11 +394,6 @@ export function DemandPart({
           <SearchTrendCard initial={search} category={category} />
         </CardContent>
       </Card>
-      {/* 예전 시장 트렌드 화면에서 옮김: 여러 답변을 모은 핵심 포인트와 AI 질의(측정) 버튼 */}
-      <div>
-        <h3 className="mb-2 text-sm font-semibold">AI 검색 핵심 포인트 · 측정</h3>
-        <GeoInsights initial={geo.map((g, i) => ({ ...g, id: `geo-row-${i}` }))} ownProducts={products.filter((p) => p.kind === "own")} category={category} />
-      </div>
     </div>
   );
 }
