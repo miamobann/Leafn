@@ -58,7 +58,7 @@ export function MarketPart({
       <Card>
         <CardHeader>
           <CardTitle>
-            가격 포지셔닝 맵 · 판매가 × ml당 실질 가격 ({platformLabel} Top {top.length})
+            가격 포지셔닝 맵 · 판매가 × ml당 가격 ({platformLabel} Top {top.length})
           </CardTitle>
         </CardHeader>
         <CardContent>

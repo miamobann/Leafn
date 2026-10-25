@@ -9,6 +9,8 @@ import { INGREDIENT_MATCH, productKey, TOP_N, weekLabel } from "./market";
 /** 화면 한 줄: 랭킹 항목 + 전주 순위 + 계산 값 */
 export type OverviewRow = RankingItem & {
   prevRank: number | null;
+  /** 비교할 전주 스냅샷이 있는지 (없으면 prevRank를 쓰지 않는다) */
+  hasPrev: boolean;
   /** ml당 실질 단가 (판매가 ÷ 총 용량) */
   ppm: number | null;
   /** 사전에 있는 성분만 (상품명·설명에서 찾음) */
@@ -42,6 +44,7 @@ function toRow(r: RankingItem, prev: TrendSnapshot | undefined): OverviewRow {
   return {
     ...r,
     prevRank: prev?.data.ranking.find((x) => productKey(x.brand, x.name) === productKey(r.brand, r.name))?.rank ?? null,
+    hasPrev: Boolean(prev),
     ppm: effectivePricePerMl(r),
     ingredients: Object.entries(INGREDIENT_MATCH).flatMap(([ingredient, { match }]) => {
       const matched = findAlias(text, match);

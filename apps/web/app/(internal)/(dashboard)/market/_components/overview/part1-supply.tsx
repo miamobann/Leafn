@@ -31,7 +31,7 @@ import { MAX_COMPARE, ProductLabel, RankChange, type PanelContent } from "./side
 
 // 계산 기준 (카드·표 머리의 툴팁과 각주)
 const DEFINITIONS = {
-  ppm: "ml당 실질 단가 = 판매가(税込, 평시가) ÷ 총 용량. 총 용량에는 같은 제품의 리필·미니어처만 더하고 다른 제품 증정품은 더하지 않아요",
+  ppm: "ml당 가격 = 판매가(税込, 정가) ÷ 총 용량. 총 용량에는 같은 제품의 리필·미니어처·1+1만 더하고 다른 제품 증정품은 더하지 않아요",
   promo: "Top 10 상품 페이지의 프로모션 문구를 형태별로 묶어 가장 많은 형태",
   entries: "전주 Top 10에 없던 제품 수. 20위 안에서 올라온 제품, 이미 랭킹에 있던 브랜드의 신상품, 처음 보는 브랜드로 나눠요",
   tags: "Top 10 상품명·설명에서 소구 태그 사전에 있는 표기만 세요",
@@ -53,8 +53,8 @@ function ConditionCard({ title, definition, value, sub, onClick }: { title: stri
     <button type="button" disabled={!onClick} onClick={onClick} className="rounded-lg border bg-card p-3 text-left hover:bg-muted disabled:cursor-default disabled:hover:bg-card">
       <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         {title}
-        <span title={definition} aria-label={`기준: ${definition}`} className="cursor-help rounded border px-1">
-          기준
+        <span title={definition} aria-label={`계산 방법: ${definition}`} className="cursor-help rounded border px-1">
+          계산 방법
         </span>
       </span>
       <span className="mt-1 block text-xl font-semibold">{value}</span>
@@ -98,6 +98,8 @@ export function SupplyPart({
   if (!latest || !conditions) return <EmptyState message="이 플랫폼·카테고리의 랭킹 데이터가 없어요" />;
 
   const rows = rowsAt(series, series.length - 1);
+  // 전주 데이터가 없으면(수집 1주차) 변동 칸과 신규 진입 카드를 숨긴다
+  const hasPrev = series.length >= 2;
   const top = top10(rows);
   const nearTop = rows.filter((r) => r.rank > TOP_N);
   const sale = saleEventFor(latest.captured_at, platformName, promoEvents);
@@ -126,9 +128,11 @@ export function SupplyPart({
           <ProductLabel row={r} />
         </TableCell>
         <TableCell className={STICKY.ppm}>{r.ppm !== null ? `${r.ppm}円` : "—"}</TableCell>
-        <TableCell>
-          <RankChange row={r} />
-        </TableCell>
+        {hasPrev && (
+          <TableCell>
+            <RankChange row={r} />
+          </TableCell>
+        )}
         <TableCell>{r.brand}</TableCell>
         <TableCell>{r.is_kbeauty ? <Badge variant="secondary">K-뷰티</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
         <TableCell className="text-right">
@@ -154,13 +158,13 @@ export function SupplyPart({
       {/* 1-A 상위권 진입 조건 */}
       <div>
         <h3 className="mb-2 text-sm font-semibold">1-A 상위권 진입 조건 · Top {TOP_N}</h3>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className={`grid gap-3 ${entries ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           <ConditionCard
-            title="ml당 실질 단가 구간"
+            title="ml당 가격 구간"
             definition={DEFINITIONS.ppm}
             value={ppm ? `${ppm.median}円/ml` : "—"}
             sub={ppm ? `사분위 ${ppm.q1}~${ppm.q3}円 · 판매가 ${formatJpy(ppm.priceMin)}~${formatJpy(ppm.priceMax)} (중앙값 ${formatJpy(ppm.priceMedian)})` : "용량 정보 없음"}
-            onClick={ppm ? () => list("ml당 실질 단가 · 낮은 순", DEFINITIONS.ppm, ppm.rows.map((row) => ({ row, note: `${row.ppm}円/ml · ${formatJpy(row.price_jpy)} / ${volumeText(row)}` }))) : undefined}
+            onClick={ppm ? () => list("ml당 가격 · 낮은 순", DEFINITIONS.ppm, ppm.rows.map((row) => ({ row, note: `${row.ppm}円/ml · ${formatJpy(row.price_jpy)} / ${volumeText(row)}` }))) : undefined}
           />
           <ConditionCard
             title="주된 프로모션"
@@ -169,17 +173,19 @@ export function SupplyPart({
             sub={promo ? PROMO_HOOK_LABEL[promo.type] : "프로모션 표시 없음"}
             onClick={promo ? () => list(`프로모션 · ${PROMO_HOOK_LABEL[promo.type]}`, DEFINITIONS.promo, promo.rows.map((row) => ({ row, note: row.promo_text ?? undefined }))) : undefined}
           />
-          <ConditionCard
-            title="신규 진입"
-            definition={DEFINITIONS.entries}
-            value={entries ? `${entries.count}/${TOP_N}` : "—"}
-            sub={
-              entries
-                ? `20위 안에서 ${entries.byKind.rose} · 기존 브랜드 신상품 ${entries.byKind.brand_new_product} · 새 브랜드 ${entries.byKind.new_brand}`
-                : "전주 데이터가 없어 비교할 수 없어요"
-            }
-            onClick={entries && entries.count > 0 ? () => list("전주 Top 10에 없던 제품", DEFINITIONS.entries, entries.rows.map((row) => ({ row, note: ENTRY_KIND_LABEL[row.entryKind] }))) : undefined}
-          />
+          {entries && (
+            <ConditionCard
+              title="신규 진입"
+              definition={DEFINITIONS.entries}
+              value={entries ? `${entries.count}/${TOP_N}` : "—"}
+              sub={
+                entries
+                  ? `20위 안에서 ${entries.byKind.rose} · 기존 브랜드 신상품 ${entries.byKind.brand_new_product} · 새 브랜드 ${entries.byKind.new_brand}`
+                  : "전주 데이터가 없어 비교할 수 없어요"
+              }
+              onClick={entries && entries.count > 0 ? () => list("전주 Top 10에 없던 제품", DEFINITIONS.entries, entries.rows.map((row) => ({ row, note: ENTRY_KIND_LABEL[row.entryKind] }))) : undefined}
+            />
+          )}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">카드를 누르면 계산에 쓴 제품 목록이 열려요</p>
       </div>
@@ -207,9 +213,9 @@ export function SupplyPart({
               <TableHead className={STICKY.rank}>순위</TableHead>
               <TableHead className={STICKY.name}>상품명 (원문 · 해석)</TableHead>
               <TableHead className={STICKY.ppm} title={DEFINITIONS.ppm}>
-                ml당 실질
+                ml당 가격
               </TableHead>
-              <TableHead>변동</TableHead>
+              {hasPrev && <TableHead>변동</TableHead>}
               <TableHead>브랜드</TableHead>
               <TableHead>K-뷰티</TableHead>
               <TableHead className="text-right">판매가(税込)</TableHead>
