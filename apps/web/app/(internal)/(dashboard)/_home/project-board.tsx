@@ -37,10 +37,11 @@ const STAGES = {
   appeal: { short: "소구", label: "소구점 도출", href: "/reviews/compare", screen: "소구점 찾기" },
   customer: { short: "고객", label: "고객 이해", href: "/survey-results", screen: "응답 집계" },
   message: { short: "문구", label: "메시지 작성·검토", href: "/ad-check/history", screen: "검토 이력" },
-  channel: { short: "채널", label: "채널 선택", href: "/platforms", screen: "플랫폼별 강점" },
+  // 플랫폼별 강점 화면을 지워서(2026-10-24 진출 실행 탭 제거) 갈 화면이 없다. 관련 화면이 생기면 다시 잇는다
+  channel: { short: "채널", label: "채널 선택", href: null, screen: null },
   promotion: { short: "행사", label: "프로모션 실행", href: "/calendar", screen: "프로모션 캘린더" },
   post_launch: { short: "점검", label: "출시 후 점검", href: "/reviews", screen: "리뷰 리포트" },
-} satisfies Record<StageKey, { short: string; label: string; href: string; screen: string }>;
+} satisfies Record<StageKey, { short: string; label: string; href: string | null; screen: string | null }>;
 
 // 색만으로 구분하지 않고 아이콘을 함께 쓴다. 단계 상태 전용 색 토큰이 아직 없어 globals.css의 기존 토큰을 빌려 쓴다
 const STATUS = {
@@ -108,7 +109,7 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
   const { selection, select } = useSelection();
 
   return (
-    <Card id={BOARD_ID} className="mt-6">
+    <Card id={BOARD_ID}>
       <CardHeader>
         <CardTitle>{TEXT.title}</CardTitle>
         <CardAction className="text-xs text-muted-foreground">{TEXT.hint}</CardAction>
@@ -272,11 +273,13 @@ export function StageDetail({ projects }: { projects: HomeProject[] }) {
         <p className="mt-1 text-sm text-muted-foreground">{TEXT.noLog}</p>
       )}
 
-      <div className="mt-6">
-        <Link href={meta.href} className={buttonVariants({ variant: "outline" })}>
-          {meta.screen} {TEXT.openScreen}
-        </Link>
-      </div>
+      {meta.href && meta.screen && (
+        <div className="mt-6">
+          <Link href={meta.href} className={buttonVariants({ variant: "outline" })}>
+            {meta.screen} {TEXT.openScreen}
+          </Link>
+        </div>
+      )}
     </section>
   );
 }

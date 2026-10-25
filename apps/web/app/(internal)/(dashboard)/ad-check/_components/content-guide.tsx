@@ -5,7 +5,8 @@
 // 화면 뼈대라 샘플 데이터를 짧게 기다렸다 보여 준다. AI 호출·사진 업로드·저장·PDF 출력은 아직 없다.
 // 블록 메모는 화면에만 두고(저장 안 함) PDF 출력에 함께 넣을 예정이다.
 // 사진 칸에는 어떤 사진이 들어갈지 설명만 보여 준다.
-import { Bell, ChevronLeft, ChevronRight, Heart, Search, ShoppingCart, Store } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Heart, Search, ShoppingCart } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { EmptyState, LoadingState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
@@ -225,7 +226,7 @@ function InstagramPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; ha
   return (
     <div className="mx-auto max-w-sm rounded-md border">
       <div className="flex items-center gap-2 border-b px-3 py-2">
-        <span className="size-7 rounded-full bg-muted" aria-hidden />
+        <BrandAvatar className="size-7" />
         <span className="text-sm font-semibold">{SNS_ACCOUNTS.instagram.handle}</span>
       </div>
       {slide && (
@@ -381,7 +382,7 @@ function Qoo10Mobile({ blocks, gallery, fill, title, priceJpy, category }: Qoo10
       <div className="flex h-11 items-center justify-between border-b px-3">
         <span className="flex items-center gap-2 font-bold">
           <ChevronLeft className="size-5" aria-hidden />
-          <Store className="size-4" aria-hidden />
+          <BrandAvatar className="size-5" />
           Leaf& 公式ショップ
         </span>
         <span className="flex gap-3" aria-hidden>
@@ -441,7 +442,7 @@ function Qoo10Pc({ blocks, gallery, fill, title, priceJpy, category }: Qoo10Prop
             <span className="text-xs text-muted-foreground">ショップへ &gt;</span>
           </div>
           <p className="flex items-center gap-2">
-            <Store className="size-4" aria-hidden />
+            <BrandAvatar className="size-5" />
             Leaf& 公式ショップ
           </p>
         </div>
@@ -516,7 +517,7 @@ function XPreview({ blocks, hashtags, fill }: { blocks: GuideBlock[]; hashtags: 
   return (
     <div className="mx-auto max-w-md rounded-md border p-3">
       <div className="flex gap-3">
-        <div className="size-10 shrink-0 rounded-full bg-muted" aria-hidden />
+        <BrandAvatar className="size-10 shrink-0" />
         <div className="min-w-0 flex-1 space-y-2 text-sm">
           <p className="font-semibold">
             {SNS_ACCOUNTS.x.name} <span className="font-normal text-muted-foreground">{SNS_ACCOUNTS.x.handle}</span>
@@ -629,7 +630,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
       // 인스타그램은 고른 장 수까지만 (1장 = 단일 게시물, 2~5장 = 여러 장)
       (channel !== "instagram" || !b.key.startsWith("slide") || Number(b.key.slice(5)) <= slideCount),
   );
-  const isEssence = product.line.includes("에센스");
+  const isEssence = product.line.includes("에센스") || product.line.includes("美容液");
   const fill = (text: string) =>
     fillProduct(text, product.name_ko, product.ingredients, { kind_ja: isEssence ? "美容液" : "化粧水", kind_ko: isEssence ? "에센스" : "스킨", volume: product.volume, product_ja: product.name_ja });
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
@@ -703,7 +704,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
     if (!aiEnabled) return wait("titles", () => setGeneratedKey(key));
     setLoading("titles");
     try {
-      const json = await postAi({ step: "titles", input: aiInput() });
+      const json = await postAi({ step: "titles", product_id: product.id, input: aiInput() });
       const titles = GuideTitlesResult.parse({ titles: json.titles }).titles;
       const made = titles.map((t, i) => ({ id: `ai-${Date.now()}-${i}`, title: t }));
       setAiTitles(Object.fromEntries(made.map((m) => [m.id, m.title])));
@@ -727,7 +728,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
     setAiError(null);
     setLoading("body");
     try {
-      const json = await postAi({ step: "body", input: aiInput(), picked: aiTitles[id] });
+      const json = await postAi({ step: "body", product_id: product.id, input: aiInput(), picked: aiTitles[id] });
       const body = GuideBodyResult.parse(json.body);
       const blockWarnings: BlockWarnings = {};
       const add = (key: string, text: string) => (blockWarnings[key] = [...(blockWarnings[key] ?? []), text]);
@@ -1086,4 +1087,9 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled }:
       )}
     </div>
   );
+}
+
+/** 미리보기의 계정·샵 프로필 사진 (Leaf& 로고) */
+function BrandAvatar({ className }: { className: string }) {
+  return <Image src="/brand/leafn-avatar.webp" alt="" width={40} height={40} className={`rounded-full border ${className}`} />;
 }
