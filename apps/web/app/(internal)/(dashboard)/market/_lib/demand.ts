@@ -55,14 +55,15 @@ export function concernSuggestions(all: SearchSnap[]) {
   const prev = dates.at(-2) ?? null;
 
   const groups: ConcernSuggestions[] = CONCERN_SEEDS.map(({ seed, ko }) => {
-    const rows = new Map<string, { term: string; evidence: AutocompleteRow["evidence"]; pos: Map<string, number> }>();
+    const rows = new Map<string, { term: string; valueKo: string | null; evidence: AutocompleteRow["evidence"]; pos: Map<string, number> }>();
     for (const snap of snaps.filter((x) => x.seed === seed)) {
       const date = snap.captured_at.slice(0, 10);
       if (date !== latest && date !== prev) continue;
       for (const sug of snap.suggestions) {
         const term = sug.value.slice(seed.trim().length).trim();
         if (!term || isGenericOnly(term)) continue;
-        const row = rows.get(term) ?? { term, evidence: [], pos: new Map<string, number>() };
+        const row = rows.get(term) ?? { term, valueKo: null, evidence: [], pos: new Map<string, number>() };
+        if (sug.value_ko && (date === latest || !row.valueKo)) row.valueKo = sug.value_ko;
         row.pos.set(date, Math.min(row.pos.get(date) ?? Infinity, sug.position));
         row.evidence.push({ date, value: sug.value, position: sug.position });
         rows.set(term, row);
@@ -72,7 +73,8 @@ export function concernSuggestions(all: SearchSnap[]) {
       const latestPos = latest ? (r.pos.get(latest) ?? null) : null;
       const prevPos = prev ? (r.pos.get(prev) ?? null) : null;
       const status: AutocompleteStatus = latestPos === null ? "gone" : prevPos === null && prev ? "new" : "kept";
-      return { key: `${seed}|${r.term}`, term: r.term, ko: koOf(r.term), status, latestPos, prevPos, evidence: r.evidence.toSorted((a, b) => b.date.localeCompare(a.date)) };
+      // 한국어 뜻: 수집할 때 번역해 둔 값(추천어 전체 뜻) → 없으면 성분·고민 사전
+      return { key: `${seed}|${r.term}`, term: r.term, ko: r.valueKo ?? koOf(r.term), status, latestPos, prevPos, evidence: r.evidence.toSorted((a, b) => b.date.localeCompare(a.date)) };
     });
     const order: Record<AutocompleteStatus, number> = { new: 0, kept: 1, gone: 2 };
     return { seed: seed.trim(), ko, rows: list.toSorted((a, b) => order[a.status] - order[b.status] || (a.latestPos ?? 99) - (b.latestPos ?? 99)) };
