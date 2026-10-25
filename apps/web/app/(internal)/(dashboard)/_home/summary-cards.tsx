@@ -2,7 +2,7 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { TabSummary } from "./tab-summary";
 
-/** 홈 진행 표 오른쪽: 탭마다 핵심 숫자 하나를 2×2로. 누르면 그 탭으로 간다. 높이는 옆 진행 표에 맞춰 늘어난다 */
+/** 홈 현황판 오른쪽: 탭마다 핵심 숫자 하나를 2×2로. 누르면 그 탭으로 간다. 높이는 옆 현황판에 맞춰 늘어난다 */
 export function SummaryCards({ items }: { items: TabSummary[] }) {
   return (
     <section aria-label="탭별 요약" className="grid grid-cols-2 grid-rows-2 gap-3">

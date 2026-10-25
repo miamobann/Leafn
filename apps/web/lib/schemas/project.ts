@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PlatformId } from "../platforms";
-import { Id, WorkspaceRow } from "./common";
+import { DateOnly, Id, Timestamp, WorkspaceRow } from "./common";
 
 // 워크스페이스(팀) → 프로젝트(제품군, 예: Leaf& Dew) → 제품(products) 구조 (2026-10-24 총괄 결정).
 // 테이블: supabase/migrations/20261024104911_projects_products.sql (projects, products.project_id)
@@ -46,3 +46,47 @@ export const NewProjectProduct = z.object({
   category: z.string().trim().max(50).nullable(),
 });
 export type NewProjectProduct = z.infer<typeof NewProjectProduct>;
+
+// 제안: 홈 진행 현황판 (P8). 현황판 한 줄 = 자사 제품 하나의 일본 진출 (위의 프로젝트와는 다른 단위).
+// 실제 테이블(project_stages 등)은 대시보드 작업에서 제품 단위로 다시 정한다. 지금은 가짜 데이터에서만 쓴다.
+
+/** 업무 흐름 8단계 (prototype-plan 2장). 이 순서가 현황판의 열 순서다 */
+export const StageKey = z.enum([
+  "market",
+  "competition",
+  "appeal",
+  "customer",
+  "message",
+  "channel",
+  "promotion",
+  "post_launch",
+]);
+export type StageKey = z.infer<typeof StageKey>;
+
+/** 단계 상태는 사람이 직접 고른다. 다른 데이터에서 자동으로 계산하지 않는다 */
+export const StageStatus = z.enum(["done", "in_progress", "blocked", "not_started"]);
+export type StageStatus = z.infer<typeof StageStatus>;
+
+export const BoardProject = WorkspaceRow.extend({
+  name: z.string(),
+  /** 진출 플랫폼 */
+  platform: z.string(),
+  /** 제품이 products에 아직 등록되지 않았으면 null */
+  product_id: Id.nullable(),
+});
+export type BoardProject = z.infer<typeof BoardProject>;
+
+export const ProjectStage = WorkspaceRow.extend({
+  /** BoardProject의 id */
+  project_id: Id,
+  stage: StageKey,
+  status: StageStatus,
+  start_date: DateOnly.nullable(),
+  due_date: DateOnly.nullable(),
+  owner_id: Id.nullable(),
+  blocker: z.string().nullable(),
+  next_step: z.string().nullable(),
+  log: z.array(z.object({ date: DateOnly, text: z.string() })),
+  updated_at: Timestamp,
+});
+export type ProjectStage = z.infer<typeof ProjectStage>;

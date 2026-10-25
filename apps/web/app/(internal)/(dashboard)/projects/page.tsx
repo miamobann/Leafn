@@ -1,6 +1,6 @@
-import { ProgressGrid } from "@/components/common/progress-grid";
 import { PageHeader } from "@/components/layout/page-header";
 import { getProjectsWithProducts } from "@/lib/data";
+import { ProgressGrid } from "./progress-grid";
 import { ProjectManager } from "./project-manager";
 
 type ProjectsPageProps = {

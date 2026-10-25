@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PromoEventView } from "@/lib/data/launch";
 import { CalendarTodo, type PendingCopy } from "../_home/calendar-todo";
+import { boardDeadlines, type HomeProject } from "../_home/project-board";
 
 // FullCalendar는 브라우저에서만 그린다 (서버 렌더링 시 window가 없음)
 const PromoCalendar = dynamic(() => import("./promo-calendar").then((m) => m.PromoCalendar), {
@@ -17,18 +18,22 @@ export function CalendarClient({
   platformKeys,
   today,
   pending,
+  projects,
 }: {
   events: PromoEventView[];
   platformKeys: string[];
   today: string;
   pending: PendingCopy[];
+  projects: HomeProject[];
 }) {
+  const board = boardDeadlines(projects);
+
   return (
     <PromoCalendar
       events={events}
       platformKeys={platformKeys}
       today={today}
-      renderIdle={(ctx) => <CalendarTodo {...ctx} pending={pending} today={today} />}
+      renderIdle={(ctx) => <CalendarTodo {...ctx} pending={pending} today={today} board={board} />}
     />
   );
 }
