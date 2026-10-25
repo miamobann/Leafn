@@ -31,6 +31,7 @@ export function PromoCalendar({
   today,
   variant = "page",
   renderIdle,
+  panelWidth,
 }: {
   events: PromoEventView[];
   platformKeys: string[];
@@ -38,6 +39,8 @@ export function PromoCalendar({
   variant?: keyof typeof VIEW;
   /** 아무 일정도 고르지 않았을 때 오른쪽 패널에 보일 내용 (홈의 다음 행사·할 일). 없으면 안내 문구 */
   renderIdle?: (ctx: { events: PromoEventView[]; select: (eventId: string) => void }) => ReactNode;
+  /** 오른쪽 패널 폭 (CSS 길이). 홈은 위 요약 카드 열과 맞추려고 넘긴다. 없으면 20rem */
+  panelWidth?: string;
 }) {
   const isPage = variant === "page";
   const [events, setEvents] = useState(initial);
@@ -79,7 +82,7 @@ export function PromoCalendar({
   };
 
   return (
-    <div className="grid grid-cols-[1fr_20rem] gap-4">
+    <div className="grid grid-cols-[1fr_20rem] gap-4" style={panelWidth ? { gridTemplateColumns: `minmax(0, 1fr) ${panelWidth}` } : undefined}>
       <div>
         <div className="mb-3 flex items-center gap-2 text-sm">
           {isPage && (
