@@ -25,15 +25,6 @@ type Row = {
   llmKeywords?: string[];
 };
 
-/** 질의 한국어 해석 */
-const QUERY_KO: Record<string, string> = {
-  "乾燥肌におすすめの韓国スキンケア": "건성 피부에 추천하는 한국 스킨케어",
-  "敏感肌 化粧水 韓国": "민감 피부 화장수 한국",
-  "毛穴ケアに効果的な美容液を教えて": "모공 케어에 효과적인 미용액을 알려줘",
-  "20代 敏感肌におすすめの韓国化粧水は？": "20대 민감 피부에 추천하는 한국 화장수는?",
-  "大容量 化粧水 コスパ": "대용량 화장수 가성비",
-};
-
 const Q_DRY = "乾燥肌におすすめの韓国スキンケア";
 const Q_SENSITIVE = "敏感肌 化粧水 韓国";
 const Q_PORES = "毛穴ケアに効果的な美容液を教えて";
@@ -211,7 +202,6 @@ export const geoSnapshots = parseAll(
       prompt_version: hasLlm ? "geo-extract.v1" : null,
       category: CATEGORY_OF(r.query),
       query: r.query,
-      query_ko: QUERY_KO[r.query] ?? null,
       query_concern: r.concern,
       run_index: r.run ?? 1,
       answer: r.answer,

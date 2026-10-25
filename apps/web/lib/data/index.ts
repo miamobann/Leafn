@@ -15,6 +15,7 @@ import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
 import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
 import { APPEAL_MAX_RATING, buildAppealComparison, reviewProductRank } from "./appeal";
+import { importedSnapshots, importedSnsVideos } from "./market-imports";
 
 export async function getWorkspace() {
   if (await dataContext()) return (await getMyWorkspace())!.workspace;
@@ -117,7 +118,11 @@ export async function getAdCheck(id: string) {
 /** source는 필수 (楽天·Qoo10 시계열이 섞이지 않게). category를 빼면 모든 카테고리. captured_at 오름차순 */
 export async function getTrendSnapshots(opts: { source: TrendSource; category?: string }) {
   const rows = await readRows("trend_snapshots");
-  return (rows ? TrendSnapshot.array().parse(rows) : mock.trendSnapshots)
+  const base = rows ? TrendSnapshot.array().parse(rows) : mock.trendSnapshots;
+  // 이 PC의 수집 CSV(실데이터): 샘플 모드에서는 같은 플랫폼·카테고리 샘플을 대신하고, DB 모드에서는 DB에 없는 플랫폼·카테고리만 채운다
+  const imported = importedSnapshots().filter((i) => !rows || !base.some((t) => t.source === i.source && t.category === i.category));
+  const replaced = (t: { source: string; category: string }) => imported.some((i) => i.source === t.source && i.category === t.category);
+  return [...base.filter((t) => !replaced(t)), ...imported]
     .filter((t) => t.source === opts.source)
     .filter((t) => !opts.category || t.category === opts.category)
     .toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
@@ -138,6 +143,11 @@ export async function getIngredientInterest(opts: { source: TrendSource; categor
 export async function getSnsVideoNotes() {
   if (await dataContext()) return []; // 저장 구조가 없는 샘플 결과를 실제 결과로 표시하지 않는다.
   return mock.snsVideoNotes;
+}
+
+/** 이 PC에 있는 실제 SNS 영상 목록 (수집 CSV, .gitignore). 없으면 빈 배열 */
+export async function getImportedSnsVideos() {
+  return importedSnsVideos();
 }
 
 /** 영상 메모에서 묶은 공통 패턴 (AI 결과 샘플) */

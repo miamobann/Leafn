@@ -43,3 +43,48 @@ export const SnsPattern = WorkspaceRow.extend({
   analyzed_at: Timestamp,
 }).extend(AiMeta.shape);
 export type SnsPattern = z.infer<typeof SnsPattern>;
+
+// ── SNS 공통 패턴 분석 (POST /api/market/sns-patterns) ─────────────
+
+/** 분석 입력: 마케터가 고른 영상 링크와 영상별 메모 (핵심 발화·댓글) */
+export const SnsAnalyzeInput = z.object({
+  category: z.string().min(1),
+  videos: z
+    .array(z.object({ url: z.string().url(), memo: z.string().trim().min(1, "영상 메모를 적어 주세요").max(2000) }))
+    .min(3, "영상을 3개 이상 등록하세요")
+    .max(10),
+});
+export type SnsAnalyzeInput = z.infer<typeof SnsAnalyzeInput>;
+
+/** AI 응답 모양 (prompts/sns-patterns.v1.md). quote_ja는 그 영상 메모에 그대로 있어야 하고, 서버가 대조한다 */
+export const SnsPatternAiOutput = z.object({
+  patterns: z.array(
+    z.object({
+      kind: SnsPatternKind,
+      label_ja: z.string().nullable(),
+      label_ko: z.string(),
+      evidence: z.array(z.object({ video: z.number().int().positive(), quote_ja: z.string() })),
+    }),
+  ),
+});
+export type SnsPatternAiOutput = z.infer<typeof SnsPatternAiOutput>;
+
+/** 분석 결과 (대조를 통과한 근거만 남긴다). 저장하지 않고 화면에 바로 보여준다 */
+export const SnsAnalyzeResult = z.object({
+  category: z.string(),
+  videos: z.array(z.object({ index: z.number().int().positive(), url: z.string(), author: z.string(), kind: z.enum(["video", "photo"]) })),
+  patterns: z.array(
+    z.object({
+      kind: SnsPatternKind,
+      label_ja: z.string().nullable(),
+      label_ko: z.string(),
+      evidence: z.array(z.object({ video: z.number().int().positive(), quote_ja: z.string() })).min(1),
+    }),
+  ),
+  /** 원문(메모)에 없어 버린 근거 수 (할루시네이션 의심) */
+  dropped: z.number().int().nonnegative(),
+  model: z.string(),
+  prompt_version: z.string(),
+  analyzed_at: Timestamp,
+});
+export type SnsAnalyzeResult = z.infer<typeof SnsAnalyzeResult>;

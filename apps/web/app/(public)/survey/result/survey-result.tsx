@@ -272,7 +272,10 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
                     )}
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold">{line.name_ja}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold">{line.short_ja ?? line.name_ja}</p>
+                          {line.products_label && <p className="text-xs text-muted-foreground">{line.products_label}</p>}
+                        </div>
                         <Badge variant={line.status === "on_sale" ? "default" : "secondary"}>{COPY.status[line.status]}</Badge>
                       </div>
                       <p className="text-xs leading-relaxed text-muted-foreground">
@@ -307,7 +310,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
               ))}
               {openLine && (
                 <div className="space-y-3 rounded-lg bg-muted p-4">
-                  <p className="text-sm font-semibold">{COPY.notify.title(openLine.name_ja)}</p>
+                  <p className="text-sm font-semibold">{COPY.notify.title(openLine.short_ja ?? openLine.name_ja)}</p>
                   <p className="text-xs font-medium">{COPY.notify.method}</p>
                   <div className="flex gap-2">
                     {(["email", "line"] as Via[]).map((v) => (

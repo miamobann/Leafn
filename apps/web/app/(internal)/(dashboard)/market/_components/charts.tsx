@@ -218,7 +218,7 @@ export function PriceMapChart({
           width={64}
           domain={domainY ?? ["auto", "auto"]}
           tickFormatter={(v: number) => `${v}円`}
-          label={{ value: "ml당 실질 가격", angle: -90, position: "insideLeft", fontSize: 12, fill: "var(--muted-foreground)" }}
+          label={{ value: "ml당 가격", angle: -90, position: "insideLeft", fontSize: 12, fill: "var(--muted-foreground)" }}
         />
         {/* 점 크기를 키워 겹쳐도 알아보기 쉽게 */}
         <ZAxis range={[110, 110]} />
