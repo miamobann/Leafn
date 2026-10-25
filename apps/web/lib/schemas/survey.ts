@@ -91,6 +91,11 @@ export const SurveyProductLine = z.object({
   id: z.string(),
   name_ja: z.string(),
   name_ko: z.string(),
+  /** 표 · 카드 제목에 쓰는 짧은 라인 이름 (예: Mild ライン). 없으면 name_ja/name_ko 그대로 */
+  short_ja: z.string().optional(),
+  short_ko: z.string().optional(),
+  /** 짧은 이름 아래 회색으로 적는 제품 이름 (예: Mild Skin · Mild Emulsion) */
+  products_label: z.string().optional(),
   ingredients_ja: z.string(),
   status: z.enum(["on_sale", "in_development"]),
   /** public/ 아래 제품 사진 경로. 없으면 자리표시 */
@@ -106,7 +111,22 @@ export const SurveySummary = z.object({
   /** 18세 미만 참여 수. 답 없이 숫자만 기록하며 total에 포함하지 않는다 */
   under18_count: z.number().int().nonnegative(),
   sensitive_count: z.number().int().nonnegative(),
-  by_source: z.array(z.object({ source: SurveySource, count: z.number().int().nonnegative() })),
+  by_source: z.array(
+    z.object({
+      source: SurveySource,
+      count: z.number().int().nonnegative(),
+      /** 이 경로로 온 응답에서 가장 많은 피부타입과 그 수 (채널 성과 표) */
+      top_skin_type: SkinType.optional(),
+      top_skin_count: z.number().int().nonnegative().optional(),
+      /** 이 경로로 온 사람의 구매하기 클릭 · 출시 알림 신청. survey_reco_events에 경로가 없어 DB 모드에서는 비어 있다 */
+      clicks: z.number().int().nonnegative().optional(),
+      notify: z.number().int().nonnegative().optional(),
+    }),
+  ),
+  /** 응답 기간 (첫 응답일 ~ 마지막 응답일, YYYY-MM-DD) */
+  period: z.object({ from: z.string(), to: z.string() }).optional(),
+  /** 연령대별 응답 수 */
+  by_age: z.array(z.object({ age_group: z.string(), count: z.number().int().nonnegative() })).optional(),
   by_skin_type: z.array(z.object({ skin_type: SkinType, count: z.number().int().nonnegative() })),
   /** 연령대 × 고민 (복수 선택이라 합이 응답 수보다 클 수 있다) */
   age_by_concern: z.array(z.object({ age_group: z.string(), counts: z.record(z.string(), z.number().int().nonnegative()) })),

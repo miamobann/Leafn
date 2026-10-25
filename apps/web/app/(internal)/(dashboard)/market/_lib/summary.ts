@@ -10,7 +10,7 @@ import { ingredientMentions, ownBaseline, priceMap, rowsAt, top10 } from "./over
 import { concernSuggestions } from "./demand";
 import { keywordGap } from "./geo";
 
-export type MarketTab = "summary" | "action" | "market" | "supply" | "demand" | "competitors";
+export type MarketTab = "summary" | "action" | "supply" | "demand" | "competitors";
 
 export type KeyPoint = {
   id: string;
@@ -74,7 +74,7 @@ export function keyPoints(input: {
         headline: `${o.name.replace("자사 ", "")} ml당 ${o.ppm}円 — ${before === after ? `순위권에서 ${before}` : `정가로는 ${before}, 할인 적용 후엔 ${after}`}`,
         action: need > 0 ? `할인 후 순위권 중앙값(${sale.medianPpm}円)에 맞추려면 약 ${need}% 이상 할인` : `이미 할인 후 중앙값(${sale.medianPpm}円)보다 싸서 큰 할인 없이도 가격 경쟁 가능`,
         detail: `순위권 ml당 중앙값 정가 ${list.medianPpm}円 → 할인 후 ${sale.medianPpm}円 · 할인 후 우리보다 싼 제품 ${os.cheaper}/${n}`,
-        tab: "market",
+        tab: "supply",
       });
     }
   }
@@ -100,7 +100,7 @@ export function keyPoints(input: {
               ? `상시 할인 ${rate}% 수준 검토`
               : "할인보다 구성·소구로 경쟁",
         detail: `할인 중 ${discounted.length}/${rows.length} · 상위 ${TOP_N}위 중 행사 쿠폰 ${coupons.length}개`,
-        tab: "market",
+        tab: "supply",
       });
     }
   }

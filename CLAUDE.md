@@ -1,9 +1,8 @@
 # K-뷰티 일본 진출 지원 서비스 — 개발 레퍼런스
 
-> 팀 코딩용 기준 문서입니다. 근거와 비유를 포함한 전체 분석은 [기술 스택 분석 문서](https://claude.ai/artifact/MA3A2F3vJ7c7u2wNiveKxj)를 보세요.
-> 기준: 기획안 v1 · 작성일 2026-10-21 · 상태: 초안 (DB 스키마와 API는 팀 합의 후 확정)
-> 프로토타입(화면 뼈대) 계획: `docs/prototype-plan.md`
-> DB 작업 규칙: `docs/DB_RULES.md` · 통합 DB 프레임 초안: `docs/db-frame.md`
+> 팀 코딩용 기준 문서입니다. 근거와 비유를 포함한 전체 분석은 [기술 스택 분석 문서](https://claude.ai/artifact/MA3A2F3vJ7c7u2wNiveKxj)를 보세요 (2026-10-21 기준이라 지금 구조와 다른 곳이 있습니다).
+> 기준: 기획안 v1 · 처음 작성 2026-10-21 · 갱신 2026-10-25 · 상태: **실데이터 연결 단계** (프로토타입 화면 뼈대는 끝났다)
+> DB 작업 규칙: `docs/DB_RULES.md` · 현재 DB 지도: `docs/db-frame.md`
 
 **한 줄 정의:** 일본 진출을 준비하는 K-뷰티 중소기업 해외마케팅팀이 시장 조사, 리뷰 분석, 약기법 광고 검토, 프로모션 일정을 한곳에서 AI로 처리하는 팀 업무용 웹서비스.
 
@@ -11,14 +10,20 @@
 
 **사용법 (바이브 코딩):** 이 파일을 저장소 루트에 두고 AI 코딩 도구가 매번 읽게 한다. Claude Code는 `CLAUDE.md`, Cursor는 `.cursor/rules/`, 그 밖의 도구는 `AGENTS.md`로 복사하거나 그 파일에서 이 파일을 참조한다 (저장소에 `AGENTS.md`와 `.cursor/rules/leafn.mdc`가 이 파일을 가리키도록 들어 있다). 작업을 시킬 때는 13장의 프롬프트를 복사해 쓴다.
 
+**지금 구조 한눈에 (2026-10-25):**
+- 화면 헤더는 **워크스페이스(팀) → 프로젝트(제품군, 예: Leaf& Dew) → 제품**이다. 한 프로젝트의 제품은 제품별 탭 없이 한 화면에서 다룬다.
+- 메뉴: 홈(프로모션 캘린더 포함) · 시장 분석 · 리뷰 분석 · 광고 검토 · 소비자 설문 · 자료실 · 설정. "진출 실행" 탭은 없앴다 (2026-10-24).
+- **데모 데이터는 Qoo10만** 쓴다. 다른 플랫폼은 확장용으로 slug와 칸만 남긴다.
+- 자사 제품은 Leaf& Dew 6종이다 (`docs/Product.md`). 판매 중 2종, 개발 중 4종.
+
 **문서 지도와 우선순위:** 문서끼리 다르면 번호가 앞선 문서를 따르고, 뒤의 문서를 고친다.
 
 1. `CLAUDE.md` (이 파일): 기술 판단의 기준
 2. `docs/CODING_RULES.md` (협업·Git·코드 스타일), `docs/DB_RULES.md` (DB 작업 절차)
-3. `docs/db-frame.md`: 팀 합의 전 DB 초안. 합의되면 5장에 옮긴다
-4. `docs/prototype-plan.md`: 화면 뼈대 계획과 진행 기록
+3. `docs/db-frame.md`: 현재 DB 지도 (실제 마이그레이션 기준 테이블·칸 정의)
+4. 기능별 문서: `docs/Product.md` (자사 제품명·규격), `docs/DATA_CONNECTIONS.md` (화면별 실데이터 연결 상태), `docs/tab3-db-plan.md` (광고 검토 DB), `docs/team-approval-ai-analysis.md` (탭별 시안·팀장 결재·AI 분석 설계)
 
-`docs/TECH_STACK.md`는 이 파일로 옮기기 전의 사본이라 따르지 않는다.
+`docs/archive/pre_*.md`는 2026-10-25 정리 전 문서의 기록용 보관본이라 따르지 않는다. `docs/TECH_STACK.md`·`docs/prototype-plan.md`는 보관본을 가리키는 안내만 남은 파일이다.
 
 ---
 
@@ -33,12 +38,14 @@
 - 파일 위치는 4장 저장소 구조를 따른다.
 - DB 변경은 반드시 `supabase/migrations/`에 새 SQL 파일로 만든다. 기존 마이그레이션을 고치지 않는다.
 - DB·`lib/schemas`·`lib/mock`·`lib/data`·`collectors/`를 건드리는 작업은 시작 전에 `docs/DB_RULES.md`를 읽고, 그 문서의 PR 체크리스트를 PR 본문에 붙인다.
-- 새 테이블에는 `workspace_id`와 RLS 정책을 함께 만든다 (예외: 5장에 적힌 것만. 지금은 없음).
+- 새 테이블에는 `workspace_id`와 RLS 정책을 함께 만든다 (예외 없음. 5장 참고).
 - AI 호출은 `lib/ai/`에서만, 프롬프트 원문은 `prompts/`에만 둔다. 컴포넌트나 Route Handler에 프롬프트 문자열을 직접 쓰지 않는다. 제공사(OpenAI·Anthropic)는 2장 규칙대로 `lib/ai/` 안에서만 고른다.
 - AI 응답과 API 입력은 `lib/schemas/`의 Zod 스키마로 검증한다.
+- 화면은 `lib/data/`의 함수만 부른다. Supabase 환경 변수가 없을 때만 샘플(`lib/mock/`) 모드로 동작하고, 연결된 환경에서 조회가 실패하면 샘플로 숨기지 않고 오류를 보여준다 (`docs/DATA_CONNECTIONS.md`).
+- 자사 제품명은 `lib/own-products.ts`, 규격은 `lib/own-product-specs.ts` 상수만 쓴다. 이름을 새로 지어 적지 않는다.
 
 **보안**
-- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`는 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`, `APIFY_TOKEN`은 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
 - 키, `.env` 파일, 실제 리뷰 원문 대량 데이터를 커밋하지 않는다.
 
 **Git** (자세한 약속은 `docs/CODING_RULES.md` 1~3장)
@@ -51,68 +58,81 @@
 - TypeScript strict 모드. `any` 금지, 불가피하면 이유를 주석으로.
 - UI는 shadcn/ui 컴포넌트를 먼저 쓰고, 없을 때만 새로 만든다.
 - 화면 문구는 한국어(대시보드), 일본어(설문 페이지 G)로 쓴다.
-- 서버 함수 하나가 오래 걸리지 않게 리뷰 분석은 묶음(기본 50건) 단위로 처리한다.
+- 서버 함수 하나가 오래 걸리지 않게 리뷰 분석·번역은 묶음(기본 50건) 단위로 처리한다.
 
 **완료 기준 (매 작업 끝에)**
-- 타입 검사·린트·빌드가 통과한다 (`npm run typecheck`, `npm run lint`, `npm run build` — 스크립트 이름은 저장소 설정에 맞춘다).
+- 타입 검사·린트·빌드가 통과한다 (`npm run typecheck`, `npm run lint`, `npm run build`).
 - 바꾼 파일 목록과 직접 확인할 방법(어느 화면에서 무엇을 눌러 보면 되는지)을 요약한다.
 - 결정이 필요한 부분이 있었다면 임의로 정하지 말고 11장 "열린 질문"에 추가할 항목으로 보고한다.
 
 ---
 
-## 1. 기능 목록과 우선순위
+## 1. 기능 목록과 상태
 
-우선순위는 **"이 웹서비스가 성립하려면 꼭 있어야 하는가"**로 정했다. 기획안 3개 탭의 "주요 서비스 기능"이 서비스의 정의이므로 핵심이고, 기획안 끝의 "특별히 신경 쓰고 싶은 기능" 목록은 **참조용**으로만 둔다 (우선순위 근거로 쓰지 않음).
+우선순위는 **"이 웹서비스가 성립하려면 꼭 있어야 하는가"**로 정했다. 기획안 3개 탭의 "주요 서비스 기능"이 서비스의 정의이므로 핵심이고, 기획안 끝의 "특별히 신경 쓰고 싶은 기능" 목록은 참조용이다. 상태는 2026-10-25 sub_main 기준이다.
 
-| 순서 | ID | 기능 | 탭 | 구분 | 왜 이 순서인가 |
+| 순서 | ID | 기능 | 메뉴 | 구분 | 상태 |
 | --- | --- | --- | --- | --- | --- |
-| 1 | J | 팀 워크스페이스 (로그인, 팀별 데이터 분리, 결과 보관) | 공통 | 기반 | 모든 분석 결과와 TAB 3 "담당자 검토 결과 저장"이 사용자·팀 단위로 저장돼야 함 |
-| 1 | K | 공통 대시보드 화면 (탭 구조) | 공통 | 기반 | 세 탭이 들어갈 틀 |
-| 2 | E | 국내 리뷰 분석 (플랫폼 수집/CSV · 감성 · 키워드 · 페인포인트 · 재구매 요인 · 차트 · 원문 연결) | TAB 2 | 핵심 | 수집 → 저장 → AI 분석 → 시각화의 전체 흐름이 처음 완성되는 기능. `products`/`reviews`와 수집기를 여기서 만들고 다른 탭이 재사용 |
-| 3 | A | 약기법 광고 문구 검토 (입력 · 위험 표현 탐지 · 사유/근거 · 대체 표현 · 현지화 · 검토 이력) | TAB 3 | 핵심 | TAB 3의 전부. 외부 데이터 의존이 없어 단독 구현 가능 |
-| 4 | C | 경쟁제품 비교 (가격 · 용량 · 성분 · 특징) | TAB 1 | 핵심 | E에서 만든 `products`를 경쟁사까지 확장 |
-| 5 | B | 시장 트렌드 분석 (주요 트렌드, 성분별 관심도) | TAB 1 | 핵심 | 외부 데이터(라쿠텐 API 등) 연동이 필요해 기반이 갖춰진 뒤가 효율적 |
-| 참조 | D | 일본 현지 제품 리뷰 분석 | TAB 2 | 참조 | E 파이프라인에 일본어 소스만 추가하면 됨 |
-| 참조 | F | 한국 리뷰 → 일본어 번역 → 상세페이지용 블록 (A 검토를 거침) | TAB 2 | 참조 | E + A 조합 |
-| 참조 | - | GEO (AI 검색의 브랜드 언급 추적) | TAB 1 | 참조 | B의 확장 |
-| 참조 | G | 피부타입 설문 (일본 소비자용 공개 모바일 웹) | - | 참조 | 탭 기능 밖 |
-| 참조 | H | 진출·홍보 플랫폼별 강점 정리 | - | 참조 | 탭 기능 밖 |
-| 참조 | I | 메가와리/프로모션 캘린더 | - | 참조 | 탭 기능 밖 |
+| 1 | J | 팀 워크스페이스 (로그인, 팀별 데이터 분리, 헤더의 워크스페이스 → 프로젝트 → 제품, 프로젝트·제품 관리) | 공통 | 기반 | 연결됨. `projects`·`products` DB, Leaf& Dew 6종 시드·규격 |
+| 1 | K | 공통 대시보드 (홈의 탭 요약 카드·할 일·캘린더) | 홈 | 기반 | 연결됨. 홈의 8단계 현황판은 아직 샘플 (아래 L로 바꿀 예정) |
+| 2 | E | 리뷰 분석 (Qoo10 수집/CSV · 감성 · 키워드 · 페인포인트 · 재구매 요인 · 차트 · 원문 연결 · 소구점) | 리뷰 분석 | 핵심 | 연결됨. Qoo10 수집기, AI 분석, 일본어 → 한국어 번역(`reviews.body_ko`) |
+| 3 | A | 약기법 광고 문구 검토 (입력 · 위험 표현 · 사유/근거 · 대체 표현 · 현지화 · 검토 이력 · 콘텐츠 제작 가이드) | 광고 검토 | 핵심 | 연결됨. 판정 자동 저장, 승인·반려는 owner만 |
+| 4 | C | 경쟁제품 비교 (가격 · 용량 · 성분 · 특징) | 시장 분석 | 핵심 | 연결됨. Qoo10 수집으로 등록, `product_competitors`로 자사와 연결 |
+| 5 | B | 시장 트렌드 (랭킹, 성분 관심도, 검색 자동완성) | 시장 분석 | 핵심 | 연결됨. Qoo10 랭킹 CSV, SerpApi. 화면이 라쿠텐 스냅샷도 함께 읽음 (확장용) |
+| 참조 | D | 일본 현지 제품 리뷰 분석 | 리뷰 분석 | 참조 | E에 포함 (Qoo10 일본어 경쟁 리뷰) |
+| 참조 | F | 한국 리뷰 → 일본어 번역 → 상세페이지용 블록 (A 검토를 거침) | 리뷰 분석 | 참조 | 화면만. 저장 테이블(`review_translations`) 없음 |
+| 참조 | - | GEO (AI 검색의 브랜드 언급 추적) | 시장 분석 | 참조 | 연결됨 (`/api/geo/run`, `geo_snapshots`) |
+| 참조 | G | 피부타입 설문 (일본 소비자용 공개 모바일 웹) | 소비자 설문 | 참조 | 집계 화면은 DB를 읽음. 공개 설문 제출은 아직 보내지 않음 |
+| 참조 | H | 플랫폼별 강점 정리 | - | 참조 | 화면 없앰 (2026-10-24). `platform_notes` 테이블만 남음 |
+| 참조 | I | 메가와리/프로모션 캘린더 | 홈 | 참조 | 홈에 포함 (`/calendar`는 전체보기). 조회는 DB, 추가·마감 변경은 아직 저장하지 않음 |
+| 다음 | L | 제품 × 탭 진행 표 (판매 중 제품 × 시장 분석·리뷰 분석·광고 검토·AI 분석) | 홈/프로젝트 | 핵심 | 방향 확정, 미구현 |
+| 다음 | M | 탭별 시안 제출 · 버전 · 팀장 결재 | 각 탭 + 결재함 | 핵심 | 설계 확정, 미구현 (`docs/team-approval-ai-analysis.md`) |
+| 다음 | N | AI 분석 (탭별 승인본을 모아 통합 분석, 팀 공유) | AI 분석 | 핵심 | 설계 확정, 미구현. 프롬프트 설계는 7장 |
 
-**프로토타입 범위 (2026-10-21 결정):** 화면 뼈대(가짜 데이터, 백엔드·API·AI 호출 없음)는 MVP 1~5와 참조 기능(D, F, GEO, G, H, I) 모두 만든다. 계획과 순서는 `docs/prototype-plan.md`를 따른다. 실데이터 연동의 순서와 범위는 이 표 그대로다.
-
-- **MVP = 순서 1~5.** 참조 기능은 MVP가 끝난 뒤 팀이 필요하다고 판단할 때 착수한다.
-- AI 코딩 도구는 참조 기능의 **테이블·API·수집기를 요청받기 전에 만들지 않는다.** 화면 뼈대는 `docs/prototype-plan.md`에서 요청된 페이즈 범위 안에서만 만든다. 다만 핵심 기능을 설계할 때 참조 기능이 나중에 붙을 수 있게 막지는 않는다 (예: `reviews.lang`에 `ja`도 허용).
+- **데모 범위 (2026-10-24·25 결정, 총괄):** Qoo10 데이터만 쓴다. L·M·N은 설계 문서 7장의 1~4단계까지 만든다.
+- **개발 중 제품**(`sale_status = in_development`)은 진행 표·시안·AI 분석 대상에서 뺀다. 판매를 시작하면 들어온다.
+- AI 코딩 도구는 참조 기능의 **테이블·API·수집기를 요청받기 전에 만들지 않는다.** 다만 나중에 붙을 수 있게 막지는 않는다 (예: 플랫폼 slug 칸 유지).
 
 **이번 범위에서 제외:** 결제, 실시간 통신(동시 편집), 별도 관리자 시스템(Supabase 콘솔로 대체).
 
 **구현 메모**
 - D와 E는 같은 "리뷰 분석 파이프라인"을 쓴다. 언어(ja/ko)와 데이터 출처만 다르다.
 - F를 만들 때는 번역 결과를 반드시 A의 검토를 통과시킨다. 판매자가 상세페이지에 게시한 리뷰는 광고로 취급될 수 있다. (정확한 범위는 전문가 확인 필요)
-- GEO는 Generative Engine Optimization으로 해석했다. (팀 확인 필요, 11장 참고)
+- GEO는 Generative Engine Optimization(AI 검색 최적화)으로 정했다.
+- 팀장 결재(M)는 약기법 검토(A)를 대신하지 않는다. 위험 high 또는 전문가 검토 요청이 있는 광고 시안은 승인 전에 경고를 보여준다.
 
 ---
 
 ## 2. 기술 스택
 
-### MVP (순서 1~5에 필요한 것)
+### 지금 쓰는 것
 
 | 영역 | 기술 | 용도 |
 | --- | --- | --- |
 | 언어 | TypeScript | 화면 + 서버 |
-| 언어 | Python 3 | 리뷰·랭킹 수집 (E, B) |
-| 프레임워크 | Next.js (App Router) | 화면과 서버 API (Route Handler)를 한 프로젝트로 |
+| 언어 | Python 3 | Qoo10 리뷰·랭킹 수집 (E, B) |
+| 프레임워크 | Next.js (App Router) | 화면, Route Handler, Server Action을 한 프로젝트로 |
 | UI | Tailwind CSS + shadcn/ui | 화면 부품 |
 | 차트 | Recharts | 감성 비율, 키워드 빈도, 트렌드 추이 |
-| CSV | Papa Parse | 리뷰 CSV 업로드 파싱 (E) |
+| 캘린더 | FullCalendar | 홈·`/calendar`의 프로모션 캘린더 (I) |
+| CSV | Papa Parse | 리뷰·랭킹 CSV 파싱 |
 | AI SDK | OpenAI SDK (`openai`, 기본) · Anthropic SDK (`@anthropic-ai/sdk`, 선택) | AI 호출. 둘 중 하나를 `AI_PROVIDER`로 고른다 |
 | 검증 | Zod | AI 응답과 API 입력 검증 |
 | DB/인증/파일 | Supabase (PostgreSQL, Auth, Storage, RLS) | 모든 데이터, 로그인, CSV/이미지 보관 |
-| 수집 | Playwright (Py), requests + BeautifulSoup, pandas | 쇼핑몰 리뷰·랭킹 수집과 정리 |
-| 외부 API | 라쿠텐 시장 API (상품 검색, 랭킹) | 트렌드·경쟁사 데이터 (B, C) |
+| 수집 | Python 수집기 (`collectors/sources/qoo10.py`, `collect_to_db.py`) | Qoo10 랭킹·리뷰 수집 후 Supabase 저장 |
 | 외부 API | SerpApi (Google 자동완성 · Google Trends) | 성분 관심도 "미래 트렌드" (B 확장). 2026-10-23 총괄 허용. SDK 없이 서버에서 `fetch` |
-| 배포 | Vercel | Next.js 배포, PR별 미리보기 |
-| 스케줄러 | GitHub Actions (cron) | Python 수집기 정기 실행 |
+| 외부 API | Apify (TikTok Scraper, `clockworks/tiktok-scraper`) | SNS 영상 링크 → 캡션·해시태그·조회수·발화 자막 (B 확장, 소비자 트렌드 2-B). 2026-10-25 총괄 허용. SDK 없이 서버에서 `fetch`, 실행당 비용 상한 $0.50 |
+| 배포 | Vercel (Hobby, 하루 빌드 수 한도) | 배포 브랜치는 `Leafn_main`. `sub_main` 머지는 모아서 반영한다 |
+| CI | GitHub Actions (`.github/workflows/ci.yml`, 검사 이름 `web`) | PR마다 typecheck · lint · build |
+
+### 확장용 (데모에서는 쓰지 않음)
+
+| 기술 | 상태 |
+| --- | --- |
+| 라쿠텐 시장 API (상품 검색, 랭킹) | 데모는 Qoo10만 쓰기로 해서 연동하지 않았다. `RAKUTEN_APPLICATION_ID` 칸과 `trend_snapshots.source = rakuten_ranking` 값만 남아 있다 |
+| 올리브영 등 국내 플랫폼 수집기 | 만들지 않았다. 자사 국내 리뷰는 시드(`supabase/seeds/own_sample_reviews.sql`)와 CSV로 넣는다 |
+| GitHub Actions cron 수집 | 수집기는 지금 사람이 실행한다 (`--worker` 모드). 정기 실행이 필요해지면 `collect.yml`을 만든다 |
+| SudachiPy | 일본어 리뷰 형태소 분석. 키워드는 지금 AI 분석으로 뽑는다 |
 
 ### AI 모델 사용 규칙
 
@@ -122,21 +142,13 @@
 
 | 등급 | 작업 | OpenAI (기본) | Anthropic (선택) | 이유 |
 | --- | --- | --- | --- | --- |
-| 정밀 | 약기법 위험 판단, 대체 표현, 페인포인트 요약 | `gpt-4.1-mini` (v4 시험 모델) | Claude Sonnet 계열 (`claude-sonnet-5-5`) | 긴 규제 문서 이해, 미묘한 일본어 판단 |
-| 대량 | 리뷰 감성 분류, 키워드, 상품 이미지에서 성분·용량 추출, (참조) 번역 | `gpt-4.1-mini` | Claude Haiku 계열 (`claude-haiku-5-5`) | 대량 반복 작업, 속도·비용 |
+| 정밀 | 약기법 위험 판단, 대체 표현, 페인포인트 요약, 통합 AI 분석(N) | `gpt-4.1-mini` (v4 시험 모델) | Claude Sonnet 계열 (`claude-sonnet-5-5`) | 긴 규제 문서 이해, 미묘한 일본어 판단, 여러 근거 종합 |
+| 대량 | 리뷰 감성 분류, 키워드, 번역, 상품 이미지에서 성분·용량 추출 | `gpt-4.1-mini` | Claude Haiku 계열 (`claude-haiku-5-5`) | 대량 반복 작업, 속도·비용 |
 
-- 호출은 `lib/ai/`의 함수 하나로 모은다. 화면·Route Handler는 등급(정밀·대량)만 넘기고, 어느 제공사를 쓸지는 모른다. 제공사는 환경 변수 `AI_PROVIDER`(`openai` · `anthropic`, 기본 `openai`)로 바꾼다.
-- **표준 위치 (2026-10-23 결정, 총괄):** 설정은 `lib/ai/config.ts`(`resolveProvider`, `resolveModel`), 호출은 `lib/ai/client.ts`의 `callAi` 하나다. 다른 파일에서 `new OpenAI()`·`new Anthropic()`을 만들거나 config를 새로 만들지 않는다. 이미지 입력·구조화 출력·Anthropic 연결처럼 모자란 기능은 `callAi`를 넓히는 PR로 추가한다. 기능별 코드는 `lib/ai/<기능>/`(예: `lib/ai/ad-check/`)에 둔다.
+- 호출은 `lib/ai/`의 함수 하나로 모은다. 화면·Route Handler·Server Action은 등급(정밀·대량)만 넘기고, 어느 제공사를 쓸지는 모른다. 제공사는 환경 변수 `AI_PROVIDER`(`openai` · `anthropic`, 기본 `openai`)로 바꾼다.
+- **표준 위치 (2026-10-23 결정, 총괄):** 설정은 `lib/ai/config.ts`(`resolveProvider`, `resolveModel`), 호출은 `lib/ai/client.ts`의 `callAi` 하나다. 다른 파일에서 `new OpenAI()`·`new Anthropic()`을 만들거나 config를 새로 만들지 않는다. 이미지 입력·구조화 출력·Anthropic 연결처럼 모자란 기능은 `callAi`를 넓히는 PR로 추가한다. 기능별 코드는 `lib/ai/<기능>/`(예: `lib/ai/ad-check/`, `lib/ai/review-analysis/`)에 둔다.
 - 모델 ID는 `lib/ai/` 안의 설정 파일 한곳에서 관리한다. 바꾸고 싶으면 `AI_MODEL_PRECISE`, `AI_MODEL_BULK`로 덮어쓴다. 시작 시점의 최신 버전으로 갱신.
 - 제공사·모델을 바꾸면 결과가 달라질 수 있으므로, AI 결과 행의 `model`에는 실제로 부른 모델 ID를 그대로 남긴다 (5장 규칙).
-
-### 참조 기능을 만들 때 추가
-
-| 기술 | 기능 |
-| --- | --- |
-| FullCalendar | 프로모션 캘린더 (I) |
-| SudachiPy | 일본어 리뷰 형태소 분석, 키워드 빈도 (D) |
-| HTML/이미지 내보내기 | 상세페이지용 리뷰 블록 (F) |
 
 ### 확장 단계 (필요해지면 추가)
 
@@ -162,108 +174,116 @@
                        ↓
       Frontend: Next.js 화면 (Vercel)
                        ↓
-      Backend: Next.js Route Handler (Vercel)
-         │  인증 확인 · 입력 검증(Zod) · 라쿠텐 API 호출
+      Backend: Next.js Route Handler · Server Action (Vercel)
+         │  인증 확인 · 입력 검증(Zod) · SerpApi 호출
                        ↓
-      AI: OpenAI API (기본) 또는 Anthropic API
-         │  약기법 검토 · 리뷰 분석 · 번역 · 상품 정보 추출
+      AI: OpenAI API (기본) 또는 Anthropic API  (lib/ai/callAi)
+         │  약기법 검토 · 리뷰 분석 · 번역 · GEO 측정 · SNS 핵심 니즈 · (다음) 통합 AI 분석
          │  (약기법 기준 문서는 프롬프트에 포함)
                        ↓
       Database: Supabase PostgreSQL + Storage  ←──────┐
                                                       │
-              Python 수집기 (GitHub Actions, 매일)
+              Python 수집기 (사람이 실행, --worker 모드)
                        ↑
-      External: 라쿠텐 API · 올리브영 등 국내 플랫폼 · (참조) @cosme · Qoo10 · AI 검색 응답(GEO)
+      External: Qoo10 (랭킹·리뷰) · Google 자동완성·Trends (SerpApi) · TikTok 영상 정보 (Apify) · AI 검색 응답(GEO)
+                (확장용: 라쿠텐 · @cosme · 국내 플랫폼)
 ```
 
-- 웹 앱과 수집기는 직접 통신하지 않는다. **DB가 유일한 접점**이다.
+- 웹 앱과 수집기는 직접 통신하지 않는다. **DB가 유일한 접점**이다 (수집 요청도 `collection_runs` 행으로 주고받는다).
 - 수집이 멈춰도 이미 쌓인 데이터로 웹 기능은 계속 동작해야 한다.
 
 ---
 
-## 4. 저장소 구조 (제안)
+## 4. 저장소 구조
 
 ```
 /
 ├─ apps/web/                     # Next.js (TypeScript)
 │  ├─ app/
 │  │  ├─ (internal)/             # 사내용 root layout (<html lang="ko">)
-│  │  │  ├─ (auth)/              # login/, onboarding/
-│  │  │  └─ (dashboard)/         # 로그인 필요: market/, reviews/, ad-check/, platforms/, calendar/,
-│  │  │                          #   survey-results/, library/, settings/
+│  │  │  ├─ (auth)/              # login/, signup/, onboarding/
+│  │  │  └─ (dashboard)/         # 로그인 필요: (홈 page.tsx + _home/), projects/, market/, reviews/, ad-check/,
+│  │  │                          #   calendar/(홈 캘린더 전체보기), survey-results/, library/, settings/
+│  │  │                          #   (다음) approvals/, ai-analysis/
 │  │  ├─ (public)/               # 공개용 root layout (<html lang="ja">)
-│  │  │  └─ survey/              # (G) 피부타입 설문, 로그인 불필요
-│  │  └─ api/                    # Route Handler (5장) — 프로토타입 단계에서는 만들지 않음
+│  │  │  └─ survey/              # (G) 피부타입 설문, 로그인 불필요. shop/ 은 시연용 Qoo10 상세페이지
+│  │  └─ api/                    # Route Handler (6장)
 │  ├─ components/                # shadcn/ui 기반 공통 컴포넌트 (ui/, layout/, common/, templates/)
+│  │                             #   layout/nav-config.ts = 메뉴의 단일 출처
 │  ├─ lib/
-│  │  ├─ ai/                     # config.ts(제공사·모델), client.ts(callAi), <기능>/ 작업별 호출 함수
+│  │  ├─ ai/                     # config.ts(제공사·모델), client.ts(callAi), prompts.ts(loadPrompt), <기능>/
 │  │  ├─ schemas/                # Zod 스키마 (데이터 모양, AI 응답, API 입력)
 │  │  ├─ supabase/               # 브라우저/서버용 클라이언트
-│  │  ├─ mock/                   # (프로토타입) 가짜 데이터. 불러올 때 Zod로 검증
-│  │  └─ data/                   # 화면이 부르는 읽기 함수. 지금은 mock, 나중에 Supabase
-│  └─ prompts/                   # 프롬프트 원문 (버전 관리, 7장)
+│  │  ├─ mock/                   # 샘플 데이터 (Supabase 환경 변수가 없을 때만). 불러올 때 Zod로 검증
+│  │  ├─ data/                   # 화면이 부르는 읽기 함수와 *-actions.ts(Server Action 쓰기)
+│  │  ├─ own-products.ts         # 자사 제품명 상수 (docs/Product.md)
+│  │  └─ own-product-specs.ts    # 자사 제품 규격 (제품규격서 기준)
+│  ├─ prompts/                   # 프롬프트 원문 (버전 관리, 7장)
+│  └─ scripts/                   # data-link-check.mjs 등 점검 스크립트
 ├─ collectors/                   # Python 수집기
-│  ├─ sources/                   # MVP: oliveyoung.py 등 국내 플랫폼, rakuten.py  (참조 D: cosme.py, qoo10.py)
-│  ├─ nlp/                       # (참조 D) SudachiPy 키워드 추출
+│  ├─ sources/qoo10.py           # Qoo10 랭킹·리뷰 (사이트 하나 = 파일 하나)
+│  ├─ collect_to_db.py           # 수집 요청(collection_runs)을 받아 실행·저장 (--worker)
+│  ├─ nlp/                       # (참조 D) 형태소 분석 자리
 │  ├─ db.py                      # Supabase upsert
 │  └─ requirements.txt
 ├─ supabase/
-│  └─ migrations/                # 테이블, RLS 정책 SQL
+│  ├─ migrations/                # 테이블, RLS 정책 SQL (새 파일만 추가)
+│  └─ seeds/                     # 시작 데이터 SQL (DB 관리자가 SQL Editor에서 실행)
 ├─ knowledge/
-│  └─ yakkiho/                   # 약기법 기준 자료 (효능 범위 56항목, 적정광고 가이드라인 요약 등)
+│  ├─ yakkiho/                   # 약기법 기준 자료
+│  └─ content-guide/             # 콘텐츠 제작 가이드 규칙
+├─ docs/                         # 기술·DB·기능 문서, archive/ (기록용 보관본)
 └─ .github/workflows/
-   └─ collect.yml                # 수집기 cron
+   └─ ci.yml                     # PR 검사 (typecheck · lint · build)
 ```
 
 ---
 
-## 5. DB 스키마 초안
+## 5. DB 테이블 목록
 
-> 컬럼·테이블·행을 추가하는 규칙은 `docs/DB_RULES.md`, 팀 합의를 기다리는 통합 프레임 초안은 `docs/db-frame.md`에 있다.
+> 칸 정의의 기준은 **`docs/db-frame.md`(현재 DB 지도)**다. 이 장에는 테이블 이름과 역할만 둔다. 칸·테이블·행을 추가하는 절차는 `docs/DB_RULES.md`를 따른다.
 
-표의 "기능"에 **(참조)**가 붙은 테이블은 해당 참조 기능을 만들 때 생성한다. MVP에서는 만들지 않는다.
+모든 업무 테이블은 `workspace_id`를 갖고, RLS로 **자기 워크스페이스 행만** 읽고 쓰게 한다 (`is_member(workspace_id)`, 일부 쓰기는 `is_owner`). 공용 테이블은 지금 없다. 공통 칸: `id uuid pk`, `created_at timestamptz` (수정되는 테이블은 `updated_at`).
 
-모든 업무 테이블은 `workspace_id`를 갖고, RLS로 **자기 워크스페이스 행만** 읽고 쓰게 한다. 공통 컬럼: `id uuid pk`, `created_at timestamptz`.
+| 묶음 | 테이블 | 역할 | 기능 |
+| --- | --- | --- | --- |
+| 기반 | `profiles`, `workspaces`, `workspace_members` | 사용자, 팀, 팀 멤버 (role `owner` = 팀장 / `member`) | J |
+| 프로젝트·제품 | `projects` | 프로젝트 = 제품군 (예: Leaf& Dew) | J |
+| | `products` | 자사·경쟁 제품 (`kind`). 자사는 `project_id` · `sale_status` · `skin_line`, 규격은 `source_raw.spec` | J, E, C |
+| | `product_competitors` | 자사 제품 ↔ 경쟁 제품 연결 | C, E |
+| 리뷰 | `reviews` | 리뷰 원문 (`lang` ja/ko, `body_ko` 번역, `excluded_reason`) | E, D |
+| | `review_analyses` | 리뷰 한 건의 AI 분석 (감성·키워드·페인포인트·재구매 요인·주제) | E |
+| 수집 | `collection_runs`, `collection_run_products`, `collection_staged_reviews`, `collection_run_skipped` | 화면에서 낸 수집 요청과 수집기의 진행·임시 결과 | E |
+| 광고 검토 | `ad_checks`, `ad_check_lines`, `content_guides` | 판정 한 건, 줄별 판정, 콘텐츠 제작 가이드 결과물 | A |
+| 시장 | `trend_snapshots`, `search_snapshots`, `geo_snapshots` | 랭킹(Qoo10·라쿠텐), 검색 자동완성·Trends, AI 검색 응답 | B, GEO |
+| 캘린더 | `promo_events`, `promo_milestones`, `platform_notes` | 행사·캠페인, 준비 마감, 플랫폼 메모(화면 없음) | I, H |
+| 설문 | `surveys`, `survey_responses`, `survey_minor_counts`, `survey_reco_events` | 설문 정의, 응답, 미성년 참여 수, 추천 노출·클릭 | G |
 
-| 테이블 | 주요 컬럼 | 기능 |
-| --- | --- | --- |
-| `workspaces` | name | J |
-| `workspace_members` | workspace_id, user_id, role (`owner` / `member`) | J |
-| `projects` | workspace_id, name, platform_id, description (프로젝트 = 제품군, 예: Leaf& Dew) | J (2026-10-24 총괄 결정) |
-| `products` | workspace_id, kind (`own` / `competitor`), brand, name, platform, url, price_jpy, volume_ml, ingredients jsonb, features text[], image_path, source_raw jsonb, project_id, sale_status (`on_sale` / `in_development`), skin_line (`dry` / `oily` / `combo`) | E에서 생성, C에서 확장. 자사 제품은 project_id로 프로젝트에 속함 (2026-10-24). 실제 칸 이름은 db-frame 기준 (`platform_id`, `raw`, `ingredients text[]`) |
-| `reviews` | workspace_id, product_id, source (`cosme` / `rakuten` / `qoo10` / `oliveyoung` / `csv`), external_id, lang (`ja` / `ko`), rating, body, posted_at, raw jsonb · unique(workspace_id, source, external_id) | E (D는 참조) |
-| `review_analyses` | review_id, sentiment (`positive` / `negative` / `neutral`), keywords jsonb `[{text, category}]` (category: `ingredient` / `texture` / `price` / `scent` / `skin_reaction` / `other`), pain_points text[], repurchase_factors text[], model, prompt_version | E (D는 참조) |
-| `review_insights` | workspace_id, product_id, kind (`pain_point` / `repurchase_factor` / `keyword`), label, count, evidence_review_ids uuid[] | E (원문 근거 연결) |
-| `review_translations` | review_id, text_ja, ad_check_id, status (`draft` / `approved`) | F (참조) |
-| `ad_checks` | workspace_id, created_by, source (`manual` / `content_guide`), product_id, promo_event_id, input_text, input_lang, usage, product_category, overall_risk, overall_action, final_text, review_status (`pending` / `approved` / `rejected`), is_expert_review_requested, reviewer_id, reviewer_note, reviewed_at, model, prompt_version, deleted_at | A (2026-10-24 확정: 판정 시 자동 저장, 승인 변경은 owner만) |
-| `ad_check_lines` | workspace_id, ad_check_id, line_index, block_key, original, action, findings jsonb, ingredient_check, translated_text, back_translation_ko, localized_note | A (줄별 판정 결과 분리 저장) |
-| `content_guides` | workspace_id, created_by, product_id, promo_event_id, channel, post_type, input jsonb, title jsonb, body jsonb, lint_hits jsonb, ad_check_id, model, prompt_version | A (2026-10-24 확정: 콘텐츠 제작 가이드 결과물 별도 테이블 자동 저장) |
-| `trend_snapshots` | workspace_id, source (`rakuten_ranking` / …), category, captured_at, data jsonb | B |
-| `geo_snapshots` | workspace_id, engine, query, answer, brands_mentioned text[], captured_at | GEO (참조) |
-| `promo_events` | workspace_id, platform, title, start_date, end_date, prep_due_date, memo | I (참조) |
-| `platform_notes` | workspace_id, platform, strengths, audience, fees_note, updated_by | H (참조) |
-| `skin_survey_responses` | workspace_id, answers jsonb, skin_type, consent_at, locale | G (참조, 익명 insert만 허용, 조회는 멤버만) |
+**아직 없는 테이블:** `review_insights`(리뷰 분석에서 계산해서 씀), `review_translations`(F), `activity_log`, `platforms`(slug 기준표). 탭별 시안·결재·AI 분석용 `member_tabs` · `tab_submissions` · `submission_versions` · `submission_reviews` · `ai_analyses`는 설계만 확정됐다 (`docs/team-approval-ai-analysis.md` 5장).
 
 규칙
-- 분석 결과에는 항상 **근거 리뷰 ID**를 남긴다 (E의 "원문 근거 확인").
+- 분석 결과에는 항상 **근거 리뷰 ID**(통합 AI 분석은 **근거 버전 ID**)를 남긴다.
 - AI 결과 행에는 `model`, `prompt_version`을 저장해 결과가 바뀐 이유를 추적한다.
-- 모양이 일정하지 않은 원본 데이터는 `raw jsonb`에 그대로 둔다. NoSQL은 쓰지 않는다.
+- 모양이 일정하지 않은 원본 데이터는 `raw`·`source_raw jsonb`에 그대로 둔다. NoSQL은 쓰지 않는다.
 
 ---
 
-## 6. API 라우트 초안
+## 6. API 라우트와 서버 함수
+
+**Route Handler (`app/api/`)**
 
 | 메서드 · 경로 | 하는 일 | 모델 |
 | --- | --- | --- |
-| `POST /api/ad-check` | 문구 → 위험 표현, 사유, 대체 표현 (JSON) → `ad_checks` 저장 | 정밀 |
-| `PATCH /api/ad-check/:id` | 담당자 검토 결과 저장 | - |
-| `POST /api/reviews/upload` | CSV 업로드 → `reviews` 저장 | - |
-| `POST /api/reviews/analyze` | 리뷰 묶음(예: 50건) 분석 → `review_analyses` | 대량 |
-| `POST /api/reviews/insights` | 분석 결과 집계 + 페인포인트 요약 → `review_insights` | 정밀 |
-| `POST /api/reviews/translate` | (참조 F) 선택 리뷰 일본어 번역 → 자동으로 ad-check 실행 | 대량 + 정밀 |
-| `POST /api/products/extract` | 상품 페이지/이미지에서 가격·용량·성분 추출 | 대량 |
-| `GET /api/trends/rakuten` | 라쿠텐 랭킹·상품 검색 프록시 (키는 서버에만) | - |
-| `POST /api/survey` | (참조 G) 설문 응답 저장 (공개) | - |
+| `POST /api/ad-check` | 문구 → 위험 표현, 사유, 대체 표현 (JSON) → `ad_checks`·`ad_check_lines` 자동 저장 | 정밀 |
+| `PATCH /api/ad-check/[checkId]` | 담당자 승인·반려 저장 (owner만, RLS와 서버 양쪽에서 확인) | - |
+| `POST /api/content-guide` | 콘텐츠 제작 가이드(제목·본문) 생성 + 금지 표현 검사(`lint_hits`) → `content_guides` 저장 | 정밀·대량 |
+| `POST /api/geo/run` | AI 검색 응답 측정 → `geo_snapshots` | 측정 엔진은 `GEO_MODEL_*`, 키워드 추출은 대량 |
+| `POST /api/market/sns-trends` | TikTok 영상 링크 → Apify로 캡션·해시태그·발화 자막 → 소비자 핵심 니즈 순위 (저장하지 않음) | 대량 |
+| `POST /api/trends/autocomplete`, `POST /api/trends/search-interest` | SerpApi Google 자동완성·Trends (키는 서버에만) → `search_snapshots` | - |
+
+**Server Action (`lib/data/*-actions.ts`)**: 리뷰 CSV 저장(`review-import-actions`), 리뷰 묶음 분석·번역(`review-analysis-actions`), 수집 요청(`collection-actions`), 캘린더 쓰기(`launch-actions`, 아직 저장하지 않음), 프로젝트·제품 관리(`projects`).
+
+**아직 없는 것:** 상품 정보 추출(`/api/products/extract`), 공개 설문 제출 저장, 리뷰 번역 저장(F). 다음 단계의 결재·AI 분석 API는 설계 문서 7장 순서로 만든다.
 
 - 대량 분석은 서버 함수 실행 시간 제한을 넘지 않도록 **묶음 단위로 나눠** 호출한다. 한계에 닿으면 작업 큐 도입 (2장 확장).
 
@@ -272,13 +292,20 @@
 ## 7. AI 호출 규칙
 
 1. **출력은 항상 JSON 스키마로 고정**하고, 받은 뒤 Zod로 검증한다. 검증 실패 시 1회 재시도 후 에러 표시.
-2. **프롬프트는 `prompts/`에 파일로** 두고 버전을 붙인다 (`ad-check.v1.md`). 코드에 문자열로 흩어 두지 않는다.
-3. **예시(Few-shot)와 판단 단계**를 프롬프트에 넣는다. 예: "1) 효능 범위 56항목 안인지 2) 의약품적 표현인지 3) 최상급·보증 표현인지 → 판정".
-4. **약기법 기준 자료는 MVP에서 프롬프트에 통째로** 넣는다 (`knowledge/yakkiho/`). Vector DB는 자료가 커지면 도입.
-5. **결과를 파일로 저장하지 않는다.** 캐시가 필요하면 DB(또는 Supabase Storage)에 둔다. Vercel 서버는 홈 폴더 등 디스크에 쓸 수 없다.
-6. 약기법 결과 화면에는 "법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 한다"는 문구를 표시한다.
+2. **프롬프트는 `prompts/<이름>.v<N>.md` 파일로** 두고 `lib/ai/prompts.ts`의 `loadPrompt(이름, 버전)`으로 읽는다. 코드에 문자열로 흩어 두지 않는다. 파일 머리말(`---` 앞)은 사람이 읽는 설명이고, 본문만 AI에게 보낸다.
+3. **프롬프트를 고칠 때는 새 버전 파일**(`v2`)을 만들고, 쓰는 버전 번호는 `lib/ai/<기능>/` 안의 상수 한곳에서 바꾼다. 결과 행의 `prompt_version`으로 어느 버전의 결과인지 남는다.
+4. **예시(Few-shot)와 판단 단계**를 프롬프트에 넣는다. 예: "1) 효능 범위 56항목 안인지 2) 의약품적 표현인지 3) 최상급·보증 표현인지 → 판정".
+5. **약기법 기준 자료는 프롬프트에 통째로** 넣는다 (`knowledge/yakkiho/`). Vector DB는 자료가 커지면 도입.
+6. **결과를 파일로 저장하지 않는다.** 캐시가 필요하면 DB(또는 Supabase Storage)에 둔다. Vercel 서버는 홈 폴더 등 디스크에 쓸 수 없다.
+7. 약기법 결과 화면에는 "법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 한다"는 문구를 표시한다. 통합 AI 분석 결과에는 "AI 결과 · 팀장 확인 전" 라벨을 붙인다.
 
-약기법 검토 응답 예시 (초안)
+**통합 AI 분석(N) 프롬프트 — 나중에 고칠 수 있게 설계 (2026-10-25 총괄 요청)**
+- 원문: `prompts/integrated-analysis.v1.md`. 코드와 맞춰야 하는 곳(입력 형식·출력 형식)과 팀이 자유롭게 고치는 곳(역할·분석 관점·말투·금지 사항)을 파일 안에서 나눠 둔다.
+- **분석 관점 목록은 프롬프트 안의 데이터다.** 출력은 관점마다 `{key, title, points[]}` 한 칸이 되는 일반 모양이라, 관점을 더하거나 빼거나 이름을 바꿔도 Zod 스키마와 화면 코드를 고치지 않는다.
+- 쓰는 버전은 `lib/ai/integrated-analysis/`의 상수 하나로 고른다. 새 버전은 이전 결과를 지우지 않고, 같은 입력으로 v1·v2를 다시 돌려 비교할 수 있다.
+- 자세한 규칙: `docs/team-approval-ai-analysis.md` 10장.
+
+약기법 검토 응답 예시 (요약)
 
 ```json
 {
@@ -296,31 +323,17 @@
 }
 ```
 
-리뷰 분석 응답 예시 (초안, 리뷰 1건당)
-
-```json
-{
-  "review_id": "uuid",
-  "sentiment": "negative",
-  "keywords": [
-    { "text": "保湿", "category": "texture" },
-    { "text": "べたつき", "category": "texture" },
-    { "text": "香り", "category": "scent" }
-  ],
-  "pain_points": ["べたつきが残る"],
-  "repurchase_factors": []
-}
-```
+실제 모양은 `lib/schemas/ad-check.ts`와 `prompts/ad-check.v6.md`, 리뷰 분석은 `lib/schemas/review.ts`와 `prompts/review-analysis.v1.md`가 기준이다.
 
 ---
 
 ## 8. 데이터 수집 규칙
 
-- **공식 API 우선.** 라쿠텐은 API를 쓰고, 크롤링은 API가 없는 곳에만.
+- **공식 API 우선.** 크롤링은 API가 없는 곳에만. 데모는 Qoo10만 수집한다.
 - 크롤링 전 각 사이트의 이용약관과 robots.txt를 확인하고, 요청 간격을 두며 필요한 범위만 수집한다.
 - 저장은 `(workspace_id, source, external_id)` 기준 upsert로 중복을 막는다. 수집기는 service role 키로 RLS를 우회하므로 `workspace_id`를 코드에서 반드시 채운다 (`docs/DB_RULES.md` 4장).
 - 원본은 `raw jsonb`에 보관해 파서가 바뀌어도 다시 가공할 수 있게 한다.
-- 수집 실패는 GitHub Actions 로그로 확인한다. 사이트 구조 변경으로 깨지는 것을 전제로 소스별 파일을 분리한다.
+- 사이트 구조 변경으로 깨지는 것을 전제로 소스별 파일을 분리한다. 실패는 `collection_runs.status`·`error`로 화면에 보인다.
 
 ---
 
@@ -335,46 +348,50 @@
 | `NEXT_PUBLIC_SUPABASE_URL` | web | 공개 가능 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | 공개 가능 (RLS가 보호) |
 | `SUPABASE_SERVICE_ROLE_KEY` | collectors, 서버 전용 작업 | RLS 우회 키. 절대 브라우저/커밋 금지 |
-| `RAKUTEN_APPLICATION_ID` | web 서버, collectors | |
+| `RAKUTEN_APPLICATION_ID` | (확장용) | 데모에서는 쓰지 않는다. 라쿠텐을 연동할 때 서버 전용으로 |
 | `SERPAPI_API_KEY` | web 서버 | 브라우저 노출 금지. 유료 호출이라 수집 버튼·예약 실행에서만 부른다 |
+| `APIFY_TOKEN` | web 서버 | 브라우저 노출 금지. 유료 호출이라 SNS [분석 시작] 버튼에서만 부른다 |
 | `GEO_MODEL_CHATGPT`, `GEO_MODEL_CLAUDE`, `GEO_REPEAT_COUNT` | web 서버 | 선택. GEO가 측정하는 엔진의 모델과 반복 횟수(1~3). 키는 `OPENAI_API_KEY`·`ANTHROPIC_API_KEY`를 쓴다 |
 
 키는 Vercel 환경 변수와 GitHub Actions Secrets에만 넣는다. `.env*`는 `.gitignore`에 포함.
 
 ---
 
-## 10. 개발 순서 (MVP)
+## 10. 개발 순서
 
-> 화면 뼈대의 순서는 `docs/prototype-plan.md`를 따른다. 이 장은 실데이터 연동 순서다.
+**끝난 것 (2026-10-25, PR #77까지)**
 
-1장의 순서를 따른다. 앞 단계가 뒤 단계의 테이블과 코드를 만들어 주는 순서다.
+- [x] **1. 기반 (J, K):** Supabase, 로그인·가입·워크스페이스 + RLS, 헤더(워크스페이스 → 프로젝트 → 제품), 프로젝트·제품 DB와 Leaf& Dew 6종 시드·규격, Vercel 배포
+- [x] **2. 리뷰 분석 (E, D):** `products`/`reviews`, Qoo10 수집기와 수집 요청 화면, CSV 저장, AI 묶음 분석·번역, 리포트·소구점
+- [x] **3. 약기법 검토 (A):** 기준 자료, 프롬프트 v6, `/api/ad-check`, 자동 저장·owner 승인, 검토 이력, 콘텐츠 제작 가이드
+- [x] **4. 경쟁제품 비교 (C):** Qoo10 수집으로 경쟁 제품 등록, 자사-경쟁 연결, 비교 탭
+- [x] **5. 시장 트렌드 (B, GEO):** Qoo10 랭킹 CSV, 검색 자동완성·Trends, GEO, SNS 핵심 니즈(Apify), 탭 구성의 시장 분석
+- [x] 홈: 탭 요약 카드·할 일·프로모션 캘린더 (진출 실행 탭 제거)
 
-- [ ] **1. 기반 (J, K):** Supabase 프로젝트, 로그인, `workspaces`/`workspace_members` + RLS, 탭 3개짜리 빈 대시보드, Vercel 배포
-- [ ] **2. 국내 리뷰 분석 (E):** `products`/`reviews` 생성 → CSV 업로드 → 묶음 분석 → 집계·차트 → 원문 연결 → Python 수집기(국내 플랫폼) + GitHub Actions
-- [ ] **3. 약기법 검토 (A):** 기준 자료 정리 → 프롬프트 v1 → `/api/ad-check` → 결과 화면(현지화 제안 포함) → 담당자 검토 저장·이력
-- [ ] **4. 경쟁제품 비교 (C):** 상품 URL/이미지에서 가격·용량·성분·특징 추출 → `products`(competitor) → 자사 vs 경쟁사 비교표
-- [ ] **5. 시장 트렌드 (B):** 라쿠텐 랭킹·상품 검색 연동 → `trend_snapshots` → 트렌드·성분별 관심도 차트
+**다음 (데모 범위, `docs/team-approval-ai-analysis.md` 7장 순서, 단계마다 PR 하나)**
 
-**참조 기능 (MVP 이후, 팀이 필요하다고 정할 때):** D 일본 현지 리뷰 · F 리뷰 번역 상세페이지 · GEO · G 피부타입 설문(APPI 동의 문구 필요) · H 플랫폼 강점 · I 프로모션 캘린더
+- [ ] **1단계 권한·테이블:** 결재 공통 층 5개 테이블 + RLS + `has_tab()`, 설정 화면의 멤버별 담당 탭
+- [ ] **2단계 시안 제출·히스토리:** 리뷰 분석·광고 검토 결과에서 시안 저장·제출, 버전 히스토리
+- [ ] **3단계 팀장 결재함 + 제품 × 탭 진행 표(L):** 버전 미리보기 결재, 판매 중 제품만의 진행 표 (홈의 샘플 8단계 현황판을 대신함)
+- [ ] **4단계 AI 분석(N):** 탭별 승인본 선택 → 실행 → 저장·공유·팀장 확인 라벨
 
-**병렬 작업 분담:** 5장 DB 표만 먼저 합의하면 화면 / 서버·프롬프트 / Python 수집 담당이 동시에 진행할 수 있다.
+**그 밖에 남은 것:** 공개 설문 제출 저장(G), 캘린더 쓰기 저장(I), 리뷰 번역 저장(F), 시장 화면의 라쿠텐 스냅샷 정리(Qoo10만 원칙).
+
+1단계 마이그레이션은 총괄이 원격 DB에 적용한 뒤 2단계를 시작한다.
 
 ---
 
 ## 11. 열린 질문
 
-- [ ] (참조 기능) "GEO"가 AI 검색 최적화(Generative Engine Optimization)가 맞는지, 지역 분석인지
 - [ ] 약기법 기준 자료의 출처와 범위 확정 (효능 범위 56항목, 적정광고 가이드라인, 적발 사례)
-- [ ] 라쿠텐 API 이용 조건과 호출 한도 확인
-- [ ] 수집 대상 사이트별 이용약관 확인
-- [ ] 무료 플랜 한도 확인 (Supabase 무료 플랜은 장기간 미사용 시 일시정지)
-- [ ] (G) 피부타입 분류 기준과 문항
+- [ ] 수집 대상 사이트(Qoo10)의 이용약관 확인
+- [ ] 무료 플랜 한도 확인 (Supabase 무료 플랜은 장기간 미사용 시 일시정지, Vercel Hobby는 하루 빌드 수 한도)
 - [ ] (G) 설문 개인정보: 익명만 받을지, 쿠폰용 이메일 등까지 받을지 → APPI 동의·이용 목적·국외 이전 고지 범위
 - [ ] (G) 설문 결과 페이지의 제품 추천 문구는 광고 → 약기법 검토 대상으로 처리
-- [ ] (F) 국내 플랫폼 리뷰를 일본 상세페이지에 게시할 권리 (리뷰 저작권, 플랫폼 이용약관, 작성자 동의)
+- [ ] (F) 국내 플랫폼 리뷰를 일본 상세페이지에 게시할 권리 (리뷰 저작권, 플랫폼 이용약관, 작성자 동의). 콘텐츠 제작 가이드가 한국 리뷰를 일본어 후기로 인용하는 것도 해당 (`docs/tab3-db-plan.md` 4장)
 - [ ] (A) 「化粧品等の適正広告ガイドライン」 개정(2026년 7월 α판 초안)의 정식판 여부와 시점
-- [ ] (D) 플랫폼별 평점 척도 (@cosme 등)
-- [ ] `docs/prototype-plan.md` 8장 스키마 제안 18개의 5·7장 반영 여부 (프로토타입에서는 optional 필드로 시험 중)
+- [ ] (M) 탭별 시안의 `body` 모양(`MarketBody`·`ReviewBody`·`AdBody`) 확정. 1단계 PR에서 정한다
+- [ ] (N) 통합 AI 분석의 분석 관점 목록 확정 (지금은 `prompts/integrated-analysis.v1.md`의 초안)
 
 ---
 
@@ -383,105 +400,47 @@
 | 용어 | 한 줄 설명 |
 | --- | --- |
 | Route Handler | Next.js 안에 만드는 서버 API (`app/api/.../route.ts`) |
+| Server Action | 화면에서 바로 부르는 서버 함수 (`"use server"`, `lib/data/*-actions.ts`) |
 | RLS | Row Level Security. DB가 행 단위로 "누가 볼 수 있나"를 강제하는 규칙 |
 | 구조화 출력 / JSON 스키마 | AI 답을 정해진 칸(JSON)에 맞춰 받는 방식 |
 | Few-shot | 프롬프트에 판정 예시를 몇 개 넣는 기법 |
 | RAG | AI가 답하기 전에 관련 문서를 검색해 함께 넣는 방식 (확장 단계) |
-| 형태소 분석 | 띄어쓰기 없는 일본어를 단어로 자르는 작업 (SudachiPy) |
+| 시안 · 버전 · 결재 | 탭 결과를 팀장에게 올리는 단위(시안), 그 히스토리(버전), 팀장의 승인·반려(결재) |
 | upsert | 있으면 갱신, 없으면 추가 |
 
 ---
 
-## 13. 단계별 작업 요청 프롬프트 (복사해서 사용)
+## 13. 작업 요청 프롬프트 (복사해서 사용)
 
-각 프롬프트 앞에 "CLAUDE.md를 먼저 읽고 0장 규칙을 지켜줘."가 들어간다고 가정한다. 번호는 10장 개발 순서와 같다. 한 단계를 확인한 뒤 다음 단계로 넘어간다.
+각 프롬프트 앞에 "CLAUDE.md를 먼저 읽고 0장 규칙을 지켜줘."가 들어간다고 가정한다. 번호는 10장 "다음"의 단계와 같다. 한 단계를 확인한 뒤 다음 단계로 넘어간다. 끝난 단계의 옛 프롬프트는 `docs/archive/pre_CLAUDE.md` 13장에 있다.
 
-### MVP
-
-**1-1. 프로젝트 생성**
+**1단계. 권한 · 테이블**
 ```
-apps/web에 Next.js(App Router, TypeScript strict) 프로젝트를 만들고 Tailwind와 shadcn/ui를 설정해줘.
-(dashboard) 레이아웃에 사이드바 내비게이션을 만들고, "시장 분석 / 리뷰 분석 / 광고 검토"를 사이드바 상단 그룹으로 둬. 각 페이지는 빈 화면으로 둬.
-아직 Supabase나 AI는 연결하지 마.
-```
-
-**1-2. 로그인과 워크스페이스**
-```
-Supabase Auth(이메일 로그인)를 연결하고, 5장의 workspaces, workspace_members 테이블과 RLS 정책을
-supabase/migrations에 SQL로 만들어줘. 로그인하지 않으면 (dashboard)에 들어갈 수 없게 하고,
-첫 로그인 시 워크스페이스를 만들거나 초대 코드로 참여하는 화면을 만들어줘.
+docs/team-approval-ai-analysis.md와 docs/DB_RULES.md를 읽어줘.
+그 문서 5장의 테이블 5개(member_tabs, tab_submissions, submission_versions, submission_reviews, ai_analyses)와
+RLS, has_tab(ws, tab) 함수를 새 마이그레이션 하나로 만들어줘 (npx supabase migration new).
+Zod(lib/schemas/submission.ts), mock, lib/data 읽기 함수를 같은 PR에서 맞추고,
+설정 화면에 팀장(owner)이 멤버별 담당 탭을 주는 칸을 만들어줘. 원격 DB 적용은 하지 마.
 ```
 
-**2-1. 리뷰 CSV 업로드와 분석**
+**2단계. 시안 제출 · 히스토리**
 ```
-5장의 products, reviews, review_analyses 테이블을 만들어줘. reviews.lang은 ko와 ja를 모두 허용해줘.
-리뷰 분석 탭에서 CSV(컬럼: 상품명, 평점, 본문, 작성일)를 업로드하면 Papa Parse로 읽어 reviews에 저장하고,
-POST /api/reviews/analyze가 50건씩 대량 등급 모델(2장)로 감성·키워드·페인포인트·재구매 요인을 분석하게 해줘.
-진행률을 화면에 보여줘.
+리뷰 분석과 광고 검토 결과 화면에 "시안으로 저장 / 제출" 버튼과 버전 히스토리 패널을 붙여줘.
+설계 문서 6장 규칙대로 제출한 버전은 고칠 수 없고, 삭제는 숨김이야. 담당이 아닌 탭에서는 버튼을 숨겨줘.
 ```
 
-**2-2. 리뷰 집계와 원문 연결**
+**3단계. 팀장 결재함 + 제품 × 탭 진행 표**
 ```
-review_insights 테이블과 POST /api/reviews/insights를 만들어줘.
-Recharts로 감성 비율(도넛), 키워드 빈도(막대), 주요 불만 유형(막대)을 보여주고,
-불만 유형이나 키워드를 클릭하면 근거 리뷰 원문 목록이 열리게 해줘.
-```
-
-**2-3. Python 수집기**
-```
-collectors/에 Python 수집기를 만들어줘. 우선 sources/oliveyoung.py 하나만.
-상품 URL 목록을 받아 리뷰를 수집하고 (workspace_id, source, external_id)로 reviews에 upsert해줘. workspace_id는 실행 설정에서 받아 반드시 채우고, 원본은 raw에 저장.
-요청 사이에 간격을 두고, 실패해도 다른 상품은 계속 진행되게 해줘.
-.github/workflows/collect.yml로 매일 1회 실행되게 하고, 키는 GitHub Secrets에서 읽어줘.
+approvals/ 결재함과 버전 미리보기 페이지(내용 · 근거 · 이전 버전 비교 · 승인/반려, 반려 사유 필수)를 만들어줘.
+그리고 판매 중 제품만 행으로 하는 제품 × 탭 진행 표를 만들어 홈의 샘플 8단계 현황판을 대신하게 해줘.
 ```
 
-**3-1. 약기법 검토 API**
+**4단계. AI 분석**
 ```
-5장의 ad_checks 테이블을 만들고, 7장 규칙대로 POST /api/ad-check를 구현해줘.
-- 프롬프트: prompts/ad-check.v1.md (knowledge/yakkiho/ 자료를 포함, 판단 단계와 예시 3개)
-- 모델: 정밀 등급(2장, `lib/ai/`에서 제공사 선택), 응답은 7장의 약기법 JSON 예시 모양으로 고정하고 Zod로 검증
-- 결과는 ad_checks에 model, prompt_version과 함께 저장
-화면은 다음 단계에서 만들 거니까 API와 스키마만 해줘.
-```
-
-**3-2. 약기법 검토 화면**
-```
-광고 검토 탭에 문구 입력창(한국어/일본어 선택)과 결과 화면을 만들어줘.
-위험 표현은 원문 위에 위험도별 색으로 표시하고, 클릭하면 사유·근거·대체 표현이 보이게 해줘.
-일본 소비자에게 자연스러운 현지화 제안(localized_note)도 함께 보여줘.
-담당자가 승인/반려와 메모를 남기면 PATCH /api/ad-check/:id로 저장하고, 아래에 검토 이력 목록을 보여줘.
-"법률 자문이 아닌 검토 보조 결과" 안내 문구를 결과 상단에 고정해줘.
-```
-
-**4. 경쟁제품 비교**
-```
-경쟁제품을 URL이나 상품 이미지로 등록하면 POST /api/products/extract가 가격·용량·주요 성분·특징을 추출해
-products(kind=competitor)에 넣게 해줘. 시장 분석 탭에 자사 vs 경쟁사 비교표를 보여주고,
-추출 값은 사람이 수정할 수 있어야 해.
-```
-
-**5. 시장 트렌드**
-```
-GET /api/trends/rakuten으로 라쿠텐 랭킹/상품 검색을 서버에서 호출하고 trend_snapshots에 저장해줘.
-시장 분석 탭에 카테고리별 랭킹 추이와 상품명·설명에 자주 등장하는 성분의 관심도 차트를 보여줘.
-```
-
-### 참조 기능 (MVP 이후, 요청할 때만)
-
-**리뷰 번역 → 상세페이지 (F)**
-```
-분석된 한국어 리뷰를 골라 "일본어로 번역" 버튼을 누르면 POST /api/reviews/translate가
-대량 등급 모델로 번역한 뒤 자동으로 ad-check를 실행하게 해줘. 위험 표현이 있으면 승인 전까지 내보내기를 막아줘.
-승인된 리뷰는 상세페이지에 붙일 HTML 블록으로 복사할 수 있게 해줘.
-```
-
-**캘린더 · 플랫폼 · 설문 (I, H, G)**
-```
-(1) promo_events + FullCalendar로 프로모션 캘린더 (월/주 보기, 준비 마감일 표시)
-(2) platform_notes로 플랫폼별 강점 카드 화면 (팀원이 편집 가능)
-(3) /survey 공개 페이지: 일본어 모바일 우선 피부타입 설문, 개인정보 동의 체크 필수, 결과는 익명 저장,
-    대시보드에서 응답 집계를 볼 수 있게
-세 가지는 각각 따로 요청할 테니 지금은 (1)만 해줘.
+ai-analysis/ 화면에서 제품을 고르고 탭별 승인본을 하나씩 고르면(기본값 최신 승인본, 기준 날짜 차이 30일 넘으면 경고)
+lib/ai/integrated-analysis/가 prompts/integrated-analysis.v1.md로 callAi(정밀 등급)를 불러 결과를 ai_analyses에 저장하게 해줘.
+설계 문서 10장대로 분석 관점은 프롬프트 파일에서만 정하고, 출력은 관점별 일반 모양으로 Zod 검증해줘.
+결과에는 "AI 결과 · 팀장 확인 전" 라벨과 문장별 근거 버전 링크를 보여줘.
 ```
 
 **막혔을 때 쓰는 프롬프트**

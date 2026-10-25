@@ -2,6 +2,8 @@
 
 > 자사 제품명은 이 문서가 기준이다. 코드에서는 `apps/web/lib/own-products.ts`의 상수를 쓰고, 이름을 새로 지어 적지 않는다.
 > 제품 사진은 `apps/web/public/products/`에 라인별 세트로 있다.
+> DB: 프로젝트 `Leaf& Dew` 1개(`projects`) + 자사 제품 6행(`products`, `kind = own`). 라인은 `skin_line`(건성 `dry` · 지성 `oily` · 복합성 `combo`), 판매 상태는 `sale_status`(판매 중 `on_sale` · 개발 중 `in_development`). 시드: `supabase/seeds/projects_leaf_dew.sql`.
+> 개발 중 제품은 제품 × 탭 진행 표 · 시안 · AI 분석 대상이 아니다. 판매를 시작하면 `sale_status`만 바꾼다.
 
 **Leaf& Dew (리프앤 듀)**
  - 잎사귀에 맺힌 아침 이슬처럼 맑고 촉촉한 수분 공급을 연상시킵니다.

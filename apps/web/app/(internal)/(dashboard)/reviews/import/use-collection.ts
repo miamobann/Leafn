@@ -119,8 +119,8 @@ export function useCollection(project: CollectProject) {
   }
 
   /** 미리보기를 닫는다. 저장 전이면 요청을 지우고(임시 리뷰도 함께), 저장이 끝난 요청은 화면만 비운다 */
-  async function reset() {
-    if (!view) return;
+  async function reset(): Promise<boolean> {
+    if (!view) return false;
     setBusy("reset");
     setMessage(null);
     try {
@@ -128,17 +128,24 @@ export function useCollection(project: CollectProject) {
         const res = await discardCollection(view.run.id);
         if (!res.ok) {
           setMessage(res.message);
-          return;
+          return false;
         }
       }
       lastStatus.current = null;
       setView(null);
       setSelected(new Set());
+      return true;
     } catch {
       setMessage("서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+      return false;
     } finally {
       setBusy(null);
     }
+  }
+
+  /** 저장이 끝난 뒤 같은 조건으로 다시 찾는다 (이미 저장한 리뷰는 건너뛰고 그다음 최신 리뷰를 가져온다) */
+  async function again() {
+    if (await reset()) await find();
   }
 
   function toggle(id: string) {
@@ -148,5 +155,5 @@ export function useCollection(project: CollectProject) {
     setSelected(next);
   }
 
-  return { form, setForm, view, status, waiting, restoring, busy, message, selected, setSelected, toggle, now, find, save, reset };
+  return { form, setForm, view, status, waiting, restoring, busy, message, selected, setSelected, toggle, now, find, save, reset, again };
 }

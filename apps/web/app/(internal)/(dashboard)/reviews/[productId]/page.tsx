@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
+import { getAnalysisStatus } from "@/lib/data/review-analysis-actions";
 import { getReviewProductList, getReviewsOf } from "@/lib/data/reviews";
 import { platformLabel } from "@/lib/platforms";
+import { AnalyzeButton } from "../_components/analyze-button";
 import { ReportView } from "./report-view";
 
 export default async function ReviewReportPage({ params }: { params: Promise<{ productId: string }> }) {
@@ -11,6 +13,7 @@ export default async function ReviewReportPage({ params }: { params: Promise<{ p
 
   const lang = product.kind === "own" ? "ko" : "ja";
   const reviews = (await getReviewsOf(productId)).filter((r) => r.lang === lang);
+  const status = await getAnalysisStatus(productId);
 
   // 경쟁 리포트는 같은 카테고리의 우리 제품(국내 리뷰가 가장 많은 것)과 주제를 맞대 본다
   let ownCompare = null;
@@ -27,11 +30,14 @@ export default async function ReviewReportPage({ params }: { params: Promise<{ p
     .map((p) => ({ id: p.id, label: p.kind === "own" ? `${p.name} (자사)` : `${p.brand} ${p.name}${p.rank ? ` (${p.rank}위)` : ""}` }));
 
   return (
-    <ReportView
-      product={{ ...product, platformLabel: platformLabel(product.platform) }}
-      reviews={reviews}
-      ownCompare={ownCompare}
-      options={options}
-    />
+    <>
+      <AnalyzeButton productId={productId} pending={status.pending} untranslated={status.untranslated} />
+      <ReportView
+        product={{ ...product, platformLabel: platformLabel(product.platform) }}
+        reviews={reviews}
+        ownCompare={ownCompare}
+        options={options}
+      />
+    </>
   );
 }
