@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { AUTOCOMPLETE_REGION, AUTOCOMPLETE_SEEDS } from "@/lib/external/search-terms";
 import { fetchAutocomplete, SerpApiConfigError } from "@/lib/external/serpapi";
+import { translateTerms } from "@/lib/ai/translate/terms";
 import { getCurrentUser, getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import type { SearchSnap } from "@/lib/schemas/search";
 import { createClient } from "@/lib/supabase/server";
@@ -28,6 +29,14 @@ export async function POST() {
     }
   }
   if (snapshots.length === 0) return NextResponse.json({ error: `자동완성을 받지 못했어요: ${failures.map((f) => f.error).join(" / ")}` }, { status: 502 });
+
+  // 한국어 뜻을 한 번에 번역해 같이 저장한다. 번역이 실패해도 수집 결과는 그대로 저장한다
+  try {
+    const ko = await translateTerms(snapshots.flatMap((s) => s.suggestions.map((x) => x.value)));
+    for (const s of snapshots) s.suggestions = s.suggestions.map((x) => ({ ...x, value_ko: ko.get(x.value) ?? null }));
+  } catch {
+    // AI 키가 없거나 호출이 실패하면 뜻 없이 저장
+  }
 
   let saved = false;
   let saveError: string | null = null;
