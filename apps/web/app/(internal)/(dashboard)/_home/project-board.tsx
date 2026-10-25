@@ -18,6 +18,8 @@ type HomeStage = HomeProject["stages"][number];
 const TEXT = {
   title: "프로젝트 진행 현황",
   hint: "벽돌을 누르면 아래에 상세가 열려요",
+  ownerFilter: "담당",
+  allOwners: "전체",
   project: "프로젝트",
   progress: "진행",
   done: "완료",
@@ -32,6 +34,9 @@ const TEXT = {
   log: "진행 기록",
   noLog: "아직 기록이 없어요",
   openScreen: "화면 열기 →",
+  stageNav: "단계 이동",
+  backToBoard: "현황판으로 ↑",
+  stages: "8단계",
 };
 
 /** 단계마다 현황판 열 이름, 열 머리 설명, 상세 제목, 관련 화면 (prototype-plan 2장) */
@@ -63,6 +68,7 @@ const STATUS = {
 const BOARD_ID = "project-board";
 const DETAIL_ID = "stage-detail";
 const DETAIL_TITLE_ID = "stage-detail-title";
+const OWNER_SELECT_ID = "board-owner-filter";
 
 const brickId = (projectId: string, stage: StageKey) => `brick-${projectId}-${stage}`;
 
@@ -95,6 +101,7 @@ export function boardDeadlines(projects: HomeProject[]) {
               label: stage.next_step ?? STAGES[stage.stage].label,
               dueDate: stage.due_date,
               blocked: stage.status === "blocked",
+              ownerId: stage.owner_id,
             },
           ]
         : [],
@@ -110,6 +117,9 @@ type Selection = { projectId: string; stage: StageKey; request: number };
 const SelectionContext = createContext<{
   selection: Selection | null;
   select: (projectId: string, stage: StageKey) => void;
+  /** 담당자 필터. null이면 전체 */
+  owner: string | null;
+  setOwner: (owner: string | null) => void;
 } | null>(null);
 
 function useSelection() {
@@ -118,18 +128,24 @@ function useSelection() {
   return value;
 }
 
-/** 현황판과 상세가 고른 벽돌을 함께 보도록 감싼다 */
+/** 현황판과 상세, 캘린더 할 일 목록이 고른 벽돌과 담당자 필터를 함께 보도록 감싼다 */
 export function ProjectProgress({ children }: { children: React.ReactNode }) {
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [owner, setOwner] = useState<string | null>(null);
   const select = (projectId: string, stage: StageKey) =>
     setSelection((prev) => ({ projectId, stage, request: (prev?.request ?? 0) + 1 }));
 
-  return <SelectionContext.Provider value={{ selection, select }}>{children}</SelectionContext.Provider>;
+  return <SelectionContext.Provider value={{ selection, select, owner, setOwner }}>{children}</SelectionContext.Provider>;
 }
 
 /** 현황판 밖(캘린더 할 일 목록)에서 벽돌을 누른 것처럼 상세를 연다 */
 export function useStageSelect() {
   return useSelection().select;
+}
+
+/** 현황판에서 고른 담당자. 캘린더 할 일 목록도 같은 사람 것만 보인다 */
+export function useOwnerFilter() {
+  return useSelection().owner;
 }
 
 function StatusBrick({ status }: { status: StageStatus }) {
@@ -138,13 +154,37 @@ function StatusBrick({ status }: { status: StageStatus }) {
 }
 
 export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
-  const { selection, select } = useSelection();
+  const { selection, select, owner, setOwner } = useSelection();
+  // 단계에 담당이 정해진 사람만 고를 수 있다
+  const owners = [
+    ...new Map(projects.flatMap((p) => p.stages).flatMap((s) => (s.owner_id && s.owner_name ? [[s.owner_id, s.owner_name] as const] : []))),
+  ];
 
   return (
     <Card id={BOARD_ID}>
       <CardHeader>
         <CardTitle>{TEXT.title}</CardTitle>
-        <CardAction className="text-xs text-muted-foreground">{TEXT.hint}</CardAction>
+        <CardAction className="flex items-center gap-4 text-xs text-muted-foreground">
+          {owners.length > 0 && (
+            <span className="flex items-center gap-1.5">
+              <label htmlFor={OWNER_SELECT_ID}>{TEXT.ownerFilter}</label>
+              <select
+                id={OWNER_SELECT_ID}
+                value={owner ?? ""}
+                onChange={(e) => setOwner(e.target.value || null)}
+                className="rounded-md border bg-background px-2 py-1 text-foreground"
+              >
+                <option value="">{TEXT.allOwners}</option>
+                {owners.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </span>
+          )}
+          {TEXT.hint}
+        </CardAction>
       </CardHeader>
       <CardContent>
         <table className="w-full table-fixed border-separate border-spacing-x-1.5 border-spacing-y-2">
@@ -199,6 +239,8 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
                   </th>
                   {project.stages.map((stage) => {
                     const active = selection?.projectId === project.id && selection.stage === stage.stage;
+                    // 담당자를 고르면 다른 사람 단계는 흐리게 둔다 (누르면 상세는 그대로 열린다)
+                    const dimmed = owner !== null && stage.owner_id !== owner;
                     return (
                       <td key={stage.id}>
                         <button
@@ -210,7 +252,7 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
                           onClick={() => select(project.id, stage.stage)}
                           className={`flex h-8 w-full items-center justify-center rounded-md hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${STATUS[stage.status].brick} ${
                             active ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""
-                          }`}
+                          } ${dimmed ? "opacity-30" : ""}`}
                         >
                           <StatusBrick status={stage.status} />
                         </button>
@@ -254,7 +296,7 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
 }
 
 export function StageDetail({ projects }: { projects: HomeProject[] }) {
-  const { selection } = useSelection();
+  const { selection, select } = useSelection();
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   // 벽돌을 누를 때마다 상세로 내려가고, 키보드 초점도 상세 제목으로 옮긴다
@@ -272,69 +314,128 @@ export function StageDetail({ projects }: { projects: HomeProject[] }) {
   const status = STATUS[stage.status];
   const StatusIcon = status.icon;
   const period = stage.start_date && stage.due_date ? `${monthDay(stage.start_date)} ~ ${monthDay(stage.due_date)}` : TEXT.noPeriod;
+  const index = StageKey.options.indexOf(stage.stage);
+  const prev = project.stages.find((s) => s.stage === StageKey.options[index - 1]);
+  const next = project.stages.find((s) => s.stage === StageKey.options[index + 1]);
+
+  // 현황판으로 올라가면 보던 벽돌에 키보드 초점을 둔다
+  const backToBoard = () => {
+    document.getElementById(BOARD_ID)?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+    document.getElementById(brickId(project.id, stage.stage))?.focus({ preventScroll: true });
+  };
 
   return (
     // 상세가 짧아도 맨 위까지 올라오도록 최소 높이를 본문 한 화면으로 둔다
     <section
       id={DETAIL_ID}
       aria-labelledby={DETAIL_TITLE_ID}
-      className="min-h-[calc(100vh-7.5rem)] scroll-mt-8 border-t border-dashed border-border pt-8"
+      className="flex min-h-[calc(100vh-7.5rem)] scroll-mt-8 flex-wrap items-start gap-8 border-t border-dashed border-border pt-8"
     >
-      <p className="text-sm text-muted-foreground">
-        {project.name} · {project.platform}
-      </p>
-      <div className="mt-1 flex items-center gap-2">
-        <h2 id={DETAIL_TITLE_ID} ref={titleRef} tabIndex={-1} className="text-xl font-semibold outline-none">
-          {StageKey.options.indexOf(stage.stage) + 1}. {meta.label}
-        </h2>
-        <Badge className={status.badge}>
-          {StatusIcon && <StatusIcon aria-hidden />}
-          {status.label}
-        </Badge>
-      </div>
-      <p className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <CalendarDays aria-hidden className="size-4" />
-          {period}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <User aria-hidden className="size-4" />
-          {stage.owner_name ? `${TEXT.owner} ${stage.owner_name}` : TEXT.noOwner}
-        </span>
-      </p>
-
-      {stage.blocker && (
-        <div className="mt-5">
-          <h3 className="text-sm font-semibold">{TEXT.blocker}</h3>
-          <p className="mt-1 text-sm">{stage.blocker}</p>
+      <div className="min-w-0 flex-[999_1_32rem]">
+        <p className="text-sm text-muted-foreground">
+          {project.name} · {project.platform}
+        </p>
+        <div className="mt-1 flex items-center gap-2">
+          <h2 id={DETAIL_TITLE_ID} ref={titleRef} tabIndex={-1} className="text-xl font-semibold outline-none">
+            {StageKey.options.indexOf(stage.stage) + 1}. {meta.label}
+          </h2>
+          <Badge className={status.badge}>
+            {StatusIcon && <StatusIcon aria-hidden />}
+            {status.label}
+          </Badge>
         </div>
-      )}
-      {stage.next_step && (
-        <div className="mt-5">
-          <h3 className="text-sm font-semibold">{TEXT.nextStep}</h3>
-          <p className="mt-1 text-sm">{stage.next_step}</p>
+        <p className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays aria-hidden className="size-4" />
+            {period}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <User aria-hidden className="size-4" />
+            {stage.owner_name ? `${TEXT.owner} ${stage.owner_name}` : TEXT.noOwner}
+          </span>
+        </p>
+
+        {stage.blocker && (
+          <div className="mt-5">
+            <h3 className="text-sm font-semibold">{TEXT.blocker}</h3>
+            <p className="mt-1 text-sm">{stage.blocker}</p>
+          </div>
+        )}
+        {stage.next_step && (
+          <div className="mt-5">
+            <h3 className="text-sm font-semibold">{TEXT.nextStep}</h3>
+            <p className="mt-1 text-sm">{stage.next_step}</p>
+          </div>
+        )}
+
+        <h3 className="mt-5 text-sm font-semibold">{TEXT.log}</h3>
+        {stage.log.length > 0 ? (
+          <ul className="mt-2 space-y-1.5 border-l border-border pl-3 text-sm">
+            {stage.log.map((entry) => (
+              <li key={`${entry.date}-${entry.text}`} className="flex gap-3">
+                <span className="text-muted-foreground tabular-nums">{monthDay(entry.date)}</span>
+                {entry.text}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">{TEXT.noLog}</p>
+        )}
+
+        <div className="mt-6">
+          <Link href={meta.href} className={buttonVariants({ variant: "outline" })}>
+            {meta.screen} {TEXT.openScreen}
+          </Link>
         </div>
-      )}
 
-      <h3 className="mt-5 text-sm font-semibold">{TEXT.log}</h3>
-      {stage.log.length > 0 ? (
-        <ul className="mt-2 space-y-1.5 border-l border-border pl-3 text-sm">
-          {stage.log.map((entry) => (
-            <li key={`${entry.date}-${entry.text}`} className="flex gap-3">
-              <span className="text-muted-foreground tabular-nums">{monthDay(entry.date)}</span>
-              {entry.text}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-1 text-sm text-muted-foreground">{TEXT.noLog}</p>
-      )}
-
-      <div className="mt-6">
-        <Link href={meta.href} className={buttonVariants({ variant: "outline" })}>
-          {meta.screen} {TEXT.openScreen}
-        </Link>
+        {/* 다른 단계로 가려고 현황판까지 다시 올라가지 않도록 앞뒤 단계와 현황판으로 가는 길을 둔다 */}
+        <nav aria-label={TEXT.stageNav} className="mt-8 grid grid-cols-3 items-center gap-3 border-t pt-4 text-sm">
+          {prev ? (
+            <button type="button" onClick={() => select(project.id, prev.stage)} className="justify-self-start hover:underline">
+              ← {index}. {STAGES[prev.stage].label}
+            </button>
+          ) : (
+            <span />
+          )}
+          <button type="button" onClick={backToBoard} className="justify-self-center text-muted-foreground hover:text-foreground">
+            {TEXT.backToBoard}
+          </button>
+          {next && (
+            <button type="button" onClick={() => select(project.id, next.stage)} className="justify-self-end hover:underline">
+              {index + 2}. {STAGES[next.stage].label} →
+            </button>
+          )}
+        </nav>
       </div>
+
+      <aside aria-labelledby="stage-list-title" className="w-72 shrink-0 rounded-xl border p-3">
+        <h3 id="stage-list-title" className="mb-1 px-2 text-sm font-semibold">
+          {project.name} {TEXT.stages}
+        </h3>
+        <ol className="space-y-0.5">
+          {project.stages.map((s, i) => {
+            const current = s.stage === stage.stage;
+            return (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  aria-current={current ? "step" : undefined}
+                  onClick={() => select(project.id, s.stage)}
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${current ? "bg-muted font-medium" : ""}`}
+                >
+                  <span className={`flex size-4 shrink-0 items-center justify-center rounded-sm [&>svg]:size-3 ${STATUS[s.status].brick}`}>
+                    <StatusBrick status={s.status} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {i + 1}. {STAGES[s.stage].label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{STATUS[s.status].label}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </aside>
     </section>
   );
 }

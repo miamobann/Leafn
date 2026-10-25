@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { PromoEventView } from "@/lib/data/launch";
 import { dDay } from "@/lib/format";
-import { type BoardDeadline, useStageSelect } from "./project-board";
+import { type BoardDeadline, useOwnerFilter, useStageSelect } from "./project-board";
 
 const TEXT = {
   next: "다음 행사",
@@ -12,6 +12,7 @@ const TEXT = {
   window: "마감 2주 안",
   count: "건",
   noTodo: "2주 안에 다가오는 마감이 없어요",
+  hidden: (n: number) => `현황판에서 고른 담당자 것만 보여요. 다른 사람 단계 마감 ${n}건은 숨겼고, 담당이 없는 행사 마감은 그대로 보여요.`,
   pending: "문구 검토 대기",
   noPending: "검토를 기다리는 문구가 없어요",
   history: "검토 이력 →",
@@ -63,23 +64,24 @@ export function CalendarTodo({
   board: BoardDeadline[];
 }) {
   const selectStage = useStageSelect();
+  const owner = useOwnerFilter();
   const until = addDays(today, TODO_WINDOW_DAYS);
   const soon = addDays(today, SOON_DAYS);
   const inWindow = (date: string) => date >= today && date <= until;
 
   const next = events.filter((e) => e.startDate >= today).toSorted((a, b) => a.startDate.localeCompare(b.startDate))[0];
+  const boardDue = board.filter((d) => inWindow(d.dueDate));
+  const mine = boardDue.filter((d) => !owner || d.ownerId === owner);
   const todos: TodoItem[] = [
-    ...board
-      .filter((d) => inWindow(d.dueDate))
-      .map((d) => ({
-        key: `${d.projectId}-${d.stage}`,
-        label: d.label,
-        source: `${d.projectName} · ${d.stageLabel}`,
-        dueDate: d.dueDate,
-        tag: d.blocked ? ("blocked" as const) : ("board" as const),
-        copy: false,
-        open: () => selectStage(d.projectId, d.stage),
-      })),
+    ...mine.map((d) => ({
+      key: `${d.projectId}-${d.stage}`,
+      label: d.label,
+      source: `${d.projectName} · ${d.stageLabel}`,
+      dueDate: d.dueDate,
+      tag: d.blocked ? ("blocked" as const) : ("board" as const),
+      copy: false,
+      open: () => selectStage(d.projectId, d.stage),
+    })),
     ...events.flatMap((e) =>
       e.milestones
         .filter((m) => !m.done && inWindow(m.dueDate))
@@ -154,6 +156,7 @@ export function CalendarTodo({
             ))}
           </ul>
         )}
+        {owner && <p className="mt-1.5 px-1.5 text-xs text-muted-foreground">{TEXT.hidden(boardDue.length - mine.length)}</p>}
       </section>
 
       <section aria-labelledby="calendar-todo-pending" className="border-t pt-3">
