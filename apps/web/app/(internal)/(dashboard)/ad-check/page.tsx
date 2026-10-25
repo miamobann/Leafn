@@ -1,59 +1,49 @@
-import { AiDisclaimer } from "@/components/common/ai";
-import { RiskBadge } from "@/components/common/badges";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
-import { TextReviewTemplate } from "@/components/templates";
-import { getAdCheck } from "@/lib/data";
+import { buttonVariants } from "@/components/ui/button";
+import { getAdCheck, getWorkspace } from "@/lib/data";
+import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
+import { ReviewWorkspace } from "./_components/review-workspace";
+import { getAdProducts } from "@/lib/data/ad-products";
+import { AdDisclaimer } from "./_components/ad-disclaimer";
 
-// 결과 패널 모양을 보여주기 위한 샘플 검토
-const SAMPLE_ID = "ac-3";
+type AdCheckPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
-export default async function AdCheckPage() {
-  const sample = await getAdCheck(SAMPLE_ID);
+export default async function AdCheckPage({ searchParams }: AdCheckPageProps) {
+  // 검토 내역의 「이 내용으로 새 검토」: ?from=<검토 ID> 의 원문·제품·사용처를 입력칸에 채운다
+  const products = await getAdProducts();
+  const from = (await searchParams).from;
+  const [workspace, mine, source] = await Promise.all([
+    getWorkspace(),
+    isSupabaseConfigured() ? getMyWorkspace() : null,
+    typeof from === "string" ? getAdCheck(from) : null,
+  ]);
+  const initial = source ? { productId: source.product_id, usage: source.usage, text: source.input_text } : undefined;
+  const canApprove = !isSupabaseConfigured() || mine?.role === "owner";
 
   return (
     <>
-      <PageHeader title="새 광고 검토" description="약기법 위험 표현, 사유·근거, 대체 표현" featureId="A" />
-      <AiDisclaimer />
+      <PageHeader title="새 광고 검토" description="약기법 위험 표현, 사유·근거, 대체 표현, 현지화를 줄별로 확인합니다" featureId="A" />
+      <AdDisclaimer />
+      <p className="mt-2 text-xs text-muted-foreground">
+        AI 판정(정밀 등급) · 판정 시 검토 내역에 자동 저장됨 · 「내부 검토 완료」는 관리자(owner)만 변경 가능하며 법적 승인이 아닙니다
+      </p>
+      {source && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+          <span>검토 이력의 문구를 불러왔어요. 고친 뒤 「검토 요청」을 누르면 다시 판정합니다.</span>
+          <Link href="/ad-check/history" className={`${buttonVariants({ variant: "outline", size: "sm" })} border-foreground/40!`}>
+            수정하지 않고 검토 이력으로 돌아가기
+          </Link>
+        </div>
+      )}
       <div className="mt-4">
-        <TextReviewTemplate
-          input={
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <Badge variant="outline">한국어</Badge>
-                <Badge variant="outline">일본어</Badge>
-              </div>
-              <Textarea placeholder="광고 문구를 입력하세요" rows={6} disabled />
-              <Button disabled>검토하기 (P2에서 연결)</Button>
-            </div>
-          }
-          result={
-            sample && (
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center gap-2">
-                  전체 위험도 {sample.overall_risk && <RiskBadge risk={sample.overall_risk} />}
-                </div>
-                <p lang="ja">{sample.translated_text ?? sample.input_text}</p>
-                {sample.findings.map((f) => (
-                  <div key={f.text} className="rounded-md border p-2">
-                    <div className="flex items-center gap-2">
-                      <RiskBadge risk={f.risk} />
-                      <span lang="ja">{f.text}</span>
-                    </div>
-                    <p className="mt-1">{f.reason}</p>
-                    <p className="text-xs text-muted-foreground">근거: {f.basis}</p>
-                    <p className="mt-1" lang="ja">
-                      대체: {f.suggestions.join(" / ")}
-                    </p>
-                  </div>
-                ))}
-                {sample.localized_note && <p className="text-muted-foreground">현지화 메모: {sample.localized_note}</p>}
-              </div>
-            )
-          }
-        />
+        {products.length ? (
+          <ReviewWorkspace key={source?.id ?? "new"} products={products} workspaceId={workspace.id} canApprove={canApprove} initial={initial} />
+        ) : (
+          <p>전성분이 등록된 자사 제품이 없습니다. 제품 정보를 먼저 등록해 주세요.</p>
+        )}
       </div>
     </>
   );

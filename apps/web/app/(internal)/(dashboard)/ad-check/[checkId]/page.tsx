@@ -1,55 +1,93 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AiDisclaimer, AiResultMeta } from "@/components/common/ai";
-import { RiskBadge, StatusBadge } from "@/components/common/badges";
+import { AiResultMeta } from "@/components/common/ai";
 import { PageHeader } from "@/components/layout/page-header";
 import { DetailTemplate } from "@/components/templates";
-import { getAdCheck, getAdChecks, getMemberName } from "@/lib/data";
+import { buttonVariants } from "@/components/ui/button";
+import { getAdCheck, getMemberName, getProduct } from "@/lib/data";
+import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
-
-export async function generateStaticParams() {
-  return (await getAdChecks()).map((a) => ({ checkId: a.id }));
-}
+import { ActionBadge, ReviewStateBadge, USAGE_LABEL } from "../_components/ad-badges";
+import { DetailReviewBar } from "../_components/detail-review-bar";
+import { LineResultCard } from "../_components/line-result-card";
+import { ResultSummary } from "../_components/result-summary";
+import { AdDisclaimer } from "../_components/ad-disclaimer";
 
 export default async function AdCheckDetailPage({ params }: { params: Promise<{ checkId: string }> }) {
   const check = await getAdCheck((await params).checkId);
   if (!check) notFound();
-  const reviewer = await getMemberName(check.reviewer_id);
+  const [reviewer, product, mine] = await Promise.all([
+    getMemberName(check.reviewer_id),
+    check.product_id ? getProduct(check.product_id) : null,
+    isSupabaseConfigured() ? getMyWorkspace() : null,
+  ]);
+  const canApprove = !isSupabaseConfigured() || mine?.role === "owner";
 
   return (
     <>
-      <PageHeader title="검토 상세" featureId="A" />
-      <AiDisclaimer />
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <PageHeader title="검토 상세" featureId="A" />
+        <Link href={`/ad-check?from=${check.id}`} className={buttonVariants()}>
+          이 내용으로 재검토
+        </Link>
+      </div>
+      <AdDisclaimer />
       <div className="mt-4">
         <DetailTemplate
           badges={
             <>
-              <StatusBadge status={check.review_status} />
-              {check.overall_risk && <RiskBadge risk={check.overall_risk} />}
+              <ReviewStateBadge status={check.review_status} expertRequested={check.is_expert_review_requested} />
+              {check.overall_action && <ActionBadge action={check.overall_action} />}
             </>
           }
           attributes={[
-            { label: "원문", value: <span lang={check.input_lang}>{check.input_text}</span> },
-            { label: "최종 문구", value: check.final_text ? <span lang="ja">{check.final_text}</span> : "—" },
+            // 최종 문구를 먼저, 원문은 그 아래 (일본어 원문은 연한 글씨로 한국어 번역을 덧붙인다)
+            { label: "최종 문구", value: check.final_text ? <span className="whitespace-pre-line">{check.final_text}</span> : "—" },
+            {
+              label: "원문",
+              value: (
+                <span className="block space-y-1">
+                  <span className="block whitespace-pre-line" lang={check.input_lang}>
+                    {check.input_text}
+                  </span>
+                  {check.input_lang === "ja" && check.back_translation_ko && (
+                    <span className="block whitespace-pre-line text-muted-foreground">한국어: {check.back_translation_ko}</span>
+                  )}
+                </span>
+              ),
+            },
+            { label: "제품", value: product?.name ?? "—" },
+            { label: "사용처", value: check.usage ? USAGE_LABEL[check.usage] : "—" },
             { label: "검토자", value: reviewer },
             { label: "검토일", value: check.reviewed_at ? formatDate(check.reviewed_at) : "—" },
             { label: "메모", value: check.reviewer_note ?? "—" },
           ]}
           sections={[
             {
-              title: "판정",
+              title: "줄별 판정",
               content: (
-                <div className="space-y-2 text-sm">
-                  {check.findings.length === 0 && <p>위험 표현이 없어요.</p>}
-                  {check.findings.map((f) => (
-                    <div key={f.text} className="flex items-center gap-2">
-                      <RiskBadge risk={f.risk} /> <span lang="ja">{f.text}</span> — {f.reason}
-                    </div>
+                <div className="space-y-4">
+                  <ResultSummary check={check} />
+                  {(check.line_results ?? []).map((line) => (
+                    <LineResultCard
+                      key={line.line_index}
+                      line={line}
+                      findings={check.findings.filter((f) => f.line_index === line.line_index)}
+                    />
                   ))}
                   <AiResultMeta model={check.model} promptVersion={check.prompt_version} createdAt={check.created_at} />
                 </div>
               ),
             },
           ]}
+        />
+        <DetailReviewBar
+          checkId={check.id}
+          initialFinalText={check.final_text ?? check.input_text}
+          initialNote={check.reviewer_note ?? ""}
+          initialStatus={check.review_status}
+          initialExpertRequested={check.is_expert_review_requested ?? false}
+          canApprove={canApprove}
         />
       </div>
     </>

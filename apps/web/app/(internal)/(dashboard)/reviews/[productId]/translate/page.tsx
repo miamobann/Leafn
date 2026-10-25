@@ -1,54 +1,40 @@
 import { notFound } from "next/navigation";
-import { AiDisclaimer } from "@/components/common/ai";
-import { StatusBadge } from "@/components/common/badges";
-import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/layout/page-header";
-import { TextReviewTemplate } from "@/components/templates";
-import { getAdCheck, getProduct, getProducts, getReviews, getReviewTranslations } from "@/lib/data";
+import { getAdCheck, getReviewTranslations } from "@/lib/data";
+import { getReviewProductById, getReviewsOf } from "@/lib/data/reviews";
+import { TranslateView, type TranslatedRow } from "./translate-view";
 
-export async function generateStaticParams() {
-  return (await getProducts()).map((p) => ({ productId: p.id }));
-}
-
-export default async function ReviewTranslatePage({ params }: { params: Promise<{ productId: string }> }) {
+export default async function ReviewTranslatePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ productId: string }>;
+  searchParams: Promise<{ pick?: string }>;
+}) {
   const { productId } = await params;
-  const product = await getProduct(productId);
+  const { pick } = await searchParams;
+  const product = await getReviewProductById(productId);
   if (!product) notFound();
-  const [reviews, translations] = await Promise.all([getReviews({ productId, lang: "ko" }), getReviewTranslations(productId)]);
-  const checks = await Promise.all(translations.map((t) => (t.ad_check_id ? getAdCheck(t.ad_check_id) : null)));
+  const [reviews, translations] = await Promise.all([getReviewsOf(productId, { lang: "ko" }), getReviewTranslations(productId)]);
 
-  return (
-    <>
-      <PageHeader title={`상세페이지용 리뷰 번역 · ${product.brand} ${product.name}`} featureId="F" />
-      <AiDisclaimer />
-      <div className="mt-4">
-        <TextReviewTemplate
-          input={
-            <ul className="space-y-2 text-sm">
-              {reviews.map((r) => (
-                <li key={r.id} className="rounded-md border p-2">
-                  {r.body}
-                </li>
-              ))}
-            </ul>
-          }
-          result={
-            <ul className="space-y-3 text-sm">
-              {translations.map((t, i) => (
-                <li key={t.id} className="rounded-md border p-2">
-                  <p lang="ja">{t.text_ja}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    {checks[i] && <StatusBadge status={checks[i].review_status} />}
-                    <Button size="sm" variant="outline" disabled title="승인 전에는 복사할 수 없어요">
-                      HTML 복사
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          }
-        />
-      </div>
-    </>
+  // 상태: 담당자 승인 → 승인 · 약기법 검토에서 고칠 표현이 나옴(높은 위험 또는 반려) → 고쳐야 함 · 그 밖 → 검토 대기
+  const rows: TranslatedRow[] = await Promise.all(
+    translations.map(async (t) => {
+      const check = t.ad_check_id ? await getAdCheck(t.ad_check_id) : null;
+      const risky = check?.findings.find((f) => f.risk === "high" || f.action === "must_fix");
+      const status = t.status === "approved" ? "approved" : check?.review_status === "rejected" || risky ? "fix" : "pending";
+      return {
+        id: t.id,
+        reviewId: t.review_id,
+        textJa: t.text_ja,
+        textKo: reviews.find((r) => r.id === t.review_id)?.body ?? "",
+        status,
+        note: risky ? `「${risky.text}」 ${risky.reason}` : status === "pending" ? "약기법 검토: 위험 표현 없음 · 담당자 승인 전" : "",
+        checkId: check?.id ?? null,
+      };
+    }),
   );
+  const ids = new Set(reviews.map((r) => r.id));
+  const initialPicked = (pick ?? "").split(",").filter((id) => ids.has(id));
+
+  return <TranslateView product={product} reviews={reviews} translated={rows} initialPicked={initialPicked} />;
 }
