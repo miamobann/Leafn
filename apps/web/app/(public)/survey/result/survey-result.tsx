@@ -452,7 +452,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
   );
 }
 
-/** 결과 화면에 추천이 보였을 때 한 번 기록한다 (연결 전이라 지금은 보내지 않음) */
+/** 결과 화면에 추천이 보였을 때 한 번 기록한다 */
 function TrackShown({ lineIds, skinType, under18 }: { lineIds: string[]; skinType: SkinType; under18: boolean }) {
   const key = lineIds.join(",");
   useEffect(() => {
