@@ -11,6 +11,7 @@ import type { ReviewProductView, ReviewWithAnalysis } from "@/lib/data/reviews";
 import { euroOf, yoOf } from "@/lib/korean";
 import { titleParts } from "@/lib/product-title";
 import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
+import { useTranslatePicks } from "../_lib/translate-picks";
 import { BackTitle, Chip, EvidencePanel, linkClass, Meter, ReviewCard, SegmentTabs, SortChips, sortReviews } from "../_components/parts";
 import {
   average,
@@ -61,6 +62,7 @@ export function ReportView({
   const [selected, setSelected] = useState<Selected>(first ?? null);
   const [sort, setSort] = useState<"recent" | "rating">("recent");
   const [picks, setPicks] = useState(0);
+  const translatePicks = useTranslatePicks(product.id);
 
   const sources = [...new Set(reviews.map((r) => SOURCE_LABEL[r.source] ?? r.source))].join(" · ");
   const meta = [
@@ -378,7 +380,7 @@ export function ReportView({
                     이 제품으로 소구점 찾기
                   </Link>
                   <Link href={`/reviews/${product.id}/translate`} className={buttonVariants({ variant: "outline" })}>
-                    상세페이지용 리뷰 만들기
+                    상세페이지용 리뷰 만들기{translatePicks.picks.length > 0 && ` · 담은 리뷰 ${translatePicks.picks.length}건`}
                   </Link>
                 </>
               ) : (
@@ -431,11 +433,17 @@ export function ReportView({
                       {evidence.length === 0 && <p className="text-sm text-muted-foreground">해당하는 리뷰가 없어요</p>}
                       {evidence.slice(0, EVIDENCE_PREVIEW).map((r) => (
                         <ReviewCard key={r.id} review={r} highlight={{ topic: selected.topic, polarity }}>
-                          {isOwn && (
-                            <Link href={`/reviews/${product.id}/translate?pick=${r.id}`} className="text-xs font-medium text-foreground/80 hover:underline">
-                              + 상세페이지용으로 담기
-                            </Link>
-                          )}
+                          {/* 담기만 하고 화면은 그대로 둔다. 담은 리뷰는 아래 [상세페이지용 리뷰 만들기]에서 미리 체크돼 있다 */}
+                          {isOwn &&
+                            (translatePicks.picks.includes(r.id) ? (
+                              <button type="button" onClick={() => translatePicks.toggle(r.id)} className="text-xs font-medium text-status-approved hover:underline">
+                                ✓ 담았어요 · 빼기
+                              </button>
+                            ) : (
+                              <button type="button" onClick={() => translatePicks.toggle(r.id)} className="text-xs font-medium text-foreground/80 hover:underline">
+                                + 상세페이지용으로 담기
+                              </button>
+                            ))}
                         </ReviewCard>
                       ))}
                       {evidence.length > 0 && (
