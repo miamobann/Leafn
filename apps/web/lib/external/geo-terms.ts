@@ -97,8 +97,16 @@ export const KNOWN_BRANDS: Record<string, string[]> = {
   LANEIGE: ["LANEIGE", "ラネージュ", "라네즈"],
   MEDIHEAL: ["MEDIHEAL", "メディヒール", "메디힐"],
   "Beauty of Joseon": ["Beauty of Joseon", "朝鮮美女", "조선미녀"],
-  Isntree: ["Isntree", "イズントリー", "이즈앤트리"],
+  Isntree: ["Isntree", "イズントリー", "イズエンツリー", "이즈앤트리"],
   "ma:nyo": ["ma:nyo", "manyo", "魔女工場", "마녀공장"],
+  // Qoo10 化粧水 랭킹 실데이터에 나온 브랜드 (2026-10-24 팀원 수집 CSV)
+  // 표기는 CSV의 브랜드·샵명에 실제로 나온 것만 쓴다 (모르는 영문·한글 표기는 지어내지 않음)
+  "SKIN&LAB": ["SKIN&LAB", "スキンアンドラブ"],
+  Madeca21: ["Madeca21", "マデカ21"],
+  "p'ffeel": ["p'ffeel", "pffeel", "ピフィール"],
+  "OOTD BEAUTY": ["OOTD BEAUTY"],
+  "トゥヴェール": ["トゥヴェール"],
+  AESTURA: ["AESTURA"],
   BIODANCE: ["BIODANCE", "バイオダンス", "바이오던스"],
   "I'm From": ["I'm From", "アイムフロム", "아임프롬"],
   "肌ラボ": ["肌ラボ", "Hada Labo", "ハダラボ"],

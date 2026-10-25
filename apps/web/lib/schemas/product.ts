@@ -45,6 +45,34 @@ export function readListing(p: Pick<Product, "source_raw">): ProductListing | nu
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * 자사 제품 규격 (source_raw.spec). 제품규격서에서 옮긴 값이고, 아직 화면 한두 곳에서만 쓰여 컬럼 대신 raw에 둔다 (DB_RULES 2.1).
+ * 가격·용량·全成分(일본어)·특징은 products의 칸에 있고, 여기는 그 밖의 값이다. 값은 lib/own-product-specs.ts
+ */
+const LineCopy = z.object({ main_ja: z.string(), sub_ja: z.string(), claim_ja: z.string() });
+export const OwnProductSpec = z.object({
+  source: z.string(),
+  name_ja: z.string(),
+  type_ja: z.string(),
+  type_ko: z.string(),
+  summary_ko: z.string(),
+  texture_ko: z.string(),
+  look_ko: z.string(),
+  feel_ja: z.string(),
+  feel_ko: z.string(),
+  main_actives: z.array(z.string()),
+  sub_actives: z.array(z.string()),
+  container_ko: z.string(),
+  ingredients_ko: z.array(z.string()),
+  line_copy: LineCopy,
+});
+export type OwnProductSpec = z.infer<typeof OwnProductSpec>;
+
+export function readOwnSpec(p: Pick<Product, "source_raw">): OwnProductSpec | null {
+  const parsed = OwnProductSpec.safeParse(p.source_raw?.spec);
+  return parsed.success ? parsed.data : null;
+}
+
 /** ml당 가격은 저장하지 않고 화면에서 계산한다 (8장 11번) */
 export function pricePerMl(p: Pick<Product, "price_jpy" | "volume_ml">): number | null {
   if (p.price_jpy == null || p.volume_ml == null) return null;

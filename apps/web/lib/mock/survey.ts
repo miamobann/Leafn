@@ -1,5 +1,5 @@
 import { SurveyProductLine, SurveyQuestion } from "@/lib/schemas/survey";
-import { ownProductImage, ownProductName } from "@/lib/own-products";
+import { OWN_PRODUCT_LINE, ownProductImage, ownProductName } from "@/lib/own-products";
 import { parseAll } from "./helpers";
 
 // 문항·점수는 자체 기준 (설계 정리 문서). 일본어는 원어민 검수 전
@@ -120,6 +120,9 @@ export const surveyQuestions = parseAll(
 
 // 제품명은 lib/own-products.ts (docs/Product.md 기준).
 // 성분은 배합 목적(보습)과 전성분 표시 이름으로 적는다 (knowledge/yakkiho E24 · F5.5). 판테놀은 팀 결정(2026-10-23)으로 뺐다
+// 짧은 이름: 브랜드(Leaf& Dew)를 뺀 제품명, 두 제품 라인은 「Mild ライン」처럼 라인 이름으로 줄인다 (표 · 카드 제목 줄바꿈 방지)
+const bare = (id: Parameters<typeof ownProductName>[0]) => ownProductName(id).replace(`${OWN_PRODUCT_LINE} `, "");
+
 export const surveyProductLines = parseAll(
   SurveyProductLine,
   [
@@ -127,6 +130,9 @@ export const surveyProductLines = parseAll(
       id: "moisture-skin",
       name_ja: ownProductName("deep-skin"),
       name_ko: ownProductName("deep-skin"),
+      short_ja: bare("deep-skin"),
+      short_ko: bare("deep-skin"),
+      products_label: ownProductName("deep-skin"),
       image_path: ownProductImage("deep-skin"),
       ingredients_ja: "ヒアルロン酸Na、グリセリン",
       status: "on_sale",
@@ -137,6 +143,9 @@ export const surveyProductLines = parseAll(
       id: "moisture-essence",
       name_ja: ownProductName("core-essence"),
       name_ko: ownProductName("core-essence"),
+      short_ja: bare("core-essence"),
+      short_ko: bare("core-essence"),
+      products_label: ownProductName("core-essence"),
       image_path: ownProductImage("core-essence"),
       ingredients_ja: "ヒアルロン酸Na、セラミドNP、コレステロール、ステアリン酸",
       status: "on_sale",
@@ -146,6 +155,9 @@ export const surveyProductLines = parseAll(
       id: "combo-line",
       name_ja: `${ownProductName("mild-skin")} / ${ownProductName("mild-emulsion")}`,
       name_ko: `${ownProductName("mild-skin")} / ${ownProductName("mild-emulsion")}`,
+      short_ja: "Mild ライン",
+      short_ko: "Mild 라인",
+      products_label: `${bare("mild-skin")} · ${bare("mild-emulsion")}`,
       image_path: ownProductImage("mild-skin"),
       ingredients_ja: "ヒアルロン酸Na、グリセリン、ベタイン",
       status: "in_development",
@@ -155,6 +167,9 @@ export const surveyProductLines = parseAll(
       id: "oily-line",
       name_ja: `${ownProductName("tea-pure-skin")} / ${ownProductName("tea-pure-calming-ampoule")}`,
       name_ko: `${ownProductName("tea-pure-skin")} / ${ownProductName("tea-pure-calming-ampoule")}`,
+      short_ja: "Tea-Pure ライン",
+      short_ko: "Tea-Pure 라인",
+      products_label: `${bare("tea-pure-skin")} · ${bare("tea-pure-calming-ampoule")}`,
       image_path: ownProductImage("tea-pure-skin"),
       ingredients_ja: "ヒアルロン酸Na、チャ葉エキス",
       status: "in_development",

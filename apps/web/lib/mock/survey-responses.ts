@@ -1,6 +1,6 @@
 import { SkinSurveyResponse, Survey, SurveySummary, type SkinType, type SurveyAnswer, type SurveySource } from "@/lib/schemas/survey";
 import { calcScores, judge } from "@/lib/survey/judge";
-import { PROTOTYPE_TODAY, WORKSPACE_ID, parseAll } from "./helpers";
+import { WORKSPACE_ID, parseAll } from "./helpers";
 import { surveyProductLines, surveyQuestions } from "./survey";
 
 // 더미 응답 (실제 저장 연결 전 대시보드 확인용). 실제 사람의 응답이 아니다.
@@ -10,10 +10,12 @@ import { surveyProductLines, surveyQuestions } from "./survey";
 
 const RESPONSE_COUNT = 150;
 const DAYS = 30;
+// 설문은 다른 가짜 데이터(PROTOTYPE_TODAY)와 따로, 11월 한 달 동안 받은 것으로 둔다
+const SURVEY_TODAY = "2026-11-30";
 
 export const survey = Survey.parse({
   id: "sv-leafn",
-  created_at: "2026-09-20T10:00:00+09:00",
+  created_at: "2026-10-30T10:00:00+09:00",
   workspace_id: WORKSPACE_ID,
   public_slug: "leafn",
   title_ja: "肌タイプ診断",
@@ -74,13 +76,25 @@ function concernWeights(type: SkinType, age: string, sensitive: boolean): Record
   }
   return w;
 }
+// '기타' 직접 입력. 한 사람이 한 문장씩, 겹치지 않게 순서대로 쓴다
 const CONCERN_OTHER: { ja: string; ko: string }[] = [
-  { ja: "目の下のクマ", ko: "다크서클" },
-  { ja: "マスクによる肌あれ", ko: "마스크로 인한 트러블" },
-  { ja: "肌のごわつき", ko: "피부가 거칠고 뻣뻣함" },
-  { ja: "毛穴の黒ずみ", ko: "모공 속 블랙헤드" },
-  { ja: "日焼けあとのシミ", ko: "햇볕에 탄 뒤 생긴 기미" },
+  { ja: "夕方になると目元が乾いて小じわが目立つ", ko: "저녁이 되면 눈가가 건조해져 잔주름이 눈에 띄어요" },
+  { ja: "生理前にあごまわりにニキビができやすい", ko: "생리 전에 턱 주변에 여드름이 잘 나요" },
+  { ja: "ファンデーションが毛穴に落ちてしまう", ko: "파운데이션이 모공에 끼어요" },
+  { ja: "首のしわが気になってきた", ko: "목주름이 신경 쓰이기 시작했어요" },
+  { ja: "マスクのこすれで鼻の下が赤くなる", ko: "마스크에 쓸려서 코 밑이 빨개져요" },
+  { ja: "目の下のクマがなかなか消えない", ko: "눈 밑 다크서클이 잘 안 없어져요" },
+  { ja: "髪の生え際に吹き出物ができる", ko: "헤어라인에 뾰루지가 나요" },
+  { ja: "日焼けのあとにできたシミが薄くならない", ko: "햇볕에 탄 뒤 생긴 기미가 옅어지지 않아요" },
+  { ja: "小鼻の黒ずみが取れない", ko: "콧방울 블랙헤드가 안 빠져요" },
+  { ja: "冬になると口のまわりが粉をふく", ko: "겨울이 되면 입가에 각질이 일어나요" },
+  { ja: "化粧水がなかなか肌になじまない", ko: "스킨이 피부에 잘 스며들지 않아요" },
+  { ja: "午後になるとメイクがよれてくる", ko: "오후가 되면 화장이 밀려요" },
+  { ja: "頬の毛穴が縦に伸びて見える", ko: "볼 모공이 세로로 늘어져 보여요" },
+  { ja: "季節の変わり目に肌がごわつく", ko: "환절기에 피부가 거칠어져요" },
+  { ja: "寝不足の日は顔色がくすむ", ko: "잠을 못 잔 날은 안색이 칙칙해요" },
 ];
+let concernOtherNext = 0;
 
 function optionValue(questionId: string, index: number): string {
   const q = surveyQuestions.find((x) => x.id === questionId);
@@ -89,7 +103,7 @@ function optionValue(questionId: string, index: number): string {
 }
 
 function dateOf(daysAgo: number, minutes: number): string {
-  const base = Date.UTC(+PROTOTYPE_TODAY.slice(0, 4), +PROTOTYPE_TODAY.slice(5, 7) - 1, +PROTOTYPE_TODAY.slice(8, 10));
+  const base = Date.UTC(+SURVEY_TODAY.slice(0, 4), +SURVEY_TODAY.slice(5, 7) - 1, +SURVEY_TODAY.slice(8, 10));
   const d = new Date(base - daysAgo * 86_400_000 + minutes * 60_000);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:00+09:00`;
@@ -119,14 +133,15 @@ function makeResponse(i: number) {
   while (concerns.size < concernCount) concerns.add(pick(Object.keys(cw), Object.values(cw)));
   let concernOther: { ja: string; ko: string } | null = null;
   if (rand() < 0.05) {
-    concernOther = CONCERN_OTHER[Math.floor(rand() * CONCERN_OTHER.length)];
+    rand(); // 예전 무작위 고르기 자리. 난수 순서를 지켜 다른 답이 바뀌지 않게 한다
+    concernOther = CONCERN_OTHER[concernOtherNext++ % CONCERN_OTHER.length];
     concerns.add("other");
   }
   answers.concerns = [...concerns];
 
   const source = pick(Object.keys(SOURCE_WEIGHTS) as SurveySource[], Object.values(SOURCE_WEIGHTS));
-  // 최근일수록 응답이 많다 (공유 링크가 퍼지는 모양)
-  const daysAgo = Math.floor(Math.pow(rand(), 1.6) * DAYS);
+  // 최근 며칠에 몰리지 않게 한 달 동안 퍼뜨린다
+  const daysAgo = Math.floor(rand() * DAYS);
   const minutes = 8 * 60 + Math.floor(rand() * 15 * 60);
   const createdAt = dateOf(daysAgo, minutes);
 
@@ -182,8 +197,20 @@ export const surveySummary = SurveySummary.parse({
   under18_count: surveyMinorCounts.reduce((sum, m) => sum + m.count, 0),
   sensitive_count: surveyResponses.filter((r) => r.is_sensitive).length,
   by_source: [...countBy(surveyResponses, (r) => r.source ?? "other")]
-    .map(([source, count]) => ({ source, count }))
+    .map(([source, count]) => {
+      const rows = surveyResponses.filter((r) => (r.source ?? "other") === source);
+      const [topType, topCount] = [...countBy(rows, (r) => r.skin_type)].sort((a, b) => b[1] - a[1])[0];
+      const inLines = (status: "on_sale" | "in_development") =>
+        rows.filter((r) => surveyProductLines.some((l) => l.status === status && l.for_types.includes(r.skin_type))).length;
+      // 채널별 반응도 아래 product_lines와 같은 더미 비율 (구매 클릭 35% · 알림 신청 40%)
+      return { source, count, top_skin_type: topType, top_skin_count: topCount, clicks: Math.round(inLines("on_sale") * 0.35), notify: Math.round(inLines("in_development") * 0.4) };
+    })
     .sort((a, b) => b.count - a.count),
+  period: {
+    from: surveyResponses.reduce((min, r) => (r.created_at < min ? r.created_at : min), surveyResponses[0].created_at).slice(0, 10),
+    to: surveyResponses.reduce((max, r) => (r.created_at > max ? r.created_at : max), surveyResponses[0].created_at).slice(0, 10),
+  },
+  by_age: Object.keys(AGE_WEIGHTS).map((age_group) => ({ age_group, count: surveyResponses.filter((r) => r.age_group === age_group).length })),
   by_skin_type: [...typeCounts].map(([skin_type, count]) => ({ skin_type, count })).sort((a, b) => b.count - a.count),
   age_by_concern: Object.keys(AGE_WEIGHTS).map((age_group) => {
     const rows = surveyResponses.filter((r) => r.age_group === age_group);

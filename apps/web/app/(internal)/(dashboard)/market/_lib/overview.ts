@@ -9,6 +9,8 @@ import { INGREDIENT_MATCH, productKey, TOP_N, weekLabel } from "./market";
 /** 화면 한 줄: 랭킹 항목 + 전주 순위 + 계산 값 */
 export type OverviewRow = RankingItem & {
   prevRank: number | null;
+  /** 비교할 전주 스냅샷이 있는지 (없으면 prevRank를 쓰지 않는다) */
+  hasPrev: boolean;
   /** ml당 실질 단가 (판매가 ÷ 총 용량) */
   ppm: number | null;
   /** 사전에 있는 성분만 (상품명·설명에서 찾음) */
@@ -42,6 +44,7 @@ function toRow(r: RankingItem, prev: TrendSnapshot | undefined): OverviewRow {
   return {
     ...r,
     prevRank: prev?.data.ranking.find((x) => productKey(x.brand, x.name) === productKey(r.brand, r.name))?.rank ?? null,
+    hasPrev: Boolean(prev),
     ppm: effectivePricePerMl(r),
     ingredients: Object.entries(INGREDIENT_MATCH).flatMap(([ingredient, { match }]) => {
       const matched = findAlias(text, match);
@@ -89,8 +92,6 @@ export const ENTRY_KIND_LABEL: Record<EntryKind, string> = {
 export type EntryConditions = {
   ppm: { q1: number; median: number; q3: number; priceMin: number; priceMedian: number; priceMax: number; rows: OverviewRow[] } | null;
   promo: { type: PromoHookType; count: number; rows: OverviewRow[] } | null;
-  reviews: { min: number; median: number; rows: OverviewRow[] };
-  awards: { count: number; rows: OverviewRow[] };
   /** 전주 Top 10에 없던 제품. 전주 데이터가 없으면 null */
   entries: { count: number; byKind: Record<EntryKind, number>; rows: (OverviewRow & { entryKind: EntryKind })[] } | null;
 };
@@ -108,7 +109,6 @@ export function entryConditions(series: TrendSnapshot[], allSameSource: TrendSna
   for (const r of top) if (r.promo_type) promoCounts.set(r.promo_type, [...(promoCounts.get(r.promo_type) ?? []), r]);
   const topPromo = [...promoCounts.entries()].toSorted((a, b) => b[1].length - a[1].length)[0];
 
-  const reviews = top.map((r) => r.review_count).toSorted((a, b) => a - b);
 
   const prev = series[i - 1];
   let entries: EntryConditions["entries"] = null;
@@ -136,8 +136,6 @@ export function entryConditions(series: TrendSnapshot[], allSameSource: TrendSna
         ? null
         : { q1: round1(quantile(ppms, 0.25)), median: round1(quantile(ppms, 0.5)), q3: round1(quantile(ppms, 0.75)), priceMin: prices[0], priceMedian: Math.round(quantile(prices, 0.5)), priceMax: prices.at(-1) as number, rows: withPpm.toSorted((a, b) => (a.ppm as number) - (b.ppm as number)) },
     promo: topPromo ? { type: topPromo[0], count: topPromo[1].length, rows: topPromo[1] } : null,
-    reviews: { min: reviews[0], median: Math.round(quantile(reviews, 0.5)), rows: top.toSorted((a, b) => a.review_count - b.review_count) },
-    awards: { count: top.filter((r) => (r.badges ?? []).length > 0).length, rows: top.filter((r) => (r.badges ?? []).length > 0) },
     entries,
   };
 }

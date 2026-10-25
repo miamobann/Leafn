@@ -12,8 +12,14 @@ export const SearchSuggestion = z.object({
   /** 목록 안의 순서 (1 = 맨 위) */
   position: z.number().int().positive(),
   relevance: z.number().nullable(),
+  /** 한국어 뜻 (수집할 때 AI가 번역해 같이 저장). 번역 전 데이터는 없음 */
+  value_ko: z.string().nullable().optional(),
 });
 export type SearchSuggestion = z.infer<typeof SearchSuggestion>;
+
+/** 검색어 번역 AI 응답 (prompts/term-translate.v1.md) */
+export const TermTranslation = z.object({ items: z.array(z.object({ ja: z.string(), ko: z.string() })) });
+export type TermTranslation = z.infer<typeof TermTranslation>;
 
 export const SearchSnapshot = WorkspaceRow.extend({
   engine: SuggestionEngine,
