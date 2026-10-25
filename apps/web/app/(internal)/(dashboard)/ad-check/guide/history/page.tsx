@@ -16,7 +16,7 @@ type GuideHistoryPageProps = {
 
 const CHANNEL_LABEL = Object.fromEntries(GUIDE_CHANNELS.map((c) => [c.id, c.label]));
 
-/** 만든 콘텐츠 목록 (content_guides). 검토 내역과 같은 표 모양. 삭제는 owner(팀장)만 */
+/** 만든 가이드 목록 (content_guides). 검토 내역과 같은 표 모양. 삭제는 owner(팀장)만 */
 export default async function GuideHistoryPage({ searchParams }: GuideHistoryPageProps) {
   const query = await searchParams;
   const productFilter = typeof query.product === "string" ? query.product : undefined;
@@ -42,7 +42,7 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
 
   return (
     <>
-      <PageHeader title="만든 콘텐츠" description="콘텐츠 제작으로 만든 결과물과 콘텐츠 문구 자동 검사(약기법) 결과" featureId="A" />
+      <PageHeader title="만든 가이드" description="콘텐츠 제작 가이드로 만든 결과물과 약기법 자동 검사 결과" featureId="A" />
       <div className="mb-4">
         <HistoryFilters
           filters={[
@@ -52,7 +52,7 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
         />
       </div>
       {guides.length === 0 ? (
-        <EmptyState message="조건에 맞는 콘텐츠가 없습니다" action="「콘텐츠 제작」에서 제목을 고르면 결과물이 자동으로 저장돼요" />
+        <EmptyState message="조건에 맞는 가이드가 없습니다" action="「콘텐츠 제작 가이드」에서 제목을 고르면 결과물이 자동으로 저장돼요" />
       ) : (
         <DataTableTemplate
           columns={[
@@ -85,7 +85,7 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
                 action: action ? <ActionBadge action={action} /> : "—",
                 author: memberName(g.created_by),
                 date: formatDate(g.created_at),
-                delete: <DeleteButton endpoint={`/api/content-guide/${g.id}`} confirmMessage="이 콘텐츠를 삭제할까요? 지운 결과물은 되돌릴 수 없습니다. (약기법 검사 기록은 남아요)" />,
+                delete: <DeleteButton endpoint={`/api/content-guide/${g.id}`} confirmMessage="이 가이드를 삭제할까요? 지운 결과물은 되돌릴 수 없습니다. (약기법 검사 기록은 남아요)" />,
               },
             };
           })}

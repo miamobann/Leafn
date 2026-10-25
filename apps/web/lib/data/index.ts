@@ -123,7 +123,7 @@ export async function getAdCheck(id: string) {
   return (await getAdChecks({ source: "all" })).find((a) => a.id === id) ?? null;
 }
 
-/** 만든 콘텐츠 (content_guides). 샘플 모드에서는 저장된 결과물이 없다. 모양이 맞지 않는 행은 뺀다 */
+/** 만든 가이드 (content_guides). 샘플 모드에서는 저장된 결과물이 없다. 모양이 맞지 않는 행은 뺀다 */
 export async function getContentGuides(): Promise<ContentGuideRow[]> {
   const rows = await readRows("content_guides").catch(missingTableOnly);
   if (!rows) return [];
@@ -135,7 +135,7 @@ export async function getContentGuides(): Promise<ContentGuideRow[]> {
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-/** 만든 콘텐츠 하나와 그 약기법 검사의 블록별 판정 (block_key 가 있는 줄) */
+/** 만든 가이드 하나와 그 약기법 검사의 블록별 판정 (block_key 가 있는 줄) */
 export async function getContentGuide(id: string) {
   const guide = (await getContentGuides()).find((g) => g.id === id);
   if (!guide) return null;

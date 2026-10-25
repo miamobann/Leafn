@@ -9,7 +9,8 @@ import { Bell, ChevronLeft, ChevronRight, Heart, Search, ShoppingCart } from "lu
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { EmptyState, LoadingState } from "@/components/common/states";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,7 +71,7 @@ type ContentGuideProps = {
   saved?: SavedGuide;
 };
 
-/** 저장된 결과물(만든 콘텐츠)을 다시 열 때 넘기는 값. 있으면 제작 칸을 숨기고 AI를 다시 부르지 않는다 */
+/** 저장된 결과물(만든 가이드)을 다시 열 때 넘기는 값. 있으면 제작 칸을 숨기고 AI를 다시 부르지 않는다 */
 export type SavedGuide = {
   productId: string;
   channel: GuideChannel;
@@ -619,6 +620,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   const [aiError, setAiError] = useState<string | null>(null);
   /** 결과물은 저장했지만 약기법 검사 기록 저장에 실패했을 때 (결과물은 살린다) */
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  /** 제목(draft) id → 저장된 가이드 id. 「이 문구로 새 검토」·「만든 가이드에서 보기」에 쓴다 (저장된 결과물은 그 id 그대로) */
+  const [savedIds, setSavedIds] = useState<Record<string, string>>(saved ? { [saved.draft.id]: saved.draft.id } : {});
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -744,9 +747,13 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
         (json.lintHits as { key: string; text: string; reason: string }[]) ?? [],
         (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? [],
       );
-      setSaveNotice(json.checkSaved === false ? "결과물은 「만든 콘텐츠」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
+      setSaveNotice(json.checkSaved === false ? "결과물은 「만든 가이드」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
       setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
       setWarnings((w) => ({ ...w, [id]: blockWarnings }));
+      if (typeof json.id === "string") {
+        const guideId = json.id;
+        setSavedIds((m) => ({ ...m, [id]: guideId }));
+      }
       setPickedId(id);
     } catch (e) {
       setAiError(e instanceof Error ? e.message : "AI 제작에 실패했습니다");
@@ -1067,6 +1074,23 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
             </Card>
           )}
         </>
+      )}
+
+      {/* 다음 단계: 만든 가이드를 바로 검토로 넘긴다 (탭을 직접 고르지 않아도 흐름이 이어지게) */}
+      {current && loading === null && savedIds[current.id] && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+          <span>다음 단계 · 게시 전에 이 문구를 새 검토로 한 번 더 판정하세요.</span>
+          <span className="flex flex-wrap gap-2">
+            {!saved && (
+              <Link href={`/ad-check/guide/history/${savedIds[current.id]}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                만든 가이드에서 보기
+              </Link>
+            )}
+            <Link href={`/ad-check?guide=${savedIds[current.id]}`} className={buttonVariants({ size: "sm" })}>
+              이 문구로 새 검토 →
+            </Link>
+          </span>
+        </div>
       )}
 
       <div className="flex items-center justify-end gap-2">
