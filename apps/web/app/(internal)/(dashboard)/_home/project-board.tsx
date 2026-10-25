@@ -1,12 +1,13 @@
 "use client";
 
 // 홈 전용: 프로젝트 진행 현황판과 벽돌 상세. 벽돌을 누르면 첫 화면 아래의 상세로 부드럽게 내려간다.
-import { CalendarDays, Check, Ellipsis, TriangleAlert, User, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, Ellipsis, Info, TriangleAlert, User, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import type { getBoardProjects } from "@/lib/data";
 import { dDay } from "@/lib/format";
 import { StageKey, type StageStatus } from "@/lib/schemas/project";
@@ -18,7 +19,10 @@ const TEXT = {
   title: "프로젝트 진행 현황",
   hint: "벽돌을 누르면 아래에 상세가 열려요",
   project: "프로젝트",
+  progress: "진행",
+  done: "완료",
   nextDue: "다음 마감",
+  noDue: "남은 마감 없음",
   legend: "상태 표시",
   owner: "담당",
   noOwner: "담당 미정",
@@ -30,18 +34,18 @@ const TEXT = {
   openScreen: "화면 열기 →",
 };
 
-/** 단계마다 현황판 열 이름, 상세 제목, 관련 화면 (prototype-plan 2장) */
+/** 단계마다 현황판 열 이름, 열 머리 설명, 상세 제목, 관련 화면 (prototype-plan 2장) */
 const STAGES = {
-  market: { short: "시장", label: "시장 파악", href: "/market", screen: "시장 개요" },
-  competition: { short: "경쟁", label: "경쟁 분석", href: "/market/competitors", screen: "경쟁제품 비교" },
-  appeal: { short: "소구", label: "소구점 도출", href: "/reviews/compare", screen: "소구점 찾기" },
-  customer: { short: "고객", label: "고객 이해", href: "/survey-results", screen: "응답 집계" },
-  message: { short: "문구", label: "메시지 작성·검토", href: "/ad-check/history", screen: "검토 이력" },
-  // 플랫폼별 강점 화면을 지워서(2026-10-24 진출 실행 탭 제거) 갈 화면이 없다. 관련 화면이 생기면 다시 잇는다
-  channel: { short: "채널", label: "채널 선택", href: null, screen: null },
-  promotion: { short: "행사", label: "프로모션 실행", href: "/calendar", screen: "프로모션 캘린더" },
-  post_launch: { short: "점검", label: "출시 후 점검", href: "/reviews", screen: "리뷰 리포트" },
-} satisfies Record<StageKey, { short: string; label: string; href: string | null; screen: string | null }>;
+  market: { short: "시장", hint: "카테고리 랭킹과 성분 관심도로 시장을 파악해요", label: "시장 파악", href: "/market", screen: "시장 개요" },
+  competition: { short: "경쟁", hint: "경쟁 제품의 가격·용량·성분을 비교해요", label: "경쟁 분석", href: "/market/competitors", screen: "경쟁제품 비교" },
+  appeal: { short: "소구점", hint: "리뷰에서 찾은 우리 제품의 강점이에요", label: "소구점 도출", href: "/reviews/compare", screen: "소구점 찾기" },
+  customer: { short: "고객", hint: "설문으로 피부타입과 고민을 알아봐요", label: "고객 이해", href: "/survey-results", screen: "응답 집계" },
+  message: { short: "문구", hint: "광고 문구를 쓰고 약기법 기준으로 검토해요", label: "메시지 작성·검토", href: "/ad-check/history", screen: "검토 이력" },
+  // 플랫폼별 강점 화면을 지워서(2026-10-24 진출 실행 탭 제거) 채널 화면이 없다. 생길 때까지 플랫폼 행사가 있는 캘린더로 임시 연결 (2026-10-25)
+  channel: { short: "채널", hint: "팔고 알릴 플랫폼을 정해요", label: "채널 선택", href: "/calendar", screen: "프로모션 캘린더" },
+  promotion: { short: "행사", hint: "플랫폼 행사와 자사 캠페인을 준비해요", label: "프로모션 실행", href: "/calendar", screen: "프로모션 캘린더" },
+  post_launch: { short: "출시 후 점검", hint: "출시 뒤 리뷰로 반응을 점검해요", label: "출시 후 점검", href: "/reviews", screen: "리뷰 리포트" },
+} satisfies Record<StageKey, { short: string; hint: string; label: string; href: string; screen: string }>;
 
 // 색만으로 구분하지 않고 아이콘을 함께 쓴다. 단계 상태 전용 색 토큰이 아직 없어 globals.css의 기존 토큰을 빌려 쓴다
 const STATUS = {
@@ -158,17 +162,35 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
               </th>
               {StageKey.options.map((key) => (
                 <th key={key} scope="col" className="font-normal">
-                  {STAGES[key].short}
+                  {/* 마우스를 올리거나 키보드로 고르면 단계 설명이 보인다 */}
+                  <span className="group relative inline-flex">
+                    <button
+                      type="button"
+                      aria-describedby={`stage-hint-${key}`}
+                      className="inline-flex cursor-help items-center gap-1 rounded-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                    >
+                      {STAGES[key].short}
+                      <Info aria-hidden className="size-3" />
+                    </button>
+                    <span
+                      role="tooltip"
+                      id={`stage-hint-${key}`}
+                      className="pointer-events-none absolute top-full left-1/2 z-10 mt-1.5 hidden w-48 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 text-left leading-snug text-background group-focus-within:block group-hover:block"
+                    >
+                      {STAGES[key].hint}
+                    </span>
+                  </span>
                 </th>
               ))}
               <th scope="col" className="text-right font-normal">
-                {TEXT.nextDue}
+                {TEXT.progress}
               </th>
             </tr>
           </thead>
           <tbody>
             {projects.map((project) => {
               const due = nextDue(project);
+              const doneCount = project.stages.filter((s) => s.status === "done").length;
               return (
                 <tr key={project.id}>
                   <th scope="row" className="text-left leading-tight font-medium">
@@ -196,13 +218,20 @@ export function ProjectBoard({ projects }: { projects: HomeProject[] }) {
                     );
                   })}
                   <td className="text-right text-xs">
-                    {due?.due_date ? (
-                      <>
-                        <span className="font-semibold">{dDay(due.due_date)}</span> {due.next_step ?? STAGES[due.stage].label}
-                      </>
-                    ) : (
-                      "—"
-                    )}
+                    <span className="block text-sm">
+                      <span className="font-semibold">
+                        {doneCount}/{project.stages.length}
+                      </span>{" "}
+                      {TEXT.done}
+                    </span>
+                    <Progress
+                      value={(doneCount / project.stages.length) * 100}
+                      aria-label={`${project.name} ${project.stages.length}단계 중 ${doneCount}단계 완료`}
+                      className="my-1"
+                    />
+                    <span className="block truncate text-muted-foreground">
+                      {due?.due_date ? `${TEXT.nextDue} ${dDay(due.due_date)} · ${due.next_step ?? STAGES[due.stage].label}` : TEXT.noDue}
+                    </span>
                   </td>
                 </tr>
               );
@@ -301,13 +330,11 @@ export function StageDetail({ projects }: { projects: HomeProject[] }) {
         <p className="mt-1 text-sm text-muted-foreground">{TEXT.noLog}</p>
       )}
 
-      {meta.href && meta.screen && (
-        <div className="mt-6">
-          <Link href={meta.href} className={buttonVariants({ variant: "outline" })}>
-            {meta.screen} {TEXT.openScreen}
-          </Link>
-        </div>
-      )}
+      <div className="mt-6">
+        <Link href={meta.href} className={buttonVariants({ variant: "outline" })}>
+          {meta.screen} {TEXT.openScreen}
+        </Link>
+      </div>
     </section>
   );
 }
