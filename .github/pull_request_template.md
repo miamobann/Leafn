@@ -27,11 +27,12 @@
 - [ ] 기존 마이그레이션 파일은 수정하지 않았다 (새 파일만, `supabase migration new`로 생성)
 - [ ] 이름 변경·삭제·타입 변경이 없다 (있으면 합의한 채팅 링크: )
 - [ ] 새 컬럼은 null 허용이거나 default가 있다
-- [ ] 새 테이블에 workspace_id + 인덱스 + RLS 정책 4개가 있다 (공용 테이블이면 이유: )
+- [ ] 새 테이블에 workspace_id + 인덱스 + RLS 정책이 있다 (공용 테이블이면 이유: )
+- [ ] docs/db-frame.md와 CLAUDE.md 5장 표를 같이 고쳤다
 - [ ] 외래 키에 on delete 동작과 인덱스를 정했다
 - [ ] lib/schemas Zod를 같이 고쳤다 (DB 컬럼은 .nullable())
 - [ ] lib/mock 가짜 데이터를 같이 고쳤고 빌드가 통과한다
 - [ ] 수집·upsert 키에 workspace_id가 들어 있다
-- [ ] (프레임 후) platform_id는 platforms의 slug만 쓴다
+- [ ] platform_id는 코드 상수(lib/platforms.ts)의 slug만 쓴다 (데모는 qoo10)
 - [ ] service role 키는 서버 코드에서만 쓴다
 - [ ] 다른 탭 테이블을 건드렸으면 그 담당자를 리뷰어로 넣었다
