@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AdAction } from "./ad-check";
 import { Id, Risk, Timestamp, WorkspaceRow } from "./common";
+import { AppealTopic } from "./review";
 
 // 탭별 시안 · 버전 · 팀장 결재 (docs/team-approval-ai-analysis.md 4~6장).
 // 테이블: supabase/migrations/20261025115007_team_approval.sql (member_tabs, tab_submissions, submission_versions, submission_reviews)
@@ -62,6 +63,15 @@ const ReviewBodyItem = z.object({
   evidence_review_ids: z.array(Id),
 });
 
+/** 리뷰 리포트의 주제별 성적표 한 줄 (reviews/_lib/topics.ts의 topicStats · verdictOf를 그대로 저장) */
+const ReviewBodyTopic = z.object({
+  topic: AppealTopic,
+  positive: z.number().int().nonnegative(),
+  negative: z.number().int().nonnegative(),
+  verdict: z.enum(["strength", "weakness", "unclear"]),
+  evidence_review_ids: z.array(Id),
+});
+
 export const ReviewBody = z.object({
   product_id: Id,
   review_count: z.number().int().nonnegative(),
@@ -71,6 +81,7 @@ export const ReviewBody = z.object({
     negative: z.number().int().nonnegative(),
     neutral: z.number().int().nonnegative(),
   }),
+  topics: z.array(ReviewBodyTopic),
   pain_points: z.array(ReviewBodyItem),
   repurchase_factors: z.array(ReviewBodyItem),
   keywords: z.array(ReviewBodyItem),

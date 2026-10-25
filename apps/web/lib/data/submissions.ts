@@ -12,6 +12,8 @@ import {
   TabSubmission,
 } from "@/lib/schemas/submission";
 import { dataContext, missingTableOnly, readRows } from "./db";
+import { getMembers, getProducts } from "./index";
+import { getToday } from "./launch";
 import { getCurrentUser, getMyWorkspace } from "./workspace";
 
 const byNewest = (a: { created_at: string }, b: { created_at: string }) => b.created_at.localeCompare(a.created_at);
@@ -50,11 +52,16 @@ export async function getSubmission(id: string) {
   return (await getSubmissions()).find((s) => s.id === id) ?? null;
 }
 
+/** 숨기지 않은 버전 전체 */
+async function getAllVersions(): Promise<SubmissionVersion[]> {
+  const rows = await readRows("submission_versions").catch(missingTableOnly);
+  return (rows ? rows.map((r) => SubmissionVersion.parse(r)) : mock.submissionVersions).filter((v) => !v.deleted_at);
+}
+
 /** 시안의 숨기지 않은 버전, 최신 번호부터 */
 export async function getSubmissionVersions(submissionId: string): Promise<SubmissionVersion[]> {
-  const rows = await readRows("submission_versions").catch(missingTableOnly);
-  return (rows ? rows.map((r) => SubmissionVersion.parse(r)) : mock.submissionVersions)
-    .filter((v) => v.submission_id === submissionId && !v.deleted_at)
+  return (await getAllVersions())
+    .filter((v) => v.submission_id === submissionId)
     .toSorted((a, b) => b.version_no - a.version_no);
 }
 
@@ -87,4 +94,148 @@ export async function getAiAnalyses(opts: { projectId?: string; productId?: stri
 
 export async function getAiAnalysis(id: string) {
   return (await getAiAnalyses()).find((a) => a.id === id) ?? null;
+}
+
+// 결재함 · 버전 미리보기 · 진행 표 · AI 분석 선택 화면이 같이 쓰는 조합 (설계 3장, 7장 3·4단계)
+
+/** 버전 하나를 화면에 보일 때 함께 필요한 이름들 */
+async function names() {
+  const [members, products] = await Promise.all([getMembers(), getProducts({ kind: "own" })]);
+  return {
+    member: (userId: string | null) => members.find((m) => m.user_id === userId)?.display_name ?? "—",
+    product: (productId: string | null) =>
+      productId ? (products.find((p) => p.id === productId)?.name ?? "—") : PROJECT_SCOPE_LABEL,
+  };
+}
+
+/** 제품을 비운 시안(시장 분석 프로젝트 전체)의 표시 이름 */
+export const PROJECT_SCOPE_LABEL = "프로젝트 전체";
+
+/** 날짜 문자열(YYYY-MM-DD) 사이의 날 수 */
+function daysBetween(from: string, to: string) {
+  const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000;
+  return Math.max(0, day(to) - day(from));
+}
+
+/** 결재 대기가 이 날 수를 넘으면 강조한다 (설계 8장 보완 4) */
+export const STALE_REVIEW_DAYS = 2;
+
+export type InboxRow = {
+  version: SubmissionVersion;
+  submission: TabSubmission;
+  productName: string;
+  authorName: string;
+  waitingDays: number;
+};
+
+export type DecisionRow = {
+  review: SubmissionReview;
+  version: SubmissionVersion;
+  submission: TabSubmission;
+  productName: string;
+  reviewerName: string;
+};
+
+/** 결재함: 결재 대기 버전(오래 기다린 것부터)과 최근 결재 기록 */
+export async function getApprovalInbox(opts: { recentLimit?: number } = {}): Promise<{ pending: InboxRow[]; recent: DecisionRow[] }> {
+  const [submissions, versions, reviews, label, today] = await Promise.all([
+    getSubmissions(),
+    getAllVersions(),
+    getSubmissionReviews(),
+    names(),
+    getToday(),
+  ]);
+  const submissionOf = new Map(submissions.map((s) => [s.id, s]));
+  const versionOf = new Map(versions.map((v) => [v.id, v]));
+  const pending = versions.flatMap((v) => {
+    const submission = submissionOf.get(v.submission_id);
+    if (v.status !== "submitted" || !submission) return [];
+    return [{
+      version: v,
+      submission,
+      productName: label.product(submission.product_id),
+      authorName: label.member(v.author_id),
+      waitingDays: daysBetween((v.submitted_at ?? v.created_at).slice(0, 10), today),
+    }];
+  });
+  const recent = reviews.slice(0, opts.recentLimit ?? 20).flatMap((review) => {
+    const version = versionOf.get(review.version_id);
+    const submission = version ? submissionOf.get(version.submission_id) : undefined;
+    if (!version || !submission) return [];
+    return [{ review, version, submission, productName: label.product(submission.product_id), reviewerName: label.member(review.reviewer_id) }];
+  });
+  return { pending: pending.toSorted((a, b) => b.waitingDays - a.waitingDays), recent };
+}
+
+/** 버전 미리보기: 버전 · 시안 · 같은 시안의 다른 버전 · 바로 앞 버전 · 결재 기록 */
+export async function getVersionDetail(versionId: string) {
+  const versions = await getAllVersions();
+  const version = versions.find((v) => v.id === versionId);
+  if (!version) return null;
+  const submission = await getSubmission(version.submission_id);
+  if (!submission) return null;
+  const history = versions.filter((v) => v.submission_id === submission.id).toSorted((a, b) => b.version_no - a.version_no);
+  const previous = history.find((v) => v.version_no < version.version_no) ?? null;
+  const [decisions, label] = await Promise.all([getSubmissionReviews({ versionIds: history.map((v) => v.id) }), names()]);
+  return {
+    version,
+    submission,
+    history,
+    previous,
+    decisions,
+    productName: label.product(submission.product_id),
+    memberName: label.member,
+  };
+}
+
+/** AI 분석에 고를 수 있는 승인본: 그 제품의 시안 + 같은 프로젝트의 프로젝트 전체 시장 분석 시안 (설계 8장 보완 6) */
+export async function getApprovedVersionsFor(projectId: string, productId: string) {
+  const [submissions, versions] = await Promise.all([getSubmissions({ projectId }), getAllVersions()]);
+  const targets = submissions.filter((s) => s.product_id === productId || (s.product_id === null && s.tab === "market"));
+  return targets.map((submission) => ({
+    submission,
+    approved: versions
+      .filter((v) => v.submission_id === submission.id && v.status === "approved")
+      .toSorted((a, b) => b.version_no - a.version_no),
+  }));
+}
+
+export type ProgressCell = { submission: TabSubmission; latestVersionId: string | null } | null;
+
+/** 진행 표 (설계 3장 D안 · CLAUDE.md L): 판매 중 자사 제품 × 탭의 시안 상태와 최근 AI 분석 */
+export async function getProgressGrid(projectId: string) {
+  const [products, submissions, versions, analyses] = await Promise.all([
+    getProducts({ kind: "own" }),
+    getSubmissions({ projectId }),
+    getAllVersions(),
+    getAiAnalyses({ projectId }),
+  ]);
+  const latestVersion = (submissionId: string) =>
+    versions.filter((v) => v.submission_id === submissionId).toSorted((a, b) => b.version_no - a.version_no)[0]?.id ?? null;
+  const cell = (productId: string | null, tab: SubmissionTab): ProgressCell => {
+    const submission = submissions.find((s) => s.product_id === productId && s.tab === tab);
+    return submission ? { submission, latestVersionId: latestVersion(submission.id) } : null;
+  };
+  const onSale = products.filter((p) => p.project_id === projectId && p.sale_status === "on_sale");
+  return {
+    projectRow: { market: cell(null, "market") },
+    rows: onSale.map((p) => ({
+      productId: p.id,
+      productName: p.name,
+      cells: { market: cell(p.id, "market"), review: cell(p.id, "review"), ad: cell(p.id, "ad") },
+      latestAnalysis: analyses.find((a) => a.product_id === p.id) ?? null,
+    })),
+  };
+}
+
+/** 버전 ID들 → 버전과 그 시안의 탭 (AI 분석 결과의 근거 링크). 숨긴 버전도 이름은 보여 준다 */
+export async function getVersionsByIds(ids: string[]) {
+  const rows = await readRows("submission_versions").catch(missingTableOnly);
+  const all = rows ? rows.map((r) => SubmissionVersion.parse(r)) : mock.submissionVersions;
+  const submissions = await getSubmissions();
+  const wanted = new Set(ids);
+  return all.flatMap((version) => {
+    const submission = submissions.find((s) => s.id === version.submission_id);
+    return wanted.has(version.id) && submission ? [{ version, submission }] : [];
+  });
 }

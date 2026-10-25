@@ -70,11 +70,37 @@ export const tabSubmissions = parseAll(
   "tabSubmissions",
 );
 
-const deepSkinReview = (extra: { review_count: number; analyzed_count: number; positive: number; negative: number }) => ({
+// 주제 태그는 own-review-seeds.ts의 r-ko-1 ~ r-ko-8 태그에서 센 값 (판정 규칙은 reviews/_lib/topics.ts)
+const topic = (name: string, positive: string[], negative: string[], verdict: string) => ({
+  topic: name,
+  positive: positive.length,
+  negative: negative.length,
+  verdict,
+  evidence_review_ids: [...positive, ...negative],
+});
+
+const deepSkinReview = (extra: { review_count: number; analyzed_count: number; positive: number; negative: number; upToJune: boolean }) => ({
   product_id: "p-own-1",
   review_count: extra.review_count,
   analyzed_count: extra.analyzed_count,
   sentiment: { positive: extra.positive, negative: extra.negative, neutral: 0 },
+  topics: extra.upToJune
+    ? [
+        topic("irritation", ["r-ko-1", "r-ko-5", "r-ko-6", "r-ko-8"], ["r-ko-3", "r-ko-7"], "strength"),
+        topic("lasting_moisture", ["r-ko-1", "r-ko-6"], [], "unclear"),
+        topic("texture", ["r-ko-2"], [], "unclear"),
+        topic("scent", [], ["r-ko-2"], "weakness"),
+        topic("value", ["r-ko-4"], [], "unclear"),
+        topic("container", [], [], "unclear"),
+      ]
+    : [
+        topic("irritation", ["r-ko-1", "r-ko-5"], ["r-ko-3"], "unclear"),
+        topic("lasting_moisture", ["r-ko-1"], [], "unclear"),
+        topic("texture", ["r-ko-2"], [], "unclear"),
+        topic("scent", [], ["r-ko-2"], "weakness"),
+        topic("value", ["r-ko-4"], [], "unclear"),
+        topic("container", [], [], "unclear"),
+      ],
   pain_points: [{ label: "따가움 · 트러블", count: 2, evidence_review_ids: ["r-ko-3", "r-ko-7"] }],
   repurchase_factors: [
     { label: "순한 사용감", count: 3, evidence_review_ids: ["r-ko-1", "r-ko-5", "r-ko-8"] },
@@ -98,7 +124,7 @@ export const submissionVersions = parseAll(
       version_no: 1,
       author_id: "u-3",
       summary: "순한 사용감과 보습 지속이 재구매 이유, 민감 피부 자극 후기가 유일한 불만",
-      body: deepSkinReview({ review_count: 5, analyzed_count: 5, positive: 4, negative: 1 }),
+      body: deepSkinReview({ review_count: 5, analyzed_count: 5, positive: 4, negative: 1, upToJune: false }),
       evidence: reviewEvidence,
       data_as_of: ts("2026-10-05"),
       note: "10월 첫 주 올리브영 리뷰 기준",
@@ -112,7 +138,7 @@ export const submissionVersions = parseAll(
       version_no: 2,
       author_id: "u-3",
       summary: "6월 리뷰를 더하니 자극 불만이 2건으로 늘었다. 순함을 내세우되 패치 테스트 안내 필요",
-      body: deepSkinReview({ review_count: 8, analyzed_count: 8, positive: 6, negative: 2 }),
+      body: deepSkinReview({ review_count: 8, analyzed_count: 8, positive: 6, negative: 2, upToJune: true }),
       evidence: reviewEvidence,
       data_as_of: ts("2026-10-05"),
       note: null,
