@@ -69,6 +69,8 @@ export const AdCheck = WorkspaceRow.merge(AiMeta).extend({
   // 8장 5번: suggestions는 findings[] 안으로 정리하자는 제안이라 여기서는 비워 둔다
   suggestions: z.array(z.string()),
   reviewer_id: Id.nullable(),
+  // DB ad_checks.created_by (검토를 올린 사람). 샘플 데이터에는 없다
+  created_by: Id.nullable().optional(),
   review_status: ReviewStatus,
   reviewer_note: z.string().nullable(),
   // 제안: 8장 2·3·4·17·18번

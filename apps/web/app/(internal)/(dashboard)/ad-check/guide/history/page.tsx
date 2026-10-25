@@ -60,7 +60,7 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
             { key: "product", label: "제품" },
             { key: "channel", label: "채널" },
             { key: "action", label: "약기법" },
-            { key: "author", label: "만든 사람" },
+            { key: "author", label: "작성자" },
             { key: "date", label: "만든 날" },
             ...(isOwner ? [{ key: "delete", label: "" }] : []),
           ]}
