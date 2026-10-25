@@ -257,8 +257,11 @@
 | 시장 | `trend_snapshots`, `search_snapshots`, `geo_snapshots` | 랭킹(Qoo10·라쿠텐), 검색 자동완성·Trends, AI 검색 응답 | B, GEO |
 | 캘린더 | `promo_events`, `promo_milestones`, `platform_notes` | 행사·캠페인, 준비 마감, 플랫폼 메모(화면 없음) | I, H |
 | 설문 | `surveys`, `survey_responses`, `survey_minor_counts`, `survey_reco_events` | 설문 정의, 응답, 미성년 참여 수, 추천 노출·클릭 | G |
+| 시안·결재 | `member_tabs` | 멤버별 담당 탭 (owner는 모든 탭, `has_tab()`) | M |
+| | `tab_submissions`, `submission_versions`, `submission_reviews` | 제품 × 탭 시안, 버전 히스토리, 팀장 결재 기록. 상태 바꾸기는 DB 함수로만 | M, L |
+| | `ai_analyses` | 탭별 승인본을 모아 돌린 AI 분석 (팀 공유, 팀장 확인 라벨) | N |
 
-**아직 없는 테이블:** `review_insights`(리뷰 분석에서 계산해서 씀), `review_translations`(F), `activity_log`, `platforms`(slug 기준표). 탭별 시안·결재·AI 분석용 `member_tabs` · `tab_submissions` · `submission_versions` · `submission_reviews` · `ai_analyses`는 설계만 확정됐다 (`docs/team-approval-ai-analysis.md` 5장).
+**아직 없는 테이블:** `review_insights`(리뷰 분석에서 계산해서 씀), `review_translations`(F), `activity_log`, `platforms`(slug 기준표).
 
 규칙
 - 분석 결과에는 항상 **근거 리뷰 ID**(통합 AI 분석은 **근거 버전 ID**)를 남긴다.
