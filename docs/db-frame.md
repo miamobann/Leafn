@@ -25,7 +25,7 @@
 | 고정 값 목록 | Postgres enum 대신 `text` + `check (... in (...))` |
 | 이름 | 테이블은 복수형 snake_case, FK는 `<단수>_id` |
 
-## 2. 테이블 (30개)
+## 2. 테이블 (31개)
 
 ### 기반 (`20261022082907_base_workspaces.sql`)
 
@@ -73,6 +73,8 @@
 | `ad_checks` | created_by (기본 auth.uid()), source (`manual` · `content_guide`), input_text, input_lang, usage, product_category, product_id, promo_event_id, overall_risk, overall_action (`must_fix` · `should_fix` · `expert` · `ok`), review_status (`pending` · `approved` · `rejected`), reviewer_id, reviewer_note, reviewed_at, final_text, is_expert_review_requested, model, prompt_version, deleted_at | 판정할 때 자동 저장. 새 행은 `pending`으로만 시작. 승인·반려(update)는 **owner만**. 삭제 = 숨김(`deleted_at`), delete 정책 없음 |
 | `ad_check_lines` | ad_check_id → ad_checks, line_index, block_key, original, action, findings `jsonb`, ingredient_check, translated_text, back_translation_ko, localized_note | 검토 한 건의 줄별 판정. update는 owner만, delete 정책 없음 |
 | `content_guides` | created_by, product_id, promo_event_id, channel (`qoo10_detail` · `instagram` · `x` · `banner`), post_type (`general` · `mega_sale` · `season`), input·title·body·lint_hits `jsonb`, ad_check_id, model, prompt_version | 콘텐츠 제작 가이드 결과물. 작성자 = 로그인 사용자로 강제. update·delete는 owner만 |
+
+| `review_translations` | created_by (기본 auth.uid()), review_id → reviews (unique), ad_check_id → ad_checks, text_ja, status (`draft` · `approved`), updated_at | 국내 리뷰 한 건의 일본어 번역(상세페이지용, F). 번역은 광고 검토 AI가 낸 `ad_check_lines.translated_text`이고, 번역 한 건마다 `ad_checks` 한 건(source `manual`, usage `detail_page`)이 함께 생긴다. 승인 상태는 그 검토의 `review_status`가 기준(owner가 광고 검토 화면에서 변경). 멤버가 읽기·쓰기·삭제. 리뷰를 지우면 번역도 함께 지워지고, 검토를 지우면 `ad_check_id`만 null |
 
 제품·행사·검토를 가리키는 칸은 참고 링크라서, 그쪽이 지워지면 그 칸만 null이 된다 (`on delete set null (칸)`).
 
@@ -127,7 +129,6 @@
 | 테이블 | 상태 |
 | --- | --- |
 | `platforms` | slug 기준표. 만들면 `platform_id` 칸들에 FK를 새 마이그레이션으로 추가한다 (칸 이름은 그대로) |
-| `review_translations` | 상세페이지용 리뷰 번역(F). 지금 화면은 샘플만 |
 | `activity_log` | 홈 활동 기록. 지금은 실제 모드에서 표시하지 않는다 |
 | `review_insights` | 만들지 않기로 함 (계산값) |
 
@@ -205,6 +206,7 @@ create policy "members delete" on products for delete using (is_member(workspace
 | `20261024130000_create_ad_checks.sql` | ad_checks, ad_check_lines, content_guides |
 | `20261024172221_harden_ad_review_writes.sql` | 광고 검토 쓰기 권한을 owner로, 작성자 기본값 |
 | `20261025115007_team_approval.sql` | member_tabs, tab_submissions, submission_versions, submission_reviews, ai_analyses, `has_tab()`, 상태 바꾸기 함수 |
+| `20261026140000_create_review_translations.sql` | review_translations (상세페이지용 리뷰 번역) |
 
 새 파일은 `npx supabase migration new <이름>`으로 만들고, 원격 적용은 DB 관리자(Min)가 한다 (DB_RULES 6장).
 

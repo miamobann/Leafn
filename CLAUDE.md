@@ -80,7 +80,7 @@
 | 4 | C | 경쟁제품 비교 (가격 · 용량 · 성분 · 특징) | 시장 분석 | 핵심 | 연결됨. Qoo10 수집으로 등록, `product_competitors`로 자사와 연결 |
 | 5 | B | 시장 트렌드 (랭킹, 성분 관심도, 검색 자동완성) | 시장 분석 | 핵심 | 연결됨. Qoo10 랭킹 CSV, SerpApi. 화면이 라쿠텐 스냅샷도 함께 읽음 (확장용) |
 | 참조 | D | 일본 현지 제품 리뷰 분석 | 리뷰 분석 | 참조 | E에 포함 (Qoo10 일본어 경쟁 리뷰) |
-| 참조 | F | 한국 리뷰 → 일본어 번역 → 상세페이지용 블록 (A 검토를 거침) | 리뷰 분석 | 참조 | 화면만. 저장 테이블(`review_translations`) 없음 |
+| 참조 | F | 한국 리뷰 → 일본어 번역 → 상세페이지용 블록 (A 검토를 거침) | 리뷰 분석 | 참조 | 번역은 광고 검토 AI가 하고 `review_translations`에 저장. 승인은 광고 검토 화면에서 owner가 |
 | 참조 | - | GEO (AI 검색의 브랜드 언급 추적) | 시장 분석 | 참조 | 연결됨 (`/api/geo/run`, `geo_snapshots`) |
 | 참조 | G | 피부타입 설문 (일본 소비자용 공개 모바일 웹) | 소비자 설문 | 참조 | 집계 화면은 DB를 읽음. 공개 설문 제출은 아직 보내지 않음 |
 | 참조 | H | 플랫폼별 강점 정리 | - | 참조 | 화면 없앰 (2026-10-24). `platform_notes` 테이블만 남음 |
@@ -255,6 +255,7 @@
 | | `review_analyses` | 리뷰 한 건의 AI 분석 (감성·키워드·페인포인트·재구매 요인·주제) | E |
 | 수집 | `collection_runs`, `collection_run_products`, `collection_staged_reviews`, `collection_run_skipped` | 화면에서 낸 수집 요청과 수집기의 진행·임시 결과 | E |
 | 광고 검토 | `ad_checks`, `ad_check_lines`, `content_guides` | 판정 한 건, 줄별 판정, 콘텐츠 제작 가이드 결과물 | A |
+| | `review_translations` | 상세페이지용 리뷰의 일본어 번역과 그 번역을 통과시킨 약기법 검토(`ad_check_id`) | F |
 | 시장 | `trend_snapshots`, `search_snapshots`, `geo_snapshots` | 랭킹(Qoo10·라쿠텐), 검색 자동완성·Trends, AI 검색 응답 | B, GEO |
 | 캘린더 | `promo_events`, `promo_milestones`, `platform_notes` | 행사·캠페인, 준비 마감, 플랫폼 메모(화면 없음) | I, H |
 | 설문 | `surveys`, `survey_responses`, `survey_minor_counts`, `survey_reco_events` | 설문 정의, 응답, 미성년 참여 수, 추천 노출·클릭 | G |
@@ -262,7 +263,7 @@
 | | `tab_submissions`, `submission_versions`, `submission_reviews` | 제품 × 탭 시안, 버전 히스토리, 팀장 결재 기록. 상태 바꾸기는 DB 함수로만 | M, L |
 | | `ai_analyses` | 탭별 승인본을 모아 돌린 AI 분석 (팀 공유, 팀장 확인 라벨) | N |
 
-**아직 없는 테이블:** `review_insights`(리뷰 분석에서 계산해서 씀), `review_translations`(F), `activity_log`, `platforms`(slug 기준표).
+**아직 없는 테이블:** `review_insights`(리뷰 분석에서 계산해서 씀), `activity_log`, `platforms`(slug 기준표).
 
 규칙
 - 분석 결과에는 항상 **근거 리뷰 ID**(통합 AI 분석은 **근거 버전 ID**)를 남긴다.
