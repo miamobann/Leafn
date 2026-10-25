@@ -66,6 +66,8 @@ export const SkinSurveyResponse = WorkspaceRow.extend({
   score_sensitivity: z.number().int().nonnegative(),
   concerns: z.array(z.string()),
   concern_other: z.string().max(50).nullable(),
+  /** concern_other의 한국어 번역. null = 번역 전 (20261026160000 이전 DB에는 칸이 없다) */
+  concern_other_ko: z.string().max(100).nullable().optional(),
   source: SurveySource.nullable(),
   source_other: z.string().max(50).nullable(),
   consent_at: Timestamp,
@@ -118,7 +120,7 @@ export const SurveySummary = z.object({
       /** 이 경로로 온 응답에서 가장 많은 피부타입과 그 수 (채널 성과 표) */
       top_skin_type: SkinType.optional(),
       top_skin_count: z.number().int().nonnegative().optional(),
-      /** 이 경로로 온 사람의 구매하기 클릭 · 출시 알림 신청. survey_reco_events에 경로가 없어 DB 모드에서는 비어 있다 */
+      /** 이 경로로 온 사람의 구매하기 클릭 · 출시 알림. DB 모드에서 알림은 알림 화면을 연 수이고, 경로가 기록된 추천 기록이 없으면 비어 있다 */
       clicks: z.number().int().nonnegative().optional(),
       notify: z.number().int().nonnegative().optional(),
     }),
@@ -138,6 +140,8 @@ export const SurveySummary = z.object({
       clicks: z.number().int().nonnegative().optional(),
       notify_email: z.number().int().nonnegative().optional(),
       notify_line: z.number().int().nonnegative().optional(),
+      /** 출시 알림 화면을 연 사람 수 (notify_open). 신청 완료 수는 아직 저장하지 않아 DB 모드는 이 숫자로 센다 */
+      notify_open: z.number().int().nonnegative().optional(),
     }),
   ),
   recent: z.array(

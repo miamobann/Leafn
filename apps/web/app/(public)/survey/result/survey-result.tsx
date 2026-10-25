@@ -8,7 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { Scores, SkinType, SurveyProductLine, SurveyQuestion } from "@/lib/schemas/survey";
+import type { Scores, SkinType, SurveyProductLine, SurveyQuestion, SurveySource } from "@/lib/schemas/survey";
 import { calcScores, isUnder18, judge, maxScores } from "@/lib/survey/judge";
 import { clearSession, parseSession, readSessionRaw, subscribeSession } from "../_lib/session";
 import { trackReco } from "../_lib/submit";
@@ -166,6 +166,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
   const { skinType, isSensitive } = judge(scores);
   const type = TYPES[skinType];
   const under18 = isUnder18(questions, session.answers);
+  const source = session.source;
   const recos = lines.filter((l) => l.for_types.includes(skinType));
   const tips = isSensitive ? [...type.tips, ...COPY.sensitiveTips] : type.tips;
 
@@ -181,7 +182,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
   const canSubmit = notifyAgree && (via === "line" || EMAIL_PATTERN.test(email.trim()));
 
   function openNotify(lineId: string) {
-    trackReco({ event: "notify_open", lineId, skinType, under18 });
+    trackReco({ event: "notify_open", lineId, skinType, source, under18 });
     setNotifyLine(lineId);
     setEmail("");
     setNotifyAgree(false);
@@ -237,7 +238,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
           <Card>
             <CardContent className="space-y-4">
               <h2 className="font-semibold">{COPY.recoTitle}</h2>
-              <TrackShown lineIds={recos.map((l) => l.id)} skinType={skinType} under18={under18} />
+              <TrackShown lineIds={recos.map((l) => l.id)} skinType={skinType} source={source} under18={under18} />
               <Image
                 src={POSTERS[POSTER_FOR[skinType]].src}
                 alt={POSTERS[POSTER_FOR[skinType]].alt}
@@ -287,7 +288,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
                   {line.status === "on_sale" && SHOP_PATH[line.id] && (
                     <Link
                       href={SHOP_PATH[line.id]}
-                      onClick={() => trackReco({ event: "buy_click", lineId: line.id, skinType, under18 })}
+                      onClick={() => trackReco({ event: "buy_click", lineId: line.id, skinType, source, under18 })}
                       className={cn(buttonVariants(), "h-11 w-full")}
                     >
                       {COPY.buy}
@@ -453,10 +454,20 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
 }
 
 /** 결과 화면에 추천이 보였을 때 한 번 기록한다 */
-function TrackShown({ lineIds, skinType, under18 }: { lineIds: string[]; skinType: SkinType; under18: boolean }) {
+function TrackShown({
+  lineIds,
+  skinType,
+  source,
+  under18,
+}: {
+  lineIds: string[];
+  skinType: SkinType;
+  source: SurveySource | null;
+  under18: boolean;
+}) {
   const key = lineIds.join(",");
   useEffect(() => {
-    for (const lineId of key.split(",").filter(Boolean)) trackReco({ event: "shown", lineId, skinType, under18 });
-  }, [key, skinType, under18]);
+    for (const lineId of key.split(",").filter(Boolean)) trackReco({ event: "shown", lineId, skinType, source, under18 });
+  }, [key, skinType, source, under18]);
   return null;
 }

@@ -161,6 +161,7 @@ function makeResponse(i: number) {
       score_sensitivity: scores.s,
       concerns: [...concerns],
       concern_other: concernOther?.ja ?? null,
+      concern_other_ko: concernOther?.ko ?? null,
       source,
       source_other: source === "other" ? SOURCE_OTHER[Math.floor(rand() * SOURCE_OTHER.length)] : null,
       consent_at: dateOf(daysAgo, minutes - 2),

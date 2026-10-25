@@ -393,7 +393,9 @@ export function SurveyResultsView({
               <TableBody>
                 {summary.product_lines.map((p) => {
                   const line = lines.find((l) => l.id === p.line_id);
-                  const notify = (p.notify_email ?? 0) + (p.notify_line ?? 0);
+                  // 신청 수(이메일 · LINE)가 없으면(DB 모드) 알림 화면을 연 사람 수로 본다
+                  const signedUp = p.notify_email !== undefined || p.notify_line !== undefined;
+                  const notify = signedUp ? (p.notify_email ?? 0) + (p.notify_line ?? 0) : (p.notify_open ?? 0);
                   const reacted = line?.status === "on_sale" ? (p.clicks ?? 0) : notify;
                   return (
                     <TableRow key={p.line_id}>
@@ -411,7 +413,9 @@ export function SurveyResultsView({
                       <TableCell>
                         {line?.status === "on_sale"
                           ? `구매하기 클릭 ${p.clicks ?? 0}회`
-                          : `출시 알림 ${notify}명 (이메일 ${p.notify_email ?? 0} · LINE ${p.notify_line ?? 0})`}
+                          : signedUp
+                            ? `출시 알림 ${notify}명 (이메일 ${p.notify_email ?? 0} · LINE ${p.notify_line ?? 0})`
+                            : `출시 알림 화면 연 사람 ${notify}명`}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
                         {p.shown ? `${Math.round((reacted / p.shown) * 100)}%` : "—"}

@@ -103,9 +103,9 @@
 | 테이블 | 핵심 칸 | 비고 |
 | --- | --- | --- |
 | `surveys` | public_slug (unique), title_ja, questions `jsonb`, is_open | 공개 링크 → 어느 팀 설문인지 찾는 용도. 열린 설문은 누구나 읽는다 |
-| `survey_responses` | survey_id, answers `jsonb`, age_group, skin_type (`dry` · `oily` · `combo` · `inner_dry` · `normal`), is_sensitive, score_* 4개, concerns, source(유입 경로), consent_at, consent_version, locale | anon은 열린 설문에 insert만. 18세 이상·동의한 응답만 |
+| `survey_responses` | survey_id, answers `jsonb`, age_group, skin_type (`dry` · `oily` · `combo` · `inner_dry` · `normal`), is_sensitive, score_* 4개, concerns, concern_other(기타 직접 입력), concern_other_ko(그 한국어 번역, null = 번역 전), source(유입 경로), consent_at, consent_version, locale | anon은 열린 설문에 insert만. 18세 이상·동의한 응답만 |
 | `survey_minor_counts` | survey_id, count_date, count | 18세 미만은 답을 저장하지 않고 날짜별 수만 센다 (`record_survey_minor()`) |
-| `survey_reco_events` | survey_id, product_line, event (`shown` · `buy_click` · `notify_open`), skin_type | 추천 노출·구매 클릭. anon insert만 |
+| `survey_reco_events` | survey_id, product_line, event (`shown` · `buy_click` · `notify_open`), skin_type, source(유입 경로, null = 없음) | 추천 노출·구매 클릭. anon insert만 |
 
 공개 설문 제출은 아직 보내지 않는다 (`app/(public)/survey/_lib/submit.ts`). 집계 화면은 DB를 읽는다.
 
@@ -188,6 +188,8 @@ create policy "members delete" on products for delete using (is_member(workspace
 | `20261024172221_harden_ad_review_writes.sql` | 광고 검토 쓰기 권한을 owner로, 작성자 기본값 |
 | `20261026140000_create_review_translations.sql` | review_translations (상세페이지용 리뷰 번역) |
 | `20261026150000_products_add_title_ai.sql` | products.title_ai (AI가 정리한 제품명) |
+| `20261026160000_survey_concern_other_ko.sql` | survey_responses.concern_other_ko ('기타' 고민의 한국어 번역) |
+| `20261026170000_survey_reco_events_source.sql` | survey_reco_events.source (추천 기록의 유입 경로) |
 
 새 파일은 `npx supabase migration new <이름>`으로 만들고, 원격 적용은 DB 관리자(Min)가 한다 (DB_RULES 6장).
 

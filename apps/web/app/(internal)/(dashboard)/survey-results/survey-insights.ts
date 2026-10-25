@@ -51,7 +51,7 @@ export function lineReactions(summary: SurveySummary, lines: SurveyProductLine[]
   return summary.product_lines.map((p) => {
     const line = lines.find((l) => l.id === p.line_id);
     const onSale = line?.status === "on_sale";
-    const notify = p.notify_email === undefined && p.notify_line === undefined ? null : (p.notify_email ?? 0) + (p.notify_line ?? 0);
+    const notify = p.notify_email === undefined && p.notify_line === undefined ? (p.notify_open ?? null) : (p.notify_email ?? 0) + (p.notify_line ?? 0);
     return { id: p.line_id, name: bareName(line, p.line_id), onSale, shown: p.shown, reacted: onSale ? (p.clicks ?? null) : notify };
   });
 }
