@@ -6,7 +6,7 @@ import type { Product } from "@/lib/schemas/product";
 import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
 import { AppealTopic } from "@/lib/schemas/review";
-import { importedSnapshots } from "./market-imports";
+import { importedSnapshots, importedSnsVideos } from "./market-imports";
 
 export async function getWorkspace() {
   return mock.workspace;
@@ -149,6 +149,11 @@ export async function getIngredientInterest(opts: { source: TrendSource; categor
 /** 마케터가 등록한 영상 메모 (수요 · SNS 공통 패턴) */
 export async function getSnsVideoNotes() {
   return mock.snsVideoNotes;
+}
+
+/** 이 PC에 있는 실제 SNS 영상 목록 (수집 CSV, .gitignore). 없으면 빈 배열 */
+export async function getImportedSnsVideos() {
+  return importedSnsVideos();
 }
 
 /** 영상 메모에서 묶은 공통 패턴 (AI 결과 샘플) */

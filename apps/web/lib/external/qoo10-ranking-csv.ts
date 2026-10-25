@@ -63,9 +63,11 @@ export function parseQoo10RankingCsv(text: string): RankingItem[] {
         volume_ml: volumeFromName(name),
         rating: null,
         ...promo,
-        badges: (r["공식인증_여부"] ?? "").includes("公式") ? ["公式ショップ"] : [],
+        // 공식몰 여부는 수상·랭킹 배지가 아니라서 badges에 넣지 않는다
+        badges: [],
         discount_rate: discounted ? Math.round((1 - (sale as number) / list) * 100) : null,
         sale_price_jpy: discounted ? sale : null,
+        coupon_price_jpy: coupon ? yen(coupon.split("円")[0]) : null,
         url: url.startsWith("http") ? url : null,
         key_ingredients_ko: (r["핵심유효성분"] ?? "").trim() || null,
       },
