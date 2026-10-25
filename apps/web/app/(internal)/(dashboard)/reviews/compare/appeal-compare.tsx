@@ -5,9 +5,10 @@
 // 리뷰끼리 맞대는 게 목적이 아니라 주제 단위로 비교하고, 리뷰는 AI 분류가 맞는지 확인하는 증거로만 보여준다
 import Link from "next/link";
 import { useState } from "react";
-import { Check, ChevronRight, Info, Plus } from "lucide-react";
+import { Check, ChevronRight, Info } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import type { AppealComparisonView } from "@/lib/data/reviews";
+import { euroOf } from "@/lib/korean";
 import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
 import { EvidencePanel, linkClass, paginate, Pager, ReviewCard } from "../_components/parts";
 import { distribution, share } from "../_lib/topics";
@@ -98,7 +99,6 @@ export function AppealCompare({
     const best = t.praises.toSorted((a, b) => b.rating - a.rating || b.posted_at.localeCompare(a.posted_at))[0];
     return best ? [{ review: best, topic: t.topic }] : [];
   });
-  const quoteIds = [...new Set(quotes.map((q) => q.review.id))];
 
   // 비교 대상 랭킹: 리뷰를 가져온 제품만 계산에 쓰고, 안 가져온 제품은 맨 아래 한 줄로 접는다
   const imported = data.competitors.filter((p) => p.lowReviewCount > 0);
@@ -239,15 +239,7 @@ export function AppealCompare({
                 </div>
                 {quotes.length > 0 && (
                   <div className="space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">상세페이지에 함께 쓸 자사 리뷰</p>
-                      <Link
-                        href={`/reviews/${data.own.id}/translate?pick=${quoteIds.join(",")}`}
-                        className={buttonVariants({ variant: "outline", size: "sm" })}
-                      >
-                        <Plus /> 상세페이지용으로 담기 · {quoteIds.length}건
-                      </Link>
-                    </div>
+                    <p className="text-xs text-muted-foreground">이 소구점을 뒷받침하는 우리 제품 칭찬 리뷰 (주제마다 가장 별점이 높은 리뷰 1건)</p>
                     <div className="grid gap-2 md:grid-cols-2">
                       {quotes.map((q) => (
                         <blockquote key={`${q.topic}-${q.review.id}`} className="rounded-lg border-l-2 border-foreground/30 bg-muted/40 px-4 py-2.5 text-sm">
@@ -285,10 +277,11 @@ export function AppealCompare({
               <div>
                 <p className="text-xs text-muted-foreground">비교 대상</p>
                 <h2 className="text-lg font-semibold">
-                  Qoo10 <span lang="ja">{data.own.category}</span> 랭킹 TOP{data.competitors.length}
+                  Qoo10 <span lang="ja">{data.own.category}</span> 리뷰 많은 순 · 비교 제품 {data.competitors.length}개
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  제품마다 별점 1~{data.maxRating}점 리뷰를 모았어요 · 리뷰가 있는 {imported.length}개 제품으로 계산했어요
+                  왼쪽 숫자는 Qoo10 목록의 실제 순위예요. 세트 · 여러 종류 · 다른 종류 상품은 빼서 번호가 건너뛰어요. 제품마다 별점 1~{data.maxRating}점 리뷰를 모았고,
+                  리뷰가 있는 {imported.length}개 제품으로 계산했어요
                 </p>
               </div>
               {focus && (
@@ -321,7 +314,7 @@ export function AppealCompare({
                 const hits = hitCount(p.id);
                 return (
                   <Link key={p.id} href={`/reviews/${p.id}`} className="flex h-14 items-center gap-3 border-b px-1 text-sm hover:bg-muted/40">
-                    <span className="w-6 text-right text-muted-foreground tabular-nums">{p.rank}</span>
+                    <span className="w-9 text-right text-muted-foreground tabular-nums">{p.rank}위</span>
                     <span className="min-w-0 flex-1">
                       <span lang="ja" className="block truncate font-medium">
                         {p.brand} {p.name}
@@ -402,7 +395,8 @@ export function AppealCompare({
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  AI가 ‘{panel.tab === "complaints" ? negLabel(panelRow) : posLabel(panelRow)}’(으)로 분류한 리뷰예요. 숫자가 맞는지 확인할 때 열어 보세요.
+                  AI가 ‘{panel.tab === "complaints" ? negLabel(panelRow) : posLabel(panelRow)}’
+                  {euroOf(panel.tab === "complaints" ? negLabel(panelRow) : posLabel(panelRow))} 분류한 리뷰예요. 숫자가 맞는지 확인할 때 열어 보세요.
                 </p>
                 {panelReviews.slice(0, shown).map((r) => (
                   <ReviewCard key={r.id} review={r} sub={panel.tab === "complaints" ? productName(r.product_id) : undefined} />
