@@ -9,7 +9,9 @@ import { buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import type { ReviewWithAnalysis } from "@/lib/data/reviews";
+import { titleParts } from "@/lib/product-title";
 import type { Sentiment } from "@/lib/schemas/common";
+import type { ProductTitleAi } from "@/lib/schemas/product";
 import type { AppealTopic } from "@/lib/schemas/review";
 import { formatDate } from "@/lib/format";
 import { BackTitle, paginate, Pager, ReviewText } from "../../_components/parts";
@@ -33,7 +35,7 @@ export function ReviewListView({
   reviews,
   from,
 }: {
-  product: { id: string; brand: string; name: string; kind: "own" | "competitor" };
+  product: { id: string; brand: string; name: string; kind: "own" | "competitor"; title_ai?: ProductTitleAi | null };
   reviews: ReviewWithAnalysis[];
   from: { topic: AppealTopic; polarity: Polarity } | null;
 }) {
@@ -92,7 +94,7 @@ export function ReviewListView({
   };
 
   const lang = product.kind === "own" ? "국내" : "일본";
-  const title = product.kind === "own" ? product.name : `${product.brand} ${product.name}`;
+  const title = product.kind === "own" ? product.name : titleParts(product).main;
 
   return (
     <div className="space-y-4">

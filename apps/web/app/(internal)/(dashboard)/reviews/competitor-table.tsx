@@ -8,7 +8,12 @@ import { paginate, Pager } from "./_components/parts";
 
 export type CompetitorRow = {
   id: string;
+  /** 원문 제품명 (브랜드 + 제목). 검색과 툴팁에 쓴다 */
   name: string;
+  /** AI가 정리한 짧은 제목 (정리 전이면 원문과 같다) */
+  title: string;
+  /** 한국어 캡션. 정리 전이면 null */
+  caption: string | null;
   category: string;
   platform: string;
   rank: number | null;
@@ -34,7 +39,7 @@ export function CompetitorTable({ rows }: { rows: CompetitorRow[] }) {
   const filtered = useMemo(
     () =>
       rows
-        .filter((r) => !q || r.name.toLowerCase().includes(q.toLowerCase()))
+        .filter((r) => !q || `${r.name} ${r.caption ?? ""}`.toLowerCase().includes(q.toLowerCase()))
         .filter((r) => !category || r.category === category)
         .filter((r) => !platform || r.platform === platform),
     [rows, q, category, platform],
@@ -104,9 +109,10 @@ export function CompetitorTable({ rows }: { rows: CompetitorRow[] }) {
             {paged.rows.map((r) => (
               <tr key={r.id} className="border-b last:border-0 hover:bg-muted/40">
                 <td className="px-5 py-3">
-                  <Link href={`/reviews/${r.id}`} lang="ja" className="font-medium underline-offset-4 hover:underline">
-                    {r.name}
+                  <Link href={`/reviews/${r.id}`} lang="ja" title={r.name} className="font-medium underline-offset-4 hover:underline">
+                    {r.title}
                   </Link>
+                  {r.caption && <p className="text-sm text-muted-foreground">{r.caption}</p>}
                   <p className="text-xs text-muted-foreground">
                     {r.category} · {r.platform}
                   </p>
@@ -159,7 +165,7 @@ export function CompetitorTable({ rows }: { rows: CompetitorRow[] }) {
               {empty.map((r) => (
                 <li key={r.id} lang="ja">
                   {r.rank ? `${r.rank}위 · ` : ""}
-                  {r.name} <span className="text-xs">({r.category} · {r.platform})</span>
+                  <span title={r.name}>{r.title}</span> <span className="text-xs">({r.category} · {r.platform})</span>
                 </li>
               ))}
             </ul>
