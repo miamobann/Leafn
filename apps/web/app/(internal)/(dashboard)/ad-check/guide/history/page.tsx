@@ -57,7 +57,8 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
         <DataTableTemplate
           columns={[
             { key: "title", label: "제목" },
-            { key: "product", label: "제품 · 채널" },
+            { key: "product", label: "제품" },
+            { key: "channel", label: "채널" },
             { key: "action", label: "약기법" },
             { key: "author", label: "만든 사람" },
             { key: "date", label: "만든 날" },
@@ -77,9 +78,10 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
                 ),
                 product: (
                   <span className="block max-w-44 truncate" title={productName(g.product_id)}>
-                    {productName(g.product_id)} · {CHANNEL_LABEL[g.channel] ?? g.channel}
+                    {productName(g.product_id)}
                   </span>
                 ),
+                channel: <span className="whitespace-nowrap">{CHANNEL_LABEL[g.channel] ?? g.channel}</span>,
                 action: action ? <ActionBadge action={action} /> : "—",
                 author: memberName(g.created_by),
                 date: formatDate(g.created_at),
