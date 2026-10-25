@@ -4,10 +4,11 @@ import { AiResultMeta } from "@/components/common/ai";
 import { PageHeader } from "@/components/layout/page-header";
 import { DetailTemplate } from "@/components/templates";
 import { buttonVariants } from "@/components/ui/button";
-import { getAdCheck, getMemberName, getProduct } from "@/lib/data";
+import { getAdCheck, getAdChecks, getMemberName, getProduct } from "@/lib/data";
 import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
 import { ActionBadge, ReviewStateBadge, USAGE_LABEL } from "../_components/ad-badges";
+import { CopyButton } from "../_components/copy-button";
 import { DetailReviewBar } from "../_components/detail-review-bar";
 import { LineResultCard } from "../_components/line-result-card";
 import { ResultSummary } from "../_components/result-summary";
@@ -16,12 +17,15 @@ import { AdDisclaimer } from "../_components/ad-disclaimer";
 export default async function AdCheckDetailPage({ params }: { params: Promise<{ checkId: string }> }) {
   const check = await getAdCheck((await params).checkId);
   if (!check) notFound();
-  const [reviewer, product, mine] = await Promise.all([
+  const [manual, reviewer, product, mine] = await Promise.all([
+    getAdChecks(),
     getMemberName(check.reviewer_id),
     check.product_id ? getProduct(check.product_id) : null,
     isSupabaseConfigured() ? getMyWorkspace() : null,
   ]);
   const canApprove = !isSupabaseConfigured() || mine?.role === "owner";
+  // 콘텐츠 가이드 검사는 보기만 한다 (승인 대상이 아니라 검토 칸을 그리지 않는다)
+  const isGuideCheck = !manual.some((c) => c.id === check.id);
 
   return (
     <>
@@ -42,7 +46,17 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
           }
           attributes={[
             // 최종 문구를 먼저, 원문은 그 아래 (일본어 원문은 연한 글씨로 한국어 번역을 덧붙인다)
-            { label: "최종 문구", value: check.final_text ? <span className="whitespace-pre-line">{check.final_text}</span> : "—" },
+            {
+              label: "최종 문구",
+              value: check.final_text ? (
+                <span className="flex flex-wrap items-start gap-2">
+                  <span className="whitespace-pre-line">{check.final_text}</span>
+                  <CopyButton text={check.final_text} label="최종 문구 복사" />
+                </span>
+              ) : (
+                "—"
+              ),
+            },
             {
               label: "원문",
               value: (
@@ -81,6 +95,9 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
             },
           ]}
         />
+        {isGuideCheck ? (
+          <p className="mt-4 text-sm text-muted-foreground">콘텐츠 제작에서 자동으로 돌린 「콘텐츠 문구 자동 검사」예요. 승인·반려 대상이 아니라 보기만 할 수 있어요.</p>
+        ) : (
         <DetailReviewBar
           checkId={check.id}
           initialFinalText={check.final_text ?? check.input_text}
@@ -89,6 +106,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
           initialExpertRequested={check.is_expert_review_requested ?? false}
           canApprove={canApprove}
         />
+        )}
       </div>
     </>
   );
