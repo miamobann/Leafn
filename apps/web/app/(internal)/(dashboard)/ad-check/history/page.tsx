@@ -35,7 +35,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
 
   return (
     <>
-      <PageHeader title="검토 내역" description="원문, 수정 제안, 담당자 검토 결과" featureId="A" />
+      <PageHeader title="검토 이력" description="원문, 수정 제안, 담당자 검토 결과" featureId="A" />
       {/* 결과가 없을 때도 필터를 남겨 다른 조건으로 바꿀 수 있게, 필터는 표 템플릿 밖에 둔다 */}
       <div className="mb-4">
         <HistoryFilters
@@ -46,7 +46,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
         />
       </div>
       {checks.length === 0 ? (
-        <EmptyState message="조건에 맞는 검토 내역이 없습니다" action="필터를 바꾸거나 「전체」를 골라 보세요" />
+        <EmptyState message="조건에 맞는 검토 이력이 없습니다" action="필터를 바꾸거나 「전체」를 골라 보세요" />
       ) : (
         <DataTableTemplate
           columns={[
@@ -66,7 +66,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
             const [first, ...rest] = koText.split("\n");
             return {
               id: c.id,
-              href: `/ad-check/${c.id}`, // 문구를 누르면 상세(두괄식 결과), 고치기는 맨 끝 「수정」
+              href: `/ad-check/${c.id}`, // 문구를 누르면 상세(두괄식 결과), 고쳐서 다시 판정은 맨 끝 「재검토」
               cells: {
                 text: (
                   // 긴 문구는 한 줄로 자르고 전체는 title로 보여준다
@@ -87,7 +87,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
                 date: formatDate(c.created_at),
                 detail: (
                   <Link href={`/ad-check?from=${c.id}`} className={`${buttonVariants({ variant: "outline", size: "sm" })} border-foreground/40!`}>
-                    수정
+                    재검토
                   </Link>
                 ),
                 delete: <DeleteButton endpoint={`/api/ad-check/${c.id}`} confirmMessage="이 검토를 목록에서 삭제할까요? 기록은 증거용으로 DB에 남습니다." />,

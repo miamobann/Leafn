@@ -5,7 +5,8 @@ import type { AdFinding, AdLineResult } from "@/lib/schemas/ad-check";
 import { ActionBadge } from "./ad-badges";
 import { HighlightedText } from "./highlighted-text";
 
-const BASIS_STATUS_LABEL = { confirmed: "자료 확인됨", needs_check: "자료 확인 필요" } as const;
+// 근거가 기준 자료로 뒷받침되는지. 담당자가 할 일처럼 읽히지 않게 상태로 쓴다 (실무자 비판 10번)
+const BASIS_STATUS_LABEL = { confirmed: "근거 확실", needs_check: "해석이 갈림" } as const;
 
 type LineResultCardProps = {
   line: AdLineResult;
@@ -105,7 +106,7 @@ export function LineResultCard({ line, findings, selectedSuggestion, onSelect }:
           <ul className="space-y-1 text-muted-foreground">
             {findings.map((f) => (
               <li key={f.text}>
-                「{f.text}」 {f.basis} · {f.basis_status ? BASIS_STATUS_LABEL[f.basis_status] : "자료 확인 필요"}
+                「{f.text}」 {f.basis} · {f.basis_status ? BASIS_STATUS_LABEL[f.basis_status] : BASIS_STATUS_LABEL.needs_check}
               </li>
             ))}
           </ul>

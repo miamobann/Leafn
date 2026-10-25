@@ -8,6 +8,7 @@ import { getAdCheck, getAdChecks, getMemberName, getProduct } from "@/lib/data";
 import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
 import { ActionBadge, ReviewStateBadge, USAGE_LABEL } from "../_components/ad-badges";
+import { CopyButton } from "../_components/copy-button";
 import { DetailReviewBar } from "../_components/detail-review-bar";
 import { LineResultCard } from "../_components/line-result-card";
 import { ResultSummary } from "../_components/result-summary";
@@ -45,7 +46,17 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
           }
           attributes={[
             // 최종 문구를 먼저, 원문은 그 아래 (일본어 원문은 연한 글씨로 한국어 번역을 덧붙인다)
-            { label: "최종 문구", value: check.final_text ? <span className="whitespace-pre-line">{check.final_text}</span> : "—" },
+            {
+              label: "최종 문구",
+              value: check.final_text ? (
+                <span className="flex flex-wrap items-start gap-2">
+                  <span className="whitespace-pre-line">{check.final_text}</span>
+                  <CopyButton text={check.final_text} label="최종 문구 복사" />
+                </span>
+              ) : (
+                "—"
+              ),
+            },
             {
               label: "원문",
               value: (

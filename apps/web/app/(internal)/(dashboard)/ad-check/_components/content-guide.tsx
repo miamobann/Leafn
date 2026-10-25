@@ -894,7 +894,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
             {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <span className="text-xs text-muted-foreground">샘플 데이터 · AI 연결 전</span>
+            {!aiEnabled && <span className="text-xs text-muted-foreground">AI 미연결 · 샘플 결과</span>}
             <Button type="button" onClick={generate} disabled={detailBlocked || loading !== null}>
               {generated ? "다시 제작하기" : "제작하기"}
             </Button>
