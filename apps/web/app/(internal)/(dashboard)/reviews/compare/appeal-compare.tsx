@@ -402,7 +402,12 @@ export function AppealCompare({
                   {euroOf(panel.tab === "complaints" ? negLabel(panelRow) : posLabel(panelRow))} 분류한 리뷰예요. 숫자가 맞는지 확인할 때 열어 보세요.
                 </p>
                 {panelReviews.slice(0, shown).map((r) => (
-                  <ReviewCard key={r.id} review={r} sub={panel.tab === "complaints" ? productName(r.product_id) : undefined} />
+                  <ReviewCard
+                    key={r.id}
+                    review={r}
+                    sub={panel.tab === "complaints" ? productName(r.product_id) : undefined}
+                    highlight={{ topic: panelRow.topic, polarity: panel.tab === "complaints" ? "negative" : "positive" }}
+                  />
                 ))}
                 {panelReviews.length === 0 && <p className="text-sm text-muted-foreground">해당 리뷰가 없어요</p>}
                 {panel.tab === "complaints" && panelReviews.length > shown && (

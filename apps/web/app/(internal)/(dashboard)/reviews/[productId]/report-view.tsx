@@ -420,7 +420,7 @@ export function ReportView({
                       )}
                       {evidence.length === 0 && <p className="text-sm text-muted-foreground">해당하는 리뷰가 없어요</p>}
                       {evidence.slice(0, EVIDENCE_PREVIEW).map((r) => (
-                        <ReviewCard key={r.id} review={r}>
+                        <ReviewCard key={r.id} review={r} highlight={{ topic: selected.topic, polarity }}>
                           {isOwn && (
                             <Link href={`/reviews/${product.id}/translate?pick=${r.id}`} className="text-xs font-medium text-foreground/80 hover:underline">
                               + 상세페이지용으로 담기
