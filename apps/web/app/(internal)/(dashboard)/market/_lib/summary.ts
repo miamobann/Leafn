@@ -1,23 +1,31 @@
-// 이번 주 핵심: 아래 섹션의 계산 결과에서 가격·할인 전략에 바로 쓰는 결론만 뽑는다 (AI 없이 정해진 규칙과 문장 틀).
-// 순서 = 판단 순서: 우리 가격은 어디인가 → 실제로 얼마에 팔리나 → 누가 상위권을 어떻게 채우나 → 소비자는 무엇을 찾나
+// 요약 탭: 각 탭의 계산 결과에서 마케터가 바로 쓸 결론 + 할 일만 뽑는다 (AI 없이 정해진 규칙과 문장 틀).
+// 카드 순서 = 판단 순서: 가격 → 할인·행사 → 경쟁 구도 → 성분 → 소비자 고민 언어 → AI 검색 노출. 데이터가 없는 카드는 만들지 않는다
+import type { GeoSnap } from "@/lib/schemas/geo";
 import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
-import { PROMO_HOOK_LABEL, TOP_N } from "./market";
-import { ingredientMentions, priceMap, rowsAt, top10 } from "./overview";
+import { matchIngredient } from "@/lib/ai/appeal-normalize";
+import { hasIngredient, INGREDIENT_MATCH, ingredientInterestRanking, OWN_BRAND, TOP_N } from "./market";
+import { ingredientMentions, ownBaseline, priceMap, rowsAt, top10 } from "./overview";
 import { concernSuggestions } from "./demand";
+import { keywordGap } from "./geo";
+
+export type MarketTab = "summary" | "action" | "market" | "supply" | "demand" | "competitors";
 
 export type KeyPoint = {
   id: string;
-  /** 무엇에 대한 결론인가 */
+  /** 주제 */
   label: string;
   /** 한 줄 결론 */
   headline: string;
-  /** 결론의 근거 숫자 */
+  /** 그래서 할 일 (규칙 기반 제안) */
+  action: string;
+  /** 근거 숫자 */
   detail: string;
-  /** 근거 섹션 */
-  target: "#market" | "#supply" | "#demand";
-  go: string;
+  /** 근거가 있는 탭 */
+  tab: MarketTab;
+  /** 샘플 데이터로 만든 카드 */
+  sample?: boolean;
 };
 
 function median(values: number[]): number | null {
@@ -33,93 +41,165 @@ function position(cheaper: number, total: number): string {
   return r < 0.35 ? "싼 편" : r > 0.65 ? "비싼 편" : "중간";
 }
 
-export function keyPoints(input: { series: TrendSnapshot[]; products: Product[]; category: string; search: SearchSnap[] }): KeyPoint[] {
-  const { series, products, category, search } = input;
+const koOf = (ingredient: string) => INGREDIENT_MATCH[ingredient]?.ko ?? ingredient;
+
+export function keyPoints(input: {
+  series: TrendSnapshot[];
+  products: Product[];
+  category: string;
+  search: SearchSnap[];
+  geo: GeoSnap[];
+  geoIsSample: boolean;
+}): KeyPoint[] {
+  const { series, products, category, search, geo, geoIsSample } = input;
   const rows = rowsAt(series, series.length - 1);
-  if (rows.length === 0) return [];
+  const top = top10(rows);
+  const own = ownBaseline(products, category);
   const points: KeyPoint[] = [];
 
-  // 1) 우리 가격의 위치: 정가 기준과 할인 적용 후를 같이 본다 (자사는 정가 그대로)
-  const list = priceMap(rows, products, category, "list");
-  const sale = priceMap(rows, products, category, "sale");
-  const own = list.ownCheaperThan[0];
-  const ownSale = sale.ownCheaperThan[0];
-  if (own && ownSale && list.points.length > 0) {
-    const n = list.points.length;
-    const before = position(own.cheaper, n);
-    const after = position(ownSale.cheaper, n);
+  // 1) 가격: 정가·할인 후 위치와, 할인 후 중앙값에 맞추려면 몇 % 할인이 필요한지
+  if (rows.length > 0) {
+    const list = priceMap(rows, products, category, "list");
+    const sale = priceMap(rows, products, category, "sale");
+    const o = list.ownCheaperThan[0];
+    const os = sale.ownCheaperThan[0];
+    if (o && os && list.points.length > 0 && sale.medianPpm !== null) {
+      const n = list.points.length;
+      const before = position(o.cheaper, n);
+      const after = position(os.cheaper, n);
+      const need = Math.ceil((1 - sale.medianPpm / o.ppm) * 100);
+      points.push({
+        id: "price",
+        label: "가격",
+        headline: `${o.name.replace("자사 ", "")} ml당 ${o.ppm}円 — ${before === after ? `순위권에서 ${before}` : `정가로는 ${before}, 할인 적용 후엔 ${after}`}`,
+        action: need > 0 ? `할인 후 순위권 중앙값(${sale.medianPpm}円)에 맞추려면 약 ${need}% 이상 할인` : `이미 할인 후 중앙값(${sale.medianPpm}円)보다 싸서 큰 할인 없이도 가격 경쟁 가능`,
+        detail: `순위권 ml당 중앙값 정가 ${list.medianPpm}円 → 할인 후 ${sale.medianPpm}円 · 할인 후 우리보다 싼 제품 ${os.cheaper}/${n}`,
+        tab: "market",
+      });
+    }
+  }
+
+  // 2) 할인·행사: 표시 할인율과 행사 쿠폰가
+  if (rows.length > 0) {
+    const discounted = rows.filter((r) => (r.discount_rate ?? 0) > 0);
+    const rate = median(discounted.map((r) => r.discount_rate as number));
+    const coupons = top.filter((r) => r.coupon_price_jpy != null && r.price_jpy > 0);
+    const couponRate = median(coupons.map((r) => Math.round((1 - (r.coupon_price_jpy as number) / r.price_jpy) * 100)));
+    if (discounted.length > 0 || coupons.length > 0) {
+      points.push({
+        id: "discount",
+        label: "할인·행사",
+        headline:
+          coupons.length > 0 && couponRate !== null
+            ? `표시 할인은 ${rate ?? 0}% 수준이지만, 상위 ${TOP_N}위 중 ${coupons.length}개가 행사 쿠폰으로 정가보다 ${couponRate}% 싸게 팔림`
+            : `순위권 ${discounted.length}/${rows.length}개가 할인 중 (할인율 중앙값 ${rate}%)`,
+        action:
+          coupons.length >= 3 && couponRate !== null
+            ? `メガ割 참가 + 쿠폰 할인 ${couponRate}% 전후 준비`
+            : discounted.length >= rows.length / 2 && rate !== null
+              ? `상시 할인 ${rate}% 수준 검토`
+              : "할인보다 구성·소구로 경쟁",
+        detail: `할인 중 ${discounted.length}/${rows.length} · 상위 ${TOP_N}위 중 행사 쿠폰 ${coupons.length}개`,
+        tab: "market",
+      });
+    }
+  }
+
+  // 3) 경쟁 구도: 상위권 브랜드 쏠림과 세트 판매
+  if (top.length > 0) {
+    const byBrand = new Map<string, typeof top>();
+    for (const r of top) byBrand.set(r.brand, [...(byBrand.get(r.brand) ?? []), r]);
+    const [leader, leaderRows] = [...byBrand].toSorted((a, b) => b[1].length - a[1].length)[0];
+    const sets = leaderRows.filter((r) => r.promo_type === "bundle" || /セット/.test(r.name)).length;
     points.push({
-      id: "price",
-      label: "우리 가격의 위치",
+      id: "competition",
+      label: "경쟁 구도",
       headline:
-        before === after
-          ? `우리 ${own.name.replace("자사 ", "")}: ml당 가격이 순위권에서 ${before}`
-          : `우리 ${own.name.replace("자사 ", "")}: 정가로는 ${before}, 할인 적용 후엔 ${after}`,
-      detail: `ml당 ${own.ppm}円 · 순위권 중앙값 정가 ${list.medianPpm}円 → 할인 후 ${sale.medianPpm}円 · 할인 후 우리보다 싼 제품 ${ownSale.cheaper}/${n}`,
-      target: "#market",
-      go: "시장 개관으로",
+        leaderRows.length >= 3
+          ? `Top ${TOP_N} 중 ${leaderRows.length}개가 ${leader} 한 브랜드${sets >= 2 ? `, 그중 ${sets}개가 세트 상품` : ""}`
+          : `Top ${TOP_N} 브랜드가 고르게 퍼져 있음 (최다 ${leader} ${leaderRows.length}개)`,
+      action:
+        leaderRows.length >= 3 && sets >= 2
+          ? "단품만이 아니라 세트 구성 검토"
+          : leaderRows.length >= 3
+            ? `${leader}의 가격·구성 방식 참고`
+            : "특정 브랜드 쏠림이 약해 신규 진입 여지 있음",
+      detail: `Top ${TOP_N} 브랜드 ${byBrand.size}개 · K-뷰티 ${top.filter((r) => r.is_kbeauty).length}/${top.length}`,
+      tab: "supply",
     });
   }
 
-  // 2) 실제로 얼마에 팔리나: 표시 할인율과 행사 쿠폰가의 차이
-  const discounted = rows.filter((r) => (r.discount_rate ?? 0) > 0);
-  const rate = median(discounted.map((r) => r.discount_rate as number));
-  const coupons = rows.filter((r) => r.coupon_price_jpy != null && r.price_jpy > 0);
-  const couponRate = median(coupons.map((r) => Math.round((1 - (r.coupon_price_jpy as number) / r.price_jpy) * 100)));
-  if (discounted.length > 0 || coupons.length > 0) {
-    points.push({
-      id: "discount",
-      label: "실제 판매 가격",
-      headline:
-        coupons.length > 0 && couponRate !== null
-          ? `표시 할인은 ${rate ?? 0}% 수준이지만, 행사 쿠폰을 쓰면 정가보다 ${couponRate}% 싸게 팔림`
-          : `순위권 ${discounted.length}/${rows.length}개가 할인 중 (할인율 중앙값 ${rate}%)`,
-      detail: `할인 중 ${discounted.length}/${rows.length} · 행사 쿠폰 있는 제품 ${coupons.length}/${rows.length}${coupons.length > 0 ? ` (상위 ${Math.max(...coupons.map((r) => r.rank))}위 안)` : ""}`,
-      target: "#market",
-      go: "시장 개관으로",
+  // 4) 성분: 검색 관심도와 상위권 상품명, 우리 핵심 성분의 관심도
+  const interest = ingredientInterestRanking(search, category);
+  const mentions = ingredientMentions(rows);
+  if (interest.rows.length > 0 || mentions.length > 0) {
+    const first = interest.rows[0];
+    const ownIngredients = own ? Object.keys(INGREDIENT_MATCH).filter((ing) => hasIngredient(own, ing)) : [];
+    const ownShares = ownIngredients.map((ing) => {
+      const row = interest.rows.find((r) => r.canonical === ing);
+      const excluded = interest.excluded.some((t) => matchIngredient(t) === ing);
+      return { ing, share: row?.share ?? null, excluded };
     });
-  }
-
-  // 3) 누가 상위권을 어떻게 채우나: 브랜드 쏠림과 판매 방식
-  const top = top10(rows);
-  const byBrand = new Map<string, number>();
-  for (const r of top) byBrand.set(r.brand, (byBrand.get(r.brand) ?? 0) + 1);
-  const [leader, leaderCount] = [...byBrand].toSorted((a, b) => b[1] - a[1])[0] ?? ["", 0];
-  const promoCounts = new Map<string, number>();
-  for (const r of top) if (r.promo_type) promoCounts.set(PROMO_HOOK_LABEL[r.promo_type], (promoCounts.get(PROMO_HOOK_LABEL[r.promo_type]) ?? 0) + 1);
-  const [mainPromo, mainPromoCount] = [...promoCounts].toSorted((a, b) => b[1] - a[1])[0] ?? ["", 0];
-  points.push({
-    id: "top",
-    label: "상위권 구성",
-    headline:
-      leaderCount >= 3
-        ? `Top ${TOP_N} 중 ${leaderCount}개가 ${leader} 한 브랜드${mainPromoCount >= 3 ? ` · 판매 방식은 주로 「${mainPromo}」` : ""}`
-        : `Top ${TOP_N} 브랜드가 고르게 퍼져 있음 (최다 ${leader} ${leaderCount}개)`,
-    detail: `브랜드 ${byBrand.size}개 · ${mainPromo ? `가장 많은 판매 방식 ${mainPromo} ${mainPromoCount}/${top.length} · ` : ""}K-뷰티 ${top.filter((r) => r.is_kbeauty).length}/${top.length}`,
-    target: "#supply",
-    go: "플랫폼 분석으로",
-  });
-
-  // 4) 소비자는 무엇을 찾나: 상위권 상품명에 많이 나온 성분 + 검색 자동완성에 새로 뜬 말
-  const mentions = ingredientMentions(rows).slice(0, 3);
-  const auto = concernSuggestions(search);
-  // 지난 수집이 있을 때만 「새로 나타난」 추천어를 말한다 (첫 수집이면 모두 새것처럼 보이므로)
-  const risingGroup = auto.prev ? auto.groups.find((g) => g.rows.some((r) => r.status === "new")) : undefined;
-  const rising = risingGroup?.rows.find((r) => r.status === "new");
-  if (mentions.length > 0 || rising) {
+    const ownBest = Math.max(0, ...ownShares.map((s) => s.share ?? 0));
+    const ownText = ownShares
+      .map((s) => `${koOf(s.ing)} ${s.share !== null ? `${s.share}%` : s.excluded ? "검색이 너무 적음" : "순위 밖"}`)
+      .join(", ");
     points.push({
-      id: "trend",
-      label: "소비자가 찾는 성분",
-      headline: mentions.length > 0 ? `상위권 상품명은 ${mentions.map((m) => m.ko).join(" · ")} 중심` : `검색에서 「${risingGroup?.seed} ${rising?.term}」가 새로 뜸`,
-      detail: [
-        mentions.length > 0 ? `상품명 언급 ${mentions.map((m) => `${m.ko} ${m.rows.length}개`).join(", ")} (순위권 ${rows.length}개 중)` : null,
-        // 검색 자동완성은 아직 샘플 데이터 (SerpApi 키를 넣고 수집하면 실데이터)
-        rising && risingGroup ? `검색 추천어에 새로 나타남 「${risingGroup.seed} ${rising.term}」` : null,
+      id: "ingredient",
+      label: "성분",
+      headline: [
+        first ? `검색 관심도 1위 ${koOf(first.canonical ?? first.term)}(${first.share}%)` : null,
+        mentions[0] ? `상위권 상품명엔 ${mentions[0].ko}이 가장 많음` : null,
       ]
         .filter(Boolean)
         .join(" · "),
-      target: "#demand",
-      go: "소비자 트렌드로",
+      action:
+        ownShares.length === 0
+          ? "우리 제품 전성분을 등록하면 비교할 수 있어요"
+          : ownBest < 10
+            ? "우리 핵심 성분은 검색 관심이 낮음 → 성분명보다 고민·사용감으로 소구"
+            : `「${koOf(ownShares.toSorted((a, b) => (b.share ?? 0) - (a.share ?? 0))[0].ing)}」을 상세페이지 앞쪽에`,
+      detail: ownShares.length > 0 ? `우리 핵심 성분: ${ownText}` : `상품명 언급 ${mentions.slice(0, 3).map((m) => `${m.ko} ${m.rows.length}개`).join(", ")}`,
+      tab: "demand",
+    });
+  }
+
+  // 5) 소비자 고민 언어: 고민 단어 뒤에 붙는 검색 추천어 (가장 많이 모인 고민 2개의 1번째 추천어)
+  const concern = concernSuggestions(search);
+  const picks = concern.groups
+    .map((g) => ({ g, rows: g.rows.filter((r) => r.latestPos !== null) }))
+    .filter((x) => x.rows.length > 0)
+    .toSorted((a, b) => b.rows.length - a.rows.length)
+    .slice(0, 2)
+    .map(({ g, rows: r }) => ({ g, r: r.toSorted((a, b) => (a.latestPos ?? 99) - (b.latestPos ?? 99))[0] }));
+  if (picks.length > 0) {
+    points.push({
+      id: "language",
+      label: "소비자 고민 언어",
+      headline: picks.map(({ g, r }) => `${g.ko}: 「${g.seed} ${r.term}」${r.ko ? `(${r.ko})` : ""}`).join(" · "),
+      action: "상세페이지·광고 문구에 이 말 그대로 넣기 (효능 표현은 약기법 검토 필요)",
+      detail: `구글 검색 추천어 · ${concern.latest} 수집${concern.prev ? ` (지난 수집 ${concern.prev})` : ""}`,
+      tab: "demand",
+    });
+  }
+
+  // 6) AI 검색 노출: AI가 경쟁 제품을 추천할 때 든 이유 중 우리 제품 정보에 없는 말
+  const gap = keywordGap(geo.filter((g) => g.category === category), products.filter((p) => p.kind === "own"), OWN_BRAND);
+  const missing = gap.filter((k) => k.status === "missing").slice(0, 2);
+  const weak = gap.filter((k) => k.status === "weak").slice(0, 2);
+  if (missing.length > 0 || weak.length > 0) {
+    const quote = (ks: typeof gap) => ks.map((k) => `「${k.keyword}」`).join("");
+    points.push({
+      id: "geo",
+      label: "AI 검색 노출",
+      headline:
+        missing.length > 0
+          ? `AI가 경쟁 제품 추천 이유로 ${quote(missing)}를 많이 듦 · 우리 제품 정보엔 없음`
+          : `${quote(weak)}는 우리 제품에도 있지만 AI가 우리와 연결하지 못함`,
+      action: missing.length > 0 ? "사실이면 상세페이지·FAQ에 명시" : "일본어 상세페이지·FAQ에 이 표현을 그대로 추가",
+      detail: `경쟁 추천 문장 ${[...missing, ...weak].map((k) => `${k.keyword} ${k.competitor}`).join(", ")}`,
+      tab: "action",
+      sample: geoIsSample,
     });
   }
   return points;

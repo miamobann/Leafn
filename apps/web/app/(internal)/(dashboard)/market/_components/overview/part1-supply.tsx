@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { LangBadge } from "@/components/common/badges";
 import { EmptyState } from "@/components/common/states";
@@ -197,9 +196,10 @@ export function SupplyPart({
             1-B Top {TOP_N} 랭킹 · {platformLabel} <LangBadge lang="ja" />
           </h3>
           {selected.length > 0 ? (
-            <Link href={`/market/competitors?compare=${selected.join(",")}`} className={buttonVariants({ size: "sm" })}>
+            // 경쟁제품 탭으로 넘어간다 (고른 제품은 그 탭에서 처음부터 골라 둔다)
+            <a href="#competitors" className={buttonVariants({ size: "sm" })}>
               선택 제품 비교 ({selected.length}) →
-            </Link>
+            </a>
           ) : (
             <span className={`${buttonVariants({ size: "sm", variant: "outline" })} pointer-events-none opacity-50`}>선택 제품 비교 (0)</span>
           )}
