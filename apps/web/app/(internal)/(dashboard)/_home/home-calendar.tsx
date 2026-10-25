@@ -8,6 +8,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PromoEventView } from "@/lib/data/launch";
 import { CalendarTodo, type PendingCopy } from "./calendar-todo";
+import { boardDeadlines, type HomeProject } from "./project-board";
 
 const TEXT = {
   title: "프로모션 캘린더",
@@ -28,12 +29,17 @@ export function HomeCalendar({
   platformKeys,
   today,
   pending,
+  projects,
 }: {
   events: PromoEventView[];
   platformKeys: string[];
   today: string;
   pending: PendingCopy[];
+  /** 현황판의 단계 마감도 할 일 목록에 함께 넣는다 */
+  projects: HomeProject[];
 }) {
+  const board = boardDeadlines(projects);
+
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -52,7 +58,7 @@ export function HomeCalendar({
           platformKeys={platformKeys}
           today={today}
           variant="home"
-          renderIdle={(ctx) => <CalendarTodo {...ctx} pending={pending} today={today} />}
+          renderIdle={(ctx) => <CalendarTodo {...ctx} pending={pending} today={today} board={board} />}
         />
       </CardContent>
     </Card>

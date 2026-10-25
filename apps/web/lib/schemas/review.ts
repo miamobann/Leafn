@@ -126,3 +126,26 @@ export const ReviewTranslation = BaseRow.extend({
   status: z.enum(["draft", "approved"]),
 });
 export type ReviewTranslation = z.infer<typeof ReviewTranslation>;
+
+// 리뷰 가져오기 화면에서 CSV 리뷰를 저장할 때의 입력 (lib/data/review-import-actions.ts saveReviewsFromCsv)
+// origin은 화면의 "리뷰 출처"다. reviews.source에는 올리브영만 oliveyoung, 나머지(자사몰 · 기타)는 csv로 남긴다
+export const ReviewImportOrigin = z.enum(["oliveyoung", "own_mall", "other"]);
+export type ReviewImportOrigin = z.infer<typeof ReviewImportOrigin>;
+export const ReviewImportRow = ReviewCsvRow.omit({ product_name: true }).extend({
+  /** CSV의 리뷰 번호 열. 있으면 external_id로 쓰고, 없으면 서버가 내용으로 해시를 만든다 */
+  review_no: z.string().trim().min(1).optional(),
+  /** CSV 한 줄 원본 (열 이름 → 값) */
+  raw: z.record(z.string(), z.string()),
+});
+export type ReviewImportRow = z.infer<typeof ReviewImportRow>;
+export const ReviewImportInput = z
+  .object({
+    productId: Id,
+    lang: Lang,
+    source: ReviewSource.extract(["oliveyoung", "csv"]),
+    origin: ReviewImportOrigin,
+    fileName: z.string().trim().min(1).max(200),
+    rows: z.array(ReviewImportRow).min(1).max(500),
+  })
+  .refine((v) => v.source === (v.origin === "oliveyoung" ? "oliveyoung" : "csv"), { message: "출처와 source가 맞지 않아요", path: ["source"] });
+export type ReviewImportInput = z.infer<typeof ReviewImportInput>;
