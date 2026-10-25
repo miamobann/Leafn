@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { HelpTip } from "@/components/common/help-tip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { SurveyProductLine, SurveyQuestion, SurveySource, SurveySummary } from "@/lib/schemas/survey";
@@ -53,6 +54,12 @@ export function SurveyResultsView({
   lines: SurveyProductLine[];
 }) {
   const [tab, setTab] = useState<Tab>("summary");
+  // 전체 응답 탭을 '기타' 입력만 걸러 연다 (피부타입 · 고민 탭의 버튼)
+  const [otherOnly, setOtherOnly] = useState(false);
+  function openAll(onlyOther: boolean) {
+    setOtherOnly(onlyOther);
+    setTab("all");
+  }
   const [copied, setCopied] = useState<string | null>(null);
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -75,10 +82,17 @@ export function SurveyResultsView({
   const reactions = lineReactions(summary, lines);
   const insights = surveyInsights(summary, lines, concernKeys);
   const topType = bySkin[0];
-  const topConcern = concernTotals[0];
   const cellMax = Math.max(1, ...summary.age_by_concern.flatMap((row) => Object.values(row.counts)));
   const normalCount = summary.by_skin_type.find((s) => s.skin_type === "normal")?.count ?? 0;
   const normalLines = lines.filter((l) => l.for_types.includes("normal")).map((l) => lineName(l, l.id));
+  // 피부타입별 고민 TOP 3 ('기타' 제외). 전체 응답에서 계산한다
+  const concernsByType = bySkin.map(({ skin_type, count }) => {
+    const counts = new Map<string, number>();
+    for (const r of summary.responses)
+      if (r.skin_type === skin_type) for (const c of new Set(r.concerns)) if (c !== "other") counts.set(c, (counts.get(c) ?? 0) + 1);
+    const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([key, n]) => ({ key, count: n }));
+    return { skin_type, count, top };
+  });
   const concernTop3 = concernTotals.filter((c) => c.key !== "other").slice(0, 3);
   const topAge = byAge.toSorted((a, b) => b.count - a.count)[0];
   // 판매 중 → 개발 중, 그 안에서는 추천 본 사람이 많은 순
@@ -114,7 +128,7 @@ export function SurveyResultsView({
               type="button"
               role="tab"
               aria-selected={tab === t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => (t.key === "all" ? openAll(false) : setTab(t.key))}
               className={cn(
                 "min-h-9 rounded-md px-4 text-sm",
                 tab === t.key ? "bg-background font-semibold shadow-sm" : "text-muted-foreground",
@@ -303,30 +317,43 @@ export function SurveyResultsView({
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>피부타입 분포</CardTitle>
+              <CardTitle className="flex items-center gap-1.5">
+                피부타입 분포
+                <HelpTip>
+                  한 사람은 피부타입 하나로 판정돼서 합이 100%예요. 민감 경향은 피부타입과 따로 판정해요. 어느 피부타입에도 함께 나올 수
+                  있어요.
+                </HelpTip>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {topType && <Hero value={share(topType.count)} label={SKIN[topType.skin_type].ko} />}
-              <HBars items={bySkin.map((s) => ({ label: SKIN[s.skin_type].ko, value: s.count }))} total={summary.total} unit="명" />
-              <div className="border-t pt-3">
-                <HBars items={[{ label: "민감 경향", value: summary.sensitive_count }]} total={summary.total} unit="명" muted />
-              </div>
-              <p className="text-xs text-muted-foreground">민감 경향은 피부타입과 따로 판정해요. 어느 피부타입에도 함께 나올 수 있어요.</p>
+              <Donut items={bySkin.map((s) => ({ label: SKIN[s.skin_type].ko, value: s.count }))} />
+              <p className="border-t pt-3 text-sm">
+                민감 경향{" "}
+                <b className="font-semibold">
+                  {summary.sensitive_count}명 · {share(summary.sensitive_count)}
+                </b>{" "}
+                <span className="ml-1 text-xs text-muted-foreground">피부타입과 별개</span>
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>신경 쓰이는 피부 고민</CardTitle>
+              <CardTitle className="flex items-center gap-1.5">
+                신경 쓰이는 피부 고민
+                <HelpTip>복수 선택이라 %를 더하면 100%가 넘어요. %는 응답 {summary.total}건 중 그 고민을 고른 사람의 비율이에요.</HelpTip>
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {topConcern && <Hero value={share(topConcern.count)} label={CONCERN_KO[topConcern.key] ?? topConcern.key} />}
-              <HBars items={concernTotals.map((c) => ({ label: CONCERN_KO[c.key] ?? c.key, value: c.count }))} total={summary.total} unit="명" />
-              <p className="text-xs text-muted-foreground">복수 선택이라 %를 더하면 100%가 넘어요. %는 응답 {summary.total}건 중 고른 사람의 비율이에요.</p>
+            <CardContent>
+              {/* 요약 탭과 달리 1위를 강조하지 않고 모든 고민을 같은 색으로 비교한다 */}
+              <HBars items={concernTotals.map((c) => ({ label: CONCERN_KO[c.key] ?? c.key, value: c.count }))} total={summary.total} unit="명" even />
             </CardContent>
           </Card>
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle>연령대 × 피부 고민</CardTitle>
+              <CardTitle className="flex items-center gap-1.5">
+                연령대 × 피부 고민
+                <HelpTip>칸이 진할수록 그 고민을 고른 사람이 많아요.</HelpTip>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -361,22 +388,54 @@ export function SurveyResultsView({
                   ))}
                 </TableBody>
               </Table>
-              <p className="mt-2 text-xs text-muted-foreground">칸이 진할수록 그 고민을 고른 사람이 많습니다.</p>
             </CardContent>
           </Card>
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle>&apos;기타&apos; 직접 입력</CardTitle>
+              <CardTitle className="flex items-center gap-1.5">
+                피부타입별 고민 TOP 3
+                <HelpTip>
+                  각 피부타입 응답자 중 그 고민을 고른 사람의 비율이에요. 어떤 피부타입에 어떤 고민이 몰리는지 보고 다음 제품을 정하는 데
+                  써요.
+                </HelpTip>
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ul className="divide-y text-sm">
-                {summary.concern_other.map((o) => (
-                  <li key={`${o.date}-${o.text_ja}`} className="flex justify-between gap-4 py-2">
-                    <JaKo ja={o.text_ja} ko={o.text_ko} />
-                    <span className="text-xs text-muted-foreground">{o.date}</span>
-                  </li>
-                ))}
-              </ul>
+            <CardContent className="space-y-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>피부타입</TableHead>
+                    <TableHead className="text-right">응답</TableHead>
+                    <TableHead>1위</TableHead>
+                    <TableHead>2위</TableHead>
+                    <TableHead>3위</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {concernsByType.map((row) => (
+                    <TableRow key={row.skin_type}>
+                      <TableCell className="py-2.5 font-semibold">{SKIN[row.skin_type].ko}</TableCell>
+                      <TableCell className="py-2.5 text-right">{row.count}명</TableCell>
+                      {[0, 1, 2].map((i) => (
+                        <TableCell key={i} className="py-2.5">
+                          {row.top[i] ? (
+                            <span className="inline-flex items-baseline gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[13px]">
+                              {CONCERN_KO[row.top[i].key] ?? row.top[i].key} <b className="font-semibold">{pct(row.top[i].count, row.count)}</b>
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {summary.concern_other.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => openAll(true)}>
+                  &apos;기타&apos; 직접 입력 {summary.concern_other.length}건 보기 →
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -444,7 +503,7 @@ export function SurveyResultsView({
         </Card>
       )}
 
-      {tab === "all" && <AllResponses responses={summary.responses} concernKeys={concernKeys} />}
+      {tab === "all" && <AllResponses key={String(otherOnly)} responses={summary.responses} concernKeys={concernKeys} otherOnly={otherOnly} />}
 
     </div>
   );
@@ -488,23 +547,24 @@ function HBars({
   items,
   total,
   unit,
-  muted,
+  even,
 }: {
   items: { label: string; value: number }[];
   total: number;
   unit: string;
-  muted?: boolean;
+  /** 1위를 강조하지 않고 모두 같은 색으로 */
+  even?: boolean;
 }) {
   const max = Math.max(1, ...items.map((i) => i.value));
   return (
     <ul className="flex flex-col gap-2 text-[13px]">
       {items.map((item, i) => {
-        const top = i === 0 && !muted;
+        const top = i === 0 && !even;
         return (
           <li key={item.label} className={cn("grid grid-cols-[6.5rem_minmax(0,1fr)_5.5rem] items-center gap-2.5", top && "font-semibold")}>
             <span>{item.label}</span>
-            <Track ratio={muted ? item.value / Math.max(1, total) : item.value / max} strong={top} />
-            <span className={cn("text-right tabular-nums", top ? "text-foreground" : "text-muted-foreground")}>
+            <Track ratio={item.value / max} strong={top} />
+            <span className={cn("text-right tabular-nums", top || even ? "text-foreground" : "text-muted-foreground")}>
               {item.value}
               {unit} · {pct(item.value, total)}
             </span>
@@ -512,6 +572,62 @@ function HBars({
         );
       })}
     </ul>
+  );
+}
+
+// 도넛 조각 색: 진한 회색부터 옅게 (앱이 무채색이라 같은 계열로)
+const DONUT_SHADES = ["oklch(0.3 0 0)", "oklch(0.5 0 0)", "oklch(0.68 0 0)", "oklch(0.82 0 0)", "oklch(0.9 0 0)"];
+
+/** 피부타입 도넛 (한 사람이 하나만 갖는 값이라 합이 100%) + 오른쪽 범례 */
+function Donut({ items }: { items: { label: string; value: number }[] }) {
+  const total = items.reduce((sum, i) => sum + i.value, 0);
+  const r = 46;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+  return (
+    <div className="grid grid-cols-[150px_minmax(0,1fr)] items-center gap-6">
+      <svg viewBox="0 0 120 120" className="size-[150px]" role="img" aria-label="피부타입 비율">
+        {items.map((item, i) => {
+          const len = total ? (item.value / total) * c : 0;
+          const seg = (
+            <circle
+              key={item.label}
+              cx="60"
+              cy="60"
+              r={r}
+              fill="none"
+              stroke={DONUT_SHADES[i % DONUT_SHADES.length]}
+              strokeWidth="18"
+              strokeDasharray={`${Math.max(0, len - 1.5)} ${c - len + 1.5}`}
+              strokeDashoffset={-offset}
+              transform="rotate(-90 60 60)"
+            >
+              <title>{`${item.label} ${item.value}명`}</title>
+            </circle>
+          );
+          offset += len;
+          return seg;
+        })}
+        <text x="60" y="57" textAnchor="middle" className="fill-foreground text-[22px] font-bold">
+          {total}
+        </text>
+        <text x="60" y="73" textAnchor="middle" className="fill-muted-foreground text-[11px]">
+          응답
+        </text>
+      </svg>
+      <ul className="flex flex-col gap-2.5 text-sm">
+        {items.map((item, i) => (
+          <li key={item.label} className="grid grid-cols-[12px_minmax(0,1fr)_auto] items-center gap-2.5">
+            {/* 범례 색은 조각 색과 같아야 해서 인라인 스타일이 불가피하다 */}
+            <span className="size-3 rounded-[3px]" style={{ background: DONUT_SHADES[i % DONUT_SHADES.length] }} />
+            <span>{item.label}</span>
+            <span className="tabular-nums">
+              {item.value}명 · {pct(item.value, total)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -547,10 +663,18 @@ function JaKo({ ja, ko }: { ja: string; ko?: string | null }) {
 const PAGE_SIZE = 15;
 const selectClass = "h-9 rounded-md border bg-background px-2.5 text-[13px]";
 
-/** 전체 응답: 15건씩 넘기기 + 필터 (피부타입 · 연령대 · 유입 경로 · 고민 · 민감 경향) */
-function AllResponses({ responses, concernKeys }: { responses: SurveySummary["responses"]; concernKeys: string[] }) {
-  const empty = { skin: "", age: "", source: "", concern: "", sensitive: false };
-  const [filter, setFilter] = useState(empty);
+/** 전체 응답: 15건씩 넘기기 + 필터 (피부타입 · 연령대 · 유입 경로 · 고민 · 민감 경향 · '기타' 입력) */
+function AllResponses({
+  responses,
+  concernKeys,
+  otherOnly,
+}: {
+  responses: SurveySummary["responses"];
+  concernKeys: string[];
+  otherOnly: boolean;
+}) {
+  const empty = { skin: "", age: "", source: "", concern: "", sensitive: false, other: false };
+  const [filter, setFilter] = useState({ ...empty, other: otherOnly });
   const [page, setPage] = useState(1);
   const update = (patch: Partial<typeof empty>) => {
     setFilter((f) => ({ ...f, ...patch }));
@@ -565,7 +689,8 @@ function AllResponses({ responses, concernKeys }: { responses: SurveySummary["re
         (!filter.age || r.age_group === filter.age) &&
         (!filter.source || (r.source ?? "") === filter.source) &&
         (!filter.concern || r.concerns.includes(filter.concern)) &&
-        (!filter.sensitive || r.is_sensitive),
+        (!filter.sensitive || r.is_sensitive) &&
+        (!filter.other || Boolean(r.concern_other)),
     );
   const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
   const current = Math.min(page, pages);
@@ -621,6 +746,10 @@ function AllResponses({ responses, concernKeys }: { responses: SurveySummary["re
           <label className="flex items-center gap-1.5 text-[13px]">
             <Checkbox checked={filter.sensitive} onCheckedChange={(v) => update({ sensitive: v === true })} />
             민감 경향만
+          </label>
+          <label className="flex items-center gap-1.5 text-[13px]">
+            <Checkbox checked={filter.other} onCheckedChange={(v) => update({ other: v === true })} />
+            &apos;기타&apos; 입력만
           </label>
           <Button variant="outline" size="sm" onClick={() => update(empty)}>
             필터 지우기
