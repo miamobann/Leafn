@@ -1,0 +1,94 @@
+import { EmptyState } from "@/components/common/states";
+import { PageHeader } from "@/components/layout/page-header";
+import { DataTableTemplate } from "@/components/templates";
+import { getAdChecks, getContentGuides, getMembers, getProducts } from "@/lib/data";
+import { getAdProducts } from "@/lib/data/ad-products";
+import { getMyWorkspace } from "@/lib/data/workspace";
+import { formatDate } from "@/lib/format";
+import { ActionBadge } from "../../_components/ad-badges";
+import { DeleteButton } from "../../_components/delete-button";
+import { HistoryFilters } from "../../_components/history-filters";
+import { GUIDE_CHANNELS } from "../../_lib/content-guide-samples";
+
+type GuideHistoryPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+const CHANNEL_LABEL = Object.fromEntries(GUIDE_CHANNELS.map((c) => [c.id, c.label]));
+
+/** 만든 가이드 목록 (content_guides). 검토 내역과 같은 표 모양. 삭제는 owner(팀장)만 */
+export default async function GuideHistoryPage({ searchParams }: GuideHistoryPageProps) {
+  const query = await searchParams;
+  const productFilter = typeof query.product === "string" ? query.product : undefined;
+  const channelFilter = typeof query.channel === "string" ? query.channel : undefined;
+  const [all, checks, members, products, mine, adProducts] = await Promise.all([
+    getContentGuides(),
+    getAdChecks({ source: "content_guide" }),
+    getMembers(),
+    getProducts(),
+    getMyWorkspace().catch(() => null),
+    getAdProducts(),
+  ]);
+  const isOwner = mine?.role === "owner";
+  const guides = all.filter((g) => (!productFilter || g.product_id === productFilter) && (!channelFilter || g.channel === channelFilter));
+  const memberName = (id: string | null) => members.find((m) => m.user_id === id)?.display_name ?? "—";
+  const productName = (id: string | null) => products.find((p) => p.id === id)?.name ?? "—";
+  const actionOf = (checkId: string | null) => checks.find((c) => c.id === checkId)?.overall_action ?? null;
+  // 콘텐츠를 만들 수 있는 제품(전성분·가격·용량이 등록된 자사 제품)과 이미 만든 콘텐츠의 제품만 고를 수 있게 한다
+  const usable = new Set(adProducts.filter((p) => p.price_jpy > 0 && p.volume !== "미등록" && p.line !== "미등록").map((p) => p.id));
+  const productOptions = products
+    .filter((p) => usable.has(p.id) || all.some((g) => g.product_id === p.id))
+    .map((p) => ({ value: p.id, label: p.name }));
+
+  return (
+    <>
+      <PageHeader title="만든 가이드" description="콘텐츠 제작 가이드로 만든 결과물과 약기법 자동 검사 결과" featureId="A" />
+      <div className="mb-4">
+        <HistoryFilters
+          filters={[
+            { key: "product", label: "제품", options: productOptions },
+            { key: "channel", label: "채널", options: GUIDE_CHANNELS.map((c) => ({ value: c.id, label: c.label })) },
+          ]}
+        />
+      </div>
+      {guides.length === 0 ? (
+        <EmptyState message="조건에 맞는 가이드가 없습니다" action="「콘텐츠 제작 가이드」에서 제목을 고르면 결과물이 자동으로 저장돼요" />
+      ) : (
+        <DataTableTemplate
+          columns={[
+            { key: "title", label: "제목" },
+            { key: "product", label: "제품 · 채널" },
+            { key: "action", label: "약기법" },
+            { key: "author", label: "만든 사람" },
+            { key: "date", label: "만든 날" },
+            ...(isOwner ? [{ key: "delete", label: "" }] : []),
+          ]}
+          rows={guides.map((g) => {
+            const action = actionOf(g.ad_check_id);
+            return {
+              id: g.id,
+              href: `/ad-check/guide/history/${g.id}`,
+              cells: {
+                title: (
+                  // 목록 제목은 한국어로 통일 (검토 이력과 같다). 마우스를 올리면 일본어 제목
+                  <span className="block max-w-80 truncate font-medium underline-offset-4 [a:hover_&]:underline" title={g.title.title_ja}>
+                    {g.title.title_ko}
+                  </span>
+                ),
+                product: (
+                  <span className="block max-w-44 truncate" title={productName(g.product_id)}>
+                    {productName(g.product_id)} · {CHANNEL_LABEL[g.channel] ?? g.channel}
+                  </span>
+                ),
+                action: action ? <ActionBadge action={action} /> : "—",
+                author: memberName(g.created_by),
+                date: formatDate(g.created_at),
+                delete: <DeleteButton endpoint={`/api/content-guide/${g.id}`} confirmMessage="이 가이드를 삭제할까요? 지운 결과물은 되돌릴 수 없습니다. (약기법 검사 기록은 남아요)" />,
+              },
+            };
+          })}
+        />
+      )}
+    </>
+  );
+}

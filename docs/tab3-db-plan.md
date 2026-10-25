@@ -1,6 +1,6 @@
 # TAB 3 광고 검토 DB 안
 
-> 상태: **반영 완료** · 안 2026-10-24 · 머지 #66, 권한 보완 `20261024172221_harden_ad_review_writes.sql` · 정리 2026-10-25 (정리 전 원문: [archive/pre_tab3-db-plan.md](archive/pre_tab3-db-plan.md))
+> 상태: **반영 완료** · 안 2026-10-24 · 머지 #66, 권한 보완 `20261024172221_harden_ad_review_writes.sql` · 화면 연결 #78 (2026-10-25) · 정리 2026-10-25 (정리 전 원문: [archive/pre_tab3-db-plan.md](archive/pre_tab3-db-plan.md))
 > 지금 테이블 칸의 기준은 마이그레이션과 [db-frame.md](db-frame.md) "광고 검토" 절이다. 이 문서는 그 결정의 이유를 남긴 기록이다.
 > 근거: `docs/db-frame.md` 2장(ad_checks 세부 칸은 TAB 3 담당자 안을 따른다) · 7장 열린 질문(승인 권한 → TAB 3 담당자) · `docs/DB_RULES.md`
 > 마이그레이션: `supabase/migrations/20261024130000_create_ad_checks.sql`, `20261024172221_harden_ad_review_writes.sql`
@@ -14,9 +14,15 @@
 | 테이블 | `ad_checks`(검토 한 건) · `ad_check_lines`(줄별 판정) · `content_guides`(콘텐츠 가이드 결과물) 셋으로 나눈다 | 총괄 |
 | 삭제 | 약기법 검토는 **숨김**(`deleted_at`), 콘텐츠 가이드 결과물은 **행 삭제** | TAB 3 |
 | 숨긴 검토 복구 | 화면에는 두지 않는다. 필요하면 DB 관리자가 `deleted_at`을 비운다 | TAB 3 |
-| 콘텐츠 가이드 검사 | `ad_checks.source = 'content_guide'`로 저장. 검토 이력은 기본으로 직접 검토(`manual`)만, 필터로 콘텐츠 가이드 검사도 본다 | TAB 3 |
+| 삭제 버튼 | owner(팀장) 화면에만 그린다. 팀원 화면에는 버튼이 없다 (검토 이력 · 만든 가이드) | TAB 3 (2026-10-25) |
+| 콘텐츠 가이드 제목 | 고른 제목 하나만 저장한다. AI가 낸 후보 제목은 저장하지 않는다 | TAB 3 |
+| 검사 저장 실패 | 결과물은 저장하고 화면에 "검사 기록 저장 실패" 안내만 띄운다 | TAB 3 (2026-10-25) |
+| 콘텐츠 가이드 검사 승인 | 승인 대상이 아니다. 검토 상세에서 보기만 한다 | TAB 3 (2026-10-25) |
+| 콘텐츠 문구 자동 검사 | `ad_checks.source = 'content_guide'`로 저장. 검토 이력에는 보이지 않고 「만든 가이드」의 약기법 칸·상세에서 본다 | TAB 3 (2026-10-25) |
+| 만든 가이드 → 새 검토 | 결과 아래 「이 문구로 새 검토 →」: 제목과 블록별 첫 안을 한 줄씩 새 검토 입력칸에 채운다 (`/ad-check?guide=<id>`, 자동 판정 안 함) | TAB 3 (2026-10-25, 실무자 비판 5번) |
+| 전문가 확인 자료 | 만들지 않는다 (보조 기능이 신뢰를 떨어뜨린다는 피드백) | TAB 3 (2026-10-25) |
 | AI 사용량(토큰) | 저장하지 않는다. 필요해지면 새 마이그레이션으로 추가 | TAB 3 |
-| 승인 권한 | ~~처음에는 멤버 누구나~~ → **owner만** 승인·반려를 바꾼다 (2026-10-24 PM 결정, RLS `owners update` + 서버 확인). 콘텐츠 가이드 행 삭제도 owner만 | 총괄 |
+| 승인·수정·삭제 권한 | ~~처음에는 멤버 누구나~~ → **owner(팀장)만** 승인·반려·수정·삭제를 한다 (RLS `owners update` + 서버 확인). 저장(insert)은 멤버 누구나 | 총괄 (2026-10-24, harden 마이그레이션) |
 
 ## 2. 테이블
 
@@ -85,8 +91,9 @@ workspaces ─┬─ ad_checks ──┬── ad_check_lines      (검토를 �
 3. 콘텐츠 가이드의 한국 리뷰 인용 문제: CLAUDE.md 11장 (F) 줄에 함께 적었다.
 4. CLAUDE.md 5장·db-frame 2장 반영: 했다 (2026-10-25 문서 정리).
 
-## 5. 다음 단계 (기록: 새 검토 자동 저장·조회는 #66에서 반영, 콘텐츠 가이드 검사 저장은 열린 PR #78)
+## 5. 화면 연결 (2026-10-25, 새 검토 자동 저장·조회는 #66, 콘텐츠 가이드 검사 저장·「만든 가이드」는 #78에서 반영)
 
-- 새 검토: 판정하면 `ad_checks` + `ad_check_lines` 자동 저장, 검토 이력에서 삭제(숨김)·출처 필터
-- 콘텐츠 가이드: 만들면 `content_guides` + 검사(`ad_checks`, source=content_guide) 자동 저장, 「만든 결과물」 목록과 삭제 버튼
-- `lib/data`의 `getAdChecks`·`getAdCheck`를 Supabase 조회로 바꾸고 `deleted_at`이 있는 행은 뺀다
+- 새 검토: 판정하면 `ad_checks` + `ad_check_lines` 자동 저장 (총괄). 검토 이력은 직접 검토만 보여 주고 owner 삭제(숨김) 버튼. 콘텐츠 문구 자동 검사는 「만든 가이드」에서만 본다 (2026-10-25 결정)
+- 콘텐츠 가이드: 만들면 검사(`ad_checks`, source=content_guide, 블록마다 한 줄 + block_key)와 `content_guides`(ad_check_id로 연결) 자동 저장
+- 「만든 가이드」 탭 `/ad-check/guide/history`: 검토 이력과 같은 표, owner 삭제 버튼. 줄을 누르면 `/ad-check/guide/history/<id>`에서 만들었을 때 화면 그대로 다시 연다 (AI 다시 안 부름)
+- API: `DELETE /api/ad-check/:id`(숨김), `DELETE /api/content-guide/:id`(행 삭제). 둘 다 owner만
