@@ -45,7 +45,7 @@
 - 자사 제품명은 `lib/own-products.ts`, 규격은 `lib/own-product-specs.ts` 상수만 쓴다. 이름을 새로 지어 적지 않는다.
 
 **보안**
-- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`는 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`, `APIFY_TOKEN`은 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
 - 키, `.env` 파일, 실제 리뷰 원문 대량 데이터를 커밋하지 않는다.
 
 **Git** (자세한 약속은 `docs/CODING_RULES.md` 1~3장)
@@ -80,7 +80,7 @@
 | 4 | C | 경쟁제품 비교 (가격 · 용량 · 성분 · 특징) | 시장 분석 | 핵심 | 연결됨. Qoo10 수집으로 등록, `product_competitors`로 자사와 연결 |
 | 5 | B | 시장 트렌드 (랭킹, 성분 관심도, 검색 자동완성) | 시장 분석 | 핵심 | 연결됨. Qoo10 랭킹 CSV, SerpApi. 화면이 라쿠텐 스냅샷도 함께 읽음 (확장용) |
 | 참조 | D | 일본 현지 제품 리뷰 분석 | 리뷰 분석 | 참조 | E에 포함 (Qoo10 일본어 경쟁 리뷰) |
-| 참조 | F | 한국 리뷰 → 일본어 번역 → 상세페이지용 블록 (A 검토를 거침) | 리뷰 분석 | 참조 | 화면만. 저장 테이블(`review_translations`) 없음 |
+| 참조 | F | 한국 리뷰 → 일본어 번역 → 상세페이지용 블록 (A 검토를 거침) | 리뷰 분석 | 참조 | 번역은 광고 검토 AI가 하고 `review_translations`에 저장. 승인은 광고 검토 화면에서 owner가 |
 | 참조 | - | GEO (AI 검색의 브랜드 언급 추적) | 시장 분석 | 참조 | 연결됨 (`/api/geo/run`, `geo_snapshots`) |
 | 참조 | G | 피부타입 설문 (일본 소비자용 공개 모바일 웹) | 소비자 설문 | 참조 | 집계 화면은 DB를 읽음. 공개 설문 제출은 아직 보내지 않음 |
 | 참조 | H | 플랫폼별 강점 정리 | - | 참조 | 화면 없앰 (2026-10-24). `platform_notes` 테이블만 남음 |
@@ -121,6 +121,7 @@
 | DB/인증/파일 | Supabase (PostgreSQL, Auth, Storage, RLS) | 모든 데이터, 로그인, CSV/이미지 보관 |
 | 수집 | Python 수집기 (`collectors/sources/qoo10.py`, `collect_to_db.py`) | Qoo10 랭킹·리뷰 수집 후 Supabase 저장 |
 | 외부 API | SerpApi (Google 자동완성 · Google Trends) | 성분 관심도 "미래 트렌드" (B 확장). 2026-10-23 총괄 허용. SDK 없이 서버에서 `fetch` |
+| 외부 API | Apify (TikTok Scraper, `clockworks/tiktok-scraper`) | SNS 영상 링크 → 캡션·해시태그·조회수·발화 자막 (B 확장, 소비자 트렌드 2-B). 2026-10-25 총괄 허용. SDK 없이 서버에서 `fetch`, 실행당 비용 상한 $0.50 |
 | 배포 | Vercel (Hobby, 하루 빌드 수 한도) | 배포 브랜치는 `Leafn_main`. `sub_main` 머지는 모아서 반영한다 |
 | CI | GitHub Actions (`.github/workflows/ci.yml`, 검사 이름 `web`) | PR마다 typecheck · lint · build |
 
@@ -177,14 +178,14 @@
          │  인증 확인 · 입력 검증(Zod) · SerpApi 호출
                        ↓
       AI: OpenAI API (기본) 또는 Anthropic API  (lib/ai/callAi)
-         │  약기법 검토 · 리뷰 분석 · 번역 · GEO 측정 · SNS 패턴 · (다음) 통합 AI 분석
+         │  약기법 검토 · 리뷰 분석 · 번역 · GEO 측정 · SNS 핵심 니즈 · (다음) 통합 AI 분석
          │  (약기법 기준 문서는 프롬프트에 포함)
                        ↓
       Database: Supabase PostgreSQL + Storage  ←──────┐
                                                       │
               Python 수집기 (사람이 실행, --worker 모드)
                        ↑
-      External: Qoo10 (랭킹·리뷰) · Google 자동완성·Trends (SerpApi) · AI 검색 응답(GEO)
+      External: Qoo10 (랭킹·리뷰) · Google 자동완성·Trends (SerpApi) · TikTok 영상 정보 (Apify) · AI 검색 응답(GEO)
                 (확장용: 라쿠텐 · @cosme · 국내 플랫폼)
 ```
 
@@ -248,17 +249,18 @@
 | --- | --- | --- | --- |
 | 기반 | `profiles`, `workspaces`, `workspace_members` | 사용자, 팀, 팀 멤버 (role `owner` = 팀장 / `member`) | J |
 | 프로젝트·제품 | `projects` | 프로젝트 = 제품군 (예: Leaf& Dew) | J |
-| | `products` | 자사·경쟁 제품 (`kind`). 자사는 `project_id` · `sale_status` · `skin_line`, 규격은 `source_raw.spec` | J, E, C |
+| | `products` | 자사·경쟁 제품 (`kind`). 자사는 `project_id` · `sale_status` · `skin_line`, 규격은 `source_raw.spec`. 경쟁 제품의 정리된 제품명은 `title_ai` | J, E, C |
 | | `product_competitors` | 자사 제품 ↔ 경쟁 제품 연결 | C, E |
 | 리뷰 | `reviews` | 리뷰 원문 (`lang` ja/ko, `body_ko` 번역, `excluded_reason`) | E, D |
 | | `review_analyses` | 리뷰 한 건의 AI 분석 (감성·키워드·페인포인트·재구매 요인·주제) | E |
 | 수집 | `collection_runs`, `collection_run_products`, `collection_staged_reviews`, `collection_run_skipped` | 화면에서 낸 수집 요청과 수집기의 진행·임시 결과 | E |
 | 광고 검토 | `ad_checks`, `ad_check_lines`, `content_guides` | 판정 한 건, 줄별 판정, 콘텐츠 제작 가이드 결과물 | A |
+| | `review_translations` | 상세페이지용 리뷰의 일본어 번역과 그 번역을 통과시킨 약기법 검토(`ad_check_id`) | F |
 | 시장 | `trend_snapshots`, `search_snapshots`, `geo_snapshots` | 랭킹(Qoo10·라쿠텐), 검색 자동완성·Trends, AI 검색 응답 | B, GEO |
 | 캘린더 | `promo_events`, `promo_milestones`, `platform_notes` | 행사·캠페인, 준비 마감, 플랫폼 메모(화면 없음) | I, H |
 | 설문 | `surveys`, `survey_responses`, `survey_minor_counts`, `survey_reco_events` | 설문 정의, 응답, 미성년 참여 수, 추천 노출·클릭 | G |
 
-**아직 없는 테이블:** `review_insights`(리뷰 분석에서 계산해서 씀), `review_translations`(F), `activity_log`, `platforms`(slug 기준표). 탭별 시안·결재·AI 분석용 `member_tabs` · `tab_submissions` · `submission_versions` · `submission_reviews` · `ai_analyses`는 설계만 확정됐다 (`docs/team-approval-ai-analysis.md` 5장).
+**아직 없는 테이블:** `review_insights`(리뷰 분석에서 계산해서 씀), `activity_log`, `platforms`(slug 기준표). 탭별 시안·결재·AI 분석용 `member_tabs` · `tab_submissions` · `submission_versions` · `submission_reviews` · `ai_analyses`는 설계만 확정됐다 (`docs/team-approval-ai-analysis.md` 5장).
 
 규칙
 - 분석 결과에는 항상 **근거 리뷰 ID**(통합 AI 분석은 **근거 버전 ID**)를 남긴다.
@@ -277,7 +279,7 @@
 | `PATCH /api/ad-check/[checkId]` | 담당자 승인·반려 저장 (owner만, RLS와 서버 양쪽에서 확인) | - |
 | `POST /api/content-guide` | 콘텐츠 제작 가이드(제목·본문) 생성 + 금지 표현 검사(`lint_hits`) → `content_guides` 저장 | 정밀·대량 |
 | `POST /api/geo/run` | AI 검색 응답 측정 → `geo_snapshots` | 측정 엔진은 `GEO_MODEL_*`, 키워드 추출은 대량 |
-| `POST /api/market/sns-patterns` | SNS 영상 메모의 공통 패턴 분석 | 대량 |
+| `POST /api/market/sns-trends` | TikTok 영상 링크 → Apify로 캡션·해시태그·발화 자막 → 소비자 핵심 니즈 순위 (저장하지 않음) | 대량 |
 | `POST /api/trends/autocomplete`, `POST /api/trends/search-interest` | SerpApi Google 자동완성·Trends (키는 서버에만) → `search_snapshots` | - |
 
 **Server Action (`lib/data/*-actions.ts`)**: 리뷰 CSV 저장(`review-import-actions`), 리뷰 묶음 분석·번역(`review-analysis-actions`), 수집 요청(`collection-actions`), 캘린더 쓰기(`launch-actions`, 아직 저장하지 않음), 프로젝트·제품 관리(`projects`).
@@ -349,6 +351,7 @@
 | `SUPABASE_SERVICE_ROLE_KEY` | collectors, 서버 전용 작업 | RLS 우회 키. 절대 브라우저/커밋 금지 |
 | `RAKUTEN_APPLICATION_ID` | (확장용) | 데모에서는 쓰지 않는다. 라쿠텐을 연동할 때 서버 전용으로 |
 | `SERPAPI_API_KEY` | web 서버 | 브라우저 노출 금지. 유료 호출이라 수집 버튼·예약 실행에서만 부른다 |
+| `APIFY_TOKEN` | web 서버 | 브라우저 노출 금지. 유료 호출이라 SNS [분석 시작] 버튼에서만 부른다 |
 | `GEO_MODEL_CHATGPT`, `GEO_MODEL_CLAUDE`, `GEO_REPEAT_COUNT` | web 서버 | 선택. GEO가 측정하는 엔진의 모델과 반복 횟수(1~3). 키는 `OPENAI_API_KEY`·`ANTHROPIC_API_KEY`를 쓴다 |
 
 키는 Vercel 환경 변수와 GitHub Actions Secrets에만 넣는다. `.env*`는 `.gitignore`에 포함.
@@ -363,7 +366,7 @@
 - [x] **2. 리뷰 분석 (E, D):** `products`/`reviews`, Qoo10 수집기와 수집 요청 화면, CSV 저장, AI 묶음 분석·번역, 리포트·소구점
 - [x] **3. 약기법 검토 (A):** 기준 자료, 프롬프트 v6, `/api/ad-check`, 자동 저장·owner 승인, 검토 이력, 콘텐츠 제작 가이드
 - [x] **4. 경쟁제품 비교 (C):** Qoo10 수집으로 경쟁 제품 등록, 자사-경쟁 연결, 비교 탭
-- [x] **5. 시장 트렌드 (B, GEO):** Qoo10 랭킹 CSV, 검색 자동완성·Trends, GEO, SNS 공통 패턴, 탭 구성의 시장 분석
+- [x] **5. 시장 트렌드 (B, GEO):** Qoo10 랭킹 CSV, 검색 자동완성·Trends, GEO, SNS 핵심 니즈(Apify), 탭 구성의 시장 분석
 - [x] 홈: 탭 요약 카드·할 일·프로모션 캘린더 (진출 실행 탭 제거)
 
 **다음 (데모 범위, `docs/team-approval-ai-analysis.md` 7장 순서, 단계마다 PR 하나)**

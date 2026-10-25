@@ -1,4 +1,5 @@
 import { FeatureTag, SampleDataBadge } from "@/components/common/badges";
+import { HelpTip } from "@/components/common/help-tip";
 import { Badge } from "@/components/ui/badge";
 
 /** 원페이지 섹션 머리말: 이름 + 이 섹션이 답하는 질문 + 샘플 표시 + 데이터 기준 + 기획안 기능 ID */
@@ -9,6 +10,7 @@ export function SectionHeader({
   basis,
   featureIds = [],
   real = false,
+  help,
 }: {
   titleId?: string;
   title: string;
@@ -17,11 +19,16 @@ export function SectionHeader({
   featureIds?: string[];
   /** 실데이터면 샘플 배지 대신 "실데이터" 표시 */
   real?: boolean;
+  /** 제목 옆 「?」 설명 */
+  help?: React.ReactNode;
 }) {
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-2 border-b pb-2">
       <div>
-        <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
+        <h2 id={titleId} className="flex items-center gap-1.5 text-lg font-semibold">
+          {title}
+          {help && <HelpTip>{help}</HelpTip>}
+        </h2>
         <p className="text-sm text-muted-foreground">{question}</p>
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">

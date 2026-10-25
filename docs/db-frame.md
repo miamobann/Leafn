@@ -25,7 +25,7 @@
 | 고정 값 목록 | Postgres enum 대신 `text` + `check (... in (...))` |
 | 이름 | 테이블은 복수형 snake_case, FK는 `<단수>_id` |
 
-## 2. 테이블 (25개)
+## 2. 테이블 (26개)
 
 ### 기반 (`20261022082907_base_workspaces.sql`)
 
@@ -44,7 +44,7 @@
 | 테이블 | 핵심 칸 | 비고 |
 | --- | --- | --- |
 | `projects` | name, platform_id, description, created_by → profiles, updated_at | `unique (workspace_id, name)` |
-| `products` | kind (`own` · `competitor`), brand, name, category, platform_id, external_id, url, price_jpy, price_kind (`regular` · `sale`), volume_ml, ingredients `text[]`, features `text[]`, image_path, source_raw `jsonb`, collected_at, **project_id**, **sale_status** (`on_sale` · `in_development`), **skin_line** (`dry` · `oily` · `combo`) | `unique (workspace_id, platform_id, external_id)`. 자사 제품은 project_id로 프로젝트에 속하고, 프로젝트를 지우면 project_id만 null. 한 프로젝트 안에서 제품 이름은 겹치지 않는다. 자사 규격(일본어명·제형·용기 등)은 `source_raw.spec` |
+| `products` | kind (`own` · `competitor`), brand, name, category, platform_id, external_id, url, price_jpy, price_kind (`regular` · `sale`), volume_ml, ingredients `text[]`, features `text[]`, image_path, source_raw `jsonb`, collected_at, **project_id**, **sale_status** (`on_sale` · `in_development`), **skin_line** (`dry` · `oily` · `combo`), **title_ai** `jsonb` | `unique (workspace_id, platform_id, external_id)`. 자사 제품은 project_id로 프로젝트에 속하고, 프로젝트를 지우면 project_id만 null. 한 프로젝트 안에서 제품 이름은 겹치지 않는다. 자사 규격(일본어명·제형·용기 등)은 `source_raw.spec`. `title_ai`는 경쟁 제품의 긴 제목을 AI가 정리한 결과 `{brand_ko, name_short_ja, name_ko, volume, key_ingredient_ja, key_ingredient_ko, model, prompt_version}`이고 null이면 정리 전(화면은 원문 `name`을 보여 준다). 수집 저장(`save_collection_run`)은 이 칸을 덮어쓰지 않는다 |
 | `product_competitors` | own_product_id → products, competitor_product_id → products | `unique (own_product_id, competitor_product_id)`. 수집 저장(`save_collection_run`)이 만든다 |
 
 - `skin_line`은 제품이 겨냥하는 피부 라인이다. 설문의 `skin_type`(진단 결과, 5종)과는 다른 값이다.
@@ -73,6 +73,8 @@
 | `ad_checks` | created_by (기본 auth.uid()), source (`manual` · `content_guide`), input_text, input_lang, usage, product_category, product_id, promo_event_id, overall_risk, overall_action (`must_fix` · `should_fix` · `expert` · `ok`), review_status (`pending` · `approved` · `rejected`), reviewer_id, reviewer_note, reviewed_at, final_text, is_expert_review_requested, model, prompt_version, deleted_at | 판정할 때 자동 저장. 새 행은 `pending`으로만 시작. 승인·반려(update)는 **owner만**. 삭제 = 숨김(`deleted_at`), delete 정책 없음 |
 | `ad_check_lines` | ad_check_id → ad_checks, line_index, block_key, original, action, findings `jsonb`, ingredient_check, translated_text, back_translation_ko, localized_note | 검토 한 건의 줄별 판정. update는 owner만, delete 정책 없음 |
 | `content_guides` | created_by, product_id, promo_event_id, channel (`qoo10_detail` · `instagram` · `x` · `banner`), post_type (`general` · `mega_sale` · `season`), input·title·body·lint_hits `jsonb`, ad_check_id, model, prompt_version | 콘텐츠 제작 가이드 결과물. 작성자 = 로그인 사용자로 강제. update·delete는 owner만 |
+
+| `review_translations` | created_by (기본 auth.uid()), review_id → reviews (unique), ad_check_id → ad_checks, text_ja, status (`draft` · `approved`), updated_at | 국내 리뷰 한 건의 일본어 번역(상세페이지용, F). 번역은 광고 검토 AI가 낸 `ad_check_lines.translated_text`이고, 번역 한 건마다 `ad_checks` 한 건(source `manual`, usage `detail_page`)이 함께 생긴다. 승인 상태는 그 검토의 `review_status`가 기준(owner가 광고 검토 화면에서 변경). 멤버가 읽기·쓰기·삭제. 리뷰를 지우면 번역도 함께 지워지고, 검토를 지우면 `ad_check_id`만 null |
 
 제품·행사·검토를 가리키는 칸은 참고 링크라서, 그쪽이 지워지면 그 칸만 null이 된다 (`on delete set null (칸)`).
 
@@ -113,7 +115,6 @@
 | --- | --- |
 | `member_tabs`, `tab_submissions`, `submission_versions`, `submission_reviews`, `ai_analyses` | 탭별 시안·팀장 결재·AI 분석. **설계 확정, 미구현** ([team-approval-ai-analysis.md](team-approval-ai-analysis.md) 5장). 1단계 PR에서 만들고 이 문서에 옮긴다 |
 | `platforms` | slug 기준표. 만들면 `platform_id` 칸들에 FK를 새 마이그레이션으로 추가한다 (칸 이름은 그대로) |
-| `review_translations` | 상세페이지용 리뷰 번역(F). 지금 화면은 샘플만 |
 | `activity_log` | 홈 활동 기록. 지금은 실제 모드에서 표시하지 않는다 |
 | `review_insights` | 만들지 않기로 함 (계산값) |
 
@@ -185,6 +186,8 @@ create policy "members delete" on products for delete using (is_member(workspace
 | `20261024104911_projects_products.sql` | projects, products에 project_id · sale_status · skin_line |
 | `20261024130000_create_ad_checks.sql` | ad_checks, ad_check_lines, content_guides |
 | `20261024172221_harden_ad_review_writes.sql` | 광고 검토 쓰기 권한을 owner로, 작성자 기본값 |
+| `20261026140000_create_review_translations.sql` | review_translations (상세페이지용 리뷰 번역) |
+| `20261026150000_products_add_title_ai.sql` | products.title_ai (AI가 정리한 제품명) |
 
 새 파일은 `npx supabase migration new <이름>`으로 만들고, 원격 적용은 DB 관리자(Min)가 한다 (DB_RULES 6장).
 

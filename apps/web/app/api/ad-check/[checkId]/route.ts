@@ -19,7 +19,7 @@ function fail(status: number, error: string) {
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ checkId: string }> }) {
-  if (!isSupabaseConfigured()) return fail(409, "샘플 모드에서는 저장할 수 없습니다.");
+  if (!isSupabaseConfigured()) return fail(409, "DB가 연결되지 않아 저장할 수 없습니다.");
   const [user, mine] = await Promise.all([getCurrentUser(), getMyWorkspace()]);
   if (!user || !mine) return fail(401, "로그인이 필요합니다");
   if (mine.role !== "owner") return fail(403, "승인·반려 저장은 워크스페이스 관리자(owner)만 할 수 있습니다");
@@ -50,7 +50,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ch
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ checkId: string }> }) {
-  if (!isSupabaseConfigured()) return fail(409, "샘플 모드에서는 삭제할 수 없습니다.");
+  if (!isSupabaseConfigured()) return fail(409, "DB가 연결되지 않아 삭제할 수 없습니다.");
   const mine = await getMyWorkspace();
   if (!mine) return fail(401, "로그인이 필요합니다");
   if (mine.role !== "owner") return fail(403, "삭제는 워크스페이스 관리자(owner)만 할 수 있습니다");

@@ -9,11 +9,13 @@ import { buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import type { ReviewWithAnalysis } from "@/lib/data/reviews";
+import { titleParts } from "@/lib/product-title";
 import type { Sentiment } from "@/lib/schemas/common";
+import type { ProductTitleAi } from "@/lib/schemas/product";
 import type { AppealTopic } from "@/lib/schemas/review";
 import { formatDate } from "@/lib/format";
-import { BackTitle, paginate, Pager } from "../../_components/parts";
-import { hasTopic, periodOf, type Polarity, stars, topicLabel } from "../../_lib/topics";
+import { BackTitle, paginate, Pager, ReviewText } from "../../_components/parts";
+import { hasTopic, periodOf, type Polarity, profileLabel, stars, topicLabel } from "../../_lib/topics";
 
 const PAGE_SIZE = 20;
 const selectClass = "h-9 rounded-md border bg-background px-2 text-sm text-foreground";
@@ -23,7 +25,7 @@ function toCsv(reviews: ReviewWithAnalysis[]) {
   const cell = (v: string | number | undefined) => `"${String(v ?? "").replaceAll('"', '""')}"`;
   const head = ["작성일", "별점", "본문", "본문(한국어)", "연령대", "피부타입", "감성"].map(cell).join(",");
   const rows = reviews.map((r) =>
-    [formatDate(r.posted_at), r.rating, r.body, r.body_ko, r.reviewer_attrs?.age_group, r.reviewer_attrs?.skin_type, r.analysis?.sentiment].map(cell).join(","),
+    [formatDate(r.posted_at), r.rating, r.body, r.body_ko, profileLabel(r.reviewer_attrs?.age_group), profileLabel(r.reviewer_attrs?.skin_type), r.analysis?.sentiment].map(cell).join(","),
   );
   return [head, ...rows].join("\n");
 }
@@ -33,7 +35,7 @@ export function ReviewListView({
   reviews,
   from,
 }: {
-  product: { id: string; brand: string; name: string; kind: "own" | "competitor" };
+  product: { id: string; brand: string; name: string; kind: "own" | "competitor"; title_ai?: ProductTitleAi | null };
   reviews: ReviewWithAnalysis[];
   from: { topic: AppealTopic; polarity: Polarity } | null;
 }) {
@@ -92,7 +94,7 @@ export function ReviewListView({
   };
 
   const lang = product.kind === "own" ? "국내" : "일본";
-  const title = product.kind === "own" ? product.name : `${product.brand} ${product.name}`;
+  const title = product.kind === "own" ? product.name : titleParts(product).main;
 
   return (
     <div className="space-y-4">
@@ -131,7 +133,9 @@ export function ReviewListView({
             <select className={selectClass} value={skin} onChange={(e) => change(() => setSkin(e.target.value))}>
               <option value="">전체</option>
               {skins.map((s) => (
-                <option key={s}>{s}</option>
+                <option key={s} value={s}>
+                  {profileLabel(s)}
+                </option>
               ))}
             </select>
           </label>
@@ -183,7 +187,7 @@ export function ReviewListView({
       )}
 
       <section className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
               <th className="w-10 py-3 pl-4">
@@ -202,11 +206,11 @@ export function ReviewListView({
                   }
                 />
               </th>
-              <th className="w-28 px-2 py-3 font-medium">작성일</th>
-              <th className="w-24 px-2 py-3 font-medium">별점</th>
-              <th className="px-2 py-3 font-medium">본문</th>
-              <th className="w-32 px-2 py-3 font-medium">작성자</th>
-              <th className="w-20 py-3 pr-4 pl-2 font-medium">감성</th>
+              <th className="w-24 px-2 py-3 font-medium">작성일</th>
+              <th className="w-20 px-2 py-3 font-medium">별점</th>
+              <th className="px-2 py-3 font-medium">{product.kind === "competitor" ? "본문 (한국어 번역)" : "본문"}</th>
+              <th className="w-24 px-2 py-3 font-medium">피부 · 연령</th>
+              <th className="w-16 py-3 pr-4 pl-2 font-medium">감성</th>
             </tr>
           </thead>
           <tbody>
@@ -218,10 +222,11 @@ export function ReviewListView({
                 <td className="px-2 py-3 text-muted-foreground">{formatDate(r.posted_at)}</td>
                 <td className="px-2 py-3 text-amber-700">{stars(r.rating)}</td>
                 <td className="px-2 py-3">
-                  <p lang={r.lang}>{r.body}</p>
-                  {r.body_ko && <p className="text-muted-foreground">{r.body_ko}</p>}
+                  <ReviewText review={r} />
                 </td>
-                <td className="px-2 py-3 text-muted-foreground">{[r.reviewer_attrs?.age_group, r.reviewer_attrs?.skin_type].filter(Boolean).join(" · ") || "—"}</td>
+                <td className="px-2 py-3 text-muted-foreground">
+                  {[profileLabel(r.reviewer_attrs?.age_group), profileLabel(r.reviewer_attrs?.skin_type)].filter(Boolean).join(" · ") || "—"}
+                </td>
                 <td className="py-3 pr-4 pl-2">{r.analysis ? <SentimentBadge sentiment={r.analysis.sentiment} /> : "—"}</td>
               </tr>
             ))}

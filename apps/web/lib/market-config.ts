@@ -2,7 +2,8 @@
 // 카테고리별 포지셔닝 축·후보 영역·태그 사전은 해당 파트를 만들 때 이 파일에 추가한다.
 import type { TrendSource } from "@/lib/schemas/trend";
 
-export const MARKET_CATEGORIES = ["化粧水", "美容液", "クリーム"] as const;
+// 크림은 2026-10-25에 뺐다 (수집 대상이 아님). 샘플 데이터의 크림 행은 화면에 나오지 않을 뿐 남아 있다
+export const MARKET_CATEGORIES = ["化粧水", "美容液"] as const;
 export type MarketCategory = (typeof MARKET_CATEGORIES)[number];
 
 /** 실데이터(수집 CSV·DB)로 만든 랭킹 스냅샷의 id 접두사. 화면에서 "샘플" 대신 "실데이터"로 표시한다 */

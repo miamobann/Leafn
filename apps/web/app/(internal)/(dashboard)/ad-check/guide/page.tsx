@@ -15,7 +15,7 @@ export default async function ContentGuidePage() {
         featureId="A"
       />
       <AdDisclaimer />
-      <p className="mt-2 text-xs text-muted-foreground">{aiEnabled ? "AI 제작 (연결된 제품·리뷰·검색 자료)" : "AI 미연결"} · 게시 전에는 새 검토로 다시 확인하세요</p>
+      <p className="mt-2 text-xs text-muted-foreground">게시 전에는 새 검토로 다시 확인하세요</p>
       <div className="mt-4">
         {products.length ? <ContentGuide products={products} drafts={isSupabaseConfigured() ? [] : GUIDE_DRAFTS} materials={materials} author={author} aiEnabled={aiEnabled} /> : <p>전성분·가격·용량이 등록된 제품이 없습니다.</p>}
       </div>

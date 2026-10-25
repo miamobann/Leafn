@@ -12,11 +12,12 @@ import { translateReviewsToKorean } from "@/lib/ai/review-analysis/translate";
 import type { Lang } from "@/lib/schemas/common";
 import type { ExcludedReason } from "@/lib/schemas/review";
 import { createClient } from "@/lib/supabase/server";
+import { getUntitledCount } from "./product-title-actions";
 import { getMyWorkspace, isSupabaseConfigured } from "./workspace";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
-/** pending = 분석 전 리뷰, untranslated = 한국어 번역이 없는 일본어 리뷰 */
-export type AnalysisStatus = { pending: number; analyzed: number; untranslated: number };
+/** pending = 분석 전 리뷰, untranslated = 한국어 번역이 없는 일본어 리뷰, untitled = 제품명 정리 전인 경쟁 제품 */
+export type AnalysisStatus = { pending: number; analyzed: number; untranslated: number; untitled: number };
 export type AnalysisBatchResult = { processed: number; excluded: number; remaining: number };
 export type TranslateBatchResult = { processed: number; remaining: number };
 
@@ -75,13 +76,14 @@ async function readUntranslated(supabase: Supabase, productId: string | null): P
 
 /** 분석 · 번역 대기 건수. 연결이 없거나 로그인 전이면 0 (샘플 화면에서는 버튼이 나오지 않는다) */
 export async function getAnalysisStatus(productId?: string): Promise<AnalysisStatus> {
-  const none = { pending: 0, analyzed: 0, untranslated: 0 };
+  const none = { pending: 0, analyzed: 0, untranslated: 0, untitled: 0 };
   if (!isSupabaseConfigured() || !(await getMyWorkspace())) return none;
   if (productId !== undefined && !z.uuid().safeParse(productId).success) return none;
   const supabase = await createClient();
   const { total, pending } = await readPending(supabase, productId ?? null);
   const untranslated = await readUntranslated(supabase, productId ?? null);
-  return { pending: pending.length, analyzed: total - pending.length, untranslated: untranslated.length };
+  const untitled = await getUntitledCount(productId);
+  return { pending: pending.length, analyzed: total - pending.length, untranslated: untranslated.length, untitled };
 }
 
 /** 다음 한 묶음(최대 50건)을 분석해 저장한다. productId 가 없으면 워크스페이스 전체에서 고른다 */
