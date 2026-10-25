@@ -51,21 +51,21 @@ const addDays = (date: string, days: number) => new Date(Date.parse(date) + days
 
 /**
  * 홈 캘린더와 전체보기(/calendar)에서 아무 일정도 고르지 않았을 때 오른쪽 패널.
- * 현황판 마감과 행사 준비 마감을 마감 순 한 목록으로 모으고, 그 아래 검토 대기 문구를 둔다.
- * 전체보기에는 현황판이 없어서, 현황판 항목을 누르면 홈으로 가서 그 벽돌 상세를 연다
+ * 행사 준비 마감을 마감 순 한 목록으로 모으고, 그 아래 검토 대기 문구를 둔다.
+ * board(8단계 현황판의 단계 마감)는 홈 현황판이 제품 × 탭 진행 표로 바뀌어(2026-10-26) 지금은 넘기는 곳이 없다
  */
 export function CalendarTodo({
   events,
   select,
   pending,
   today,
-  board,
+  board = [],
 }: {
   events: PromoEventView[];
   select: (eventId: string) => void;
   pending: PendingCopy[];
   today: string;
-  board: BoardDeadline[];
+  board?: BoardDeadline[];
 }) {
   const selectStage = useStageSelect();
   const owner = useOwnerFilter();
