@@ -1,6 +1,6 @@
 # Leafn 코딩 규칙 (시안)
 
-> 상태: 시안 · 2026-10-22 · 팀 합의 후 확정
+> 상태: 시안 · 2026-10-22 · 갱신 2026-10-25 (정리 전 원문: [archive/pre_CODING_RULES.md](archive/pre_CODING_RULES.md))
 > 기술 판단의 기준은 [CLAUDE.md](../CLAUDE.md)다. 이 문서는 6명이 같은 레포에서 충돌 없이 일하기 위한 약속만 다룬다. 둘이 다르면 CLAUDE.md를 따르고 이 문서를 고친다.
 
 ## 1. 브랜치
@@ -20,7 +20,7 @@ Leafn_main   배포 기준. 직접 push하지 않는다
   ```
 - 문서 수정, 급한 수정, 팀이 합의한 작업은 `sub_main`에 직접 push해도 된다. push 전에 `npm run typecheck`, `npm run lint`, `npm run build`를 통과시키고, push 뒤 채팅에 무엇을 올렸는지 알린다.
 - 기능을 따로 나누고 싶으면 `<이름>-<기능>`으로 딴다 (예: `minseo-trends-chart`). `minseo/trends-chart`처럼 `/`를 쓰면 이미 있는 `minseo` 브랜치와 이름이 겹쳐 git이 만들지 못한다.
-- `sub_main` → `Leafn_main` 반영은 총괄(lead)이 페이즈가 끝날 때 PR로 한다. 개인 브랜치의 PR은 `Leafn_main`이 아니라 `sub_main`으로 보낸다.
+- `sub_main` → `Leafn_main` 반영은 총괄(lead)이 PR로 한다. `Leafn_main`이 Vercel 배포 브랜치이고 Vercel Hobby는 하루 빌드 수 한도가 있어서, `sub_main`에 쌓인 머지를 모아서 한 번에 반영한다. 개인 브랜치의 PR은 `Leafn_main`이 아니라 `sub_main`으로 보낸다.
 - `Leafn_main` 보호는 GitHub가 강제하지 않는다 (개인 계정 비공개 레포는 무료 플랜에서 브랜치 규칙이 적용되지 않음). 그래서 약속으로 지킨다: `Leafn_main`에는 총괄만 머지하고, `sub_main` → `Leafn_main` PR의 CI가 초록일 때만 머지한다. 직접 push, 강제 push, 브랜치 삭제는 하지 않는다.
 - GitHub 기본 브랜치는 `sub_main`이다. 새로 받는 사람과 AI 도구, 새 PR은 기본으로 `sub_main`을 본다.
 
@@ -28,7 +28,8 @@ Leafn_main   배포 기준. 직접 push하지 않는다
 
 - 형식: `<타입>(<범위>): <한 줄 요약>` · 요약은 한국어 가능
   - 타입: `feat` 기능 · `fix` 버그 · `ui` 화면만 · `refactor` · `docs` · `chore` 설정·의존성 · `db` 마이그레이션
-  - 범위: `market` · `reviews` · `ad-check` · `launch` · `survey` · `common` · `collectors` · `db`
+  - 범위: `market` · `reviews` · `ad-check` · `calendar` · `survey` · `common` · `collectors` · `db` · (다음) `approval` · `ai-analysis`
+  - `launch`(진출 실행)는 탭이 없어져 2026-10-25부터 `calendar`로 쓴다. 예전 커밋은 그대로 둔다
   - 예: `feat(reviews): CSV 미리보기 표 추가`
 - 한 커밋에는 한 가지 일만. 기능 + 포맷 변경을 섞지 않는다.
 - `.env*`, API 키, 실제 리뷰 원문 대량 데이터, `node_modules`는 커밋하지 않는다.
@@ -52,8 +53,11 @@ Leafn_main   배포 기준. 직접 push하지 않는다
 | 레이아웃·내비 | `components/layout/`, `nav-config.ts` | 총괄. 다른 사람은 PR에 총괄 리뷰 필수 |
 | 공통 부품 | `components/ui/`, `components/common/`, `components/templates/` | 누구나, 단 PR에 2명 리뷰 |
 | 스키마·가짜 데이터 | `lib/schemas/`, `lib/mock/`, `lib/data/` | 누구나, 단 총괄 리뷰 필수 |
+| 자사 제품 기준 | `lib/own-products.ts`, `lib/own-product-specs.ts`, `docs/Product.md` | 총괄. 다른 사람은 PR에 총괄 리뷰 필수 |
 | DB | `supabase/migrations/` | 새 파일 추가만. 기존 파일 수정 금지 |
-| 프롬프트 | `prompts/` | 해당 기능 담당자. 바꿀 땐 새 버전 파일 (`ad-check.v2.md`) |
+| 시작 데이터 | `supabase/seeds/` | 누구나 PR로. 실행은 DB 관리자(총괄)가 SQL Editor에서 |
+| 프롬프트 | `prompts/` | 해당 기능 담당자. 바꿀 땐 새 버전 파일 (`ad-check.v2.md`)을 만들고 쓰는 버전 상수만 바꾼다 (CLAUDE.md 7장) |
+| 기록용 보관본 | `docs/archive/pre_*.md` | 고치지 않는다. 지금 문서를 고친다 |
 
 다른 사람 영역을 고쳐야 하면 먼저 채팅에서 말하고 PR에 그 사람을 리뷰어로 넣는다.
 

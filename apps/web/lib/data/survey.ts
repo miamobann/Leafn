@@ -18,13 +18,22 @@ export async function readSurveySummary() {
     for (const row of responses) result.set(key(row), (result.get(key(row)) ?? 0) + 1);
     return [...result];
   };
+  const dates = responses.map((r) => r.created_at).sort();
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   return SurveySummary.parse({
     total: responses.length,
     recent_7d: responses.filter((r) => r.created_at >= weekAgo).length,
     under18_count: minors.reduce((sum, r) => sum + r.count, 0),
     sensitive_count: responses.filter((r) => r.is_sensitive).length,
-    by_source: counts((r) => r.source ?? "other").map(([source, count]) => ({ source, count })),
+    // 채널별 구매 클릭 · 출시 알림은 survey_reco_events에 유입 경로가 없어 비워 둔다 (화면에는 "—")
+    by_source: counts((r) => r.source ?? "other").map(([source, count]) => {
+      const types = new Map<string, number>();
+      for (const r of responses) if ((r.source ?? "other") === source) types.set(r.skin_type, (types.get(r.skin_type) ?? 0) + 1);
+      const [top_skin_type, top_skin_count] = [...types].sort((a, b) => b[1] - a[1])[0];
+      return { source, count, top_skin_type, top_skin_count };
+    }),
+    period: dates.length ? { from: dates[0].slice(0, 10), to: dates[dates.length - 1].slice(0, 10) } : undefined,
+    by_age: counts((r) => r.age_group).map(([age_group, count]) => ({ age_group, count })),
     by_skin_type: counts((r) => r.skin_type).map(([skin_type, count]) => ({ skin_type, count })),
     age_by_concern: [...new Set(responses.map((r) => r.age_group))].map((age_group) => {
       const concerns: Record<string, number> = {};

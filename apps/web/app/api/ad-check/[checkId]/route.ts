@@ -1,4 +1,5 @@
 // PATCH /api/ad-check/[checkId] (CLAUDE.md 6장): 담당자 검토 결과(승인/반려/전문가 요청/메모/최종 문구) 저장.
+// DELETE: 검토 숨김 (deleted_at). 약기법 검토는 증거로 남기려고 행을 지우지 않는다 (docs/tab3-db-plan.md). owner만.
 // 승인/반려 상태 변경 권한은 워크스페이스 owner에게만 있다 (PM 결정 2026-10-24, RLS와 서버 양쪽에서 확인).
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -46,4 +47,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ch
   if (error) return fail(500, "검토 결과를 저장하지 못했습니다.");
   if (!data) return fail(404, "검토 내역을 찾을 수 없습니다.");
   return NextResponse.json({ ok: true, saved: true });
+}
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ checkId: string }> }) {
+  if (!isSupabaseConfigured()) return fail(409, "샘플 모드에서는 삭제할 수 없습니다.");
+  const mine = await getMyWorkspace();
+  if (!mine) return fail(401, "로그인이 필요합니다");
+  if (mine.role !== "owner") return fail(403, "삭제는 워크스페이스 관리자(owner)만 할 수 있습니다");
+
+  const { checkId } = await params;
+  if (!z.uuid().safeParse(checkId).success) return fail(400, "검토 번호가 올바르지 않습니다.");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("ad_checks")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", checkId)
+    .eq("workspace_id", mine.workspace.id)
+    .is("deleted_at", null)
+    .select("id").maybeSingle();
+
+  if (error) return fail(500, "검토를 삭제하지 못했습니다.");
+  if (!data) return fail(404, "검토 내역을 찾을 수 없습니다.");
+  return NextResponse.json({ ok: true });
 }
