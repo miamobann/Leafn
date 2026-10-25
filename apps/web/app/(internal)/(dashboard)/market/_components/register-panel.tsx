@@ -17,13 +17,13 @@ const MODES = ["상품 URL", "상품 이미지"] as const;
 
 const SAMPLE_EXTRACT = {
   brand: "SampleNew",
-  name: "セラミドクリーム",
-  category: "クリーム",
+  name: "セラミド化粧水",
+  category: "化粧水",
   platform: "qoo10",
   price: "2580",
-  volume: "50",
+  volume: "150",
   ingredients: "水、グリセリン、BG、セラミドNP、スクワラン、パンテノール、ヒアルロン酸Na、フェノキシエタノール",
-  features: "세라마이드 배합\n50ml 튜브형",
+  features: "세라마이드 배합\n150ml 보틀형",
 };
 
 const FIELD = "grid gap-1 text-xs font-medium text-muted-foreground";

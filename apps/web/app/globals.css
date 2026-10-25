@@ -32,6 +32,12 @@
   --chart-5: oklch(0.269 0 0);
   /* 시장 분석 가격 포지셔닝 맵의 "프로모션 진행 중" 표시. 회색 차트 색과 구분되는 유일한 색 (위험도·검토 상태 색과 겹치지 않게 파랑) */
   --chart-promo: #2563c9;
+  /* 원형 그래프(비중)용 구분색 5개. 무채색으로는 조각이 구분되지 않아 추가 (색약 검사 통과, 2026-10-25) · 6번째부터는 「기타」로 묶어 --chart-2 */
+  --chart-cat-1: #2a78d6;
+  --chart-cat-2: #eb6834;
+  --chart-cat-3: #1baf7a;
+  --chart-cat-4: #eda100;
+  --chart-cat-5: #e87ba4;
   --radius: 0.625rem;
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -137,6 +143,11 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --chart-promo: #4f8be6;
+  --chart-cat-1: #3987e5;
+  --chart-cat-2: #d95926;
+  --chart-cat-3: #199e70;
+  --chart-cat-4: #c98500;
+  --chart-cat-5: #d55181;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);

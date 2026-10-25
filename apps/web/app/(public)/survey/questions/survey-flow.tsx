@@ -135,7 +135,7 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
       source_other: source === "other" && !knownSource ? sourceOther.trim().slice(0, 50) : "",
     };
     saveSession(session);
-    await submitSurvey(session, under18);
+    await submitSurvey(session, under18, questions);
     router.push("/survey/result");
   }
 

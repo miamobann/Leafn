@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { getAnalysisStatus } from "@/lib/data/review-analysis-actions";
 import { getReviewProductList, getReviewsOf } from "@/lib/data/reviews";
 import { platformLabel } from "@/lib/platforms";
+import { titleParts } from "@/lib/product-title";
 import { AnalyzeButton } from "./_components/analyze-button";
 import { ImportButton } from "./_components/parts";
 import { CompetitorTable, type CompetitorRow } from "./competitor-table";
@@ -46,7 +47,9 @@ export default async function ReviewsPage() {
       const candidates = mine ? stats.filter((s) => s.neg.length > 0 && mine.strengths.has(s.topic)).length : 0;
       return {
         id: p.id,
-        name: `${p.brand} ${p.name}`,
+        name: titleParts({ brand: p.brand, name: p.name }).full,
+        title: titleParts({ brand: p.brand, name: p.name, title_ai: p.titleAi }).main,
+        caption: titleParts({ brand: p.brand, name: p.name, title_ai: p.titleAi }).caption,
         category: categoryLabel(p.category),
         platform: platformLabel(p.platform),
         rank: p.rank,
@@ -62,7 +65,7 @@ export default async function ReviewsPage() {
         <PageHeader title="리뷰 리포트" description="제품을 고르면 그 제품의 강점·약점과 근거 리뷰를 볼 수 있어요" featureId="E" />
         <ImportButton />
       </div>
-      <AnalyzeButton pending={analysis.pending} untranslated={analysis.untranslated} />
+      <AnalyzeButton pending={analysis.pending} untranslated={analysis.untranslated} untitled={analysis.untitled} />
 
       <section className="mb-8 space-y-3">
         <div className="flex items-baseline gap-2">
