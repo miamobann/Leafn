@@ -5,8 +5,7 @@ import { EmptyState } from "@/components/common/states";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Product } from "@/lib/schemas/product";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
-import { TOP_N } from "@/app/(internal)/(dashboard)/market/_lib/market";
-import { priceMap, rowsAt, top10, type PriceMode, type PricePoint } from "@/app/(internal)/(dashboard)/market/_lib/overview";
+import { priceMap, rowsAt, type PriceMode, type PricePoint } from "@/app/(internal)/(dashboard)/market/_lib/overview";
 import { PriceMapChart } from "@/app/(internal)/(dashboard)/market/_components/charts";
 import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/toggle-group";
 import type { PanelContent } from "./side-panel";
@@ -42,7 +41,8 @@ export function MarketPart({
   const [modeLabel, setModeLabel] = useState<(typeof MODES)[number]>("정가 기준");
   if (series.length === 0) return <EmptyState message="이 플랫폼·카테고리의 랭킹 데이터가 없어요" />;
 
-  const top = top10(rowsAt(series, series.length - 1));
+  // 가격 전략은 순위권 전체(20위까지)를 본다. 세트 상품처럼 용량을 모르는 제품은 맵에서 빠진다
+  const top = rowsAt(series, series.length - 1);
   const probe = priceMap(top, products, series[0].category, "list");
   // 할인 데이터가 없는 플랫폼(지금 楽天 샘플)은 정가 기준만
   const mode: PriceMode = probe.hasDiscount ? MODE_KEY[modeLabel] : "list";
@@ -58,7 +58,7 @@ export function MarketPart({
       <Card>
         <CardHeader>
           <CardTitle>
-            가격 포지셔닝 맵 · 판매가 × ml당 실질 가격 ({platformLabel} Top {TOP_N})
+            가격 포지셔닝 맵 · 판매가 × ml당 가격 ({platformLabel} Top {top.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -106,7 +106,7 @@ export function MarketPart({
                       <dd className="text-right font-medium">
                         ml당 {o.ppm}円
                         <span className="block text-xs font-normal text-muted-foreground">
-                          Top {TOP_N} 중 {o.cheaper}개가 더 쌈 ({mode === "sale" ? "할인 적용 후" : "정가"})
+                          맵의 {map.points.length}개 중 {o.cheaper}개가 더 쌈 ({mode === "sale" ? "할인 적용 후" : "정가"})
                         </span>
                       </dd>
                     </div>
@@ -120,7 +120,7 @@ export function MarketPart({
                   ))}
                 </ul>
                 <p className="text-xs text-muted-foreground">
-                  {RULE[mode]} · 점을 누르면 제품 요약{map.unplaced.length > 0 ? ` · 용량 정보가 없어 빠진 제품 ${map.unplaced.length}개` : ""}
+                  {RULE[mode]} · 점을 누르면 제품 요약{map.unplaced.length > 0 ? ` · 세트 등 용량을 알 수 없어 빠진 제품 ${map.unplaced.length}개 (${map.unplaced.map((r) => `${r.rank}위`).join(", ")})` : ""}
                 </p>
               </div>
             </div>
