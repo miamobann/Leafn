@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
+import { getAnalysisStatus } from "@/lib/data/review-analysis-actions";
 import { getReviewProductList, getReviewsOf } from "@/lib/data/reviews";
 import { platformLabel } from "@/lib/platforms";
+import { AnalyzeButton } from "./_components/analyze-button";
 import { ImportButton } from "./_components/parts";
 import { CompetitorTable, type CompetitorRow } from "./competitor-table";
 import { average, latestDate, SKIN_LINE_LABEL, topicLabel, topicStats, topThree, verdictOf } from "./_lib/topics";
@@ -12,6 +14,7 @@ const categoryLabel = (c: string | null) => (c ? (CATEGORY_LABEL[c] ?? c) : "카
 export default async function ReviewsPage() {
   const products = await getReviewProductList();
   const withReviews = await Promise.all(products.map(async (p) => ({ ...p, reviews: await getReviewsOf(p.id) })));
+  const analysis = await getAnalysisStatus();
 
   const own = withReviews
     .filter((p) => p.kind === "own")
@@ -59,6 +62,7 @@ export default async function ReviewsPage() {
         <PageHeader title="리뷰 리포트" description="제품을 고르면 그 제품의 강점·약점과 근거 리뷰를 볼 수 있어요" featureId="E" />
         <ImportButton />
       </div>
+      <AnalyzeButton pending={analysis.pending} untranslated={analysis.untranslated} />
 
       <section className="mb-8 space-y-3">
         <div className="flex items-baseline gap-2">
@@ -107,16 +111,11 @@ export default async function ReviewsPage() {
                   </>
                 ) : (
                   <>
-                    {p.analyzed && p.strength && (
-                      <p className="text-sm">
-                        가장 많이 칭찬받은 점은 ‘{p.strength}’{p.weakness ? `, 가장 큰 불만은 ‘${p.weakness}’예요.` : "이에요."}
-                      </p>
-                    )}
                     {!p.analyzed && <p className="text-sm text-muted-foreground">리뷰를 가져왔지만 AI 분석 전이에요.</p>}
                     {p.analyzed && (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {p.strength && <span className="rounded-md border border-sky-200 px-2 py-0.5 text-sky-900">강점 · {p.strength}</span>}
-                        {p.weakness && <span className="rounded-md border border-orange-200 px-2 py-0.5 text-orange-900">약점 · {p.weakness}</span>}
+                      <div className="flex flex-wrap gap-2 text-sm font-medium">
+                        <span className="rounded-md border border-sky-200 px-2.5 py-1 text-sky-900">강점 · {p.strength ?? "아직 없음"}</span>
+                        <span className="rounded-md border border-orange-200 px-2.5 py-1 text-orange-900">약점 · {p.weakness ?? "아직 없음"}</span>
                       </div>
                     )}
                     <div className="flex gap-4 border-t pt-2.5 text-sm text-muted-foreground">
