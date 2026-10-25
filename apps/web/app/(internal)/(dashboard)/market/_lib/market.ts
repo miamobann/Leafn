@@ -19,13 +19,18 @@ export const INGREDIENT_MATCH: Record<string, { ko: string; match: string[] }> =
   "ヒアルロン酸": { ko: "히알루론산", match: ["ヒアルロン酸"] },
   "セラミド": { ko: "세라마이드", match: ["セラミド"] },
   "ナイアシンアミド": { ko: "나이아신아마이드", match: ["ナイアシンアミド"] },
-  "ツボクサエキス": { ko: "병풀(시카)", match: ["ツボクサ"] },
+  // 실데이터 상품명은 「センテラ」「TECA」「CICA」로도 쓴다 (Qoo10 랭킹, 2026-10-24)
+  "ツボクサエキス": { ko: "병풀(시카)", match: ["ツボクサ", "センテラ", "TECA", "CICA", "シカ"] },
   "レチノール": { ko: "레티놀", match: ["レチノール"] },
   "ビタミンC誘導体": { ko: "비타민C 유도체", match: ["アスコルビ"] },
   "ドクダミエキス": { ko: "어성초", match: ["ドクダミ"] },
   "パンテノール": { ko: "판테놀", match: ["パンテノール"] },
   "トラネキサム酸": { ko: "트라넥삼산", match: ["トラネキサム酸"] },
   "スクワラン": { ko: "스쿠알란", match: ["スクワラン"] },
+  // Qoo10 化粧水 랭킹 실데이터에 자주 나온 성분 (2026-10-24 추가)
+  "グルタチオン": { ko: "글루타치온", match: ["グルタチオン"] },
+  "アゼライン酸": { ko: "아젤라산", match: ["アゼライン酸", "アゼロイル"] },
+  "PDRN": { ko: "PDRN", match: ["PDRN"] },
 };
 
 export function hasIngredient(p: Pick<Product, "ingredients">, ingredient: string): boolean {

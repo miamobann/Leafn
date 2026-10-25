@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { GEO_ENGINE_LABEL, type GeoSnap } from "@/lib/schemas/geo";
-import { SNS_PLATFORM_LABEL, type SnsPattern, type SnsPatternKind, type SnsVideoNote } from "@/lib/schemas/market";
+import { SNS_PLATFORM_LABEL, SnsAnalyzeResult, type SnsPattern, type SnsPatternKind, type SnsVideoNote } from "@/lib/schemas/market";
+import { parseTikTokLink } from "@/lib/external/tiktok";
 import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
 import { OWN_BRAND } from "@/app/(internal)/(dashboard)/market/_lib/market";
@@ -36,6 +37,8 @@ import type { PanelContent } from "./side-panel";
 const TEXT = {
   autocompleteNote: "자동완성은 검색량이 아니에요. 이번 주에 보였는지, 몇 번째였는지만 지난주와 비교해요 · おすすめ·ドラッグストア 같은 일반어는 뺐어요",
   snsBasis: "선택한 영상 기준 · 마케터가 고른 영상이라 시장 전체를 대표하지 않아요 · 고정된 샘플 결과 · 저장되지 않음",
+  snsRealBasis: "등록한 실제 영상의 메모를 AI가 묶은 결과 · 근거는 메모에 그대로 있는 문구만 · 선택한 영상 기준이라 시장 전체를 대표하지 않아요 · 저장되지 않음",
+  memoWhy: "TikTok 공식 공개 기능은 영상 내용(캡션·발화·댓글)을 주지 않아서, 영상을 보고 핵심 발화·자막·댓글을 메모해 주세요. AI는 메모에 적힌 내용만으로 공통 패턴을 찾아요.",
   stealth: "광고 표시가 없어도 광고가 아닌 영상이라는 보장은 없어요 (2023년 10월 시행 ステマ規制). 영상 설명·고정 댓글의 #PR·提供 표기도 확인해 주세요.",
   notReviewed: "소비자 표현은 약기법 검토 전이에요. 효능을 단정하는 말은 광고에 그대로 쓸 수 없을 수 있어요.",
   geoNote: "브랜드·키워드는 사전 대조와 원문 포함 검사로만 뽑아요. 부정문이나 다른 브랜드 이야기까지 걸러내지는 못하니 칸을 눌러 원문을 확인해 주세요.",
@@ -122,108 +125,243 @@ function AutocompleteBlock({ search, category, onOpen }: { search: SearchSnap[];
 // ── 2-B ─────────────────────────────────────────
 
 type VideoDraft = { key: string; url: string; memo: string };
+type RunState = { status: "idle" } | { status: "running" } | { status: "done"; result: SnsAnalyzeResult } | { status: "error"; message: string };
 
-function SnsBlock({ notes, patterns, category, onOpen }: { notes: SnsVideoNote[]; patterns: SnsPattern[]; category: string; onOpen: (c: PanelContent) => void }) {
+/** 결과 카드에 쓰는 공통 모양 (샘플 결과와 AI 분석 결과를 같이 그린다) */
+type PatternCard = { id: string; kind: SnsPatternKind; label_ja: string | null; label_ko: string; hits: number; open: () => void };
+
+function PatternCards({ cards, total }: { cards: PatternCard[]; total: number }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      {KIND_ORDER.map((kind) => {
+        const list = cards.filter((p) => p.kind === kind);
+        return (
+          <div key={kind} className="rounded-lg border p-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">{SNS_PATTERN_KIND_LABEL[kind]}</p>
+            {list.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{kind === "expression" ? "공통 표현이 없어요" : "공통 패턴이 없어요"}</p>
+            ) : (
+              <ul className="space-y-2">
+                {list.map((p) => (
+                  <li key={p.id}>
+                    <button type="button" className="w-full rounded-md p-1 text-left text-sm hover:bg-muted" onClick={p.open}>
+                      {p.label_ja && (
+                        <span lang="ja" className="block font-medium">
+                          「{p.label_ja}」
+                        </span>
+                      )}
+                      <span className={p.label_ja ? "block text-xs text-muted-foreground" : "block font-medium"}>{p.label_ko}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                        {total}개 영상 중 {p.hits}개
+                        {kind === "expression" && <Badge variant="outline">… 약기법 검토 전</Badge>}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SnsBlock({
+  notes,
+  patterns,
+  imported,
+  category,
+  onOpen,
+}: {
+  notes: SnsVideoNote[];
+  patterns: SnsPattern[];
+  /** 이 PC의 영상 목록 (실제 링크). 있으면 샘플 대신 이것으로 시작한다 */
+  imported: { category: string; url: string; memo: string }[];
+  category: string;
+  onOpen: (c: PanelContent) => void;
+}) {
   const categoryNotes = notes.filter((n) => n.category === category);
-  // 카테고리별 편집 목록 (로컬 상태, 저장되지 않음). 처음에는 등록된 영상 메모로 채운다
+  const realVideos = imported.filter((v) => v.category === category);
+  const usingReal = realVideos.length > 0;
+  // 카테고리별 편집 목록 (로컬 상태, 저장되지 않음)
   const [drafts, setDrafts] = useState<Record<string, VideoDraft[]>>({});
   const [editing, setEditing] = useState(false);
-  const videos = drafts[category] ?? categoryNotes.map((n) => ({ key: n.id, url: n.url, memo: n.note_ja }));
+  const [preview, setPreview] = useState<string | null>(null);
+  const [runs, setRuns] = useState<Record<string, RunState>>({});
+  const videos =
+    drafts[category] ??
+    (usingReal ? realVideos.map((v, i) => ({ key: `real-${i}`, url: v.url, memo: v.memo })) : categoryNotes.map((n) => ({ key: n.id, url: n.url, memo: n.note_ja })));
   const setVideos = (next: VideoDraft[]) => setDrafts((d) => ({ ...d, [category]: next }));
+  const run = runs[category] ?? { status: "idle" };
+  const withMemo = videos.filter((v) => v.url.trim() && v.memo.trim());
 
-  // 결과는 고정된 샘플: 등록된 영상 메모 기준으로 계산하고, 편집은 영상 수 확인에만 쓴다
-  const found = commonPatterns(patterns, categoryNotes, category);
-  const meta = patterns.find((p) => p.category === category);
+  async function analyze() {
+    setRuns((r) => ({ ...r, [category]: { status: "running" } }));
+    try {
+      const res = await fetch("/api/market/sns-patterns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, videos: withMemo.map((v) => ({ url: v.url.trim(), memo: v.memo.trim() })) }),
+      });
+      const body: unknown = await res.json();
+      if (!res.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string" ? body.error : `오류 (${res.status})`;
+        return setRuns((r) => ({ ...r, [category]: { status: "error", message } }));
+      }
+      setRuns((r) => ({ ...r, [category]: { status: "done", result: SnsAnalyzeResult.parse(body) } }));
+    } catch (e) {
+      setRuns((r) => ({ ...r, [category]: { status: "error", message: e instanceof Error ? e.message : "요청 실패" } }));
+    }
+  }
 
-  const open = (p: (typeof found)[number]) =>
-    onOpen({
-      kind: "quotes",
-      title: `${SNS_PATTERN_KIND_LABEL[p.kind]} · ${p.label_ja ?? p.label_ko}`,
-      description: `${categoryNotes.length}개 영상 중 ${p.hits.length}개`,
-      quotes: p.hits.flatMap((id) => {
-        const n = categoryNotes.find((x) => x.id === id);
-        return n ? [{ ja: n.note_ja, ko: n.note_ko, note: `${SNS_PLATFORM_LABEL[n.platform]} · ${n.title_ja}${n.has_ad_label ? " · 광고 표시 있음" : ""}` }] : [];
-      }),
-      link: p.related_href ? { href: p.related_href, label: "일본 리뷰 불만과 비교 (소구점 찾기)" } : undefined,
-      footnote: p.kind === "expression" ? TEXT.notReviewed : TEXT.snsBasis,
-    });
+  // 화면에 그릴 결과: AI 분석 결과 > (샘플 영상이면) 고정 샘플 결과
+  let cards: PatternCard[] | null = null;
+  let total = 0;
+  if (run.status === "done") {
+    const r = run.result;
+    total = r.videos.length;
+    cards = r.patterns.map((p, i) => ({
+      id: `ai-${i}`,
+      kind: p.kind,
+      label_ja: p.label_ja,
+      label_ko: p.label_ko,
+      hits: p.evidence.length,
+      open: () =>
+        onOpen({
+          kind: "quotes",
+          title: `${SNS_PATTERN_KIND_LABEL[p.kind]} · ${p.label_ja ?? p.label_ko}`,
+          description: `${r.videos.length}개 영상 중 ${p.evidence.length}개 · AI 분석 결과`,
+          quotes: p.evidence.map((e) => {
+            const v = r.videos.find((x) => x.index === e.video);
+            return { ja: e.quote_ja, note: `영상 ${e.video}${v?.author ? ` · @${v.author}` : ""} 메모에서`, href: v?.url };
+          }),
+          footnote: p.kind === "expression" ? TEXT.notReviewed : TEXT.snsRealBasis,
+        }),
+    }));
+  } else if (!usingReal) {
+    const found = commonPatterns(patterns, categoryNotes, category);
+    total = categoryNotes.length;
+    cards = found.map((p) => ({
+      id: p.id,
+      kind: p.kind,
+      label_ja: p.label_ja,
+      label_ko: p.label_ko,
+      hits: p.hits.length,
+      open: () =>
+        onOpen({
+          kind: "quotes",
+          title: `${SNS_PATTERN_KIND_LABEL[p.kind]} · ${p.label_ja ?? p.label_ko}`,
+          description: `${categoryNotes.length}개 영상 중 ${p.hits.length}개`,
+          quotes: p.hits.flatMap((id) => {
+            const n = categoryNotes.find((x) => x.id === id);
+            return n ? [{ ja: n.note_ja, ko: n.note_ko, note: `${SNS_PLATFORM_LABEL[n.platform]} · ${n.title_ja}${n.has_ad_label ? " · 광고 표시 있음" : ""}` }] : [];
+          }),
+          link: p.related_href ? { href: p.related_href, label: "일본 리뷰 불만과 비교 (소구점 찾기)" } : undefined,
+          footnote: p.kind === "expression" ? TEXT.notReviewed : TEXT.snsBasis,
+        }),
+    }));
+  }
+  const sampleMeta = patterns.find((p) => p.category === category);
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle>2-B SNS 공통 패턴</CardTitle>
-        <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-          영상 목록 편집 ({videos.length})
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            영상 목록·메모 ({withMemo.length}/{videos.length})
+          </Button>
+          <Button
+            size="sm"
+            disabled={withMemo.length < MIN_VIDEOS || run.status === "running"}
+            onClick={analyze}
+            title={withMemo.length < MIN_VIDEOS ? `메모를 적은 영상이 ${MIN_VIDEOS}개 이상이어야 해요` : undefined}
+          >
+            {run.status === "running" ? "AI 분석 중…" : "AI로 공통 패턴 분석"}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {run.status === "error" && <p className="text-sm text-risk-high">⚠ {run.message}</p>}
         {videos.length < MIN_VIDEOS ? (
-          <EmptyState message={`영상을 ${MIN_VIDEOS}개 이상 등록하세요`} action="[영상 목록 편집]에서 일본 뷰티 영상 URL과 메모를 넣어요" />
+          <EmptyState message={`영상을 ${MIN_VIDEOS}개 이상 등록하세요`} action="[영상 목록·메모]에서 일본 뷰티 영상 링크와 메모를 넣어요" />
+        ) : cards === null ? (
+          <EmptyState
+            message={`실제 영상 ${videos.length}개가 등록돼 있어요 · 메모 ${withMemo.length}/${videos.length}개 작성`}
+            action={`[영상 목록·메모]에서 영상을 보고 핵심 발화·댓글을 메모한 뒤 (${MIN_VIDEOS}개 이상) [AI로 공통 패턴 분석]을 눌러요`}
+          />
         ) : (
           <>
-            <div className="grid gap-3 md:grid-cols-3">
-              {KIND_ORDER.map((kind) => {
-                const list = found.filter((p) => p.kind === kind);
-                return (
-                  <div key={kind} className="rounded-lg border p-3">
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">{SNS_PATTERN_KIND_LABEL[kind]}</p>
-                    {list.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">절반 이상의 영상에서 나온 패턴이 없어요</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {list.map((p) => (
-                          <li key={p.id}>
-                            <button type="button" className="w-full rounded-md p-1 text-left text-sm hover:bg-muted" onClick={() => open(p)}>
-                              {p.label_ja && (
-                                <span lang="ja" className="block font-medium">
-                                  「{p.label_ja}」
-                                </span>
-                              )}
-                              <span className={p.label_ja ? "block text-xs text-muted-foreground" : "block font-medium"}>{p.label_ko}</span>
-                              <span className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                                {categoryNotes.length}개 영상 중 {p.hits.length}개
-                                {kind === "expression" && <Badge variant="outline">… 약기법 검토 전</Badge>}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-xs text-muted-foreground">{TEXT.snsBasis} · 누르면 해당 영상 메모</p>
-            {meta && <AiResultMeta model={meta.model} promptVersion={meta.prompt_version} createdAt={meta.analyzed_at} />}
+            <PatternCards cards={cards} total={total} />
+            {run.status === "done" ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  {TEXT.snsRealBasis}
+                  {run.result.dropped > 0 ? ` · 메모에 없어 버린 근거 ${run.result.dropped}개` : ""} · 누르면 근거 메모
+                </p>
+                <AiResultMeta model={run.result.model} promptVersion={run.result.prompt_version} createdAt={run.result.analyzed_at} />
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">{TEXT.snsBasis} · 누르면 해당 영상 메모</p>
+                {sampleMeta && <AiResultMeta model={sampleMeta.model} promptVersion={sampleMeta.prompt_version} createdAt={sampleMeta.analyzed_at} />}
+              </>
+            )}
           </>
         )}
       </CardContent>
-      <EvidenceSheet open={editing} onOpenChange={setEditing} title="영상 목록 편집" description={`일본 뷰티 영상 URL ${MIN_VIDEOS}~${MAX_VIDEOS}개와 영상별 핵심 발화·댓글 메모 · 저장되지 않음`}>
+      <EvidenceSheet open={editing} onOpenChange={setEditing} title="영상 목록·메모" description={`일본 뷰티 영상 링크 ${MIN_VIDEOS}~${MAX_VIDEOS}개와 영상별 핵심 발화·댓글 메모 · 저장되지 않음`}>
         <p className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">{TEXT.stealth}</p>
-        <p className="text-xs text-muted-foreground">프로토타입이라 입력해도 결과 카드는 바뀌지 않아요. 영상이 {MIN_VIDEOS}개보다 적으면 결과 대신 안내가 나와요.</p>
+        <p className="text-xs text-muted-foreground">{TEXT.memoWhy}</p>
         <ul className="space-y-3">
-          {videos.map((v, i) => (
-            <li key={v.key} className="space-y-1 rounded-md border p-2">
-              <div className="flex items-center gap-2">
-                <span className="w-6 text-xs text-muted-foreground">{i + 1}</span>
-                <Input
-                  value={v.url}
-                  placeholder="https://"
-                  aria-label={`영상 ${i + 1} URL`}
-                  onChange={(e) => setVideos(videos.map((x) => (x.key === v.key ? { ...x, url: e.target.value } : x)))}
+          {videos.map((v, i) => {
+            const link = parseTikTokLink(v.url);
+            return (
+              <li key={v.key} className="space-y-1 rounded-md border p-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 text-xs text-muted-foreground">{i + 1}</span>
+                  <Input
+                    value={v.url}
+                    placeholder="https://www.tiktok.com/@…/video/…"
+                    aria-label={`영상 ${i + 1} 링크`}
+                    onChange={(e) => setVideos(videos.map((x) => (x.key === v.key ? { ...x, url: e.target.value } : x)))}
+                  />
+                  <Button size="sm" variant="ghost" onClick={() => setVideos(videos.filter((x) => x.key !== v.key))}>
+                    빼기
+                  </Button>
+                </div>
+                {link && (
+                  <div className="flex flex-wrap items-center gap-2 pl-8 text-xs text-muted-foreground">
+                    <span>
+                      @{link.author} · {link.kind === "video" ? "영상" : "사진 게시물"}
+                    </span>
+                    {link.embedUrl ? (
+                      <button type="button" className="underline underline-offset-4" onClick={() => setPreview(preview === v.key ? null : v.key)}>
+                        {preview === v.key ? "영상 닫기" : "여기서 영상 보기"}
+                      </button>
+                    ) : (
+                      <span>미리보기 불가</span>
+                    )}
+                    <a href={link.url} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                      TikTok에서 열기 ↗
+                    </a>
+                  </div>
+                )}
+                {link?.embedUrl && preview === v.key && (
+                  <div className="pl-8">
+                    <iframe src={link.embedUrl} title={`@${link.author} 영상`} className="h-[480px] w-full max-w-[300px] rounded-md border" allow="encrypted-media; fullscreen" />
+                  </div>
+                )}
+                <Textarea
+                  value={v.memo}
+                  placeholder="핵심 발화·자막·댓글 메모 (일본어 원문 그대로)"
+                  aria-label={`영상 ${i + 1} 메모`}
+                  onChange={(e) => setVideos(videos.map((x) => (x.key === v.key ? { ...x, memo: e.target.value } : x)))}
                 />
-                <Button size="sm" variant="ghost" onClick={() => setVideos(videos.filter((x) => x.key !== v.key))}>
-                  빼기
-                </Button>
-              </div>
-              <Textarea
-                value={v.memo}
-                placeholder="핵심 발화·댓글 메모 (일본어 원문)"
-                aria-label={`영상 ${i + 1} 메모`}
-                onChange={(e) => setVideos(videos.map((x) => (x.key === v.key ? { ...x, memo: e.target.value } : x)))}
-              />
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
         <Button size="sm" variant="outline" disabled={videos.length >= MAX_VIDEOS} onClick={() => setVideos([...videos, { key: `new-${videos.length}-${Date.now()}`, url: "", memo: "" }])}>
           영상 추가
@@ -328,13 +466,14 @@ function GeoBlock({ geo, category, onOpen }: { geo: GeoSnap[]; category: string;
   );
 }
 
-/** PART 2. 수요: 검색 자동완성 변화 · SNS 공통 패턴 · AI 검색 노출 */
+/** PART 2. 소비자 트렌드: 검색 자동완성 변화 · SNS 공통 패턴 · AI 검색 노출 */
 export function DemandPart({
   search,
   snsNotes,
   snsPatterns,
   geo,
   products,
+  snsImported,
   category,
   onOpen,
 }: {
@@ -343,6 +482,8 @@ export function DemandPart({
   snsPatterns: SnsPattern[];
   geo: GeoSnap[];
   products: Product[];
+  /** 이 PC에 있는 실제 영상 목록 (없으면 빈 배열 → 샘플) */
+  snsImported: { category: string; url: string; memo: string }[];
   category: string;
   onOpen: (c: PanelContent) => void;
 }) {
@@ -350,7 +491,7 @@ export function DemandPart({
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
         <AutocompleteBlock search={search} category={category} onOpen={onOpen} />
-        <SnsBlock notes={snsNotes} patterns={snsPatterns} category={category} onOpen={onOpen} />
+        <SnsBlock notes={snsNotes} patterns={snsPatterns} imported={snsImported} category={category} onOpen={onOpen} />
       </div>
       {/* 예전 성분 관심도 화면에서 옮김: 성분 검색 관심도 순위와 지금 수집 버튼 */}
       <Card>

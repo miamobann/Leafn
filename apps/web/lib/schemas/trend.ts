@@ -45,6 +45,8 @@ export const RankingItem = z.object({
   discount_rate: z.number().min(0).max(100).nullable().optional(),
   /** 할인 적용가 (税込) */
   sale_price_jpy: z.number().int().nonnegative().nullable().optional(),
+  /** 행사 쿠폰(메가와리 등) 적용 시 가격 (税込). 쿠폰이 없으면 null */
+  coupon_price_jpy: z.number().int().nonnegative().nullable().optional(),
   // 제안: Qoo10 랭킹 수집값 (팀원 CSV)
   /** 상품 페이지 주소 */
   url: z.string().url().nullable().optional(),

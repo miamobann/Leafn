@@ -15,7 +15,7 @@ import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
 import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
 import { APPEAL_MAX_RATING, buildAppealComparison, reviewProductRank } from "./appeal";
-import { importedSnapshots } from "./market-imports";
+import { importedSnapshots, importedSnsVideos } from "./market-imports";
 
 export async function getWorkspace() {
   if (await dataContext()) return (await getMyWorkspace())!.workspace;
@@ -143,6 +143,11 @@ export async function getIngredientInterest(opts: { source: TrendSource; categor
 export async function getSnsVideoNotes() {
   if (await dataContext()) return []; // 저장 구조가 없는 샘플 결과를 실제 결과로 표시하지 않는다.
   return mock.snsVideoNotes;
+}
+
+/** 이 PC에 있는 실제 SNS 영상 목록 (수집 CSV, .gitignore). 없으면 빈 배열 */
+export async function getImportedSnsVideos() {
+  return importedSnsVideos();
 }
 
 /** 영상 메모에서 묶은 공통 패턴 (AI 결과 샘플) */
