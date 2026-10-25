@@ -20,8 +20,6 @@ export type KeyPoint = {
   headline: string;
   /** 그래서 할 일 (규칙 기반 제안) */
   action: string;
-  /** 근거 숫자 */
-  detail: string;
   /** 근거가 있는 탭 */
   tab: MarketTab;
   /** 샘플 데이터로 만든 카드 */
@@ -73,7 +71,6 @@ export function keyPoints(input: {
         label: "가격",
         headline: `${o.name.replace("자사 ", "")} ml당 ${o.ppm}円 — ${before === after ? `순위권에서 ${before}` : `정가로는 ${before}, 할인 적용 후엔 ${after}`}`,
         action: need > 0 ? `할인 후 순위권 중앙값(${sale.medianPpm}円)에 맞추려면 약 ${need}% 이상 할인` : `이미 할인 후 중앙값(${sale.medianPpm}円)보다 싸서 큰 할인 없이도 가격 경쟁 가능`,
-        detail: `순위권 ml당 중앙값 정가 ${list.medianPpm}円 → 할인 후 ${sale.medianPpm}円 · 할인 후 우리보다 싼 제품 ${os.cheaper}/${n}`,
         tab: "supply",
       });
     }
@@ -99,7 +96,6 @@ export function keyPoints(input: {
             : discounted.length >= rows.length / 2 && rate !== null
               ? `상시 할인 ${rate}% 수준 검토`
               : "할인보다 구성·소구로 경쟁",
-        detail: `할인 중 ${discounted.length}/${rows.length} · 상위 ${TOP_N}위 중 행사 쿠폰 ${coupons.length}개`,
         tab: "supply",
       });
     }
@@ -124,7 +120,6 @@ export function keyPoints(input: {
           : leaderRows.length >= 3
             ? `${leader}의 가격·구성 방식 참고`
             : "특정 브랜드 쏠림이 약해 신규 진입 여지 있음",
-      detail: `Top ${TOP_N} 브랜드 ${byBrand.size}개 · K-뷰티 ${top.filter((r) => r.is_kbeauty).length}/${top.length}`,
       tab: "supply",
     });
   }
@@ -141,9 +136,6 @@ export function keyPoints(input: {
       return { ing, share: row?.share ?? null, excluded };
     });
     const ownBest = Math.max(0, ...ownShares.map((s) => s.share ?? 0));
-    const ownText = ownShares
-      .map((s) => `${koOf(s.ing)} ${s.share !== null ? `${s.share}%` : s.excluded ? "검색이 너무 적음" : "순위 밖"}`)
-      .join(", ");
     points.push({
       id: "ingredient",
       label: "성분",
@@ -159,7 +151,6 @@ export function keyPoints(input: {
           : ownBest < 10
             ? "우리 핵심 성분은 검색 관심이 낮음 → 성분명보다 고민·사용감으로 소구"
             : `「${koOf(ownShares.toSorted((a, b) => (b.share ?? 0) - (a.share ?? 0))[0].ing)}」을 상세페이지 앞쪽에`,
-      detail: ownShares.length > 0 ? `우리 핵심 성분: ${ownText}` : `상품명 언급 ${mentions.slice(0, 3).map((m) => `${m.ko} ${m.rows.length}개`).join(", ")}`,
       tab: "demand",
     });
   }
@@ -178,7 +169,6 @@ export function keyPoints(input: {
       label: "소비자 고민 언어",
       headline: picks.map(({ g, r }) => `${g.ko}: 「${g.seed} ${r.term}」${r.ko ? `(${r.ko})` : ""}`).join(" · "),
       action: "상세페이지·광고 문구에 이 말 그대로 넣기 (효능 표현은 약기법 검토 필요)",
-      detail: `구글 검색 추천어 · ${concern.latest} 수집${concern.prev ? ` (지난 수집 ${concern.prev})` : ""}`,
       tab: "demand",
     });
   }
@@ -197,7 +187,6 @@ export function keyPoints(input: {
           ? `AI가 경쟁 제품 추천 이유로 ${quote(missing)}를 많이 듦 · 우리 제품 정보엔 없음`
           : `${quote(weak)}는 우리 제품에도 있지만 AI가 우리와 연결하지 못함`,
       action: missing.length > 0 ? "사실이면 상세페이지·FAQ에 명시" : "일본어 상세페이지·FAQ에 이 표현을 그대로 추가",
-      detail: `경쟁 추천 문장 ${[...missing, ...weak].map((k) => `${k.keyword} ${k.competitor}`).join(", ")}`,
       tab: "action",
       sample: geoIsSample,
     });
