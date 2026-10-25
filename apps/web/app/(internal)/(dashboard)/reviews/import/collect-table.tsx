@@ -1,15 +1,14 @@
-// 수집 결과 표: ② 저장할 제품 고르기(체크) · ③ 저장 결과(이번에 저장한 리뷰).
-import { Check } from "lucide-react";
+// 수집 결과 표(제품 고르기)와 "자동으로 뺀 제품" 목록.
+import type { CollectionRowView, CollectionView } from "@/lib/data/collection";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { CollectionRowView } from "@/lib/data/collection";
-import { cn } from "@/lib/utils";
-import { LOW_REVIEW_FLOOR, looksOptioned, n } from "./collect-options";
+import { LOW_REVIEW_FLOOR, looksOptioned, skipReasonLabel, TEXT, unfit } from "./collect-options";
+import { n, StateCell } from "./collect-parts";
 
-function hintOf(r: CollectionRowView, starLabel: string) {
-  if (r.failed) return r.note ?? "리뷰 페이지를 열지 못했어요";
+function hintOf(r: CollectionRowView) {
+  if (r.failed) return null;
   if (r.isSet) return "세트 상품이라 비교에 맞지 않아요";
-  if ((r.lowCount ?? 0) < LOW_REVIEW_FLOOR) return `${starLabel} 리뷰가 ${n(r.lowCount ?? 0)}건뿐이라 비교하기 어려워요`;
-  if (looksOptioned(r.name)) return "옵션 상품이에요. 한 종류만 있는지 확인하고 골라 주세요";
+  if ((r.lowCount ?? 0) < LOW_REVIEW_FLOOR) return "불만 리뷰가 거의 없어요";
+  if (looksOptioned(r.name)) return "옵션·시리즈 상품이에요. 한 종류만 있는지 확인하고 선택해 주세요";
   return null;
 }
 
@@ -17,7 +16,6 @@ export function ResultTable({
   rows,
   selected,
   platformLabel,
-  starLabel,
   saved,
   busy,
   onToggle,
@@ -26,8 +24,6 @@ export function ResultTable({
   rows: CollectionRowView[];
   selected: Set<string>;
   platformLabel: string;
-  /** 요청한 별점 (예: 3점, 1·2점) */
-  starLabel: string;
   saved: boolean;
   busy: boolean;
   onToggle: (id: string) => void;
@@ -35,49 +31,43 @@ export function ResultTable({
 }) {
   const allSelected = rows.length > 0 && selected.size === rows.length;
   return (
-    <div className="overflow-auto rounded-lg border">
+    <div className="max-h-[28rem] overflow-auto rounded-lg border">
       <Table>
         <TableHeader>
-          <TableRow className="bg-muted/40">
+          <TableRow>
             <TableHead className="w-10">
-              {!saved && <input type="checkbox" className="size-4 accent-primary" aria-label="전체 선택" checked={allSelected} disabled={busy} onChange={onToggleAll} />}
+              <input type="checkbox" className="size-4 accent-primary" aria-label={TEXT.selectAll} checked={allSelected} disabled={busy || saved} onChange={onToggleAll} />
             </TableHead>
-            <TableHead className="w-14">순위</TableHead>
-            <TableHead>경쟁 제품</TableHead>
-            <TableHead>{platformLabel} 리뷰</TableHead>
-            <TableHead>{saved ? "이번에 저장한 리뷰" : "새로 저장할 리뷰"}</TableHead>
-            <TableHead>이미 저장된 리뷰</TableHead>
+            <TableHead className="w-14">{TEXT.rankCol}</TableHead>
+            <TableHead>{TEXT.productCol}</TableHead>
+            <TableHead>
+              {platformLabel}에 있는 리뷰
+              <span className="block text-xs font-normal text-muted-foreground">{TEXT.siteCountNote}</span>
+            </TableHead>
+            <TableHead>{TEXT.stateCol}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((r) => {
-            const savedNow = r.savedNow ?? 0;
-            const dim = r.failed || (r.lowCount ?? 0) < LOW_REVIEW_FLOOR || (saved && savedNow === 0);
-            const check = !saved && !r.failed && looksOptioned(r.name);
-            const hint = saved ? null : hintOf(r, starLabel);
+            const hint = hintOf(r);
             return (
-              <TableRow key={r.id} className={cn("align-top", dim && "text-muted-foreground")}>
+              <TableRow key={r.id} className={unfit(r) ? "text-muted-foreground" : undefined}>
                 <TableCell>
-                  {saved ? (
-                    savedNow > 0 && <Check className="size-4 text-status-approved" strokeWidth={3} aria-label="저장함" />
-                  ) : (
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-primary"
-                      aria-label={`${r.rank}위 선택`}
-                      checked={selected.has(r.id)}
-                      disabled={busy || r.failed}
-                      onChange={() => onToggle(r.id)}
-                    />
-                  )}
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    aria-label={`${r.rank}위 선택`}
+                    checked={selected.has(r.id)}
+                    disabled={busy || saved || r.failed}
+                    onChange={() => onToggle(r.id)}
+                  />
                 </TableCell>
-                <TableCell>{r.rank}</TableCell>
+                <TableCell className="font-medium">{r.rank}</TableCell>
                 <TableCell className="whitespace-normal">
                   <span lang="ja">
                     {r.brand} {r.name}
                   </span>
-                  {check && <span className="ml-1.5 rounded border border-status-pending/60 px-1.5 text-xs text-status-pending">확인 필요</span>}
-                  {hint && <p className={cn("mt-0.5 text-xs", check ? "text-status-pending" : "text-muted-foreground")}>{hint}</p>}
+                  {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
                 </TableCell>
                 <TableCell className="whitespace-normal">
                   <p className="tabular-nums">{r.siteCount === null ? "—" : `${n(r.siteCount)}건`}</p>
@@ -85,23 +75,38 @@ export function ResultTable({
                     {r.stars.map((x) => (x.read === null ? `${x.star}점 —` : `${x.star}점 ${n(x.read)}건${x.exhausted === false ? " 이상" : ""}`)).join(" · ")}
                   </p>
                 </TableCell>
-                <TableCell className="tabular-nums">
-                  {saved ? (
-                    savedNow > 0 ? <b className="text-status-approved">+{n(savedNow)}건</b> : "—"
-                  ) : r.failed ? (
-                    "읽지 못함"
-                  ) : r.newCount === 0 ? (
-                    <span className="text-muted-foreground">없음 · 모두 저장됨</span>
-                  ) : (
-                    <b>{n(r.newCount)}건</b>
-                  )}
+                <TableCell className="whitespace-normal">
+                  <StateCell row={r} saved={saved} />
                 </TableCell>
-                <TableCell className="tabular-nums">{r.savedCount > 0 ? `${n(r.savedCount)}건` : "—"}</TableCell>
               </TableRow>
             );
           })}
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+/** 수집기가 비교 대상이 아니라고 자동으로 뺀 제품. 리뷰는 읽지 않았고 보기만 가능하다 */
+export function SkippedList({ skipped, category }: { skipped: CollectionView["skipped"]; category: string }) {
+  if (skipped.length === 0) return null;
+  return (
+    <details className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <summary className="cursor-pointer font-medium text-foreground">자동으로 뺀 제품 {skipped.length}개 (비교에 맞지 않아 리뷰를 읽지 않았어요)</summary>
+      <ul className="mt-2 space-y-1">
+        {skipped.map((s) => (
+          <li key={s.id} className="flex gap-2">
+            <span className="w-8 shrink-0 tabular-nums">{s.rank}위</span>
+            <span className="min-w-0 flex-1">
+              <span lang="ja" className="break-words">
+                {s.brand} {s.name}
+              </span>
+              <span className="block">{skipReasonLabel(s.reason, category)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2">제목을 보고 거른 것이라 잘못 뺀 제품이 있을 수 있어요. 이 목록은 보기만 가능해요.</p>
+    </details>
   );
 }

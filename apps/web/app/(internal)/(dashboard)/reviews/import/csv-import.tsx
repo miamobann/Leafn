@@ -2,7 +2,9 @@
 
 // 경쟁 제품 리뷰 CSV를 브라우저에서만 읽어 열 연결 · 검증 · 미리보기를 보여준다 (prototype-plan P4). 저장하지 않는다.
 // 플랫폼과 제품은 CSV가 아니라 화면에서 고른다. 언어는 일본어, 평점은 1~5점으로 고정한다.
+import Papa from "papaparse";
 import { useMemo, useState } from "react";
+import type { z } from "zod";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +14,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { autoMapping, type CheckedRow, checkRows, FIELDS, type FieldKey, type Mapping, missingFields, type Parsed, readCsv } from "./csv-columns";
+import { ReviewCsvRow } from "@/lib/schemas/review";
 import { IMPORT_PLATFORMS as PLATFORMS } from "./import-platforms";
 
 const TEXT = {
@@ -37,6 +39,8 @@ const TEXT = {
   missingRequired: "필수 열을 모두 연결하면 미리보기가 보여요",
   empty: "파일을 올리면 미리보기가 보여요",
   emptyAction: "샘플: lib/mock/samples/reviews-ja-sample.csv",
+  parseFailed: "CSV를 읽지 못했어요",
+  noRows: "CSV에 데이터 행이 없어요",
   previewTitle: "미리보기",
   onlyErrors: "오류만 보기",
   showAll: "전체 보기",
@@ -54,10 +58,34 @@ const BATCH_SIZE = 50; // CLAUDE.md 0장: 리뷰 분석은 50건 묶음
 const PREVIEW_LIMIT = 50;
 const NEW_PRODUCT = "__new__";
 
+// aliases: 영업팀 등 외부에서 받은 CSV의 열 이름 후보 (소문자로 비교)
+const FIELDS = [
+  { key: "rating", label: "평점", required: true, aliases: ["평점", "評価", "評点", "rating"] },
+  { key: "body", label: "본문", required: true, aliases: ["본문", "本文", "口コミ", "レビュー", "review", "comment"] },
+  { key: "posted_date", label: "작성일", required: true, aliases: ["작성일", "投稿日", "日付", "date"] },
+  { key: "skin_type", label: "피부타입", required: false, aliases: ["피부타입", "肌質", "肌タイプ", "skin_type"] },
+  { key: "age_group", label: "연령대", required: false, aliases: ["연령대", "年代", "年齢", "age"] },
+] as const;
+type FieldKey = (typeof FIELDS)[number]["key"];
+type Mapping = Record<FieldKey, string>; // 값은 CSV 열 이름, ""는 연결 안 함
+
+// 제품은 화면에서 고르므로 CSV 한 줄에는 상품명이 없다
+const RowSchema = ReviewCsvRow.omit({ product_name: true });
+type Row = z.infer<typeof RowSchema>;
+
 type ProductOption = { id: string; name: string; brand: string; kind: "own" | "competitor"; platform: string };
+type Parsed = { fileName: string; headers: string[]; rows: Record<string, string>[] };
+type CheckedRow =
+  | { line: number; ok: true; data: Row }
+  | { line: number; ok: false; raw: Record<FieldKey, string>; issues: string[] };
 
 // 단일 계열 막대: dataviz 기본 팔레트 1번
 const chartConfig = { count: { label: "리뷰 수", color: "#2a78d6" } } satisfies ChartConfig;
+
+function autoMapping(headers: string[]): Mapping {
+  const pick = (aliases: readonly string[]) => headers.find((h) => aliases.includes(h.toLowerCase())) ?? "";
+  return Object.fromEntries(FIELDS.map((f) => [f.key, pick(f.aliases)])) as Mapping;
+}
 
 function countBy(values: string[], order?: string[]) {
   const counts = new Map<string, number>();
@@ -97,19 +125,42 @@ export function CsvImport({ products }: { products: ProductOption[] }) {
     setMapping(null);
     setOnlyErrors(false);
     if (!file) return;
-    readCsv(file, (res) => {
-      if (!res.ok) {
-        setError(res.message);
-        return;
-      }
-      setParsed(res.parsed);
-      setMapping(autoMapping(res.parsed.headers));
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: "greedy",
+      // 엑셀에서 저장한 CSV는 첫 열 이름 앞에 BOM이 붙는다
+      transformHeader: (h) => h.replace(/^\uFEFF/, "").trim(),
+      complete: (result) => {
+        const headers = result.meta.fields ?? [];
+        if (result.data.length === 0) {
+          setError(TEXT.noRows);
+          return;
+        }
+        setParsed({ fileName: file.name, headers, rows: result.data });
+        setMapping(autoMapping(headers));
+      },
+      error: (err) => setError(`${TEXT.parseFailed}: ${err.message}`),
     });
   }
 
-  const missingRequired = mapping ? missingFields(mapping) : [];
+  const missingRequired = mapping ? FIELDS.filter((f) => f.required && !mapping[f.key]) : [];
 
-  const checked = useMemo<CheckedRow[]>(() => (parsed && mapping ? checkRows(parsed, mapping) : []), [parsed, mapping]);
+  const checked = useMemo<CheckedRow[]>(() => {
+    if (!parsed || !mapping || FIELDS.some((f) => f.required && !mapping[f.key])) return [];
+    return parsed.rows.map((row, i) => {
+      const raw = Object.fromEntries(
+        FIELDS.map((f) => [f.key, mapping[f.key] ? (row[mapping[f.key]] ?? "") : ""]),
+      ) as Record<FieldKey, string>;
+      const line = i + 2; // 1번 줄은 열 이름
+      const result = RowSchema.safeParse({
+        ...raw,
+        skin_type: raw.skin_type || undefined,
+        age_group: raw.age_group || undefined,
+      });
+      if (!result.success) return { line, ok: false, raw, issues: result.error.issues.map((x) => x.message) };
+      return { line, ok: true, data: result.data };
+    });
+  }, [parsed, mapping]);
 
   const valid = checked.flatMap((r) => (r.ok ? [r.data] : []));
   const errorCount = checked.length - valid.length;

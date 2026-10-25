@@ -12,9 +12,9 @@ export const STAR_OPTIONS = [1, 2, 3] as const;
 export const DEFAULT_STARS: number[] = [3];
 /** 별점마다 "새로" 가져올 건수. 이미 저장한 리뷰는 건너뛰고 그다음 최신 리뷰부터 이만큼 모은다 */
 export const REVIEW_LIMITS = [
-  { value: 20, label: "20건" },
-  { value: 50, label: "50건" },
-  { value: 100, label: "100건" },
+  { value: 20, label: "새로 20건" },
+  { value: 50, label: "새로 50건" },
+  { value: 100, label: "새로 100건" },
 ] as const;
 
 /** 체크한 별점의 리뷰가 이보다 적은 제품은 비교하기에 부족하다고 안내하고, 처음에는 선택하지 않는다 */
@@ -23,7 +23,6 @@ export const LOW_REVIEW_FLOOR = 10;
 /**
  * 수집기가 비교 대상이 아니라고 자동으로 뺀 이유 (sources/qoo10.py classify_listing).
  * not_toner라는 저장 값은 "수집 카테고리의 대상 종류가 아님"이라는 뜻이라, 에센스에서는 "에센스가 아닌 제품"으로 보여 준다.
- * (뺀 제품 목록은 2026-10-24 목업에서 화면에서 뺐다. 다시 보여 줄 때 쓴다)
  */
 const TARGET_NAME: Record<string, string> = { toner: "화장수", serum: "에센스" };
 export function skipReasonLabel(reason: "set" | "multi_type" | "not_toner", category: string): string {
@@ -59,26 +58,37 @@ export function needsSave(r: CollectionRowView) {
   return !unfit(r) && r.newCount > 0;
 }
 
-export const n = (value: number) => value.toLocaleString("en-US");
-
-/** 화면에 보여주는 조건 한 줄 (예: Qoo10 · 化粧水 · 리뷰 많은 순 상위 10개 · 3점 리뷰 · 별점마다 새로 20건) */
-export function conditionText(form: CollectForm, platformLabel: string) {
-  const category = CATEGORIES.find((c) => c.id === form.categoryId)?.label.split(" ")[0] ?? form.categoryId;
-  const stars = form.stars.length > 0 ? `${form.stars.toSorted((a, b) => a - b).join("·")}점 리뷰` : "별점 고르기 전";
-  return `${platformLabel} · ${category} · 리뷰 많은 순 상위 ${form.topN}개 · ${stars} · 별점마다 새로 ${form.limit}건`;
-}
+/** 수집기(일꾼)를 켜는 명령. 요청이 한참 대기 상태이면 화면이 안내한다 */
+export const WORKER_COMMAND = "python -m collectors.collect_to_db --worker";
 
 export const TEXT = {
+  title: "경쟁 제품 리뷰 가져오기",
+  intro: "우리 제품과 비교할 경쟁 제품을 찾고, 그 제품들의 리뷰를 저장해요.",
+  project: "우리 제품",
+  platform: "플랫폼",
+  category: "제품 종류",
+  topN: "경쟁 제품 수",
+  stars: "가져올 별점",
+  limit: "별점마다",
+  find: "경쟁 제품 불러오기",
+  finding: "요청 보내는 중…",
+  again: "다른 조건으로 다시 불러오기",
+  findHint: "리뷰가 많은 제품부터 목록을 불러와요. 이 단계에서는 아무것도 저장되지 않아요.",
+  emptyHint: "조건을 고르고 “경쟁 제품 불러오기”를 눌러 주세요",
+  rankCol: "순위",
+  productCol: "제품",
+  stateCol: "DB에 저장된 리뷰",
+  selectAll: "전체 선택",
+  siteCountNote: "사이트 표시 기준",
+  save: (n: number) => `선택한 ${n}개 제품의 리뷰 저장`,
+  saving: "저장 중…",
+  reportLink: "리뷰 리포트에서 보기",
   noProjects: "우리 제품이 DB에 없어요. 로그인한 워크스페이스에 자사 제품(products, kind = own)을 먼저 넣어 주세요.",
 } as const;
 
-export const STEPS = [
-  ["찾을 조건 정하기", "어느 플랫폼에서, 어떤 경쟁 제품의 어떤 리뷰를 찾을지 골라요"],
-  ["저장할 제품 고르기", "찾은 경쟁 제품 중 리뷰를 저장할 제품에 체크해요"],
-  ["저장 끝 · 리포트 보기", "저장한 리뷰로 리포트와 소구점을 확인해요"],
-] as const;
+export const STEPS = ["조건 고르기", "경쟁 제품 고르기", "리뷰 저장"] as const;
 
 export const METHOD: Record<string, string> = {
-  qoo10: "Qoo10 구매자 리뷰를 낮은 별점순으로 읽어요. 체험 후기는 없어요. 화장수(化粧水)와 에센스(美容液)를 가져올 수 있어요.",
+  qoo10: "Qoo10 구매자 리뷰를 낮은 별점순으로 읽어요. 체험 후기(샘플 이벤트)는 이 목록에 없어요. 화장수(化粧水)와 에센스(美容液)를 가져올 수 있어요.",
   rakuten: "라쿠텐 가져오기는 기능 준비 중이에요. 지금은 Qoo10을 골라 주세요.",
 };
