@@ -45,7 +45,7 @@
 - 자사 제품명은 `lib/own-products.ts`, 규격은 `lib/own-product-specs.ts` 상수만 쓴다. 이름을 새로 지어 적지 않는다.
 
 **보안**
-- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`는 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`, `APIFY_TOKEN`은 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
 - 키, `.env` 파일, 실제 리뷰 원문 대량 데이터를 커밋하지 않는다.
 
 **Git** (자세한 약속은 `docs/CODING_RULES.md` 1~3장)
@@ -121,6 +121,7 @@
 | DB/인증/파일 | Supabase (PostgreSQL, Auth, Storage, RLS) | 모든 데이터, 로그인, CSV/이미지 보관 |
 | 수집 | Python 수집기 (`collectors/sources/qoo10.py`, `collect_to_db.py`) | Qoo10 랭킹·리뷰 수집 후 Supabase 저장 |
 | 외부 API | SerpApi (Google 자동완성 · Google Trends) | 성분 관심도 "미래 트렌드" (B 확장). 2026-10-23 총괄 허용. SDK 없이 서버에서 `fetch` |
+| 외부 API | Apify (TikTok Scraper, `clockworks/tiktok-scraper`) | SNS 영상 링크 → 캡션·해시태그·조회수·발화 자막 (B 확장, 소비자 트렌드 2-B). 2026-10-25 총괄 허용. SDK 없이 서버에서 `fetch`, 실행당 비용 상한 $0.50 |
 | 배포 | Vercel (Hobby, 하루 빌드 수 한도) | 배포 브랜치는 `Leafn_main`. `sub_main` 머지는 모아서 반영한다 |
 | CI | GitHub Actions (`.github/workflows/ci.yml`, 검사 이름 `web`) | PR마다 typecheck · lint · build |
 
@@ -177,14 +178,14 @@
          │  인증 확인 · 입력 검증(Zod) · SerpApi 호출
                        ↓
       AI: OpenAI API (기본) 또는 Anthropic API  (lib/ai/callAi)
-         │  약기법 검토 · 리뷰 분석 · 번역 · GEO 측정 · SNS 패턴 · (다음) 통합 AI 분석
+         │  약기법 검토 · 리뷰 분석 · 번역 · GEO 측정 · SNS 핵심 니즈 · (다음) 통합 AI 분석
          │  (약기법 기준 문서는 프롬프트에 포함)
                        ↓
       Database: Supabase PostgreSQL + Storage  ←──────┐
                                                       │
               Python 수집기 (사람이 실행, --worker 모드)
                        ↑
-      External: Qoo10 (랭킹·리뷰) · Google 자동완성·Trends (SerpApi) · AI 검색 응답(GEO)
+      External: Qoo10 (랭킹·리뷰) · Google 자동완성·Trends (SerpApi) · TikTok 영상 정보 (Apify) · AI 검색 응답(GEO)
                 (확장용: 라쿠텐 · @cosme · 국내 플랫폼)
 ```
 
@@ -277,7 +278,7 @@
 | `PATCH /api/ad-check/[checkId]` | 담당자 승인·반려 저장 (owner만, RLS와 서버 양쪽에서 확인) | - |
 | `POST /api/content-guide` | 콘텐츠 제작 가이드(제목·본문) 생성 + 금지 표현 검사(`lint_hits`) → `content_guides` 저장 | 정밀·대량 |
 | `POST /api/geo/run` | AI 검색 응답 측정 → `geo_snapshots` | 측정 엔진은 `GEO_MODEL_*`, 키워드 추출은 대량 |
-| `POST /api/market/sns-patterns` | SNS 영상 메모의 공통 패턴 분석 | 대량 |
+| `POST /api/market/sns-trends` | TikTok 영상 링크 → Apify로 캡션·해시태그·발화 자막 → 소비자 핵심 니즈 순위 (저장하지 않음) | 대량 |
 | `POST /api/trends/autocomplete`, `POST /api/trends/search-interest` | SerpApi Google 자동완성·Trends (키는 서버에만) → `search_snapshots` | - |
 
 **Server Action (`lib/data/*-actions.ts`)**: 리뷰 CSV 저장(`review-import-actions`), 리뷰 묶음 분석·번역(`review-analysis-actions`), 수집 요청(`collection-actions`), 캘린더 쓰기(`launch-actions`, 아직 저장하지 않음), 프로젝트·제품 관리(`projects`).
@@ -349,6 +350,7 @@
 | `SUPABASE_SERVICE_ROLE_KEY` | collectors, 서버 전용 작업 | RLS 우회 키. 절대 브라우저/커밋 금지 |
 | `RAKUTEN_APPLICATION_ID` | (확장용) | 데모에서는 쓰지 않는다. 라쿠텐을 연동할 때 서버 전용으로 |
 | `SERPAPI_API_KEY` | web 서버 | 브라우저 노출 금지. 유료 호출이라 수집 버튼·예약 실행에서만 부른다 |
+| `APIFY_TOKEN` | web 서버 | 브라우저 노출 금지. 유료 호출이라 SNS [분석 시작] 버튼에서만 부른다 |
 | `GEO_MODEL_CHATGPT`, `GEO_MODEL_CLAUDE`, `GEO_REPEAT_COUNT` | web 서버 | 선택. GEO가 측정하는 엔진의 모델과 반복 횟수(1~3). 키는 `OPENAI_API_KEY`·`ANTHROPIC_API_KEY`를 쓴다 |
 
 키는 Vercel 환경 변수와 GitHub Actions Secrets에만 넣는다. `.env*`는 `.gitignore`에 포함.
@@ -363,7 +365,7 @@
 - [x] **2. 리뷰 분석 (E, D):** `products`/`reviews`, Qoo10 수집기와 수집 요청 화면, CSV 저장, AI 묶음 분석·번역, 리포트·소구점
 - [x] **3. 약기법 검토 (A):** 기준 자료, 프롬프트 v6, `/api/ad-check`, 자동 저장·owner 승인, 검토 이력, 콘텐츠 제작 가이드
 - [x] **4. 경쟁제품 비교 (C):** Qoo10 수집으로 경쟁 제품 등록, 자사-경쟁 연결, 비교 탭
-- [x] **5. 시장 트렌드 (B, GEO):** Qoo10 랭킹 CSV, 검색 자동완성·Trends, GEO, SNS 공통 패턴, 탭 구성의 시장 분석
+- [x] **5. 시장 트렌드 (B, GEO):** Qoo10 랭킹 CSV, 검색 자동완성·Trends, GEO, SNS 핵심 니즈(Apify), 탭 구성의 시장 분석
 - [x] 홈: 탭 요약 카드·할 일·프로모션 캘린더 (진출 실행 탭 제거)
 
 **다음 (데모 범위, `docs/team-approval-ai-analysis.md` 7장 순서, 단계마다 PR 하나)**

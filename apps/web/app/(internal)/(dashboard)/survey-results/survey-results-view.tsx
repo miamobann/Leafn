@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition, type ReactNode } from "react";
 import { BarList } from "@/components/templates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +54,17 @@ export function SurveyResultsView({
 }) {
   const [tab, setTab] = useState<Tab>("summary");
   const [copied, setCopied] = useState<string | null>(null);
+  const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+
+  // 서버에서 집계를 다시 읽는다 (새로 들어온 응답 반영). 탭 · 복사 상태는 그대로 둔다
+  function refresh() {
+    startRefresh(() => {
+      router.refresh();
+      setRefreshedAt(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }));
+    });
+  }
 
   const concernKeys = questions.find((q) => q.id === "concerns")?.options.map((o) => o.value) ?? Object.keys(CONCERN_KO);
   const concernTotals = totalsOf(summary, concernKeys);
@@ -88,22 +101,31 @@ export function SurveyResultsView({
 
   return (
     <div className="space-y-6">
-      <div role="tablist" className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "min-h-9 rounded-md px-4 text-sm",
-              tab === t.key ? "bg-background font-semibold shadow-sm" : "text-muted-foreground",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div role="tablist" className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              className={cn(
+                "min-h-9 rounded-md px-4 text-sm",
+                tab === t.key ? "bg-background font-semibold shadow-sm" : "text-muted-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          {refreshedAt && <span className="text-xs text-muted-foreground">{refreshedAt} 갱신</span>}
+          <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={cn("size-4", refreshing && "animate-spin")} aria-hidden />
+            {refreshing ? "불러오는 중" : "새로고침"}
+          </Button>
+        </div>
       </div>
 
       {tab === "summary" && (
