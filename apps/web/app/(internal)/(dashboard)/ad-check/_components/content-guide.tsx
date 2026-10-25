@@ -15,12 +15,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  fillProduct,
   GUIDE_CHANNELS,
   HASHTAG_GROUPS,
   IG_HASHTAG_LIMIT,
   IG_MAX_SLIDES,
-  keywordToHashtag,
   POST_TYPES,
   SNS_ACCOUNTS,
   X_CHAR_LIMIT,
@@ -37,6 +35,7 @@ import type { LabProduct } from "../_lib/products";
 import { type ContentGuideInput, GuideBodyResult, type GuideTitle, GuideTitlesResult } from "@/lib/schemas/content-guide";
 import { buildCutList, PHOTO_DONTS, PHOTO_RULES } from "../_lib/photo-guide";
 import { type BlockWarnings, buildWarnings } from "../_lib/guide-warnings";
+import { isEssence, makeFill, pickHashtags, visibleBlocks } from "../_lib/guide-report";
 import { ContentGuideReport, memoLocation, type ReportAuthor } from "./content-guide-report";
 
 const LABEL = "mb-1 block text-sm font-medium";
@@ -45,8 +44,6 @@ const SELECT = "h-9 w-full rounded-md border border-input bg-transparent px-3 te
 // 좌(제목)·우(미리보기) 칸의 세로 길이를 같게 둔다. 내용이 길면 칸 안에서 스크롤한다
 const PANEL_HEIGHT = "h-[32rem]";
 const RECOMMENDED = "rounded px-1.5 text-xs bg-risk-low/15 text-risk-low";
-/** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
-const KEYWORD_TAGS = 1;
 /** 강조할 방향 글자 수 제한 (AI에 방향 참고로만 보낸다. 약기법이 항상 먼저) */
 const DIRECTION_MAX = 50;
 /** 강조할 방향 예시: 대화가 아니라 키워드로 쓰게 짧은 낱말로 둔다. 누르면 칸에 채워진다 */
@@ -80,6 +77,9 @@ export type SavedGuide = {
   direction: string;
   draft: GuideDraft;
   warnings: BlockWarnings;
+  /** PDF 바닥글에 적을 제작 정보 */
+  model: string;
+  promptVersion: string;
 };
 
 type Fill = (text: string) => string;
@@ -622,6 +622,10 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   /** 제목(draft) id → 저장된 가이드 id. 「이 문구로 새 검토」·「만든 가이드에서 보기」에 쓴다 (저장된 결과물은 그 id 그대로) */
   const [savedIds, setSavedIds] = useState<Record<string, string>>(saved ? { [saved.draft.id]: saved.draft.id } : {});
+  /** 제목(draft) id → 본문을 만든 모델·프롬프트 (PDF 바닥글) */
+  const [aiMeta, setAiMeta] = useState<Record<string, { model: string; promptVersion: string }>>(
+    saved ? { [saved.draft.id]: { model: saved.model, promptVersion: saved.promptVersion } } : {},
+  );
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -636,33 +640,17 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   const genKey = `${productId}|${channel}|${hasPostType ? postType : "-"}`;
   const generated = generatedKey === genKey;
   const current = generated ? list.find((d) => d.id === pickedId) : undefined;
-  const blocks = (current?.blocks ?? []).filter(
-    (b) =>
-      // 리뷰가 없는 제품(개발 중)은 리뷰 블록을 뺀다
-      (!b.needs_reviews || material.hasReviews) &&
-      // 인스타그램은 고른 장 수까지만 (1장 = 단일 게시물, 2~5장 = 여러 장)
-      (channel !== "instagram" || !b.key.startsWith("slide") || Number(b.key.slice(5)) <= slideCount),
-  );
-  const isEssence = product.line.includes("에센스") || product.line.includes("美容液");
-  const fill = (text: string) =>
-    fillProduct(text, product.name_ko, product.ingredients, { kind_ja: isEssence ? "美容液" : "化粧水", kind_ko: isEssence ? "에센스" : "스킨", volume: product.volume, product_ja: product.name_ja });
+  const blocks = visibleBlocks(current?.blocks ?? [], channel, slideCount, material.hasReviews);
+  const essence = isEssence(product);
+  const fill = makeFill(product);
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
   const detailBlocked = channel === "qoo10_detail" && product.launch_status === "developing";
 
   // 해시태그: 인스타그램은 시장 분석 검색어 상위 태그를 고민·트렌드에 덧붙인다 (X는 1~3개라 덧붙이지 않는다)
-  const keywordTags = channel === "instagram" ? material.keywords.slice(0, KEYWORD_TAGS).map(keywordToHashtag) : [];
-  // 인스타그램은 5개: 브랜드 1 + 성분·제형 1 + 고민·트렌드 2 + 검색어 1
-  const groups: Hashtags = !current
-    ? { brand: [], ingredient: [], trend: [] }
-    : channel === "instagram"
-      ? {
-          brand: current.hashtags.brand.slice(0, 2),
-          ingredient: current.hashtags.ingredient.slice(0, 1),
-          trend: [...new Set([...current.hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 3 - KEYWORD_TAGS), ...keywordTags])],
-        }
-      : current.hashtags;
-  const hashtags = [...groups.brand, ...groups.ingredient, ...groups.trend];
-  const category = isEssence ? "美容液" : "化粧水";
+  const { groups, keywordTags, list: hashtags } = current
+    ? pickHashtags(current.hashtags, channel, material.keywords)
+    : { groups: { brand: [], ingredient: [], trend: [] } as Hashtags, keywordTags: [] as string[], list: [] as string[] };
+  const category = essence ? "美容液" : "化粧水";
 
   /** AI 연결 전: 잠깐 기다렸다가 샘플을 보여 준다 */
   function wait(step: "titles" | "body", done: () => void) {
@@ -679,7 +667,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
       product: {
         name: product.name_ko,
         name_ja: product.name_ja,
-        kind: isEssence ? "에센스(美容液)" : "스킨(化粧水)",
+        kind: essence ? "에센스(美容液)" : "스킨(化粧水)",
         category: product.product_category,
         launch_status: product.launch_status,
         volume: product.volume,
@@ -750,6 +738,11 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
       setSaveNotice(json.checkSaved === false ? "결과물은 「만든 가이드」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
       setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
       setWarnings((w) => ({ ...w, [id]: blockWarnings }));
+      const meta = json.meta as { model?: unknown; promptVersion?: unknown } | undefined;
+      if (typeof meta?.model === "string" && typeof meta.promptVersion === "string") {
+        const m = { model: meta.model, promptVersion: `content-guide.${meta.promptVersion}` };
+        setAiMeta((all) => ({ ...all, [id]: m }));
+      }
       if (typeof json.id === "string") {
         const guideId = json.id;
         setSavedIds((m) => ({ ...m, [id]: guideId }));
@@ -1123,6 +1116,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
           fill={fill}
           cutList={withPhotoGuide ? buildCutList(channel, blocks, current.gallery) : null}
           direction={appliedDirection}
+          footerNote={aiMeta[current.id] ? `AI 제작 · ${aiMeta[current.id]!.model} · ${aiMeta[current.id]!.promptVersion}` : aiEnabled ? "AI 제작" : "샘플 결과 (AI 미연결)"}
         />
       )}
     </div>
