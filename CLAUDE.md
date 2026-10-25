@@ -84,7 +84,7 @@
 | 참조 | - | GEO (AI 검색의 브랜드 언급 추적) | 시장 분석 | 참조 | 연결됨 (`/api/geo/run`, `geo_snapshots`) |
 | 참조 | G | 피부타입 설문 (일본 소비자용 공개 모바일 웹) | 소비자 설문 | 참조 | 집계 화면은 DB를 읽음. 공개 설문 제출은 아직 보내지 않음 |
 | 참조 | H | 플랫폼별 강점 정리 | - | 참조 | 화면 없앰 (2026-10-24). `platform_notes` 테이블만 남음 |
-| 참조 | I | 메가와리/프로모션 캘린더 | 홈 | 참조 | 홈에 포함 (`/calendar`는 전체보기). 조회는 DB, 추가·마감 변경은 아직 저장하지 않음 |
+| 참조 | I | 메가와리/프로모션 캘린더 | 홈 | 참조 | 홈에 포함 (`/calendar`는 홈의 「일정 관리 →」). 행사·준비 마감 추가·수정·삭제와 완료 체크를 저장 (팀원 누구나, 2026-10-26). 고치기는 `/calendar`에서, 홈은 체크만 |
 | 다음 | L | 제품 × 탭 진행 표 (판매 중 제품 × 시장 분석·리뷰 분석·광고 검토·AI 분석) | 프로젝트 | 핵심 | 구현, 원격 DB 적용 대기. `/projects` 진행 표 (홈 현황판은 바꾸지 않기로 함, 2026-10-26 결정) |
 | 다음 | M | 탭별 시안 제출 · 버전 · 팀장 결재 | 각 탭 + 결재함 | 핵심 | 구현, 원격 DB 적용 대기. 리뷰 리포트 · 광고 검토 상세의 시안 패널, `/approvals`, 설정의 담당 탭 (`docs/team-approval-ai-analysis.md`) |
 | 다음 | N | AI 분석 (탭별 승인본을 모아 통합 분석, 팀 공유) | AI 분석 | 핵심 | 구현, 원격 DB 적용 대기. `/ai-analysis`, 프롬프트 `integrated-analysis.v1` (설계는 7장) |
@@ -285,7 +285,7 @@
 | `POST /api/market/sns-trends` | TikTok 영상 링크 → Apify로 캡션·해시태그·발화 자막 → 소비자 핵심 니즈 순위 (저장하지 않음) | 대량 |
 | `POST /api/trends/autocomplete`, `POST /api/trends/search-interest` | SerpApi Google 자동완성·Trends (키는 서버에만) → `search_snapshots` | - |
 
-**Server Action (`lib/data/*-actions.ts`)**: 리뷰 CSV 저장(`review-import-actions`), 리뷰 묶음 분석·번역(`review-analysis-actions`), 수집 요청(`collection-actions`), 캘린더 쓰기(`launch-actions`, 아직 저장하지 않음), 프로젝트·제품 관리(`projects`), 시안 저장·제출·결재·AI 분석 팀장 확인(`submission-actions`), 통합 AI 분석 실행(`ai-analysis-actions`), 설정의 담당 탭(`member-tab-actions`).
+**Server Action (`lib/data/*-actions.ts`)**: 리뷰 CSV 저장(`review-import-actions`), 리뷰 묶음 분석·번역(`review-analysis-actions`), 수집 요청(`collection-actions`), 캘린더 행사·준비 마감 추가·수정·삭제·완료 체크(`launch-actions`), 프로젝트·제품 관리(`projects`), 시안 저장·제출·결재·AI 분석 팀장 확인(`submission-actions`), 통합 AI 분석 실행(`ai-analysis-actions`), 설정의 담당 탭(`member-tab-actions`).
 
 **아직 없는 것:** 상품 정보 추출(`/api/products/extract`), 공개 설문 제출 저장, 리뷰 번역 저장(F). 결재·AI 분석은 Route Handler 없이 Server Action과 DB 함수(rpc: `submit_version`·`decide_version` 등)로 한다.
 
@@ -379,7 +379,7 @@
 - [x] **3단계 팀장 결재함 + 제품 × 탭 진행 표(L):** 버전 미리보기 결재, 판매 중 제품만의 진행 표 (`/projects`에 둔다. 홈의 8단계 현황판은 그대로, 2026-10-26 결정)
 - [x] **4단계 AI 분석(N):** 탭별 승인본 선택 → 실행 → 저장·공유·팀장 확인 라벨
 
-**그 밖에 남은 것:** 공개 설문 제출 저장(G), 캘린더 쓰기 저장(I), 리뷰 번역 저장(F), 시장 화면의 라쿠텐 스냅샷 정리(Qoo10만 원칙).
+**그 밖에 남은 것:** 공개 설문 제출 저장(G), 리뷰 번역 저장(F), 시장 화면의 라쿠텐 스냅샷 정리(Qoo10만 원칙).
 
 1~4단계는 PR 하나로 올린다 (2026-10-26). 마이그레이션 `20261025115007_team_approval.sql`은 머지 뒤 총괄이 원격 DB에 적용하고, 그 뒤 owner·member 두 계정으로 권한과 저장·결재 흐름을 확인한다.
 
