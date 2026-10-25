@@ -2,6 +2,7 @@
 // 공용 AdLineResult·AdFinding만 받으므로 리뷰 번역(P5)에서도 그대로 쓸 수 있다.
 import { LangBadge } from "@/components/common/badges";
 import type { AdFinding, AdLineResult } from "@/lib/schemas/ad-check";
+import { basisItems } from "../_lib/basis";
 import { ActionBadge } from "./ad-badges";
 import { HighlightedText } from "./highlighted-text";
 
@@ -106,7 +107,7 @@ export function LineResultCard({ line, findings, selectedSuggestion, onSelect }:
           <ul className="space-y-1 text-muted-foreground">
             {findings.map((f) => (
               <li key={f.text}>
-                「{f.text}」 {f.basis} · {f.basis_status ? BASIS_STATUS_LABEL[f.basis_status] : BASIS_STATUS_LABEL.needs_check}
+                「{f.text}」 {basisItems(f.basis).join(" / ")} · {f.basis_status ? BASIS_STATUS_LABEL[f.basis_status] : BASIS_STATUS_LABEL.needs_check}
               </li>
             ))}
           </ul>
