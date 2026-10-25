@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { PromoEventView } from "@/lib/data/launch";
 import { dDay } from "@/lib/format";
-import { type BoardDeadline, useOwnerFilter, useStageSelect } from "./project-board";
+import { type BoardDeadline, stageHref, useOwnerFilter, useStageSelect } from "./project-board";
 
 const TEXT = {
   next: "다음 행사",
@@ -40,15 +40,19 @@ type TodoItem = {
   dueDate: string;
   tag: keyof typeof TAG_STYLE;
   copy: boolean;
-  open: () => void;
+  /** 누르면: 이 화면에서 바로 연다(함수), 또는 다른 화면으로 간다(주소) */
+  open: (() => void) | string;
 };
+
+const ROW = "flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-muted";
 
 const monthDay = (date: string) => date.slice(5);
 const addDays = (date: string, days: number) => new Date(Date.parse(date) + days * 86_400_000).toISOString().slice(0, 10);
 
 /**
- * 홈 캘린더에서 아무 일정도 고르지 않았을 때 오른쪽 패널.
- * 현황판 마감과 행사 준비 마감을 마감 순 한 목록으로 모으고, 그 아래 검토 대기 문구를 둔다
+ * 홈 캘린더와 전체보기(/calendar)에서 아무 일정도 고르지 않았을 때 오른쪽 패널.
+ * 현황판 마감과 행사 준비 마감을 마감 순 한 목록으로 모으고, 그 아래 검토 대기 문구를 둔다.
+ * 전체보기에는 현황판이 없어서, 현황판 항목을 누르면 홈으로 가서 그 벽돌 상세를 연다
  */
 export function CalendarTodo({
   events,
@@ -80,7 +84,7 @@ export function CalendarTodo({
       dueDate: d.dueDate,
       tag: d.blocked ? ("blocked" as const) : ("board" as const),
       copy: false,
-      open: () => selectStage(d.projectId, d.stage),
+      open: selectStage ? () => selectStage(d.projectId, d.stage) : stageHref(d.projectId, d.stage),
     })),
     ...events.flatMap((e) =>
       e.milestones
@@ -129,13 +133,9 @@ export function CalendarTodo({
           <p className="text-muted-foreground">{TEXT.noTodo}</p>
         ) : (
           <ul className="space-y-0.5">
-            {todos.map((t) => (
-              <li key={t.key}>
-                <button
-                  type="button"
-                  onClick={t.open}
-                  className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-muted"
-                >
+            {todos.map((t) => {
+              const body = (
+                <>
                   <span
                     className={`min-w-11 shrink-0 rounded-full px-1.5 text-center text-xs font-semibold ${
                       t.dueDate < soon ? "bg-risk-high/10 text-risk-high" : "bg-muted"
@@ -151,9 +151,22 @@ export function CalendarTodo({
                   </span>
                   {t.copy && <span className="shrink-0 rounded border px-1 text-xs text-muted-foreground">{TEXT.copyTag}</span>}
                   <span className={`shrink-0 rounded px-1 text-xs ${TAG_STYLE[t.tag]}`}>{TEXT.tag[t.tag]}</span>
-                </button>
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={t.key}>
+                  {typeof t.open === "string" ? (
+                    <Link href={t.open} className={ROW}>
+                      {body}
+                    </Link>
+                  ) : (
+                    <button type="button" onClick={t.open} className={ROW}>
+                      {body}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
         {owner && <p className="mt-1.5 px-1.5 text-xs text-muted-foreground">{TEXT.hidden(boardDue.length - mine.length)}</p>}

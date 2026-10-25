@@ -128,6 +128,10 @@ function useSelection() {
   return value;
 }
 
+// 홈 밖(캘린더 전체보기)에서 벽돌 상세를 열 때 쓰는 주소: /?stage=<프로젝트 ID>.<단계>
+const STAGE_PARAM = "stage";
+export const stageHref = (projectId: string, stage: StageKey) => `/?${STAGE_PARAM}=${projectId}.${stage}`;
+
 /** 현황판과 상세, 캘린더 할 일 목록이 고른 벽돌과 담당자 필터를 함께 보도록 감싼다 */
 export function ProjectProgress({ children }: { children: React.ReactNode }) {
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -135,17 +139,24 @@ export function ProjectProgress({ children }: { children: React.ReactNode }) {
   const select = (projectId: string, stage: StageKey) =>
     setSelection((prev) => ({ projectId, stage, request: (prev?.request ?? 0) + 1 }));
 
+  // 주소에 ?stage= 가 있으면 들어오자마자 그 벽돌 상세를 연다
+  useEffect(() => {
+    const [projectId, stage] = new URLSearchParams(window.location.search).get(STAGE_PARAM)?.split(".") ?? [];
+    const key = StageKey.safeParse(stage);
+    if (projectId && key.success) setSelection({ projectId, stage: key.data, request: 1 });
+  }, []);
+
   return <SelectionContext.Provider value={{ selection, select, owner, setOwner }}>{children}</SelectionContext.Provider>;
 }
 
-/** 현황판 밖(캘린더 할 일 목록)에서 벽돌을 누른 것처럼 상세를 연다 */
+/** 현황판 밖(캘린더 할 일 목록)에서 벽돌을 누른 것처럼 상세를 연다. 홈이 아니면(현황판이 없으면) null */
 export function useStageSelect() {
-  return useSelection().select;
+  return useContext(SelectionContext)?.select ?? null;
 }
 
-/** 현황판에서 고른 담당자. 캘린더 할 일 목록도 같은 사람 것만 보인다 */
+/** 현황판에서 고른 담당자. 캘린더 할 일 목록도 같은 사람 것만 보인다. 홈이 아니면 null(전체) */
 export function useOwnerFilter() {
-  return useSelection().owner;
+  return useContext(SelectionContext)?.owner ?? null;
 }
 
 function StatusBrick({ status }: { status: StageStatus }) {
