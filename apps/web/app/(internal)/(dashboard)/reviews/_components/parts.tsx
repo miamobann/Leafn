@@ -141,7 +141,7 @@ const CUES: Record<AppealTopic, Record<ReviewHighlight["polarity"], string[]>> =
   },
   lasting_moisture: {
     positive: ["촉촉", "보습", "유지", "당김이 없", "오래가", "오래 가", "속건조", "수분", "편안", "しっとり", "保湿", "うるおい", "潤い", "続く"],
-    negative: ["건조", "당겨", "당김", "땅기", "乾燥", "物足りない", "つっぱ"],
+    negative: ["건조", "당겨", "당김", "땅기", "지속력이 아쉬", "날아가", "乾燥", "物足りない", "つっぱ"],
   },
   irritation: {
     positive: ["순하", "순해", "자극 없", "자극이 없", "低刺激", "しみない", "刺激がな"],
@@ -260,6 +260,26 @@ export function ReviewCard({
       <ReviewText review={review} marks={highlight ? { terms, polarity: highlight.polarity } : undefined} />
       {children}
     </article>
+  );
+}
+
+/** 근거 패널 위쪽 두 칸 전환 (회색 바탕에 고른 칸만 흰색). 칭찬 ↔ 불만처럼 같은 주제의 두 묶음을 오갈 때 쓴다 */
+export function SegmentTabs<K extends string>({ items, value, onChange }: { items: readonly (readonly [K, string])[]; value: K; onChange: (key: K) => void }) {
+  return (
+    <div role="tablist" className="grid gap-1 rounded-lg bg-muted p-1" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+      {items.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={value === key}
+          onClick={() => onChange(key)}
+          className={`rounded-md px-3 py-1.5 text-sm ${value === key ? "bg-background font-semibold shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }
 

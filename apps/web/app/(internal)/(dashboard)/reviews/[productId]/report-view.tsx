@@ -11,7 +11,7 @@ import type { ReviewProductView, ReviewWithAnalysis } from "@/lib/data/reviews";
 import { euroOf, yoOf } from "@/lib/korean";
 import { titleParts } from "@/lib/product-title";
 import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
-import { BackTitle, Chip, EvidencePanel, linkClass, Meter, ReviewCard, SortChips, sortReviews } from "../_components/parts";
+import { BackTitle, Chip, EvidencePanel, linkClass, Meter, ReviewCard, SegmentTabs, SortChips, sortReviews } from "../_components/parts";
 import {
   average,
   distribution,
@@ -75,7 +75,6 @@ export function ReportView({
   const selectedStat = selected && stats.find((s) => s.topic === selected.topic);
   const evidenceOf = (polarity: Polarity) => (selectedStat ? sortReviews(polarity === "positive" ? selectedStat.pos : selectedStat.neg, sort) : []);
   const shownPolarities: Polarity[] = !selected ? [] : selected.polarity === "all" ? ["positive", "negative"] : [selected.polarity];
-  const evidenceCount = shownPolarities.reduce((n, p) => n + evidenceOf(p).length, 0);
   const listHref = (topic: AppealTopic, polarity: Polarity) => `/reviews/${product.id}/list?topic=${topic}&polarity=${polarity}`;
   const pick = (topic: AppealTopic, polarity: Polarity | "all") => {
     setSelected({ topic, polarity });
@@ -399,14 +398,25 @@ export function ReportView({
               open={Boolean(selected && selectedStat)}
               picks={picks}
               onClose={() => setSelected(null)}
-              title={
-                !selected
-                  ? ""
-                  : selected.polarity === "all"
-                    ? `${APPEAL_TOPICS[selected.topic].name} · 칭찬 ${evidenceOf("positive").length}건 · 불만 ${evidenceOf("negative").length}건`
-                    : `${topicLabel(selected.topic, selected.polarity)} · ${evidenceCount}건`
-              }
+              title={selected ? APPEAL_TOPICS[selected.topic].name : ""}
             >
+              {selected && selectedStat && (
+                <>
+                  {/* 같은 주제의 칭찬과 불만을 오간다. 자사는 칭찬, 경쟁은 불만이 먼저 */}
+                  <SegmentTabs
+                    items={((tabs) => (isOwn ? tabs : [tabs[1], tabs[0], tabs[2]]))([
+                      ["positive", `칭찬 ${selectedStat.pos.length}`],
+                      ["negative", `불만 ${selectedStat.neg.length}`],
+                      ["all", `함께 ${selectedStat.pos.length + selectedStat.neg.length}`],
+                    ] as const)}
+                    value={selected.polarity}
+                    onChange={(polarity) => setSelected({ topic: selected.topic, polarity })}
+                  />
+                  {selected.polarity !== "all" && (
+                    <p className="text-xs text-muted-foreground">AI가 ‘{topicLabel(selected.topic, selected.polarity)}’(으)로 분류한 리뷰예요.</p>
+                  )}
+                </>
+              )}
               <SortChips value={sort} onChange={setSort} />
               {selected &&
                 shownPolarities.map((polarity) => {
