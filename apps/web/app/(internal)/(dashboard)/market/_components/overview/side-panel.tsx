@@ -20,7 +20,7 @@ export type PanelContent =
       kind: "quotes";
       title: string;
       description?: string;
-      quotes: { ja: string; ko?: string; note?: string }[];
+      quotes: { ja: string; ko?: string; note?: string; href?: string }[];
       footnote?: string;
       link?: { href: string; label: string };
       /** 원문 아래에 붙이는 관련 제품 목록 (예: Top 10에서 이 키워드를 쓴 제품) */
@@ -208,6 +208,11 @@ export function OverviewPanel({
               <p lang="ja">{q.ja}</p>
               {q.ko && <p className="mt-0.5 text-xs text-muted-foreground">{q.ko}</p>}
               {q.note && <p className="mt-1 text-xs text-muted-foreground">{q.note}</p>}
+              {q.href && (
+                <a href={q.href} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs underline underline-offset-4">
+                  원본 열기 ↗
+                </a>
+              )}
             </li>
           ))}
         </ul>

@@ -1,4 +1,4 @@
-// 시장 분석 원페이지 · PART 2 수요의 계산 (AI 없음). 모든 값은 근거 원문(자동완성 문구·영상 메모·AI 답변)과 함께 돌려준다.
+// 시장 분석 원페이지 · PART 2 소비자 트렌드의 계산 (AI 없음). 모든 값은 근거 원문(자동완성 문구·영상 메모·AI 답변)과 함께 돌려준다.
 import type { GeoEngine, GeoSnap } from "@/lib/schemas/geo";
 import type { SnsPattern, SnsPatternKind, SnsVideoNote } from "@/lib/schemas/market";
 import type { SearchSnap } from "@/lib/schemas/search";

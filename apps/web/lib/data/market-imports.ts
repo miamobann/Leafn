@@ -3,6 +3,7 @@
 // DB 연동(trend_snapshots)이 되면 이 파일 대신 DB에서 읽는다
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import Papa from "papaparse";
 import { parseQoo10RankingCsv } from "@/lib/external/qoo10-ranking-csv";
 import { TrendSnapshot } from "@/lib/schemas/trend";
 import { WORKSPACE_ID } from "@/lib/mock/helpers";
@@ -31,4 +32,16 @@ export function importedSnapshots(): TrendSnapshot[] {
       }),
     ];
   });
+}
+
+/** 마케터가 고른 SNS 영상 목록 (카테고리·링크·메모). 이 PC의 CSV가 있으면 읽고, 없으면 빈 목록 */
+const SNS_VIDEOS_FILE = "lib/mock/samples/sns-videos.csv";
+
+export type ImportedSnsVideo = { category: string; url: string; memo: string };
+
+export function importedSnsVideos(): ImportedSnsVideo[] {
+  const full = path.join(process.cwd(), SNS_VIDEOS_FILE);
+  if (!existsSync(full)) return [];
+  const { data } = Papa.parse<Record<string, string>>(readFileSync(full, "utf8").replace(/^﻿/, ""), { header: true, skipEmptyLines: true });
+  return data.flatMap((r) => (r.category && r.url ? [{ category: r.category.trim(), url: r.url.trim(), memo: (r.memo ?? "").trim() }] : []));
 }
