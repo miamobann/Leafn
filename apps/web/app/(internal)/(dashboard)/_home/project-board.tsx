@@ -61,7 +61,7 @@ const STAGES = {
   // 플랫폼별 강점 화면을 지워서(2026-10-24 진출 실행 탭 제거) 채널 화면이 없다. 생길 때까지 플랫폼 행사가 있는 캘린더로 임시 연결 (2026-10-25)
   channel: { short: "채널", hint: "팔고 알릴 플랫폼을 정해요", label: "채널 선택", href: "/calendar", screen: "프로모션 캘린더" },
   promotion: { short: "행사", hint: "플랫폼 행사와 자사 캠페인을 준비해요", label: "프로모션 실행", href: "/calendar", screen: "프로모션 캘린더" },
-  post_launch: { short: "출시 후 점검", hint: "출시 뒤 리뷰로 반응을 점검해요", label: "출시 후 점검", href: "/reviews", screen: "리뷰 리포트" },
+  post_launch: { short: "점검", hint: "출시 뒤 리뷰로 반응을 점검해요", label: "점검", href: "/reviews", screen: "리뷰 리포트" },
 } satisfies Record<StageKey, { short: string; hint: string; label: string; href: string; screen: string }>;
 
 // 색만으로 구분하지 않고 아이콘을 함께 쓴다. 단계 상태 전용 색 토큰이 아직 없어 globals.css의 기존 토큰을 빌려 쓴다
