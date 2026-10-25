@@ -912,7 +912,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>1. 제목 고르기</CardTitle>
+                {/* 저장된 결과물은 이미 고른 제목이라 「추천 제목」으로 보여 준다 */}
+                <CardTitle>{saved ? "1. 추천 제목" : "1. 제목 고르기"}</CardTitle>
               </CardHeader>
               <CardContent className={`${PANEL_HEIGHT} overflow-y-auto`}>
                 <ol className="space-y-2">
