@@ -17,7 +17,7 @@
 | 콘텐츠 가이드 제목 | 고른 제목 하나만 저장한다. AI가 낸 후보 제목은 저장하지 않는다 | TAB 3 |
 | 검사 저장 실패 | 결과물은 저장하고 화면에 "검사 기록 저장 실패" 안내만 띄운다 | TAB 3 (2026-10-25) |
 | 콘텐츠 가이드 검사 승인 | 승인 대상이 아니다. 검토 상세에서 보기만 한다 | TAB 3 (2026-10-25) |
-| 콘텐츠 가이드 검사 | `ad_checks.source = 'content_guide'`로 저장. 검토 이력은 기본으로 직접 검토(`manual`)만, 필터로 콘텐츠 가이드 검사도 본다 | TAB 3 |
+| 콘텐츠 문구 자동 검사 | `ad_checks.source = 'content_guide'`로 저장. 검토 이력에는 보이지 않고 「만든 콘텐츠」의 약기법 칸·상세에서 본다 | TAB 3 (2026-10-25) |
 | AI 사용량(토큰) | 저장하지 않는다. 필요해지면 새 마이그레이션으로 추가 | TAB 3 |
 | 승인·수정·삭제 권한 | owner(팀장)만. 저장(insert)은 멤버 누구나 | 총괄 (2026-10-24, harden 마이그레이션) |
 
@@ -90,7 +90,7 @@ workspaces ─┬─ ad_checks ──┬── ad_check_lines      (검토를 �
 
 ## 5. 화면 연결 (2026-10-25)
 
-- 새 검토: 판정하면 `ad_checks` + `ad_check_lines` 자동 저장 (총괄). 검토 이력에 출처 필터(직접 검토 / 콘텐츠 가이드 검사)와 owner 삭제(숨김) 버튼
+- 새 검토: 판정하면 `ad_checks` + `ad_check_lines` 자동 저장 (총괄). 검토 이력은 직접 검토만 보여 주고 owner 삭제(숨김) 버튼. 콘텐츠 문구 자동 검사는 「만든 콘텐츠」에서만 본다 (2026-10-25 결정)
 - 콘텐츠 가이드: 만들면 검사(`ad_checks`, source=content_guide, 블록마다 한 줄 + block_key)와 `content_guides`(ad_check_id로 연결) 자동 저장
 - 「만든 콘텐츠」 탭 `/ad-check/guide/history`: 검토 이력과 같은 표, owner 삭제 버튼. 줄을 누르면 `/ad-check/guide/history/<id>`에서 만들었을 때 화면 그대로 다시 연다 (AI 다시 안 부름)
 - API: `DELETE /api/ad-check/:id`(숨김), `DELETE /api/content-guide/:id`(행 삭제). 둘 다 owner만

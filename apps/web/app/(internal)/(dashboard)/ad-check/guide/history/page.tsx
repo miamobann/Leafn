@@ -32,14 +32,14 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
   const memberName = (id: string | null) => members.find((m) => m.user_id === id)?.display_name ?? "—";
   const productName = (id: string | null) => products.find((p) => p.id === id)?.name ?? "—";
   const actionOf = (checkId: string | null) => checks.find((c) => c.id === checkId)?.overall_action ?? null;
-  // 만든 콘텐츠가 있는 제품만 고를 수 있게 한다
+  // 자사 제품은 모두 고를 수 있게 한다 (콘텐츠는 자사 제품으로만 만든다). 경쟁 제품은 뺀다
   const productOptions = products
-    .filter((p) => all.some((g) => g.product_id === p.id) || p.id === productFilter)
+    .filter((p) => p.kind === "own" || all.some((g) => g.product_id === p.id))
     .map((p) => ({ value: p.id, label: p.name }));
 
   return (
     <>
-      <PageHeader title="만든 콘텐츠" description="콘텐츠 제작 가이드로 만든 결과물과 약기법 검사 결과" featureId="A" />
+      <PageHeader title="만든 콘텐츠" description="콘텐츠 제작으로 만든 결과물과 콘텐츠 문구 자동 검사(약기법) 결과" featureId="A" />
       <div className="mb-4">
         <HistoryFilters
           filters={[

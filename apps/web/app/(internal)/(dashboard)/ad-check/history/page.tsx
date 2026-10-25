@@ -11,12 +11,6 @@ import { ActionBadge, ReviewStateBadge, STATUS_LABEL, USAGE_LABEL } from "../_co
 import { DeleteButton } from "../_components/delete-button";
 import { HistoryFilters } from "../_components/history-filters";
 
-/** 검토 종류: 직접 검토가 기본. 콘텐츠 문구 자동 검사는 보기만 한다 (승인 대상 아님) */
-const SOURCES = [
-  { value: "manual", label: "직접 검토" },
-  { value: "content_guide", label: "콘텐츠 문구 자동 검사" },
-] as const;
-
 type HistoryPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -24,11 +18,9 @@ type HistoryPageProps = {
 export default async function AdCheckHistoryPage({ searchParams }: HistoryPageProps) {
   const query = await searchParams;
   const parsed = ReviewStatus.safeParse(query.status);
-  const source = query.source === "content_guide" ? "content_guide" : "manual";
-  const isGuide = source === "content_guide";
-  const status = parsed.success && !isGuide ? parsed.data : undefined;
+  const status = parsed.success ? parsed.data : undefined;
   const productFilter = typeof query.product === "string" ? query.product : undefined;
-  const [all, members, products, mine] = await Promise.all([getAdChecks({ source }), getMembers(), getProducts(), getMyWorkspace().catch(() => null)]);
+  const [all, members, products, mine] = await Promise.all([getAdChecks(), getMembers(), getProducts(), getMyWorkspace().catch(() => null)]);
   // 삭제(숨김)는 owner(팀장)만. 팀원 화면에는 버튼을 그리지 않는다
   const isOwner = mine?.role === "owner";
   const checks = all
@@ -48,9 +40,8 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
       <div className="mb-4">
         <HistoryFilters
           filters={[
-            { key: "source", label: "검토 종류", options: [...SOURCES], allLabel: null },
             { key: "product", label: "제품", options: productOptions },
-            ...(isGuide ? [] : [{ key: "status", label: "검토 상태", options: ReviewStatus.options.map((v) => ({ value: v, label: STATUS_LABEL[v] })) }]),
+            { key: "status", label: "검토 상태", options: ReviewStatus.options.map((v) => ({ value: v, label: STATUS_LABEL[v] })) },
           ]}
         />
       </div>
@@ -62,10 +53,10 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
             { key: "text", label: "문구" },
             { key: "product", label: "제품 · 사용처" },
             { key: "action", label: "판정" },
-            // 콘텐츠 가이드 검사는 승인 대상이 아니라 상태·검토자·수정 칸을 뺀다
-            ...(isGuide ? [] : [{ key: "status", label: "상태" }, { key: "reviewer", label: "검토자" }]),
+            { key: "status", label: "상태" },
+            { key: "reviewer", label: "검토자" },
             { key: "date", label: "요청일" },
-            ...(isGuide ? [] : [{ key: "detail", label: "" }]),
+            { key: "detail", label: "" },
             ...(isOwner ? [{ key: "delete", label: "" }] : []),
           ]}
           rows={checks.map((c) => {
