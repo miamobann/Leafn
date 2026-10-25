@@ -1,5 +1,6 @@
 // 화면 템플릿 7종 골격 (prototype-plan 4.1). 모든 템플릿은 state로 4가지 상태를 보여준다.
 import Link from "next/link";
+import { HelpTip } from "@/components/common/help-tip";
 import { ViewStateGate } from "@/components/common/view-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -102,7 +103,11 @@ export function ReportTemplate({
   cards,
   state,
   emptyAction,
-}: Base & { filters?: React.ReactNode; cards: { title: string; content: React.ReactNode; wide?: boolean }[] }) {
+}: Base & {
+  filters?: React.ReactNode;
+  /** help = 제목 옆 「?」에 커서를 올리면 보이는 설명 (데이터 출처·읽는 법) */
+  cards: { title: string; content: React.ReactNode; wide?: boolean; help?: React.ReactNode }[];
+}) {
   return (
     <ViewStateGate state={state} emptyAction={emptyAction}>
       {filters && <div className="mb-4 flex flex-wrap items-center gap-2">{filters}</div>}
@@ -110,7 +115,10 @@ export function ReportTemplate({
         {cards.map((card) => (
           <Card key={card.title} className={card.wide ? "col-span-2" : undefined}>
             <CardHeader>
-              <CardTitle>{card.title}</CardTitle>
+              <CardTitle className="flex items-center gap-1.5">
+                {card.title}
+                {card.help && <HelpTip>{card.help}</HelpTip>}
+              </CardTitle>
             </CardHeader>
             <CardContent>{card.content}</CardContent>
           </Card>
