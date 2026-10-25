@@ -54,8 +54,8 @@ const SAMPLE_DELAY_MS = 700;
 /** 제품별로 반영한 재료 (리뷰 소구점 · 검색어 순위). 가짜 데이터 */
 export type GuideMaterials = Record<
   string,
-  /** ingredients = 관심 성분 (시장 분석 성분 검색 관심도 중 이 제품 전성분에 있는 것) */
-  { hasReviews: boolean; appeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; ingredients: string[]; megaSale: string | null }
+  /** keywords = 피부 라인 고민 검색어, trending = 요즘 새로 뜬 검색어(SNS), ingredients = 관심 성분 (모두 약기법·전성분 기준으로 거른 것) */
+  { hasReviews: boolean; appeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; trending: string[]; ingredients: string[]; megaSale: string | null }
 >;
 
 type ContentGuideProps = {
@@ -624,7 +624,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], ingredients: [], megaSale: null };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null };
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
   const list = (aiEnabled || saved ? aiDrafts : drafts)
@@ -670,7 +670,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
         line_products: products.filter((p) => p.id !== product.id && p.launch_status === "live").map((p) => p.name_ja),
       },
       appeals: { praised: material.appeals, competitor_complaints: material.complaints, candidates: material.candidates },
-      keywords: { search: material.keywords, ingredients: material.ingredients },
+      // 요즘 뜨는 말은 SNS(인스타·X)만
+      keywords: { search: material.keywords, ingredients: material.ingredients, trending: hasPostType ? material.trending : [] },
       review_quotes: material.hasReviews ? material.reviewQuotes : [],
       evidence: [],
       promo: postType === "mega_sale" && hasPostType ? material.megaSale : null,
@@ -846,6 +847,22 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                     </li>
                   ))}
                 </ol>
+                {hasPostType && (
+                  <>
+                    <p className="pt-2 font-medium">요즘 뜨는 말 <span className="text-xs font-normal text-muted-foreground">(SNS · 지난 수집에 없던 검색어)</span></p>
+                    {material.trending.length ? (
+                      <ul className="flex flex-wrap gap-1" lang="ja">
+                        {material.trending.map((t) => (
+                          <li key={t} className="rounded-full bg-background px-2 py-0.5 text-xs">
+                            {t}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">새로 뜬 검색어 없음</p>
+                    )}
+                  </>
+                )}
                 <p className="pt-2 font-medium">관심 성분 <span className="text-xs font-normal text-muted-foreground">(우리 전성분에 있는 것만)</span></p>
                 {material.ingredients.length ? (
                   <ul className="flex flex-wrap gap-1" lang="ja">
@@ -993,7 +1010,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                       {Object.entries(warnings[current.id] ?? {}).flatMap(([key, items]) =>
                         items.map((w) => (
                           <li key={`${key}-${w}`}>
-                            {(blocks.findIndex((b) => b.key === key) + 1) || "-"}. {blocks.find((b) => b.key === key)?.heading ?? key}: {w}
+                            {key === "hashtags" ? "해시태그" : `${(blocks.findIndex((b) => b.key === key) + 1) || "-"}. ${blocks.find((b) => b.key === key)?.heading ?? key}`}: {w}
                           </li>
                         )),
                       )}

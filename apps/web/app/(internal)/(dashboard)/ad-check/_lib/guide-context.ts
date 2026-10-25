@@ -1,16 +1,14 @@
 // 콘텐츠 제작 가이드 화면 재료 (서버 전용): 제품 · 리뷰 소구점 · 검색어 · 메가와리 · PDF 작성자.
 // 제작 화면(guide/page.tsx)과 저장된 결과물 화면(guide/history/[guideId])이 같이 쓴다.
 import { pickMegaSale, pickReviewQuotes } from "@/lib/ai/content-guide/materials";
-import { pickTrendIngredients } from "@/lib/ai/content-guide/market";
+import { pickSearchWords, pickTrendIngredients } from "@/lib/ai/content-guide/market";
 import { getAppealComparison, getPromoEvents, getSearchSnapshots, getWorkspace } from "@/lib/data";
 import { getAdProducts } from "@/lib/data/ad-products";
 import { getToday } from "@/lib/data/launch";
 import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/data/workspace";
 import { APPEAL_TOPICS } from "@/lib/schemas/review";
 import type { GuideMaterials } from "../_components/content-guide";
-import { productKind } from "./guide-report";
-
-const MAX_KEYWORDS = 5;
+import { productKind, skinLineOf } from "./guide-report";
 
 /** PDF 머리글의 작성자: 로그인한 사람 이름 · 팀(워크스페이스 이름). 로그인 전에는 샘플 팀 이름만 */
 async function getReportAuthor() {
@@ -34,8 +32,6 @@ export async function loadGuideContext() {
   // 키가 있으면 「제작하기」가 AI를 부른다. 키 값은 화면에 넘기지 않고 있는지만 넘긴다
   const aiEnabled = Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
   const megaSale = pickMegaSale(events, today);
-  const latest = snapshots.findLast((s) => s.engine === "google_autocomplete");
-  const keywords = (latest?.suggestions ?? []).slice(0, MAX_KEYWORDS).map((s) => s.value);
   const materials: GuideMaterials = Object.fromEntries(
     products.map((p, i) => {
       const appeal = appeals[i];
@@ -50,8 +46,11 @@ export async function loadGuideContext() {
         .map((t) => APPEAL_TOPICS[t.topic].negative.ko);
       const candidates = topics.filter((t) => t.isCandidate).map((t) => APPEAL_TOPICS[t.topic].positive.ko);
       // 관심 성분: 시장 분석의 성분 검색 관심도 중 이 제품 전성분에 있는 것만 (약기법: 없는 성분은 쓰지 않는다)
-      const ingredients = pickTrendIngredients(snapshots, productKind(p).ja, p.ingredients.map((i) => i.ja));
-      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), keywords, ingredients, megaSale }];
+      const own = p.ingredients.map((i) => i.ja);
+      const ingredients = pickTrendIngredients(snapshots, productKind(p).ja, own);
+      // 검색어·요즘 뜨는 말: 피부 라인에 맞는 고민 자동완성에서 (약기법에 걸리는 말·우리 전성분에 없는 성분이 든 말은 뺀다)
+      const words = pickSearchWords(snapshots, skinLineOf(p), own);
+      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), keywords: words.search, trending: words.trending, ingredients, megaSale }];
     }),
   );
   return { products, materials, author, aiEnabled };
