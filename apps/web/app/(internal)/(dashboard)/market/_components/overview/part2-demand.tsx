@@ -15,12 +15,11 @@ import { parseTikTokLink } from "@/lib/external/tiktok";
 import type { SearchSnap } from "@/lib/schemas/search";
 import {
   AUTOCOMPLETE_STATUS_LABEL,
-  autocompleteChanges,
+  concernSuggestions,
   commonPatterns,
   SNS_PATTERN_KIND_LABEL,
   type AutocompleteRow,
   type AutocompleteStatus,
-  type AutocompleteTab,
 } from "@/app/(internal)/(dashboard)/market/_lib/demand";
 import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/toggle-group";
 import { SearchTrendCard } from "@/app/(internal)/(dashboard)/market/_components/search-trend";
@@ -28,7 +27,7 @@ import type { PanelContent } from "./side-panel";
 
 // 화면 문구
 const TEXT = {
-  autocompleteNote: "구글 검색창 추천어에 지난주와 비교해 새로 나타난 말과 사라진 말만 보여줘요 (검색량이 아니에요) · おすすめ·ドラッグストア 같은 일반어는 뺐어요",
+  autocompleteNote: "고민 단어를 치면 구글 검색창이 띄우는 추천어예요 (검색량이 아니에요). 지난 수집과 비교해 새로 나타난 말·사라진 말을 표시해요 · おすすめ 같은 일반어는 뺐어요",
   snsBasis: "선택한 영상 기준 · 마케터가 고른 영상이라 시장 전체를 대표하지 않아요 · 고정된 샘플 결과 · 저장되지 않음",
   snsRealBasis: "등록한 실제 영상의 메모를 AI가 묶은 결과 · 근거는 메모에 그대로 있는 문구만 · 선택한 영상 기준이라 시장 전체를 대표하지 않아요 · 저장되지 않음",
   memoWhy: "TikTok 공식 공개 기능은 영상 내용(캡션·발화·댓글)을 주지 않아서, 영상을 보고 핵심 발화·자막·댓글을 메모해 주세요. AI는 메모에 적힌 내용만으로 공통 패턴을 찾아요.",
@@ -36,15 +35,15 @@ const TEXT = {
   notReviewed: "소비자 표현은 약기법 검토 전이에요. 효능을 단정하는 말은 광고에 그대로 쓸 수 없을 수 있어요.",
 };
 
-const TABS = ["피부 고민", "성분", "사전에 없는 말"] as const;
-const TAB_KEY: Record<(typeof TABS)[number], AutocompleteTab> = { "피부 고민": "concern", "성분": "ingredient", "사전에 없는 말": "other" };
-const STATUS_MARK: Record<AutocompleteStatus, string> = { new: "＋", up: "▲", same: "–", down: "▼", gone: "✕" };
+const STATUS_MARK: Record<AutocompleteStatus, string> = { new: "＋", kept: "–", gone: "✕" };
 const MIN_VIDEOS = 3;
 const MAX_VIDEOS = 10;
 const KIND_ORDER: SnsPatternKind[] = ["expression", "opening", "reason"];
 
+// ── 2-A ─────────────────────────────────────────
+
 function StatusText({ status }: { status: AutocompleteStatus }) {
-  const tone = status === "new" || status === "up" ? "text-risk-low" : status === "down" || status === "gone" ? "text-risk-high" : "text-muted-foreground";
+  const tone = status === "new" ? "text-risk-low" : status === "gone" ? "text-risk-high" : "text-muted-foreground";
   return (
     <span className={`shrink-0 text-xs font-medium ${tone}`}>
       {STATUS_MARK[status]} {AUTOCOMPLETE_STATUS_LABEL[status]}
@@ -52,61 +51,60 @@ function StatusText({ status }: { status: AutocompleteStatus }) {
   );
 }
 
-function posText(r: AutocompleteRow): string {
-  const p = (n: number | null) => (n === null ? "안 보임" : `${n}번째`);
-  return `지난주 ${p(r.prevPos)} → 이번 주 ${p(r.latestPos)}`;
-}
-
-// ── 2-A ─────────────────────────────────────────
-
-function AutocompleteBlock({ search, category, onOpen }: { search: SearchSnap[]; category: string; onOpen: (c: PanelContent) => void }) {
-  const [tab, setTab] = useState<(typeof TABS)[number]>("피부 고민");
-  const data = autocompleteChanges(search, category);
-  // 추천어 목록 안의 자리 변화(상승·하락·유지)는 마케터에게 의미가 적어 새로 나온 말과 사라진 말만 보여준다 (2026-10-25 실무자 리뷰)
-  const rows = data.rows.filter((r) => r.tab === TAB_KEY[tab] && (r.status === "new" || r.status === "gone"));
+function AutocompleteBlock({ search, onOpen }: { search: SearchSnap[]; onOpen: (c: PanelContent) => void }) {
+  const data = concernSuggestions(search);
+  const labels = data.groups.map((g) => g.ko);
+  const [tab, setTab] = useState<string>(labels[0] ?? "");
+  const group = data.groups.find((g) => g.ko === tab) ?? data.groups[0];
+  // 첫 수집이면 비교할 지난 수집이 없어 이번 추천어를 모두 보여준다. 두 번째부터는 새로 나타난 말 → 계속 보인 말 → 사라진 말 순
+  const firstCollection = !data.prev;
+  const rows = group?.rows ?? [];
 
   const open = (r: AutocompleteRow) =>
     onOpen({
       kind: "quotes",
-      title: `자동완성 · ${r.term}`,
-      description: `${AUTOCOMPLETE_STATUS_LABEL[r.status]} · ${posText(r)}`,
-      quotes: r.evidence.map((e) => ({ ja: e.value, note: `${e.date} · 시드 「${e.seed}」 · 목록 ${e.position}번째` })),
+      title: `「${group?.seed}」 추천어 · ${r.term}`,
+      description: firstCollection ? `이번 추천어 ${r.latestPos}번째` : AUTOCOMPLETE_STATUS_LABEL[r.status],
+      quotes: r.evidence.map((e) => ({ ja: e.value, note: `${e.date} · 추천어 ${e.position}번째` })),
       footnote: TEXT.autocompleteNote,
     });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>2-A 검색 자동완성 변화</CardTitle>
+        <CardTitle>2-A 피부 고민별 검색 추천어</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {data.seeds.length === 0 || !data.latest ? (
-          <EmptyState message="이 카테고리는 자동완성을 모으지 않았어요" />
+        {!data.latest ? (
+          <EmptyState message="아직 고민별 추천어를 모으지 않았어요" action="아래 [자동완성 지금 수집]을 눌러 주세요" />
         ) : (
           <>
-            <ToggleGroup label="보기" options={TABS} value={tab} onChange={setTab} />
+            <ToggleGroup label="고민" options={labels} value={group?.ko ?? ""} onChange={setTab} />
             {rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">지난주와 비교해 새로 나타나거나 사라진 말이 없어요</p>
+              <p className="text-sm text-muted-foreground">「{group?.seed}」 뒤에 붙는 추천어가 없어요 (일반어만 나왔어요)</p>
             ) : (
               <ul className="divide-y rounded-md border">
                 {rows.map((r) => (
                   <li key={r.key}>
                     <button type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => open(r)}>
                       <span className="min-w-0">
+                        <span lang="ja" className="text-muted-foreground">
+                          {group?.seed}{" "}
+                        </span>
                         <span lang="ja" className="font-medium">
                           {r.term}
                         </span>
-                        <span className="ml-2 text-xs text-muted-foreground">{r.ko ?? "해석 없음 (사전에 없는 말)"}</span>
-                        <span className="block text-xs text-muted-foreground">{posText(r)}</span>
+                        {r.ko && <span className="ml-2 text-xs text-muted-foreground">{r.ko}</span>}
                       </span>
-                      <StatusText status={r.status} />
+                      {firstCollection ? <span className="shrink-0 text-xs text-muted-foreground">{r.latestPos}번째</span> : <StatusText status={r.status} />}
                     </button>
                   </li>
                 ))}
               </ul>
             )}
             <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-              <LangBadge lang="ja" /> 시드 「{data.seeds.join("」「")}」 · {data.prev} → {data.latest} · {TEXT.autocompleteNote} · 누르면 자동완성 원문
+              <LangBadge lang="ja" /> 고민 단어를 치면 구글이 띄우는 추천어 (일본) · 카테고리와 상관없이 같아요 ·{" "}
+              {firstCollection ? `${data.latest} 첫 수집 (다음 수집부터 새로 나타난 말·사라진 말)` : `${data.prev} → ${data.latest}`} · 일반어(おすすめ 등)는 뺐어요 · 누르면 추천어 원문
             </p>
           </>
         )}
@@ -365,6 +363,7 @@ function SnsBlock({
 /** PART 2. 소비자 트렌드: 검색 자동완성 변화 · SNS 공통 패턴 · 성분 검색 관심도 */
 export function DemandPart({
   search,
+  onSearchCollected,
   snsNotes,
   snsPatterns,
   snsImported,
@@ -372,6 +371,8 @@ export function DemandPart({
   onOpen,
 }: {
   search: SearchSnap[];
+  /** 지금 수집한 검색 데이터를 원페이지에 올린다 */
+  onSearchCollected: (added: SearchSnap[]) => void;
   snsNotes: SnsVideoNote[];
   snsPatterns: SnsPattern[];
   /** 이 PC에 있는 실제 영상 목록 (없으면 빈 배열 → 샘플) */
@@ -382,7 +383,7 @@ export function DemandPart({
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
-        <AutocompleteBlock search={search} category={category} onOpen={onOpen} />
+        <AutocompleteBlock search={search} onOpen={onOpen} />
         <SnsBlock notes={snsNotes} patterns={snsPatterns} imported={snsImported} category={category} onOpen={onOpen} />
       </div>
       {/* 예전 성분 관심도 화면에서 옮김: 성분 검색 관심도 순위와 지금 수집 버튼 */}
@@ -391,7 +392,7 @@ export function DemandPart({
           <CardTitle>성분 검색 관심도 · 지금 수집</CardTitle>
         </CardHeader>
         <CardContent>
-          <SearchTrendCard initial={search} category={category} />
+          <SearchTrendCard snaps={search} category={category} onCollected={onSearchCollected} />
         </CardContent>
       </Card>
     </div>

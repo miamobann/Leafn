@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
-import { AUTOCOMPLETE_SEEDS, TRENDS_CATEGORIES } from "@/lib/external/search-terms";
+import { CONCERN_SEEDS, TRENDS_CATEGORIES } from "@/lib/external/search-terms";
 import { AutocompleteRunResult, type SearchSnap } from "@/lib/schemas/search";
 import { INGREDIENT_MATCH, ingredientInterestRanking, type InterestRow } from "@/app/(internal)/(dashboard)/market/_lib/market";
 
@@ -49,10 +49,10 @@ function RunStatus({ run }: { run: RunState }) {
 /**
  * 성분 검색 관심도 순위 + 수집 버튼 (시장 분석 원페이지 · 소비자 트렌드).
  * 「카테고리 + 성분」 검색어끼리 비교한 검색 관심도 (일본, 최근 3개월). 카테고리는 원페이지 조건 바를 따른다.
- * 자동완성 변화 목록은 원페이지 2-A가 보여 주고, 여기서는 지금 수집 버튼만 둔다
+ * 자동완성 변화 목록은 원페이지 2-A가 보여 주고, 여기서는 지금 수집 버튼만 둔다.
+ * 검색 데이터는 원페이지가 한 벌로 들고 있어서, 수집하면 onCollected로 올려 2-A·요약도 바로 바뀐다
  */
-export function SearchTrendCard({ initial, category }: { initial: SearchSnap[]; category: string }) {
-  const [snaps, setSnaps] = useState(initial);
+export function SearchTrendCard({ snaps, category, onCollected }: { snaps: SearchSnap[]; category: string; onCollected: (added: SearchSnap[]) => void }) {
   const supported = (TRENDS_CATEGORIES as readonly string[]).includes(category);
   const [interestRun, setInterestRun] = useState<RunState>({ status: "idle" });
   const [autoRun, setAutoRun] = useState<RunState>({ status: "idle" });
@@ -63,7 +63,7 @@ export function SearchTrendCard({ initial, category }: { initial: SearchSnap[]; 
     setInterestRun({ status: "running" });
     const r = await postJson("/api/trends/search-interest", { category });
     if (!r.ok) return setInterestRun({ status: "error", message: r.message });
-    setSnaps((s) => [...s, ...r.result.snapshots]);
+    onCollected(r.result.snapshots);
     setInterestRun({ status: "done", result: r.result });
   }
 
@@ -71,7 +71,7 @@ export function SearchTrendCard({ initial, category }: { initial: SearchSnap[]; 
     setAutoRun({ status: "running" });
     const r = await postJson("/api/trends/autocomplete");
     if (!r.ok) return setAutoRun({ status: "error", message: r.message });
-    setSnaps((s) => [...s, ...r.result.snapshots]);
+    onCollected(r.result.snapshots);
     setAutoRun({ status: "done", result: r.result });
   }
 
@@ -91,7 +91,7 @@ export function SearchTrendCard({ initial, category }: { initial: SearchSnap[]; 
                   {r.canonical && INGREDIENT_MATCH[r.canonical] && <span className="text-xs text-muted-foreground">{INGREDIENT_MATCH[r.canonical].ko}</span>}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs text-muted-foreground">관심도 {r.interest}</span>
+                  <span className="text-xs text-muted-foreground">{r.share}%</span>
                   <RankChange row={r} hasPrev={ranking.hasPrev} />
                 </span>
               </li>
@@ -104,8 +104,10 @@ export function SearchTrendCard({ initial, category }: { initial: SearchSnap[]; 
           </Button>
           <RunStatus run={interestRun} />
           <p className="text-muted-foreground">
-            검색 관심도 (일본, 최근 3개월 평균) · 「{category} + 성분」 검색어끼리 비교한 상대값, 1위 = 100 · 실제 검색 횟수가 아니라 비율이에요
-            {ranking.capturedAt && ` · 수집 ${formatDate(ranking.capturedAt)}`} · ▲▼ = 직전 수집 대비 순위 (샘플)
+            검색 관심도 (일본, 최근 3개월 평균) · 「{category} + 성분」 검색어 전체 관심도 중 각 성분의 비율 (합 100%) · 실제 검색 횟수가 아니라 비율이에요
+            {ranking.excluded.length > 0 && ` · 검색이 너무 적어 뺀 성분: ${ranking.excluded.join(", ")}`}
+            {ranking.capturedAt && ` · 수집 ${formatDate(ranking.capturedAt)}`}
+            {ranking.hasPrev ? " · ▲▼ = 직전 수집 대비 순위" : " · 다음 수집부터 직전 대비 ▲▼가 보여요"}
           </p>
         </div>
       </section>
@@ -117,7 +119,7 @@ export function SearchTrendCard({ initial, category }: { initial: SearchSnap[]; 
           </Button>
           <RunStatus run={autoRun} />
           <p className="text-muted-foreground">
-            검색 자동완성 (일본) · 시드 「{AUTOCOMPLETE_SEEDS.map((s) => s.trim()).join("」「")}」 · 결과는 위 「검색 자동완성 변화」에 반영돼요 (샘플)
+            검색 추천어 (일본) · 고민 단어 「{CONCERN_SEEDS.map((s) => s.seed.trim()).join("」「")}」 · 한 번에 {CONCERN_SEEDS.length}번 호출 · 결과는 위 「피부 고민별 검색 추천어」에 바로 반영돼요
           </p>
         </div>
       </section>

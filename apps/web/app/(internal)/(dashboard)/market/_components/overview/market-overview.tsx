@@ -54,6 +54,8 @@ export function MarketOverview({
   // 실데이터는 Qoo10으로 수집한다 (2026-10-24 결정). 楽天은 비교용 샘플
   const [platform, setPlatform] = useState<MarketPlatform>("qoo10_ranking");
   const [panel, setPanel] = useState<PanelContent | null>(null);
+  // 검색 데이터 한 벌 (지금 수집 결과를 붙이면 2-A 자동완성·요약이 같이 바뀐다)
+  const [searchSnaps, setSearchSnaps] = useState(search);
   // 표 체크박스와 패널의 [비교에 추가]가 같은 목록을 쓴다 (저장되지 않음)
   const [selected, setSelected] = useState<string[]>([]);
 
@@ -73,7 +75,7 @@ export function MarketOverview({
   const body: Record<SectionId, React.ReactNode> = {
     market: <MarketPart series={series} platformLabel={platformInfo.label} products={products} onOpen={setPanel} />,
     summary: (
-      <SummaryPart series={series} products={products} category={category} search={search} />
+      <SummaryPart series={series} products={products} category={category} search={searchSnaps} />
     ),
     // 예전 AI 검색 핵심 포인트: 가장 실무적인 Gap 액션 플랜을 요약 바로 아래로 (2026-10-25 실무자 리뷰)
     action: <GeoInsights initial={geo.map((g, i) => ({ ...g, id: `geo-row-${i}` }))} ownProducts={products.filter((p) => p.kind === "own")} category={category} gapFirst />,
@@ -90,7 +92,7 @@ export function MarketOverview({
         onOpen={setPanel}
       />
     ),
-    demand: <DemandPart search={search} snsNotes={snsNotes} snsPatterns={snsPatterns} snsImported={snsImported} category={category} onOpen={setPanel} />,
+    demand: <DemandPart search={searchSnaps} onSearchCollected={(added) => setSearchSnaps((s) => [...s, ...added])} snsNotes={snsNotes} snsPatterns={snsPatterns} snsImported={snsImported} category={category} onOpen={setPanel} />,
   };
 
   return (
