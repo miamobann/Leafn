@@ -5,13 +5,19 @@ import type { LabProduct } from "./products";
 /** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
 export const KEYWORD_TAGS = 1;
 
-export const isEssence = (product: LabProduct) => product.line.includes("에센스") || product.line.includes("美容液");
+/** 제품 종류 (AI·미리보기·상품명에 쓰는 이름). 에멀전은 에센스·스킨으로 바꾸지 않고 에멀전(乳液)으로 둔다 */
+export function productKind(product: LabProduct): { ko: string; ja: string } {
+  const line = product.line;
+  if (line.includes("에센스") || line.includes("美容液")) return { ko: "에센스", ja: "美容液" };
+  if (line.includes("에멀전") || line.includes("乳液")) return { ko: "에멀전", ja: "乳液" };
+  return { ko: "스킨", ja: "化粧水" };
+}
 
 /** {product}·{ingredients_*} 자리에 제품 정보를 넣는 함수 */
 export function makeFill(product: LabProduct) {
-  const essence = isEssence(product);
+  const kind = productKind(product);
   return (text: string) =>
-    fillProduct(text, product.name_ko, product.ingredients, { kind_ja: essence ? "美容液" : "化粧水", kind_ko: essence ? "에센스" : "스킨", volume: product.volume, product_ja: product.name_ja });
+    fillProduct(text, product.name_ko, product.ingredients, { kind_ja: kind.ja, kind_ko: kind.ko, volume: product.volume, product_ja: product.name_ja });
 }
 
 export function visibleBlocks(blocks: GuideBlock[], channel: GuideChannel, slideCount: number, hasReviews: boolean) {

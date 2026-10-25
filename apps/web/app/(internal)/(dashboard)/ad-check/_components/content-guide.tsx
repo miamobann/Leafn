@@ -35,7 +35,7 @@ import type { LabProduct } from "../_lib/products";
 import { type ContentGuideInput, GuideBodyResult, type GuideTitle, GuideTitlesResult } from "@/lib/schemas/content-guide";
 import { buildCutList, PHOTO_DONTS, PHOTO_RULES } from "../_lib/photo-guide";
 import { type BlockWarnings, buildWarnings } from "../_lib/guide-warnings";
-import { isEssence, makeFill, pickHashtags, visibleBlocks } from "../_lib/guide-report";
+import { makeFill, productKind, pickHashtags, visibleBlocks } from "../_lib/guide-report";
 import { ContentGuideReport, memoLocation, type ReportAuthor } from "./content-guide-report";
 
 const LABEL = "mb-1 block text-sm font-medium";
@@ -46,7 +46,7 @@ const PANEL_HEIGHT = "h-[32rem]";
 const RECOMMENDED = "rounded px-1.5 text-xs bg-risk-low/15 text-risk-low";
 /** 강조할 방향 글자 수 제한 (AI에 방향 참고로만 보낸다. 약기법이 항상 먼저) */
 const DIRECTION_MAX = 50;
-/** 강조할 방향 예시: 대화가 아니라 키워드로 쓰게 짧은 낱말로 둔다. 누르면 칸에 채워진다 */
+/** 강조할 방향 예시: 대화가 아니라 키워드로 쓰게 짧은 낱말로 둔다. 입력칸 안 예시 글로만 보여 준다 */
 const DIRECTION_EXAMPLES = ["연말 선물", "첫 구매 고객", "재구매 유도", "보습 강조"];
 /** AI 연결 전, 생성 순서를 보여 주려고 샘플을 띄우기 전에 잠깐 기다리는 시간 */
 const SAMPLE_DELAY_MS = 700;
@@ -634,7 +634,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   const generated = generatedKey === genKey;
   const current = generated ? list.find((d) => d.id === pickedId) : undefined;
   const blocks = visibleBlocks(current?.blocks ?? [], channel, slideCount, material.hasReviews);
-  const essence = isEssence(product);
+  const kind = productKind(product);
   const fill = makeFill(product);
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
   const detailBlocked = channel === "qoo10_detail" && product.launch_status === "developing";
@@ -643,7 +643,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   const { groups, keywordTags, list: hashtags } = current
     ? pickHashtags(current.hashtags, channel, material.keywords)
     : { groups: { brand: [], ingredient: [], trend: [] } as Hashtags, keywordTags: [] as string[], list: [] as string[] };
-  const category = essence ? "美容液" : "化粧水";
+  const category = kind.ja;
 
   /** AI 연결 전: 잠깐 기다렸다가 샘플을 보여 준다 */
   function wait(step: "titles" | "body", done: () => void) {
@@ -660,7 +660,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
       product: {
         name: product.name_ko,
         name_ja: product.name_ja,
-        kind: essence ? "에센스(美容液)" : "스킨(化粧水)",
+        kind: `${kind.ko}(${kind.ja})`,
         category: product.product_category,
         launch_status: product.launch_status,
         volume: product.volume,
@@ -868,16 +868,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
               value={direction}
               maxLength={DIRECTION_MAX}
               onChange={(e) => setDirection(e.target.value)}
-              placeholder="예: 연말 선물 · 첫 구매 고객 · 보습 강조"
+              placeholder={`예: ${DIRECTION_EXAMPLES.join(" · ")}`}
             />
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="text-xs text-muted-foreground">예시</span>
-              {DIRECTION_EXAMPLES.map((ex) => (
-                <button key={ex} type="button" onClick={() => setDirection(ex)} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted">
-                  {ex}
-                </button>
-              ))}
-            </div>
             <p className="text-xs text-muted-foreground">제작할 때 방향으로 반영돼요. 부탁하듯 적어도 되지만 답장은 오지 않고, 약기법에 어긋나는 방향(효능 과장 등)은 반영하지 않아요.</p>
             {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
           </div>
