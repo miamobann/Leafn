@@ -70,11 +70,9 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
               href: `/ad-check/guide/history/${g.id}`,
               cells: {
                 title: (
-                  <span className="flex max-w-80 flex-col" title={g.title.title_ja}>
-                    <span className="truncate font-medium underline-offset-4 [a:hover_&]:underline" lang="ja">
-                      {g.title.title_ja}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">{g.title.title_ko}</span>
+                  // 목록 제목은 한국어로 통일 (검토 이력과 같다). 마우스를 올리면 일본어 제목
+                  <span className="block max-w-80 truncate font-medium underline-offset-4 [a:hover_&]:underline" title={g.title.title_ja}>
+                    {g.title.title_ko}
                   </span>
                 ),
                 product: (

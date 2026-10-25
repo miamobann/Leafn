@@ -10,6 +10,7 @@ import { ReviewStatus } from "@/lib/schemas/common";
 import { ActionBadge, ReviewStateBadge, STATUS_LABEL, USAGE_LABEL } from "../_components/ad-badges";
 import { DeleteButton } from "../_components/delete-button";
 import { HistoryFilters } from "../_components/history-filters";
+import { koLines } from "../_lib/ko-lines";
 
 type HistoryPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -60,19 +61,20 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
             ...(isOwner ? [{ key: "delete", label: "" }] : []),
           ]}
           rows={checks.map((c) => {
-            // 목록 문구는 한국어로 통일한다 (일본어 입력은 한국어 번역, 번역이 없으면 원문)
-            const koText = c.input_lang === "ko" ? c.input_text : (c.back_translation_ko ?? c.input_text);
-            const koLang = c.input_lang === "ko" || c.back_translation_ko ? "ko" : c.input_lang;
-            const [first, ...rest] = koText.split("\n");
+            // 목록 문구는 한국어로 통일한다 (줄마다 일본어 줄은 번역, 번역이 없으면 원문에 「일본어」 표시). 마우스를 올리면 원문
+            const [first, ...rest] = koLines(c);
             return {
               id: c.id,
               href: `/ad-check/${c.id}`, // 문구를 누르면 상세(두괄식 결과), 고쳐서 다시 판정은 맨 끝 「재검토」
               cells: {
                 text: (
                   // 긴 문구는 한 줄로 자르고 전체는 title로 보여준다
-                  <span lang={koLang} title={koText} className="flex max-w-80 gap-1">
+                  <span title={c.input_text} className="flex max-w-80 items-center gap-1">
+                    {first?.untranslated && <span className="shrink-0 rounded border px-1 text-[0.65rem] text-muted-foreground">일본어</span>}
                     {/* 표 템플릿의 링크 밑줄이 잘린 글자(truncate)까지 내려오지 않아서, 링크에 커서를 올리면 여기서 밑줄을 긋는다 */}
-                    <span className="truncate font-medium underline-offset-4 [a:hover_&]:underline">{first}</span>
+                    <span lang={first?.untranslated ? "ja" : "ko"} className="truncate font-medium underline-offset-4 [a:hover_&]:underline">
+                      {first?.text ?? ""}
+                    </span>
                     {rest.length > 0 && <span className="shrink-0 text-muted-foreground">외 {rest.length}줄</span>}
                   </span>
                 ),
