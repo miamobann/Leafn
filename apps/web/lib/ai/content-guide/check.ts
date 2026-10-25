@@ -10,8 +10,9 @@ import type { z } from "zod";
 
 const USAGE: Record<ContentChannel, z.infer<typeof AdUsage>> = { qoo10_detail: "detail_page", instagram: "sns", x: "sns", banner: "banner" };
 
-export type BlockCheck = { key: string; line: JudgedLine };
-export type BodyCheck = { blocks: BlockCheck[]; usage: AiUsage; model: string | null; promptVersion: string | null };
+/** text = 판정에 보낸 한 줄 (ad_check_lines.original 로 저장) */
+export type BlockCheck = { key: string; text: string; line: JudgedLine };
+export type BodyCheck = { blocks: BlockCheck[]; adUsage: z.infer<typeof AdUsage>; usage: AiUsage; model: string | null; promptVersion: string | null };
 
 type Deps = { call?: (request: AiRequest) => Promise<AiReply> };
 
@@ -33,7 +34,7 @@ export async function checkBody(channel: ContentChannel, product: AdCheckProduct
     usage.output += judged.usage.output;
     model = judged.model;
     promptVersion = judged.promptVersion;
-    judged.lines.forEach((line, j) => blocks.push({ key: chunk[j]!.key, line }));
+    judged.lines.forEach((line, j) => blocks.push({ key: chunk[j]!.key, text: chunk[j]!.text, line }));
   }
-  return { blocks, usage, model, promptVersion };
+  return { blocks, adUsage: USAGE[channel], usage, model, promptVersion };
 }

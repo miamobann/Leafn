@@ -12,6 +12,8 @@ import { readSurveySummary } from "./survey";
 // 연결 환경에서는 현재 팀의 DB를 읽는다. 환경 변수가 없는 개발 환경만 샘플을 쓴다.
 import { mock } from "@/lib/mock";
 import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
+import { AdCheckLineRow, type AdCheckSource } from "@/lib/schemas/ad-check";
+import { ContentGuideRow } from "@/lib/schemas/content-guide";
 import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
 import { APPEAL_MAX_RATING, buildAppealComparison, reviewProductRank } from "./appeal";
@@ -92,12 +94,17 @@ export async function getReviewTranslations(productId: string) {
   return mock.reviewTranslations.filter((t) => reviewIds.has(t.review_id));
 }
 
-export async function getAdChecks(opts: { status?: ReviewStatus } = {}) {
+/** 검토 이력 출처: 직접 한 검토(manual, 기본) · 콘텐츠 가이드가 돌린 검사(content_guide) · 둘 다(all) */
+export type AdCheckSourceFilter = AdCheckSource | "all";
+
+export async function getAdChecks(opts: { status?: ReviewStatus; source?: AdCheckSourceFilter } = {}) {
+  const source = opts.source ?? "manual";
   const [rows, lineRows] = await Promise.all([
     readRows("ad_checks").catch(missingTableOnly),
     readRows("ad_check_lines").catch(missingTableOnly),
   ]);
-  if (!rows) return mock.adChecks.filter((a) => !opts.status || a.review_status === opts.status);
+  // 샘플 데이터는 모두 직접 검토다
+  if (!rows) return source === "content_guide" ? [] : mock.adChecks.filter((a) => !opts.status || a.review_status === opts.status);
   const linesByCheck = new Map<string, Record<string, unknown>[]>();
   for (const line of lineRows ?? []) {
     const checkId = String(line.ad_check_id ?? "");
@@ -106,13 +113,41 @@ export async function getAdChecks(opts: { status?: ReviewStatus } = {}) {
     linesByCheck.set(checkId, list);
   }
   return rows
-    .filter((r) => !r.deleted_at && (!r.source || r.source === "manual"))
+    // 숨긴(deleted_at) 검토는 어디에도 보여 주지 않는다
+    .filter((r) => !r.deleted_at && (source === "all" || (r.source ?? "manual") === source))
     .map((r) => adCheckFromRow(r, linesByCheck.get(String(r.id)) ?? []))
     .filter((a) => !opts.status || a.review_status === opts.status);
 }
 
+/** 상세는 출처와 관계없이 연다 (콘텐츠 가이드 검사도 보기는 가능) */
 export async function getAdCheck(id: string) {
-  return (await getAdChecks()).find((a) => a.id === id) ?? null;
+  return (await getAdChecks({ source: "all" })).find((a) => a.id === id) ?? null;
+}
+
+/** 만든 가이드 (content_guides). 샘플 모드에서는 저장된 결과물이 없다. 모양이 맞지 않는 행은 뺀다 */
+export async function getContentGuides(): Promise<ContentGuideRow[]> {
+  const rows = await readRows("content_guides").catch(missingTableOnly);
+  if (!rows) return [];
+  return rows
+    .flatMap((r) => {
+      const parsed = ContentGuideRow.safeParse(r);
+      return parsed.success ? [parsed.data] : [];
+    })
+    .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+/** 만든 가이드 하나와 그 약기법 검사의 블록별 판정 (block_key 가 있는 줄) */
+export async function getContentGuide(id: string) {
+  const guide = (await getContentGuides()).find((g) => g.id === id);
+  if (!guide) return null;
+  const lineRows = guide.ad_check_id ? ((await readRows("ad_check_lines").catch(missingTableOnly)) ?? []) : [];
+  const checks = lineRows
+    .filter((l) => l.ad_check_id === guide.ad_check_id)
+    .flatMap((l) => {
+      const parsed = AdCheckLineRow.safeParse(l);
+      return parsed.success && parsed.data.block_key ? [{ key: parsed.data.block_key, action: parsed.data.action, findings: parsed.data.findings }] : [];
+    });
+  return { guide, checks };
 }
 
 /** source는 필수 (楽天·Qoo10 시계열이 섞이지 않게). category를 빼면 모든 카테고리. captured_at 오름차순 */
@@ -217,7 +252,7 @@ export async function getLibraryItems(opts: { type?: string; q?: string } = {}) 
         id: String(g.id),
         type: "콘텐츠 가이드",
         title: titleText,
-        href: "/ad-check/guide",
+        href: `/ad-check/guide/history/${String(g.id)}`,
         created_at: String(g.created_at),
       };
     }),

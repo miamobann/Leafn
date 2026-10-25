@@ -2,10 +2,12 @@
 // 공용 AdLineResult·AdFinding만 받으므로 리뷰 번역(P5)에서도 그대로 쓸 수 있다.
 import { LangBadge } from "@/components/common/badges";
 import type { AdFinding, AdLineResult } from "@/lib/schemas/ad-check";
+import { basisItems } from "../_lib/basis";
 import { ActionBadge } from "./ad-badges";
 import { HighlightedText } from "./highlighted-text";
 
-const BASIS_STATUS_LABEL = { confirmed: "자료 확인됨", needs_check: "자료 확인 필요" } as const;
+// 근거가 기준 자료로 뒷받침되는지. 담당자가 할 일처럼 읽히지 않게 상태로 쓴다 (실무자 비판 10번)
+const BASIS_STATUS_LABEL = { confirmed: "근거 확실", needs_check: "해석이 갈림" } as const;
 
 type LineResultCardProps = {
   line: AdLineResult;
@@ -105,34 +107,39 @@ export function LineResultCard({ line, findings, selectedSuggestion, onSelect }:
           <ul className="space-y-1 text-muted-foreground">
             {findings.map((f) => (
               <li key={f.text}>
-                「{f.text}」 {f.basis} · {f.basis_status ? BASIS_STATUS_LABEL[f.basis_status] : "자료 확인 필요"}
+                「{f.text}」 {basisItems(f.basis).join(" / ")} · {f.basis_status ? BASIS_STATUS_LABEL[f.basis_status] : BASIS_STATUS_LABEL.needs_check}
               </li>
             ))}
           </ul>
         </section>
       )}
 
-      {/* AI 판정의 문제없음 줄은 내용이 없을 수 있어 빈 제목은 숨긴다 */}
-      {line.ingredient_check && (
-        <section className="mt-4 text-sm">
-          <h3 className="mb-1 font-semibold">성분 확인</h3>
-          <p className="text-muted-foreground">{line.ingredient_check}</p>
-        </section>
-      )}
-
-      {(line.translated_text || line.localized_note) && (
-        <section className="mt-4 text-sm">
-          <h3 className="mb-2 font-semibold">현지화</h3>
-          {line.translated_text && (
-            <dl className="mb-2 grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1">
-              <dt className="text-muted-foreground">일본어 번역</dt>
-              <dd lang="ja">{line.translated_text}</dd>
-              <dt className="text-muted-foreground">한국어 역번역</dt>
-              <dd>{line.back_translation_ko}</dd>
-            </dl>
+      {/* 성분 확인 · 현지화는 참고용이라 접어 둔다 (실무자 비판 9번). 고칠 이유 · 대체 표현 · 근거는 항상 보인다 */}
+      {(line.ingredient_check || line.translated_text || line.localized_note) && (
+        <details className="mt-4 rounded-md border p-3 text-sm">
+          <summary className="cursor-pointer font-semibold">성분 확인 · 현지화</summary>
+          {/* AI 판정의 문제없음 줄은 내용이 없을 수 있어 빈 제목은 숨긴다 */}
+          {line.ingredient_check && (
+            <section className="mt-3">
+              <h3 className="mb-1 font-semibold">성분 확인</h3>
+              <p className="text-muted-foreground">{line.ingredient_check}</p>
+            </section>
           )}
-          {line.localized_note && <p className="text-muted-foreground">{line.localized_note}</p>}
-        </section>
+          {(line.translated_text || line.localized_note) && (
+            <section className="mt-3">
+              <h3 className="mb-2 font-semibold">현지화</h3>
+              {line.translated_text && (
+                <dl className="mb-2 grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1">
+                  <dt className="text-muted-foreground">일본어 번역</dt>
+                  <dd lang="ja">{line.translated_text}</dd>
+                  <dt className="text-muted-foreground">한국어 역번역</dt>
+                  <dd>{line.back_translation_ko}</dd>
+                </dl>
+              )}
+              {line.localized_note && <p className="text-muted-foreground">{line.localized_note}</p>}
+            </section>
+          )}
+        </details>
       )}
     </article>
   );
