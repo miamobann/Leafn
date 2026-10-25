@@ -10,7 +10,7 @@ export default async function MarketCompetitorsPage({ searchParams }: { searchPa
 
   return (
     <>
-      <PageHeader title="경쟁제품 비교" description="자사 vs 경쟁사 가격·용량·성분·특징 · 자사 3 + 경쟁 8 (샘플)" featureId="C" />
+      <PageHeader title="경쟁제품 비교" description="등록된 자사·경쟁 제품의 가격·용량·성분·특징" featureId="C" />
       <CompetitorsView products={products} initialSelected={initialSelected} />
     </>
   );

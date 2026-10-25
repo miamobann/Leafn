@@ -41,10 +41,9 @@ export type AdFinding = z.infer<typeof AdFinding>;
 export const AdCheckResult = z.object({
   overall_risk: Risk,
   findings: z.array(AdFinding),
+  translated_text: z.string().nullable(),
+  back_translation_ko: z.string().nullable(),
   localized_note: z.string(),
-  // 제안: 8장 4번
-  translated_text: z.string().optional(),
-  back_translation_ko: z.string().optional(),
 });
 export type AdCheckResult = z.infer<typeof AdCheckResult>;
 
