@@ -56,6 +56,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
             { key: "usage", label: "사용처" },
             { key: "action", label: "판정" },
             { key: "status", label: "상태" },
+            { key: "author", label: "작성자" },
             { key: "reviewer", label: "검토자" },
             { key: "date", label: "요청일" },
             { key: "detail", label: "" },
@@ -87,6 +88,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
                 usage: <span className="whitespace-nowrap">{c.usage ? USAGE_LABEL[c.usage] : "—"}</span>,
                 action: c.overall_action ? <ActionBadge action={c.overall_action} /> : "—",
                 status: <ReviewStateBadge status={c.review_status} expertRequested={c.is_expert_review_requested} />,
+                author: memberName(c.created_by ?? null),
                 reviewer: memberName(c.reviewer_id),
                 date: formatDate(c.created_at),
                 detail: (
