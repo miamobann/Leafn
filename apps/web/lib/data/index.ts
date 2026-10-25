@@ -7,6 +7,7 @@ import { TrendSnapshot } from "@/lib/schemas/trend";
 import { SearchSnapshot } from "@/lib/schemas/search";
 import { GeoSnapshot } from "@/lib/schemas/geo";
 import { Project } from "@/lib/schemas/project";
+import { ReviewTranslation } from "@/lib/schemas/review";
 import { readSurveySummary } from "./survey";
 // 화면이 부르는 읽기 함수 (prototype-plan 6.5).
 // 연결 환경에서는 현재 팀의 DB를 읽는다. 환경 변수가 없는 개발 환경만 샘플을 쓴다.
@@ -89,7 +90,17 @@ export async function getAppealComparison(ownProductId: string, opts: { maxRatin
 }
 
 export async function getReviewTranslations(productId: string) {
-  if (await dataContext()) return []; // 저장 구조가 없는 샘플 결과를 실제 결과로 표시하지 않는다.
+  if (await dataContext()) {
+    // 연결 환경: DB의 번역만 보여 준다 (샘플을 실제 결과처럼 섞지 않는다). 테이블이 아직 없으면 빈 목록
+    const rows = (await readRows("review_translations").catch(missingTableOnly)) ?? [];
+    const reviewIds = new Set((await getReviews({ productId })).map((r) => r.id));
+    return rows
+      .flatMap((row) => {
+        const parsed = ReviewTranslation.safeParse(row);
+        return parsed.success && reviewIds.has(parsed.data.review_id) ? [parsed.data] : [];
+      })
+      .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
+  }
   const reviewIds = new Set(mock.reviews.filter((r) => r.product_id === productId).map((r) => r.id));
   return mock.reviewTranslations.filter((t) => reviewIds.has(t.review_id));
 }

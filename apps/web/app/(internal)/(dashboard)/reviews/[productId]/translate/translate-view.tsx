@@ -3,9 +3,11 @@
 // 상세페이지용 리뷰 (참조 F, prototype-plan P5). 고르기 → 번역 + 자동 약기법 검토 → 담당자 승인 → HTML 복사.
 // 리뷰가 쌓여도 고르기 쉽게 양쪽 모두 페이지 넘기기와 "이 페이지 전체 선택"을 둔다. 승인된 리뷰만 HTML로 복사된다
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Check, Minus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { deleteTranslations, translateReviews } from "@/lib/data/review-translation-actions";
 import type { ReviewWithAnalysis } from "@/lib/data/reviews";
 import type { AppealTopic } from "@/lib/schemas/review";
 import { BackTitle, paginate, Pager } from "../../_components/parts";
@@ -23,6 +25,7 @@ export type TranslatedRow = {
 
 const PICK_PAGE = 8;
 const DONE_PAGE = 6;
+const TRANSLATE_BATCH = 10; // 서버 액션이 한 번에 받는 리뷰 수 (lib/data/review-translation-actions.ts와 같은 값)
 const STATUS = {
   approved: { label: "승인", className: "bg-emerald-50 text-emerald-900" },
   pending: { label: "검토 대기", className: "bg-amber-50 text-amber-900" },
@@ -103,11 +106,16 @@ export function TranslateView({
   const [pickPage, setPickPage] = useState(1);
   const left = usePicks(initialPicked);
 
-  const [rows, setRows] = useState(translated);
+  const router = useRouter();
+  // 번역한 리뷰는 서버가 읽어 준 목록(translated)이 기준이다. 지운 것만 화면에서 먼저 뺀다
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const rows = translated.filter((r) => !removed.has(r.id));
   const [status, setStatus] = useState<TranslatedRow["status"] | "">("");
   const [donePage, setDonePage] = useState(1);
   const right = usePicks();
   const [copied, setCopied] = useState<string | null>(null);
+  const [working, setWorking] = useState<{ done: number; total: number } | null>(null);
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
 
   const translatedIds = new Set(rows.map((r) => r.reviewId));
   const skins = [...new Set(reviews.flatMap((r) => (r.reviewer_attrs?.skin_type ? [r.reviewer_attrs.skin_type] : [])))];
@@ -139,10 +147,49 @@ export function TranslateView({
       setCopied("복사하지 못했어요. 브라우저의 클립보드 권한을 확인해 주세요");
     }
   };
-  const removePicked = () => {
-    setRows((prev) => prev.filter((r) => !right.picked.has(r.id)));
+  const removePicked = async () => {
+    const ids = [...right.picked];
+    const res = await deleteTranslations(ids);
+    if (!res.ok) {
+      setNotice({ text: res.message, error: true });
+      return;
+    }
+    setRemoved((prev) => new Set([...prev, ...ids]));
     right.clear();
     setDonePage(1);
+    setNotice({ text: `${res.data.deleted}건을 지웠어요. 약기법 검토 기록은 광고 검토 이력에 남아요.`, error: false });
+    router.refresh();
+  };
+
+  // 고른 리뷰를 10건씩 번역 + 약기법 검토한다. 끝나면 서버가 다시 읽은 목록이 오른쪽에 나타난다
+  const translatePicked = async () => {
+    const ids = [...left.picked];
+    let done = 0;
+    let mustFix = 0;
+    setNotice(null);
+    setWorking({ done, total: ids.length });
+    for (let i = 0; i < ids.length; i += TRANSLATE_BATCH) {
+      const chunk = ids.slice(i, i + TRANSLATE_BATCH);
+      const res = await translateReviews(product.id, chunk);
+      if (!res.ok) {
+        setWorking(null);
+        setNotice({ text: `${res.message}${done > 0 ? ` (앞의 ${done}건은 번역됐어요)` : ""}`, error: true });
+        router.refresh();
+        return;
+      }
+      done += res.data.translated;
+      mustFix += res.data.mustFix;
+      setWorking({ done, total: ids.length });
+    }
+    setWorking(null);
+    left.clear();
+    setStatus("");
+    setDonePage(1);
+    setNotice({
+      text: `${done}건을 번역하고 약기법 검토를 마쳤어요.${mustFix > 0 ? ` 고쳐야 할 표현이 있는 리뷰가 ${mustFix}건 있어요. 오른쪽 목록의 「고쳐야 함」을 확인해 주세요.` : ""}`,
+      error: false,
+    });
+    router.refresh();
   };
   const changeLeft = (fn: () => void) => {
     fn();
@@ -229,11 +276,24 @@ export function TranslateView({
             {pickPaged.rows.length === 0 && <li className="py-4 text-center text-sm text-muted-foreground">조건에 맞는 리뷰가 없어요</li>}
           </ul>
           <Pager page={pickPaged.page} pageCount={pickPaged.pageCount} onChange={setPickPage} summary={`${candidates.length}건 중 ${pickPaged.from}~${pickPaged.to}`} />
-          {/* 번역 API(POST /api/reviews/translate)는 P5 실데이터 연동 때 붙인다. 지금은 버튼만 */}
-          <button type="button" disabled title="번역 연결 전이에요" className={`${buttonVariants({ size: "lg" })} w-full`}>
-            선택한 {left.picked.size}건 일본어로 번역하기
+          <button
+            type="button"
+            disabled={left.picked.size === 0 || working !== null}
+            onClick={translatePicked}
+            className={`${buttonVariants({ size: "lg" })} w-full`}
+          >
+            {working ? `번역하는 중… ${working.done} / ${working.total}건` : `선택한 ${left.picked.size}건 일본어로 번역하기`}
           </button>
-          <p className="text-xs text-muted-foreground">번역이 끝나면 약기법 검토가 자동으로 실행되고, 오른쪽 목록에 쌓여요. (번역 연결 전)</p>
+          <p className="text-xs text-muted-foreground">
+            {working
+              ? "10건마다 10~20초쯤 걸려요. 끝날 때까지 이 화면을 닫거나 다른 화면으로 이동하지 마세요."
+              : "번역하면 약기법 검토가 함께 돌아가고, 결과가 오른쪽 목록에 쌓여요. 이미 번역한 리뷰를 다시 고르면 새로 번역해요."}
+          </p>
+          {notice && (
+            <p role={notice.error ? "alert" : "status"} className={`text-sm ${notice.error ? "text-destructive" : "text-muted-foreground"}`}>
+              {notice.text}
+            </p>
+          )}
         </section>
 
         <section className="space-y-3 rounded-xl border bg-card p-5">
@@ -270,7 +330,7 @@ export function TranslateView({
           <div className="flex flex-wrap items-center justify-between gap-2 border-y py-2">
             <PageToggle ids={donePaged.rows.map((r) => r.id)} picked={right.picked} setMany={right.setMany} count={right.picked.size} />
             <span className="flex gap-2">
-              <button type="button" disabled={right.picked.size === 0} onClick={removePicked} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              <button type="button" disabled={right.picked.size === 0 || working !== null} onClick={removePicked} className={buttonVariants({ variant: "outline", size: "sm" })}>
                 선택 삭제
               </button>
               <button type="button" disabled={approvedPicked.length === 0} onClick={copyHtml} className={buttonVariants({ variant: "outline", size: "sm" })}>
@@ -311,7 +371,7 @@ export function TranslateView({
           </ul>
           <Pager page={donePaged.page} pageCount={donePaged.pageCount} onChange={setDonePage} summary={`${shownRows.length}건 중 ${donePaged.from}~${donePaged.to}`} />
           <p className="text-xs text-muted-foreground">
-            승인 전인 리뷰가 섞여 있으면 HTML 복사에서 빠져요. 선택 삭제는 아직 저장되지 않아요. 법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 해요.
+            승인은 각 줄의 「약기법 검토 →」 링크로 들어가 광고 검토 화면에서 담당자(owner)가 「내부 검토 완료」로 바꿔요. 승인 전인 리뷰는 HTML 복사에서 빠져요. 선택 삭제를 해도 약기법 검토 기록은 광고 검토 이력에 남아요. 법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 해요.
           </p>
         </section>
       </div>
