@@ -106,6 +106,59 @@
   box-shadow: var(--shadow-card);
 }
 
+/* 디자인 전환 5-1: 프로모션 캘린더(FullCalendar, 홈·/calendar)의 기본 남색 테마를 leaf 색에 맞춘다.
+   FullCalendar가 :root에 두는 --fc-* 값을 .fc 안에서 덮어쓰고, 버튼은 공통 outline 버튼처럼 32px 알약으로 바꾼다.
+   행사 막대·마감 색은 promo-calendar.tsx가 정하므로 그대로다 */
+:root[data-theme="leaf"] .fc {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--card);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-list-event-hover-bg-color: var(--muted);
+  --fc-today-bg-color: var(--accent);
+  --fc-button-text-color: var(--foreground);
+  --fc-button-bg-color: var(--background);
+  --fc-button-border-color: var(--border);
+  --fc-button-hover-bg-color: var(--muted);
+  --fc-button-hover-border-color: var(--border);
+  --fc-button-active-bg-color: var(--accent);
+  --fc-button-active-border-color: var(--accent);
+}
+:root[data-theme="leaf"] .fc .fc-button {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+}
+/* 이전·다음처럼 붙은 버튼 묶음은 바깥 끝만 둥글게 */
+:root[data-theme="leaf"] .fc .fc-button-group > .fc-button:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+:root[data-theme="leaf"] .fc .fc-button-group > .fc-button:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* 고른 보기(월·일정목록)는 구역 탭처럼 연한 초록 바탕에 굵게 */
+:root[data-theme="leaf"] .fc .fc-button-active {
+  font-weight: 500;
+}
+/* 포커스: 남색 그림자 대신 공통 부품과 같은 초록 링을 키보드로 옮겨 갈 때만 보인다.
+   :not(:disabled)는 FullCalendar의 고른 버튼 포커스 규칙보다 우선하려고 붙인다 */
+:root[data-theme="leaf"] .fc .fc-button:not(:disabled):focus {
+  box-shadow: none;
+}
+:root[data-theme="leaf"] .fc .fc-button:not(:disabled):focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+/* 월 제목은 카드 제목보다 조금 큰 20px. 기본 28px(홈 24.5px)은 페이지 제목보다 컸다 */
+:root[data-theme="leaf"] .fc .fc-toolbar-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-canvas: var(--canvas);
