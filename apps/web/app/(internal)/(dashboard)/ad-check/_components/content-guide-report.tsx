@@ -2,7 +2,7 @@
 // 화면에는 숨겨 두고 인쇄할 때만 보인다. A4 가로 · 두괄식(1쪽 개요·요약 먼저) · 고른 제목의 최종안 + 블록 메모.
 // 디자이너에게 전달하는 문서라 장면(사진 칸)을 옆으로 나란히 두고, 사진 설명은 사진 칸 안에 적는다.
 // 읽기 편하게: 테두리 상자를 줄이고(회색 면으로 구분), 섹션 사이 여백을 넉넉히, 회색 글씨는 번역·보조 설명에만.
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { SNS_ACCOUNTS, type GalleryShot, type GuideBlock } from "../_lib/content-guide-samples";
 import { PHOTO_DONTS, PHOTO_RULES, type CutRow } from "../_lib/photo-guide";
 import { AD_DISCLAIMER_TEXT } from "./ad-disclaimer";
@@ -55,7 +55,8 @@ export function memoLocation(channel: Channel, blocks: GuideBlock[], blockKey: s
 
 /** 스토리보드 한 줄에 넣는 장면 수 (3열). 한 쪽에는 높이가 허락하는 만큼 줄을 넣는다 (보통 2줄) */
 const SCENES_PER_ROW = 3;
-// 장면 높이 어림 (mm). 문구가 길면(성분 각주 등) 한 쪽에 2줄이 안 들어가 잘리므로 줄 단위로 다음 쪽으로 넘긴다
+// 쪽 나누기는 화면 밖에 A4 폭으로 장면을 실제로 그려 잰 높이(useStoryboardMeasure)로 한다.
+// 일본어는 「、」「…」 단위로 줄이 바뀌어 글자 수 어림이 틀리기 쉽다. 아래 어림은 재기 전 첫 그림에만 쓴다
 const STORYBOARD_HEIGHT_MM = 150; // 쪽 높이 189mm − 머리글·바닥글·섹션 제목
 const ROW_GAP_MM = 5;
 const SCENE_BASE_MM = 38; // 장면 제목 + 사진 칸 30mm + 간격
@@ -77,6 +78,76 @@ const WIDE_KO_LINE = { chars: 74, mm: 3.9 };
 function wideSceneMm(block: GuideBlock, fill: Fill, memo?: string) {
   const text = textMm(ja(block, fill), WIDE_JA_LINE) + textMm(ko(block, fill), WIDE_KO_LINE) + (memo?.trim() ? textMm(`메모 ${memo}`, WIDE_KO_LINE) + 2 : 0);
   return 8 + Math.max(30, text);
+}
+
+/** 잰 높이 (mm). narrow = 3열 한 칸, wide = 한 줄 통째, avail = 스토리보드 쪽에서 장면이 쓸 수 있는 높이 */
+type Measured = { narrow: number[]; wide: number[]; avail: number; rowGap: number };
+
+/** 인쇄 글꼴 (PRINT_CSS 와 같다). 화면 밖에서 잴 때도 같은 글꼴로 그린다 */
+const REPORT_FONT = 'var(--font-noto-kr), "Noto Sans KR", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif';
+
+/** 상세페이지 스토리보드를 화면 밖에 인쇄 크기(A4 가로, 안쪽 277 × 190mm)로 그려 장면 높이를 잰다. 인쇄할 때는 숨는다 */
+function useStoryboardMeasure(props: ContentGuideReportProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [measured, setMeasured] = useState<Measured | null>(null);
+  const { blocks, fill, memos } = props;
+  // 문구·메모·머리글이 바뀔 때만 다시 잰다 (fill 은 매번 새 함수라 결과 글자로 비교)
+  const key =
+    props.channel === "qoo10_detail"
+      ? JSON.stringify([props.productName, props.channelLabel, props.postTypeLabel, blocks.map((b) => [b.key, b.heading, b.image, b.needs_evidence, ja(b, fill), ko(b, fill), memos[b.key] ?? ""])])
+      : "";
+  useLayoutEffect(() => {
+    if (!key) return;
+    const measure = () => {
+      const root = ref.current;
+      if (!root) return;
+      const px = (sel: string) => [...root.querySelectorAll<HTMLElement>(sel)].map((e) => e.getBoundingClientRect().height);
+      const mm = (px("[data-mm]")[0] ?? 0) / 100;
+      if (!mm) return;
+      const toMm = (v: number) => v / mm;
+      setMeasured({
+        narrow: px("[data-narrow]").map(toMm),
+        wide: px("[data-wide]").map(toMm),
+        // 섹션 제목 아래 간격(space-y-2)과 반올림 여유 2mm 를 뺀다
+        avail: toMm(px("[data-avail]")[0] ?? 0) - toMm(8) - 2,
+        rowGap: toMm(20),
+      });
+    };
+    measure();
+    // 웹 글꼴이 늦게 오면 줄바꿈이 달라지므로 다 받은 뒤 한 번 더 잰다
+    void document.fonts?.ready.then(measure);
+  }, [key]);
+
+  const probe = key ? (
+    <div ref={ref} aria-hidden className="pointer-events-none invisible fixed top-0 -left-[10000px] w-[277mm] bg-background text-[10pt] leading-relaxed print:hidden" style={{ fontFamily: REPORT_FONT }}>
+      <div data-mm className="h-[100mm] w-px" />
+      {/* 스토리보드 쪽 틀: 머리글 · 섹션 제목 · (남는 칸) · 바닥글 */}
+      <div className="flex h-[190mm] flex-col gap-4">
+        <header className="flex items-baseline justify-between border-b pb-1 text-[8.5pt]">
+          <span>콘텐츠 제작 보고서</span>
+          <span>{props.productName}</span>
+        </header>
+        <SectionTitle n={4}>상세페이지 스토리보드 (1~6장)</SectionTitle>
+        <div data-avail className="flex-1" />
+        <footer className="border-t pt-1 text-[8pt]">{AD_DISCLAIMER_TEXT}</footer>
+      </div>
+      <div className="grid grid-cols-3 items-start gap-x-6 gap-y-5">
+        {blocks.map((b, i) => (
+          <div key={b.key} data-narrow>
+            <Scene block={b} no={i + 1} fill={fill} memo={memos[b.key]} />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 items-start gap-x-6 gap-y-5">
+        {blocks.map((b, i) => (
+          <div key={b.key} data-wide className="col-span-3">
+            <Scene block={b} no={i + 1} fill={fill} memo={memos[b.key]} wide />
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
+  return { measured, probe };
 }
 
 // 대시보드 레이아웃(사이드바·헤더)은 공용 영역이라 고치지 않고, 인쇄할 때만 보고서 밖을 숨긴다.
@@ -384,20 +455,25 @@ function Scene({ block, no, fill, memo, wide = false }: { block: GuideBlock; no:
   );
 }
 
-function detailPages(props: ContentGuideReportProps): ReactNode[] {
+function detailPages(props: ContentGuideReportProps, measured: Measured | null): ReactNode[] {
   const { blocks, fill, memos } = props;
+  // 잰 높이가 있으면 그것으로, 아직이면 어림으로
+  const narrowMm = (i: number) => measured?.narrow[i] ?? sceneMm(blocks[i]!, fill, memos[blocks[i]!.key]);
+  const wideMm = (i: number) => measured?.wide[i] ?? wideSceneMm(blocks[i]!, fill, memos[blocks[i]!.key]);
+  const limit = measured?.avail ?? STORYBOARD_HEIGHT_MM;
+  const gap = measured?.rowGap ?? ROW_GAP_MM;
   // 줄 만들기: 보통 장면은 3개씩, 한 칸에 다 안 들어가는 장면은 혼자 한 줄(넓게)
   type Row = { start: number; scenes: GuideBlock[]; wide: boolean; mm: number };
   const rows: Row[] = [];
   let buffer: GuideBlock[] = [];
   const flush = (end: number) => {
-    if (buffer.length) rows.push({ start: end - buffer.length, scenes: buffer, wide: false, mm: Math.max(...buffer.map((b) => sceneMm(b, fill, memos[b.key]))) });
+    if (buffer.length) rows.push({ start: end - buffer.length, scenes: buffer, wide: false, mm: Math.max(...buffer.map((_, k) => narrowMm(end - buffer.length + k))) });
     buffer = [];
   };
   blocks.forEach((b, i) => {
-    if (sceneMm(b, fill, memos[b.key]) > STORYBOARD_HEIGHT_MM) {
+    if (narrowMm(i) > limit) {
       flush(i);
-      rows.push({ start: i, scenes: [b], wide: true, mm: wideSceneMm(b, fill, memos[b.key]) });
+      rows.push({ start: i, scenes: [b], wide: true, mm: wideMm(i) });
       return;
     }
     buffer.push(b);
@@ -409,9 +485,9 @@ function detailPages(props: ContentGuideReportProps): ReactNode[] {
   let used = 0;
   for (const row of rows) {
     const last = groups.at(-1);
-    if (last && used + ROW_GAP_MM + row.mm <= STORYBOARD_HEIGHT_MM) {
+    if (last && used + gap + row.mm <= limit) {
       last.push(row);
-      used += ROW_GAP_MM + row.mm;
+      used += gap + row.mm;
     } else {
       groups.push([row]);
       used = row.mm;
@@ -430,7 +506,7 @@ function detailPages(props: ContentGuideReportProps): ReactNode[] {
       const last = lastRow.start + lastRow.scenes.length;
       return (
         <Section key={first} n={4} title={`상세페이지 스토리보드 (${first === last ? `${first}장` : `${first}~${last}장`})`}>
-          <div className="grid grid-cols-3 gap-x-6 gap-y-5">
+          <div className="grid grid-cols-3 items-start gap-x-6 gap-y-5">
             {group.flatMap((row) => row.scenes.map((b, i) => <Scene key={b.key} block={b} no={row.start + i + 1} fill={fill} memo={memos[b.key]} wide={row.wide} />))}
           </div>
         </Section>
@@ -609,7 +685,7 @@ function PhotoGuide({ cutList }: { cutList: CutRow[] }) {
   );
 }
 
-const PAGES: Record<Channel, (props: ContentGuideReportProps) => ReactNode[]> = {
+const PAGES: Record<Channel, (props: ContentGuideReportProps, measured: Measured | null) => ReactNode[]> = {
   qoo10_detail: detailPages,
   instagram: instagramPages,
   x: xPages,
@@ -617,15 +693,19 @@ const PAGES: Record<Channel, (props: ContentGuideReportProps) => ReactNode[]> = 
 };
 
 export function ContentGuideReport(props: ContentGuideReportProps) {
-  const pages = [...PAGES[props.channel](props), ...(props.cutList ? [<PhotoGuide key="photo" cutList={props.cutList} />] : [])];
+  const { measured, probe } = useStoryboardMeasure(props);
+  const pages = [...PAGES[props.channel](props, measured), ...(props.cutList ? [<PhotoGuide key="photo" cutList={props.cutList} />] : [])];
   return (
-    <div className="guide-report hidden bg-background text-foreground print:block">
-      <style>{PRINT_CSS}</style>
-      {pages.map((content, i) => (
-        <Page key={i} page={i + 1} total={pages.length} props={props}>
-          {content}
-        </Page>
-      ))}
-    </div>
+    <>
+      {probe}
+      <div className="guide-report hidden bg-background text-foreground print:block">
+        <style>{PRINT_CSS}</style>
+        {pages.map((content, i) => (
+          <Page key={i} page={i + 1} total={pages.length} props={props}>
+            {content}
+          </Page>
+        ))}
+      </div>
+    </>
   );
 }

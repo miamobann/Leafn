@@ -55,13 +55,12 @@ const SAMPLE_DELAY_MS = 700;
 export type GuideMaterials = Record<
   string,
   /** keywords = 피부 라인 고민 검색어, trending = 요즘 새로 뜬 검색어(SNS), ingredients = 관심 성분 (모두 약기법·전성분 기준으로 거른 것) */
-  /** droppedAppeals = 약기법 때문에 AI에 넘기지 않은 리뷰 소구점 (예: 순함) */
-  /** pickedTopics = 리뷰 분석 「소구점 찾기」에서 고른 소구점 수 (주소로 넘어왔을 때만, 아니면 null) */
+  /** appeals = 약기법 기준으로 거른 리뷰 소구점 전체 (순함은 빠져 있다). pickedAppeals = 리뷰 분석 「소구점 찾기」에서 고른 것 (주소로 넘어왔을 때만, 아니면 null) */
   /** approvedQuotes = 리뷰 분석 탭에서 번역·약기법 검토·팀장 승인을 거친 일본어 후기. 있으면 한국어 reviewQuotes 대신 쓴다 */
   {
     hasReviews: boolean;
     appeals: string[];
-    droppedAppeals: string[];
+    pickedAppeals: string[] | null;
     complaints: string[];
     candidates: string[];
     reviewQuotes: string[];
@@ -70,7 +69,6 @@ export type GuideMaterials = Record<
     trending: string[];
     ingredients: string[];
     megaSale: string | null;
-    pickedTopics: number | null;
   }
 >;
 
@@ -635,10 +633,14 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   );
   const [memoState, setMemoState] = useState<keyof typeof MEMO_STATUS | null>(null);
   const memoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  /** 제품 id → 담당자가 고른 리뷰 소구점 (안 골랐으면 리뷰 분석에서 넘어온 것, 그것도 없으면 전체) */
+  const [chosenAppeals, setChosenAppeals] = useState<Record<string, string[]>>({});
   /** 강조할 방향 (선택, 50자). 제작할 때 방향 참고로 함께 보낸다 */
   const [direction, setDirection] = useState(saved?.direction ?? "");
   /** 제작할 때 실제로 반영한 방향 (제작 뒤에 칸을 고쳐도 결과·PDF는 이 값) */
   const [appliedDirection, setAppliedDirection] = useState(saved?.direction ?? "");
+  /** 제작할 때 반영한 소구점 (제작 뒤에 소구점을 바꾸면 다시 제작해야 반영된다) */
+  const [appliedAppeals, setAppliedAppeals] = useState<string | null>(null);
   /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
   const [withPhotoGuide, setWithPhotoGuide] = useState(true);
   /** AI로 만든 제목·본문 (AI 모드). 본문은 제목을 고를 때 채운다 */
@@ -678,7 +680,11 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   }
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], droppedAppeals: [], complaints: [], candidates: [], reviewQuotes: [], approvedQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null, pickedTopics: null };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], pickedAppeals: null, complaints: [], candidates: [], reviewQuotes: [], approvedQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null };
+  // 이번 제작에 쓸 소구점: 후보도 고른 것 안에서만 넘긴다
+  const appeals = chosenAppeals[product.id] ?? material.pickedAppeals ?? material.appeals;
+  const toggleAppeal = (label: string) =>
+    setChosenAppeals((m) => ({ ...m, [product.id]: appeals.includes(label) ? appeals.filter((a) => a !== label) : material.appeals.filter((a) => a === label || appeals.includes(a)) }));
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
   const list = (aiEnabled || saved ? aiDrafts : drafts)
@@ -723,7 +729,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
         ingredients_ja: product.ingredients.map((i) => i.ja),
         line_products: products.filter((p) => p.id !== product.id && p.launch_status === "live").map((p) => p.name_ja),
       },
-      appeals: { praised: material.appeals, competitor_complaints: material.complaints, candidates: material.candidates },
+      appeals: { praised: appeals, competitor_complaints: material.complaints, candidates: material.candidates.filter((c) => appeals.includes(c)) },
       // 요즘 뜨는 말은 SNS(인스타·X)만
       keywords: { search: material.keywords, ingredients: material.ingredients, trending: hasPostType ? material.trending : [] },
       // 후기: 승인된 일본어 후기가 있으면 그것만 (그대로 인용), 없으면 한국어 리뷰 원문 (프롬프트 v4)
@@ -753,6 +759,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
     setMemos({});
     setAiError(null);
     setAppliedDirection(direction.trim());
+    setAppliedAppeals(appeals.join("|"));
     if (!aiEnabled) return wait("titles", () => setGeneratedKey(key));
     setLoading("titles");
     try {
@@ -871,27 +878,40 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
           {/* 참고 자료: 다른 탭이 만들어 둔 결과를 읽기만 한다 (AI 호출 없음). 화면이 길어지지 않게 접어 둔다 */}
           <details className="rounded-md border p-3 text-sm">
             <summary className="cursor-pointer font-medium">
-              참고 자료 <span className="font-normal text-muted-foreground">· 리뷰 분석 {material.hasReviews ? material.appeals.length : 0}개 · 시장 분석 {material.keywords.length + material.ingredients.length}개</span>
+              참고 자료 <span className="font-normal text-muted-foreground">· 리뷰 소구점 {material.hasReviews ? appeals.length : 0}개 선택 · 시장 분석 {material.keywords.length + material.ingredients.length}개</span>
             </summary>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <section className="space-y-1 rounded-md bg-muted p-3">
                 <p className="flex items-center gap-2 font-medium">
                   <span className="rounded border bg-background px-1.5 text-xs">리뷰 분석 탭</span>
-                  {material.pickedTopics === null ? "리뷰 소구점" : `선택한 소구점 ${material.pickedTopics}개`}
+                  리뷰 소구점 <span className="text-xs font-normal text-muted-foreground">눌러서 고르기 · {appeals.length}개 선택</span>
                 </p>
                 {material.hasReviews ? (
                   <ul className="flex flex-wrap gap-1">
-                    {material.appeals.map((a) => (
-                      <li key={a} className="rounded-full bg-background px-2 py-0.5 text-xs">
-                        {a}
-                      </li>
-                    ))}
+                    {material.appeals.map((a) => {
+                      const on = appeals.includes(a);
+                      return (
+                        <li key={a}>
+                          <button
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => toggleAppeal(a)}
+                            className={`rounded-full border px-2 py-0.5 text-xs ${on ? "border-primary bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                          >
+                            {a}
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <p className="text-xs text-muted-foreground">리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다</p>
                 )}
-                {material.hasReviews && material.droppedAppeals.length > 0 && (
-                  <p className="text-xs text-muted-foreground">약기법상 광고에 쓰지 않는 소구점: {material.droppedAppeals.join(", ")} (근거 자료 없이 저자극을 말할 수 없어요)</p>
+                {/* 승인된 일본어 후기가 없으면 리뷰 분석의 상세페이지용 리뷰(번역 → 약기법 검토 → 팀장 승인)로 보낸다 */}
+                {material.hasReviews && material.approvedQuotes.length === 0 && (
+                  <Link href={`/reviews/${product.id}/translate`} className="inline-block text-xs text-primary underline-offset-4 hover:underline">
+                    상세페이지용 리뷰 만들기 →
+                  </Link>
                 )}
               </section>
               <section className="space-y-1 rounded-md bg-muted p-3">
@@ -961,6 +981,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
             />
             <p className="text-xs text-muted-foreground">제작할 때 방향으로 반영돼요. 부탁하듯 적어도 되지만 답장은 오지 않고, 약기법에 어긋나는 방향(효능 과장 등)은 반영하지 않아요.</p>
             {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
+            {generated && appliedAppeals !== null && appeals.join("|") !== appliedAppeals && <p className="text-xs text-muted-foreground">소구점을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button type="button" onClick={generate} disabled={detailBlocked || loading !== null}>
@@ -1068,7 +1089,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                       {Object.entries(warnings[current.id] ?? {}).flatMap(([key, items]) =>
                         items.map((w) => (
                           <li key={`${key}-${w}`}>
-                            {key === "hashtags" ? "해시태그" : `${(blocks.findIndex((b) => b.key === key) + 1) || "-"}. ${blocks.find((b) => b.key === key)?.heading ?? key}`}: {w}
+                            {key === "hashtags" ? "해시태그" : key === "title" ? "제목" : `${(blocks.findIndex((b) => b.key === key) + 1) || "-"}. ${blocks.find((b) => b.key === key)?.heading ?? key}`}: {w}
                           </li>
                         )),
                       )}
@@ -1177,7 +1198,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
           postTypeLabel={hasPostType ? (POST_TYPES.find((t) => t.id === postType)?.label ?? null) : null}
           author={author}
           title={{ ja: fill(current.title_ja), ko: fill(current.title_ko), reason: current.reason }}
-          appeals={material.hasReviews ? material.appeals : []}
+          appeals={material.hasReviews ? appeals : []}
           keywords={material.keywords}
           blocks={blocks}
           gallery={channel === "qoo10_detail" ? current.gallery : []}

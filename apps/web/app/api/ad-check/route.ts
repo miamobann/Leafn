@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
     if (mine) {
       const supabase = await createClient();
-      const { error: dbErr } = await supabase.from("ad_checks").insert({
+      const row = {
         id: check.id,
         created_at: check.created_at,
         workspace_id: workspaceId,
@@ -82,7 +82,11 @@ export async function POST(request: Request) {
         is_expert_review_requested: check.is_expert_review_requested ?? false,
         model: check.model,
         prompt_version: check.prompt_version,
-      });
+      };
+      const guideId = body.data.content_guide_id && UUID_RE.test(body.data.content_guide_id) ? body.data.content_guide_id : null;
+      // 가이드 연결 칸(20261026200000)이 원격 DB에 아직 없으면 연결 없이 저장한다 (검토 저장이 먼저)
+      let { error: dbErr } = guideId ? await supabase.from("ad_checks").insert({ ...row, content_guide_id: guideId }) : await supabase.from("ad_checks").insert(row);
+      if (dbErr && guideId && dbErr.message.includes("content_guide_id")) ({ error: dbErr } = await supabase.from("ad_checks").insert(row));
       if (dbErr) return fail(500, "결과를 DB에 저장하지 못했습니다. 관리자에게 테이블 적용 상태와 권한을 확인해 주세요.");
 
       const lineRows = (check.line_results ?? []).map((line) => ({

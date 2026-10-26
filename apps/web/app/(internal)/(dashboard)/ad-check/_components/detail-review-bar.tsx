@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReviewStatus } from "@/lib/schemas/common";
 import { updateAdCheckReview } from "../_lib/request";
-import { ReviewBar } from "./review-bar";
+import { approveWarningOf, ReviewBar } from "./review-bar";
 
 type DetailReviewBarProps = {
   checkId: string;
@@ -12,6 +12,8 @@ type DetailReviewBarProps = {
   initialStatus: ReviewStatus;
   initialExpertRequested: boolean;
   canApprove: boolean;
+  /** 최종 문구에서 대체 표현 없이 남은 「고쳐야 함」 줄 수 (서버가 계산) */
+  mustFixLeft?: number;
 };
 
 export function DetailReviewBar({
@@ -21,6 +23,7 @@ export function DetailReviewBar({
   initialStatus,
   initialExpertRequested,
   canApprove,
+  mustFixLeft = 0,
 }: DetailReviewBarProps) {
   const [status, setStatus] = useState<ReviewStatus>(initialStatus);
   const [expertRequested, setExpertRequested] = useState(initialExpertRequested);
@@ -49,6 +52,7 @@ export function DetailReviewBar({
   return (
     <ReviewBar
       finalText={initialFinalText}
+      approveWarning={approveWarningOf({ mustFixLeft, expertRequested })}
       note={note}
       onNoteChange={setNote}
       status={status}

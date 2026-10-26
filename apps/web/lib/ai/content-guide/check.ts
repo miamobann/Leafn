@@ -12,6 +12,8 @@ const USAGE: Record<ContentChannel, z.infer<typeof AdUsage>> = { qoo10_detail: "
 
 /** 해시태그 판정 줄의 키 (본문 블록 키와 겹치지 않게) */
 export const HASHTAG_KEY = "hashtags";
+/** 제목(큐텐 상품명 · SNS 첫 줄) 판정 키. 검색 결과에 가장 먼저 보이는 광고 문구라 같이 판정한다 (2026-10-26) */
+export const TITLE_KEY = "title";
 
 /** text = 판정에 보낸 한 줄 (ad_check_lines.original 로 저장) */
 export type BlockCheck = { key: string; text: string; line: JudgedLine };
@@ -19,12 +21,13 @@ export type BodyCheck = { blocks: BlockCheck[]; adUsage: z.infer<typeof AdUsage>
 
 type Deps = { call?: (request: AiRequest) => Promise<AiReply> };
 
-export async function checkBody(channel: ContentChannel, product: AdCheckProductInput, body: GuideBodyResult, deps: Deps = {}): Promise<BodyCheck> {
+export async function checkBody(channel: ContentChannel, product: AdCheckProductInput, body: GuideBodyResult, deps: Deps = {}, title?: string): Promise<BodyCheck> {
   // 판정은 한 줄 = 한 문구라서, 여러 줄인 문구는 줄바꿈을 「 / 」로 이어 한 줄로 보낸다
   const targets = body.blocks.flatMap((b) => {
     const text = b.options[0]?.text_ja.trim() ?? "";
     return text && !b.needs_evidence ? [{ key: b.key, text: text.replace(/\n+/g, " / ") }] : [];
   });
+  if (title?.trim()) targets.unshift({ key: TITLE_KEY, text: title.trim().replace(/\n+/g, " / ") });
   // 해시태그도 광고 표시라 같은 판정을 거친다 (트렌드 검색어가 들어가는 곳, 2026-10-25). 판정 키는 HASHTAG_KEY
   const tags = [...body.hashtags.brand, ...body.hashtags.ingredient, ...body.hashtags.trend].map((t) => t.trim()).filter(Boolean);
   if (tags.length) targets.push({ key: HASHTAG_KEY, text: tags.join(" ") });
