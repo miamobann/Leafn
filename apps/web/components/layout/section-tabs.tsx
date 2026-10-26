@@ -4,19 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { activeHref, groupOf } from "./nav-config";
+import { activeHref, groupOf, type NavRole, visibleItems } from "./nav-config";
 
 /**
  * 탭(사이드바 그룹) 화면 맨 위의 하위 메뉴 버튼 줄. 화면 틀(layout.tsx)이 그리므로 각 화면 파일은 고치지 않는다.
  * 그룹에 속하지 않는 화면(홈, 자료실, 설정)에서는 그리지 않는다
  */
-export function SectionTabs() {
+export function SectionTabs({ role }: { role: NavRole }) {
   const current = activeHref(usePathname());
   const group = groupOf(current);
   if (!group) return null;
 
-  const tabs = group.items.filter((item) => !item.external);
-  const links = group.items.filter((item) => item.external);
+  const items = visibleItems(group, role);
+  const tabs = items.filter((item) => !item.external);
+  const links = items.filter((item) => item.external);
 
   return (
     <nav aria-label={`${group.label} 하위 메뉴`} className="mb-6 flex items-end gap-6 border-b border-border">

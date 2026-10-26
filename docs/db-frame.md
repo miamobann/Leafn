@@ -177,11 +177,11 @@ create policy "members delete" on products for delete using (is_member(workspace
 - `content_guides`: update·delete는 `is_owner`, 작성자 = 로그인 사용자 (restrictive 정책)
 - `surveys`: 열린 설문은 누구나 읽기. `survey_responses`·`survey_reco_events`는 anon insert(열린 설문일 때)만, 읽기는 멤버
 - 수집기(Python)는 service role 키로 RLS를 우회해 쓴다. 대신 `workspace_id`를 코드에서 꼭 넣는다
-- 결재 공통 층은 `has_tab(ws, tab)`(담당 탭인지, owner는 항상 true)을 더한다. 모두 멤버가 읽고, 쓰기는 이렇게 좁힌다:
+- 결재 공통 층은 `has_tab(ws, tab)`(담당 탭인지, owner는 항상 true)을 더한다. 읽기는 멤버 모두이되, 버전과 결재 기록은 팀장만 전부 읽는다 (아래). 쓰기는 이렇게 좁힌다:
   - `member_tabs`: insert·delete는 owner
   - `tab_submissions`: insert는 담당 탭에서 본인 이름으로. update·delete 정책 없음 (함수로만)
-  - `submission_versions`: insert는 담당 탭의 숨기지 않은 시안에 본인 이름으로, update는 임시 버전만 작성자(담당 탭일 때)나 owner. delete 정책 없음
-  - `submission_reviews`: 쓰기 정책 없음 (`decide_version()`으로만)
+  - `submission_versions`: 읽기는 owner 전부, 팀원은 자기 버전과 승인본만 (`20261026180000`, 결재함은 팀장만). insert는 담당 탭의 숨기지 않은 시안에 본인 이름으로, update는 임시 버전만 작성자(담당 탭일 때)나 owner. delete 정책 없음
+  - `submission_reviews`: 읽기는 owner 전부, 팀원은 읽을 수 있는 버전(자기 버전 · 승인본)의 기록만. 쓰기 정책 없음 (`decide_version()`으로만)
   - `ai_analyses`: 멤버는 읽기만. insert는 서버의 service role로만, 팀장 확인·숨김은 함수로만
 
 ## 6. 마이그레이션 파일 (적용 순서)
@@ -213,6 +213,7 @@ create policy "members delete" on products for delete using (is_member(workspace
 | `20261026160000_survey_concern_other_ko.sql` | survey_responses.concern_other_ko ('기타' 고민의 한국어 번역) |
 | `20261026170000_survey_reco_events_source.sql` | survey_reco_events.source (추천 기록의 유입 경로) |
 | `20261026180000_content_guides_revision_memos.sql` | content_guides.parent_id (수정본) · memos (블록별 메모), set_content_guide_memos() |
+| `20261026190000_owner_only_approval_reads.sql` | 결재함은 팀장만: 팀원은 자기 버전 · 승인본과 그 결재 기록만 읽기, 버전 번호 트리거를 security definer로 |
 
 새 파일은 `npx supabase migration new <이름>`으로 만들고, 원격 적용은 DB 관리자(Min)가 한다 (DB_RULES 6장).
 

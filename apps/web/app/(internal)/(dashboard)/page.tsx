@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { getAdChecks, getBoardProjects } from "@/lib/data";
 import Link from "next/link";
 import { getPlatformViews, getPromoEventViews, getToday } from "@/lib/data/launch";
-import { getApprovalInbox, STALE_REVIEW_DAYS } from "@/lib/data/submissions";
+import { getApprovalInbox, getMyTabs, STALE_REVIEW_DAYS } from "@/lib/data/submissions";
 import { isSupabaseConfigured } from "@/lib/data/workspace";
 import { HomeCalendar } from "./_home/home-calendar";
 import { ProjectBoard, ProjectProgress, StageDetail } from "./_home/project-board";
@@ -11,7 +11,7 @@ import { SummaryCards } from "./_home/summary-cards";
 import { getTabSummaries } from "./_home/tab-summary";
 
 export default async function HomePage() {
-  const [pending, projects, calendarEvents, platforms, today, summaries, inbox] = await Promise.all([
+  const [pending, projects, calendarEvents, platforms, today, summaries, inbox, my] = await Promise.all([
     getAdChecks({ status: "pending" }),
     getBoardProjects(),
     getPromoEventViews(),
@@ -19,9 +19,10 @@ export default async function HomePage() {
     getToday(),
     getTabSummaries(),
     getApprovalInbox({ recentLimit: 0 }),
+    getMyTabs(),
   ]);
-  // 결재가 한 사람에게 몰려 늦어지는 것을 홈에서 보이게 한다 (docs/team-approval-ai-analysis.md 8장 보완 4)
-  const staleReviews = inbox.pending.filter((r) => r.waitingDays > STALE_REVIEW_DAYS).length;
+  // 결재가 한 사람에게 몰려 늦어지는 것을 홈에서 보이게 한다 (docs/team-approval-ai-analysis.md 8장 보완 4). 결재함은 팀장만 보므로 알림도 팀장에게만
+  const staleReviews = my.role === "owner" ? inbox.pending.filter((r) => r.waitingDays > STALE_REVIEW_DAYS).length : 0;
 
   return (
     <ProjectProgress projectIds={projects.map((p) => p.id)}>
