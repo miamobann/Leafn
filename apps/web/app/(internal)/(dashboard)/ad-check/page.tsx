@@ -39,7 +39,7 @@ export default async function AdCheckPage({ searchParams }: AdCheckPageProps) {
   return (
     <>
       <PageHeader title="새 광고 검토" description="약기법 위험 표현, 사유·근거, 대체 표현, 현지화를 줄별로 확인합니다" featureId="A" />
-      <AdDisclaimer extra="「내부 검토 완료」는 팀장만 누를 수 있고 법적 승인이 아닙니다. 판정하면 검토 이력에 자동 저장돼요." />
+      <AdDisclaimer extra="판정하면 검토 이력에 자동 저장돼요. 승인 · 반려는 검토 상세의 「시안으로 결재 올리기」 → 결재함에서 해요." />
       {guide && !source && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
           <span>만든 가이드의 제목·본문을 한 줄씩 불러왔어요. 「검토 요청」으로 판정하고 대체 표현을 고르면 「가이드에 반영」으로 수정본을 만들 수 있어요. 줄을 더하거나 지우면 반영할 수 없어요.</span>

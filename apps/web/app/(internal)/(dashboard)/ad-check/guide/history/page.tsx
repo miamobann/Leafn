@@ -11,6 +11,9 @@ import { DeleteButton } from "../../_components/delete-button";
 import { HistoryFilters } from "../../_components/history-filters";
 import { GUIDE_CHANNELS } from "../../_lib/content-guide-samples";
 import { makeFill } from "../../_lib/guide-report";
+import { findSourceGuide } from "../../_lib/guide-to-review";
+import { getSubmissions, getSubmissionVersions } from "@/lib/data/submissions";
+import { AdBody } from "@/lib/schemas/submission";
 
 type GuideHistoryPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -58,15 +61,30 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
         .map(async (g) => [g.id, worstAction((await getContentGuide(g.id))?.checks.map((c) => c.action) ?? [])] as const),
     ),
   );
-  // 게시 상태: 고칠 곳(고쳐야 함 · 전문가 확인)이 남았는지 → 팀장이 그 문구를 검토에서 승인(내부 검토 완료)했는지.
-  // 수정본은 그 수정본을 만든 검토, 처음 만든 가이드는 그 가이드에서 온 검토 중 하나가 승인되면 「게시 가능」
+  // 게시 상태: 고칠 곳(고쳐야 함 · 전문가 확인)이 남았는지 → 그 문구의 검토가 담긴 시안이 결재에서 승인됐는지 (결재가 우선, 2026-10-27).
+  // 수정본은 그 수정본을 만든 검토, 처음 만든 가이드는 그 가이드에서 온 검토. 예전에 검토 화면에서 「내부 검토 완료」로 둔 것도 인정한다
+  const adVersions = (await Promise.all((await getSubmissions({ tab: "ad" })).map((sub) => getSubmissionVersions(sub.id)))).flat();
+  const approvedByDecision = new Set(
+    adVersions.filter((v) => v.status === "approved").flatMap((v) => {
+      const body = AdBody.safeParse(v.body);
+      return body.success ? body.data.items.map((it) => it.ad_check_id) : [];
+    }),
+  );
+  const fillFor = (productId: string | null) => {
+    const p = adProducts.find((x) => x.id === productId);
+    return p ? makeFill(p) : undefined;
+  };
   const approved = (g: (typeof all)[number]) =>
-    manualChecks.some((c) => c.review_status === "approved" && (g.parent_id ? c.id === g.ad_check_id : c.content_guide_id === g.id));
+    manualChecks.some(
+      (c) =>
+        (approvedByDecision.has(c.id) || c.review_status === "approved") &&
+        (g.parent_id ? c.id === g.ad_check_id : findSourceGuide(c, all, fillFor)?.id === g.id),
+    );
   const statusOf = (g: (typeof all)[number]) => {
     const action = actionOf(g);
     if (action === "must_fix" || action === "expert") return { label: "고칠 곳 있음", tone: "border-risk-high/40 text-risk-high", hint: "「고쳐야 함」이나 「전문가 확인」이 남았어요. 새 검토에서 고쳐 반영해 주세요" };
-    if (approved(g)) return { label: "게시 가능", tone: "border-risk-low/50 text-risk-low", hint: "팀장이 검토에서 「내부 검토 완료」로 확인했어요 (법적 승인은 아니에요)" };
-    return { label: "팀장 확인 대기", tone: "text-muted-foreground", hint: "새 검토로 판정한 뒤 팀장이 「내부 검토 완료」를 누르면 게시 가능이 돼요" };
+    if (approved(g)) return { label: "게시 가능", tone: "border-risk-low/50 text-risk-low", hint: "이 문구의 검토가 담긴 시안을 팀장이 결재에서 승인했어요 (법적 승인은 아니에요)" };
+    return { label: "결재 전", tone: "text-muted-foreground", hint: "새 검토로 판정하고 검토 상세에서 「시안으로 결재 올리기」 → 팀장이 승인하면 게시 가능이 돼요" };
   };
   const actionOf = (g: (typeof all)[number]) => (g.parent_id ? (revisedAction.get(g.id) ?? null) : (checks.find((c) => c.id === g.ad_check_id)?.overall_action ?? null));
   // 콘텐츠를 만들 수 있는 제품(전성분·가격·용량이 등록된 자사 제품)과 이미 만든 콘텐츠의 제품만 고를 수 있게 한다

@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { AdFinding, AdLineResult } from "@/lib/schemas/ad-check";
 import type { GuideReflectState } from "../_lib/guide-to-review";
-import { LineResultCard } from "./line-result-card";
+import { ResultLines } from "./result-lines";
 
 type ReviseFailure = { message: string; link?: { href: string; label: string } };
 
@@ -107,25 +107,22 @@ export function GuideReflect({
   const ready = state.kind === "ready";
   return (
     <div className="space-y-4">
-      {lines.map((line) => (
-        <LineResultCard
-          key={line.line_index}
-          line={line}
-          findings={findings.filter((f) => f.line_index === line.line_index)}
-          selectedSuggestion={selected[line.line_index] ?? null}
-          onSelect={
-            ready
-              ? (s) =>
-                  setSelected((prev) => {
-                    const next = { ...prev };
-                    if (s === null) delete next[line.line_index];
-                    else next[line.line_index] = s;
-                    return next;
-                  })
-              : undefined
-          }
-        />
-      ))}
+      <ResultLines
+        lines={lines}
+        findings={findings}
+        selected={selected}
+        onSelect={
+          ready
+            ? (lineIndex, s) =>
+                setSelected((prev) => {
+                  const next = { ...prev };
+                  if (s === null) delete next[lineIndex];
+                  else next[lineIndex] = s;
+                  return next;
+                })
+            : undefined
+        }
+      />
       {state.kind === "reflected" && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
           <span>이 검토로 이미 가이드를 고쳤어요.</span>

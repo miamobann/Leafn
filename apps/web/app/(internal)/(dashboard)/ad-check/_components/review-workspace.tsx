@@ -8,16 +8,16 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/common/states
 import { ViewStateGate } from "@/components/common/view-state";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AdCheck, AdUsage } from "@/lib/schemas/ad-check";
+import type { AdCheck, AdLineResult, AdUsage } from "@/lib/schemas/ad-check";
 import type { ReviewStatus } from "@/lib/schemas/common";
 import { countLines } from "../_lib/lines";
 import type { LabProduct } from "../_lib/products";
 import { requestAdCheck, updateAdCheckReview, type AiMeta } from "../_lib/request";
 import { CopyButton } from "./copy-button";
 import { GuideRevisePanel, useGuideRevise } from "./guide-reflect";
-import { LineResultCard } from "./line-result-card";
+import { ResultLines } from "./result-lines";
 import { ResultSummary } from "./result-summary";
-import { approveWarningOf, ReviewBar } from "./review-bar";
+import { ReviewBar } from "./review-bar";
 import { ReviewForm } from "./review-form";
 
 const COPY = {
@@ -139,16 +139,8 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
     return (
       <div className="space-y-4">
         {submittedText !== text && <p className="text-sm text-muted-foreground">{COPY.stale}</p>}
-        <ResultSummary check={check} />
-        {lines.map((line) => (
-          <LineResultCard
-            key={line.line_index}
-            line={line}
-            findings={check.findings.filter((f) => f.line_index === line.line_index)}
-            selectedSuggestion={selected[line.line_index] ?? null}
-            onSelect={(s) => selectSuggestion(line.line_index, s)}
-          />
-        ))}
+        <ResultSummary check={check} next={<NextStep lines={lines} selected={selected} fromGuide={Boolean(guideId)} persisted={persisted} />} />
+        <ResultLines lines={lines} findings={check.findings} selected={selected} onSelect={selectSuggestion} />
         {aiMeta && (
           <div className="space-y-0.5">
             <AiResultMeta model={check.model} promptVersion={check.prompt_version} createdAt={check.created_at} />
@@ -205,18 +197,12 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
           canApprove={canApprove && persisted}
           saveState={saveState}
           saveError={saveError}
-          onStatusChange={(nextStatus) => {
-            setStatus(nextStatus);
-            void persistReview(nextStatus, expertRequested, note, finalText);
-          }}
           onExpertToggle={() => {
             const nextExpert = !expertRequested;
             setExpertRequested(nextExpert);
             void persistReview(status, nextExpert, note, finalText);
           }}
-          onReset={() => { setStatus("pending"); setExpertRequested(false); void persistReview("pending", false, note, finalText); }}
           onSaveNote={() => void persistReview(status, expertRequested, note, finalText)}
-          approveWarning={approveWarningOf({ mustFixLeft: lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length, expertRequested })}
         />
       )}
       {/* 만든 가이드에서 넘어왔으면: 고친 문구를 가이드 수정본으로 되돌린다 (약기법 우선: 「고쳐야 함」 줄은 대체 표현을 골라야 반영) */}
@@ -247,5 +233,24 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
         </div>
       )}
     </ViewStateGate>
+  );
+}
+
+/** 결론 칸의 「다음 할 일」: 대체 표현 고르기 → (가이드에서 왔으면) 가이드에 반영 · 결재 올리기 */
+function NextStep({ lines, selected, fromGuide, persisted }: { lines: AdLineResult[]; selected: Record<number, string>; fromGuide: boolean; persisted: boolean }) {
+  const toFix = lines.filter((l) => l.action !== "ok");
+  const picked = toFix.filter((l) => selected[l.line_index]).length;
+  const mustFixLeft = lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length;
+  const steps = [
+    toFix.length > 0 ? `① 대체 표현 고르기 (${picked}/${toFix.length})` : "① 고칠 곳 없음",
+    fromGuide ? "② 아래 「가이드에 반영」" : null,
+    persisted ? `${fromGuide ? "③" : "②"} 검토 이력에서 열어 「시안으로 결재 올리기」` : null,
+  ].filter(Boolean);
+  return (
+    <p className="text-sm">
+      <span className="font-medium">다음 할 일 · </span>
+      {steps.join(" → ")}
+      {mustFixLeft > 0 && <span className="text-risk-high"> · 「고쳐야 함」 {mustFixLeft}줄이 남았어요</span>}
+    </p>
   );
 }
