@@ -77,11 +77,13 @@ export async function dropFlaggedHashtags<H extends { key: string; text: string 
   let blocks = others;
   if (left.length) {
     const text = left.join(" ");
-    const judged = await judgeLines({ product, usage: USAGE[channel], lines: [text] }, deps);
+    // 다시 판정이 실패하면 태그를 빼지 않고 처음 판정(경고)을 그대로 둔다. 만든 결과물은 잃지 않는다
+    const judged = await judgeLines({ product, usage: USAGE[channel], lines: [text] }, deps).catch(() => null);
+    if (!judged?.lines[0]) return { body, lintHits, checked };
     usage.input += judged.usage.input;
     usage.cached += judged.usage.cached;
     usage.output += judged.usage.output;
-    blocks = [...others, { key: HASHTAG_KEY, text, line: judged.lines[0]! }];
+    blocks = [...others, { key: HASHTAG_KEY, text, line: judged.lines[0] }];
   }
   return { body: { ...body, hashtags }, lintHits: lintHits.filter((h) => h.key !== HASHTAG_KEY), checked: { ...checked, blocks, usage } };
 }

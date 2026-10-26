@@ -707,9 +707,9 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
   const detailBlocked = channel === "qoo10_detail" && product.launch_status === "developing";
 
-  // 해시태그: 인스타그램은 시장 분석 검색어 상위 태그를 고민·트렌드에 덧붙인다 (X는 1~3개라 덧붙이지 않는다)
+  // 해시태그: 인스타그램은 시장 분석 검색어 상위 태그를 고민·트렌드에 덧붙인다 (X는 1~3개라 덧붙이지 않는다). AI 결과는 서버가 붙이고 판정까지 거쳐 저장한 그대로
   const { groups, keywordTags, list: hashtags } = current
-    ? pickHashtags(current.hashtags, channel, material.keywords)
+    ? pickHashtags(current.hashtags, channel, material.keywords, aiEnabled || Boolean(saved))
     : { groups: { brand: [], ingredient: [], trend: [] } as Hashtags, keywordTags: [] as string[], list: [] as string[] };
   const category = kind.ja;
 

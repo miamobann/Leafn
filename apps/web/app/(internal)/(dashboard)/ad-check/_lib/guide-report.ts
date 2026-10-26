@@ -51,17 +51,24 @@ export function visibleBlocks(blocks: GuideBlock[], channel: GuideChannel, slide
   );
 }
 
-/** 해시태그: 인스타그램은 5개(브랜드 1 + 성분·제형 1 + 고민·트렌드 2 + 검색어 1), X는 결과 그대로 */
-export function pickHashtags(hashtags: Hashtags, channel: GuideChannel, keywords: string[]) {
-  const keywordTags = channel === "instagram" ? keywords.slice(0, KEYWORD_TAGS).map(keywordToHashtag) : [];
-  const groups: Hashtags =
-    channel === "instagram"
-      ? {
-          brand: hashtags.brand.slice(0, 2),
-          ingredient: hashtags.ingredient.slice(0, 1),
-          trend: [...new Set([...hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 3 - KEYWORD_TAGS), ...keywordTags])],
-        }
-      : hashtags;
+/** 해시태그를 채널 기준으로 맞춘다: 인스타그램은 5개(브랜드 1 + 성분·제형 1 + 고민·트렌드 2 + 검색어 1), X는 결과 그대로.
+ *  AI 제작 결과는 서버가 저장 전에 한 번 맞추고, 검색어 태그까지 약기법 판정을 거친다 (2026-10-27) */
+export function finalizeHashtags(hashtags: Hashtags, channel: GuideChannel, keywords: string[]): Hashtags {
+  if (channel !== "instagram") return hashtags;
+  const keywordTags = keywords.slice(0, KEYWORD_TAGS).map(keywordToHashtag);
+  return {
+    brand: hashtags.brand.slice(0, 2),
+    ingredient: hashtags.ingredient.slice(0, 1),
+    trend: [...new Set([...hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 3 - KEYWORD_TAGS), ...keywordTags])],
+  };
+}
+
+/** 화면 · PDF 에 보여 줄 해시태그. final = 서버가 이미 맞춰 저장한 결과 (AI 제작 · 저장된 가이드)라 그대로 쓴다.
+ *  샘플만 지금 검색어로 태그를 붙인다. keywordTags = 목록에 실제로 들어간 검색어 태그 */
+export function pickHashtags(hashtags: Hashtags, channel: GuideChannel, keywords: string[], final = false) {
+  const groups = final ? hashtags : finalizeHashtags(hashtags, channel, keywords);
   // 같은 태그가 두 그룹에 들어오면 한 번만 (화면 목록의 key 가 겹치지 않게)
-  return { groups, keywordTags, list: [...new Set([...groups.brand, ...groups.ingredient, ...groups.trend])] };
+  const list = [...new Set([...groups.brand, ...groups.ingredient, ...groups.trend])];
+  const keywordTags = channel === "instagram" ? keywords.slice(0, KEYWORD_TAGS).map(keywordToHashtag).filter((t) => list.includes(t)) : [];
+  return { groups, keywordTags, list };
 }
