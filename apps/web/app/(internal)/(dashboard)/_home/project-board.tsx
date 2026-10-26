@@ -121,7 +121,7 @@ export function ProjectBoard({
     <section
       aria-labelledby="board-title"
       data-slot="card"
-      className="flex min-w-0 flex-[999_1_600px] flex-col gap-4 rounded-xl bg-card p-6 ring-1 ring-foreground/10"
+      className="flex min-w-0 flex-[999_1_600px] flex-col gap-3 rounded-xl bg-card px-6 py-5 ring-1 ring-foreground/10"
     >
       <div className="flex items-center gap-3">
         <h2 id="board-title" className="text-lg font-medium">
@@ -131,7 +131,7 @@ export function ProjectBoard({
         <Link
           href="/projects"
           aria-label={TEXT.all}
-          className="ml-auto inline-flex size-10 items-center justify-center rounded-full border border-border hover:bg-muted"
+          className="ml-auto inline-flex size-9 items-center justify-center rounded-full border border-border hover:bg-muted"
         >
           <ArrowUpRight aria-hidden className="size-4" />
         </Link>
@@ -147,7 +147,7 @@ export function ProjectBoard({
       ) : (
         <div className="overflow-x-auto">
           <div role="table" aria-label={TEXT.title} className="flex min-w-[680px] flex-col">
-            <div role="row" className={`${ROW} border-b border-[#e6efe4] pb-3 text-xs text-muted-foreground`}>
+            <div role="row" className={`${ROW} border-b border-[#e6efe4] pb-2 text-xs text-muted-foreground`}>
               <span role="columnheader">{TEXT.product}</span>
               {COLUMNS.map((label) => (
                 <span key={label} role="columnheader" className="text-center">
@@ -166,7 +166,7 @@ export function ProjectBoard({
               const product = productOf.get(row.productId);
               const sub = [product?.skin_line ? TEXT.line[product.skin_line] : null, product?.category, platform].filter(Boolean).join(" · ");
               return (
-                <div key={row.productId} role="row" className={`${ROW} border-b border-[#e6efe4] py-5`}>
+                <div key={row.productId} role="row" className={`${ROW} border-b border-[#e6efe4] py-3`}>
                   <span role="rowheader" className="flex min-w-0 flex-col gap-0.5">
                     <span className="truncate text-[15px] font-medium">{row.productName}</span>
                     {sub && <span className="truncate text-xs text-muted-foreground">{sub}</span>}
@@ -217,29 +217,31 @@ export function ProjectBoard({
         </div>
       )}
 
-      {scope && (
-        <p className="text-xs text-muted-foreground">
-          {TEXT.projectScope}:{" "}
-          <Link href={scope.href} className="font-medium text-foreground underline-offset-4 hover:underline">
-            {scope.label}
-          </Link>
-        </p>
-      )}
-
-      <ul aria-label={TEXT.legend} className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-foreground/80">
-        {LEGEND.map((l) => (
-          <li key={l.kind} className="flex items-center gap-1.5">
-            <span aria-hidden className={`inline-block size-3.5 rounded ${BRICK[l.kind]}`} />
-            {l.label}
+      {/* 범례와 프로젝트 전체 시안을 한 줄에 두어 카드 높이를 줄인다 (아래 캘린더가 첫 화면에 보이도록) */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-foreground/80">
+        <ul aria-label={TEXT.legend} className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {LEGEND.map((l) => (
+            <li key={l.kind} className="flex items-center gap-1.5">
+              <span aria-hidden className={`inline-block size-3.5 rounded ${BRICK[l.kind]}`} />
+              {l.label}
+            </li>
+          ))}
+          <li className="flex items-center gap-1.5">
+            <span aria-hidden className="rounded-full bg-status-pending px-1.5 text-[10.5px] leading-[17px] font-bold text-white">
+              {TEXT.waiting(staleDays)}
+            </span>
+            {TEXT.legendWait(staleDays)}
           </li>
-        ))}
-        <li className="flex items-center gap-1.5">
-          <span aria-hidden className="rounded-full bg-status-pending px-1.5 text-[10.5px] leading-[17px] font-bold text-white">
-            {TEXT.waiting(staleDays)}
-          </span>
-          {TEXT.legendWait(staleDays)}
-        </li>
-      </ul>
+        </ul>
+        {scope && (
+          <p className="ml-auto text-muted-foreground">
+            {TEXT.projectScope}:{" "}
+            <Link href={scope.href} className="font-medium text-foreground underline-offset-4 hover:underline">
+              {scope.label}
+            </Link>
+          </p>
+        )}
+      </div>
     </section>
   );
 }

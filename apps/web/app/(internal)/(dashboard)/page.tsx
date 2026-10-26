@@ -77,15 +77,24 @@ export default async function HomePage() {
   }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <HomeHeader name={me.name} dateLabel={dateLabel(today)} lines={lines} todo={todo} next={next} todoHref={`#${HOME_TODO_ID}`} />
-      {staleReviews > 0 && (
-        <p role="note" className="-mt-2 text-sm">
-          <Link href="/approvals" className="font-semibold text-status-pending underline-offset-4 hover:underline">
-            {STALE_REVIEW_DAYS}일 넘게 결재를 기다리는 시안 {staleReviews}건 → 결재함
-          </Link>
-        </p>
-      )}
+    <div className="flex flex-col gap-5">
+      <HomeHeader
+        name={me.name}
+        dateLabel={dateLabel(today)}
+        lines={lines}
+        todo={todo}
+        next={next}
+        todoHref={`#${HOME_TODO_ID}`}
+        notice={
+          staleReviews > 0 && (
+            <p role="note" className="text-sm">
+              <Link href="/approvals" className="font-semibold text-status-pending underline-offset-4 hover:underline">
+                {STALE_REVIEW_DAYS}일 넘게 결재를 기다리는 시안 {staleReviews}건 → 결재함
+              </Link>
+            </p>
+          )
+        }
+      />
       <div className="flex flex-wrap items-stretch gap-5">
         <ProjectBoard lines={lines} grids={grids} waiting={waiting} staleDays={STALE_REVIEW_DAYS} />
         <CopyQueue items={queue} />

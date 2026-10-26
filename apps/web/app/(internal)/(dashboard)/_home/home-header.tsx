@@ -24,7 +24,7 @@ export type HomeTodoSummary = { count: number; urgent: { label: string; when: st
 export type HomeNextEvent = { id: string; dDay: string; title: string; date: string } | null;
 
 // 요약 칸 숫자는 시안처럼 브랜드 초록으로 강조한다
-const TILE = "flex min-w-0 flex-col gap-1 rounded-xl bg-card px-5 py-4 ring-1 ring-foreground/10 hover:bg-muted/50";
+const TILE = "flex min-w-0 flex-col gap-0.5 rounded-xl bg-card px-5 py-3.5 ring-1 ring-foreground/10 hover:bg-muted/50";
 const VALUE = "text-3xl leading-tight font-normal text-primary tabular-nums";
 
 /** "Leaf& Dew Deep Skin" → "Deep Skin" (요약 칸이 좁아 프로젝트 이름은 뺀다) */
@@ -37,6 +37,7 @@ export function HomeHeader({
   todo,
   next,
   todoHref,
+  notice,
 }: {
   name: string;
   /** "10월 26일 월요일" */
@@ -46,17 +47,21 @@ export function HomeHeader({
   next: HomeNextEvent;
   /** 할 일 칸을 누르면 갈 곳 (홈 할 일 카드) */
   todoHref: string;
+  /** 인사 아래 한 줄 알림 (팀장의 결재 지연). 따로 줄을 만들지 않아 아래 카드가 올라온다 */
+  notice?: React.ReactNode;
 }) {
   const { current } = useProjects(lines);
   const onSale = (current?.products ?? []).filter((p) => p.sale_status === "on_sale");
 
   return (
-    <section aria-label="인사와 요약" className="flex flex-wrap items-end gap-5">
+    // 인사는 요약 칸 위쪽 끝에 맞춘다 (아래로 맞추면 상단 바와 사이가 벌어진다)
+    <section aria-label="인사와 요약" className="flex flex-wrap items-start gap-5">
       <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-2">
-        <h1 className="text-4xl font-light tracking-tight">{TEXT.hello(name)}</h1>
+        <h1 className="text-4xl leading-tight font-light tracking-tight">{TEXT.hello(name)}</h1>
         <p className="text-sm text-muted-foreground">
           {dateLabel} · {TEXT.sub}
         </p>
+        {notice}
       </div>
       <div className="grid min-w-0 flex-[2_1_640px] grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <Link href="/projects" data-slot="card" className={TILE}>
