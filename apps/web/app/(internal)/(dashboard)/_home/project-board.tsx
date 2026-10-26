@@ -6,6 +6,7 @@ import { ArrowRight, CalendarDays, Check, Ellipsis, Info, TriangleAlert, User, t
 import Link from "next/link";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { NativeSelect } from "@/components/common/native-select";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -259,11 +260,13 @@ export function ProjectBoard({ projects, today }: { projects: HomeProject[]; tod
           {owners.length > 0 && (
             <span className="flex items-center gap-1.5">
               <label htmlFor={OWNER_SELECT_ID}>{TEXT.ownerFilter}</label>
-              <select
+              {/* 글자는 옆 「담당자」와 같은 12px (공통 부품 기본은 14px) */}
+              <NativeSelect
                 id={OWNER_SELECT_ID}
+                size="sm"
                 value={owner ?? ""}
                 onChange={(e) => setOwner(e.target.value || null)}
-                className="rounded-md border bg-background px-2 py-1 text-foreground"
+                className="text-xs"
               >
                 <option value="">{TEXT.allOwners}</option>
                 {owners.map(([id, name]) => (
@@ -271,7 +274,7 @@ export function ProjectBoard({ projects, today }: { projects: HomeProject[]; tod
                     {name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </span>
           )}
           {projects.length > 0 && <ProjectsSheet projects={projects} />}
@@ -481,8 +484,9 @@ function ProjectsSheet({ projects }: { projects: HomeProject[] }) {
                     aria-label={`${project.name} ${TEXT.pin}`}
                     disabled={!on && full}
                     onClick={() => togglePick(project.id)}
+                    // 꺼짐 색은 입력 칸 테두리와 같은 --input: 바탕 대비 3:1 이상이라 꺼진 스위치의 모양도 보인다
                     className={`relative h-5 w-9 shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40 ${
-                      on ? "bg-foreground" : "bg-muted-foreground/50"
+                      on ? "bg-primary" : "bg-input"
                     }`}
                   >
                     <span
