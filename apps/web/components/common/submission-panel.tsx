@@ -6,7 +6,7 @@
 // 담당 탭이 아니면 히스토리만 보인다 (버튼은 숨기고, DB도 막는다)
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,13 +49,21 @@ const TEXT = {
   rejectedReason: (no: number) => `v${no} 반려 사유`,
   submit: "제출",
   submitNeedsSummary: "한 줄 결론을 적어야 제출할 수 있어요",
-  edit: "고치기",
+  edit: "결론 · 메모 고치기",
+  editHint: (no: number) => `임시 저장된 v${no}의 한 줄 결론과 메모를 고쳐요. 담은 소구점 · 후기는 그대로예요. 다 쓰면 저장한 뒤 「제출」을 눌러 주세요.`,
   editSave: "저장",
   cancel: "취소",
   hide: "삭제",
   hideConfirm: (no: number) => `v${no}을 삭제할까요? 목록에서 숨겨지고 되돌릴 수 없어요.`,
   withdraw: "제출 취소",
   newFrom: "이 버전에서 새 버전",
+  load: "불러오기",
+  loadTitle: "이 버전의 한 줄 결론 · 메모를 위 칸에 복사해요",
+  loadContentsTitle: "이 버전의 한 줄 결론 · 메모와 담은 내용을 지금 시안으로 복사해요",
+  loadConfirm: (no: number) => `지금 임시 저장 중인 시안의 담은 내용이 v${no}의 구성으로 바뀌어요. 불러올까요?`,
+  loaded: (no: number) => `v${no}의 한 줄 결론 · 메모를 불러왔어요. 고칠 부분만 고친 뒤 올리면 새 버전이 돼요 (v${no}은 그대로 남아요).`,
+  loadedContents: (no: number, draftNo: number) =>
+    `v${no}의 한 줄 결론 · 메모와 담은 내용을 임시 v${draftNo}로 불러왔어요. 고칠 부분만 고친 뒤 올리면 돼요 (v${no}은 그대로 남아요).`,
   preview: "미리보기",
   dataAsOf: "데이터 기준",
   self: "자기 결재",
@@ -88,6 +96,7 @@ export function SubmissionPanel({
   saveDraft,
   snapshotNote,
   carryOverLabel,
+  loadContents,
   className = "mt-6",
 }: {
   tabLabel: string;
@@ -102,6 +111,8 @@ export function SubmissionPanel({
   snapshotNote: string;
   /** 있으면 "직전 버전 내용도 함께 담기" 체크를 보인다 (광고 검토) */
   carryOverLabel?: string;
+  /** 있으면 「불러오기」가 글뿐 아니라 그 버전의 담은 내용도 지금 임시 버전으로 복사한다 (리뷰 분석) */
+  loadContents?: (versionId: string) => Promise<SubmissionResult<{ versionNo: number; summary: string; note: string }>>;
   className?: string;
 }) {
   const router = useRouter();
@@ -109,6 +120,36 @@ export function SubmissionPanel({
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState("");
   const [note, setNote] = useState("");
+  // 히스토리의 「불러오기」로 이전 버전의 글을 위 칸에 복사해 고쳐 올린다. 원래 버전은 건드리지 않는다
+  const [loadedFrom, setLoadedFrom] = useState<{ from: number; draftNo: number | null } | null>(null);
+  const summaryRef = useRef<HTMLTextAreaElement>(null);
+  const fill = (from: number, draftNo: number | null, text: { summary: string; note: string }) => {
+    setSummary(text.summary);
+    setNote(text.note);
+    setLoadedFrom({ from, draftNo });
+    summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    summaryRef.current?.focus({ preventScroll: true });
+  };
+  const loadVersion = (v: VersionView) => {
+    setError(null);
+    if (!loadContents) {
+      fill(v.version_no, null, { summary: v.summary, note: v.note ?? "" });
+      return;
+    }
+    // 지금 임시 버전이 있으면 그 담은 내용을 덮어쓰므로 한 번 묻는다
+    if (versions[0]?.status === "draft" && versions[0].id !== v.id && !window.confirm(TEXT.loadConfirm(v.version_no))) return;
+    let loaded: { versionNo: number; summary: string; note: string } | null = null;
+    run(
+      async () => {
+        const res = await loadContents(v.id);
+        if (res.ok) loaded = res.data;
+        return res;
+      },
+      () => {
+        if (loaded) fill(v.version_no, loaded.versionNo, loaded);
+      },
+    );
+  };
   const [carryOver, setCarryOver] = useState(true);
   const [mode, setMode] = useState<"upload" | "save">("upload");
   const [editing, setEditing] = useState<{ id: string; summary: string; note: string } | null>(null);
@@ -185,6 +226,7 @@ export function SubmissionPanel({
                 () => {
                   setSummary("");
                   setNote("");
+                  setLoadedFrom(null);
                 },
               );
             }}
@@ -192,9 +234,15 @@ export function SubmissionPanel({
             <p className="text-sm text-muted-foreground">
               {TEXT.uploadHint} {snapshotNote}
             </p>
+            {loadedFrom !== null && (
+              <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                {loadedFrom.draftNo === null ? TEXT.loaded(loadedFrom.from) : TEXT.loadedContents(loadedFrom.from, loadedFrom.draftNo)}
+              </p>
+            )}
             <label className="block space-y-1 text-sm">
               <span className="font-medium">{TEXT.summary}</span>
               <Textarea
+                ref={summaryRef}
                 value={summary}
                 maxLength={300}
                 rows={2}
@@ -242,28 +290,37 @@ export function SubmissionPanel({
                     {v.author_name} · {formatDate(v.submitted_at ?? v.created_at)}
                     {v.data_as_of && ` · ${TEXT.dataAsOf} ${formatDate(v.data_as_of)}`}
                   </span>
-                  {canPreview(v) && (
-                    <Link href={`/approvals/${v.id}`} className="ml-auto text-sm underline-offset-4 hover:underline">
-                      {TEXT.preview}
-                    </Link>
-                  )}
+                  <span className="ml-auto flex items-center gap-3">
+                    {canEdit && !sampleMode && (v.summary || v.note) && (
+                      <button type="button" title={loadContents ? TEXT.loadContentsTitle : TEXT.loadTitle} disabled={disabled} onClick={() => loadVersion(v)} className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                        {TEXT.load}
+                      </button>
+                    )}
+                    {canPreview(v) && (
+                      <Link href={`/approvals/${v.id}`} className="text-sm underline-offset-4 hover:underline">
+                        {TEXT.preview}
+                      </Link>
+                    )}
+                  </span>
                 </div>
 
                 {editing?.id === v.id ? (
                   <div className="mt-2 space-y-2">
-                    <Textarea
-                      value={editing.summary}
-                      maxLength={300}
-                      rows={2}
-                      aria-label={TEXT.summary}
-                      onChange={(e) => setEditing({ ...editing, summary: e.target.value })}
-                    />
-                    <Input
-                      value={editing.note}
-                      maxLength={1000}
-                      aria-label={TEXT.note}
-                      onChange={(e) => setEditing({ ...editing, note: e.target.value })}
-                    />
+                    <p className="text-xs text-muted-foreground">{TEXT.editHint(v.version_no)}</p>
+                    <label className="block space-y-1 text-sm">
+                      <span className="font-medium">{TEXT.summary}</span>
+                      <Textarea
+                        value={editing.summary}
+                        maxLength={300}
+                        rows={2}
+                        placeholder={TEXT.summaryPlaceholder}
+                        onChange={(e) => setEditing({ ...editing, summary: e.target.value })}
+                      />
+                    </label>
+                    <label className="block space-y-1 text-sm">
+                      <span className="font-medium">{TEXT.note}</span>
+                      <Input value={editing.note} maxLength={1000} onChange={(e) => setEditing({ ...editing, note: e.target.value })} />
+                    </label>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
