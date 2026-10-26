@@ -26,5 +26,25 @@ export function replaceSentence(text: string, found: { text: string; start?: num
   // 대체 표현에 끝 기호가 없으면 원래 문장의 끝 기호를 이어 붙여, 뒤 문장과 붙어 버리지 않게 한다
   const ending = text.slice(start, end).match(/[.!?。！？…]+$/)?.[0] ?? "";
   const fixed = replacement.trim();
-  return `${text.slice(0, start)}${SENTENCE_END.test(fixed.at(-1) ?? "") ? fixed : fixed + ending}${text.slice(end)}`.replace(/\s+/g, " ").trim();
+  const middle = SENTENCE_END.test(fixed.at(-1) ?? "") ? fixed : fixed + ending;
+  // 검토 AI가 문장 하나가 아니라 리뷰 전체를 고쳐 쓴 안을 주면, 앞뒤에 남은 문장이 대체 표현 안에 또 들어 있다.
+  // 대체 표현에 이미 있는 문장은 앞뒤에서 빼서 같은 문장이 두 번 나오지 않게 한다 (공백 · 문장 부호는 무시하고 비교)
+  // 문장 수가 원문 이상이면 표현만 조금 바꾼 전체 고쳐 쓰기로 보고 그 안을 그대로 쓴다
+  const fixedSentences = splitSentences(middle);
+  if (fixedSentences.length > 1 && fixedSentences.length >= splitSentences(text).length) return middle.replace(/\s+/g, " ").trim();
+  const inFixed = new Set(fixedSentences.map(sentenceKey));
+  const keep = (part: string) =>
+    splitSentences(part)
+      .filter((x) => !inFixed.has(sentenceKey(x)))
+      .join(" ");
+  return [keep(text.slice(0, start)), middle, keep(text.slice(end))].join(" ").replace(/\s+/g, " ").trim();
+}
+
+/** 문장 끝 기호 · 줄바꿈 기준으로 자른 문장들 (끝 기호 포함, 빈 문장 제외) */
+function splitSentences(text: string): string[] {
+  return (text.match(/[^.!?。！？…\n]+[.!?。！？…]*|[.!?。！？…]+/g) ?? []).map((x) => x.trim()).filter(Boolean);
+}
+
+function sentenceKey(sentence: string): string {
+  return sentence.replace(/[\s.!?。！？…,、·]/g, "");
 }

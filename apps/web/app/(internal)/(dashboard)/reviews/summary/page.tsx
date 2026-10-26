@@ -6,17 +6,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { getProduct } from "@/lib/data";
 import { getReviewDraftState } from "@/lib/data/review-draft";
 import { getReviewProductList } from "@/lib/data/reviews";
-import { saveReviewDraft } from "@/lib/data/submission-actions";
+import { loadReviewVersion, saveReviewDraft } from "@/lib/data/submission-actions";
 import { buildReviewSnapshot } from "@/lib/data/submission-bodies";
 import { SKIN_LINE_LABEL, VERDICT_LABEL } from "../_lib/topics";
 import { SummaryCard } from "./summary-card";
-
-const STEPS = [
-  ["1 소구점 · 후기 담기", "소구점 찾기 · 상세페이지용 리뷰에서"],
-  ["2 한 줄 결론 쓰기", "오른쪽 시안 패널에서"],
-  ["3 결재 올리기", "제출하면 고칠 수 없어요"],
-  ["4 팀장 승인", "승인된 후기를 가이드가 가져가요"],
-] as const;
 
 export default async function ReviewSummaryPage({ searchParams }: { searchParams: Promise<{ product?: string }> }) {
   const query = await searchParams;
@@ -47,15 +40,6 @@ export default async function ReviewSummaryPage({ searchParams }: { searchParams
       <ViewStateGate state={!selected || !view ? "empty" : "ready"} emptyAction="자사 제품이 없어요. 프로젝트에 자사 제품을 먼저 등록해 주세요.">
         {selected && view && (
           <>
-            <ol className="mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {STEPS.map(([title, sub]) => (
-                <li key={title} className="rounded-lg border bg-card px-4 py-2.5 text-sm">
-                  <b>{title}</b>
-                  <span className="block text-xs text-muted-foreground">{sub}</span>
-                </li>
-              ))}
-            </ol>
-
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">자사 제품</span>
               {own.map((p) => (
@@ -96,6 +80,7 @@ export default async function ReviewSummaryPage({ searchParams }: { searchParams
                     tab="review"
                     product={view.product}
                     saveDraft={saveReviewDraft.bind(null, selected.id)}
+                    loadContents={loadReviewVersion.bind(null, selected.id)}
                     snapshotNote="지금 리포트의 주제별 성적표 · 불만 · 재구매 요인과 왼쪽에 담은 소구점 · 일본어 후기를 그대로 저장해요. 제출하면 고칠 수 없어요."
                     className="mt-0"
                   />

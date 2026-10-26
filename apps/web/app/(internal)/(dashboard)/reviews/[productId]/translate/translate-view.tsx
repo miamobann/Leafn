@@ -5,12 +5,13 @@
 // 결재된 시안에 담긴 후기만 콘텐츠 제작 가이드의 후기 재료가 된다
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Check, Minus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { applySuggestion, deleteTranslations, translateReviews } from "@/lib/data/review-translation-actions";
 import { addToReviewDraft, removeFromReviewDraft } from "@/lib/data/submission-actions";
 import type { ReviewWithAnalysis } from "@/lib/data/reviews";
+import { replaceSentence } from "@/lib/review-fix";
 import type { AppealTopic } from "@/lib/schemas/review";
 import { BackTitle, paginate, Pager } from "../../_components/parts";
 import { hasTopic, topicLabel, topicStats } from "../../_lib/topics";
@@ -35,7 +36,8 @@ export type TranslatedRow = {
 
 const PICK_PAGE = 8;
 const DONE_PAGE = 6;
-const TRANSLATE_BATCH = 5; // 서버 액션이 한 번에 받는 리뷰 수 (lib/data/review-translation-actions.ts와 같은 값)
+// 리뷰를 한 건씩 번역해 진행 숫자가 1, 2, 3…으로 올라가게 한다. 2건씩 동시에 보내 전체 시간은 늘지 않게 한다
+const TRANSLATE_PARALLEL = 2;
 type RowKind = "added" | "ready" | "fix";
 const STATUS: Record<RowKind, { label: string; className: string }> = {
   added: { label: "시안에 담김", className: "bg-emerald-50 text-emerald-900" },
@@ -60,6 +62,26 @@ function Box({ state }: { state: "on" | "off" | "some" }) {
       {state === "on" && <Check className="size-3" />}
       {state === "some" && <Minus className="size-3" />}
     </span>
+  );
+}
+
+/** 약기법 검토가 짚은 구간을 문장 안에서 표시한다 (같은 내용을 아래에 다시 적지 않으려고) */
+function Marked({ text, marks }: { text: string; marks: string[] }) {
+  const words = marks.filter((m) => m && text.includes(m));
+  if (words.length === 0) return <>{text}</>;
+  const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return (
+    <>
+      {text.split(new RegExp(`(${escaped.join("|")})`)).map((part, i) =>
+        words.includes(part) ? (
+          <mark key={i} className="rounded-sm bg-orange-100 px-0.5 text-orange-900">
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
+      )}
+    </>
   );
 }
 
@@ -174,27 +196,37 @@ export function TranslateView({
     router.refresh();
   };
 
-  // 고른 리뷰를 5건씩 번역 + 약기법 검토한다. 끝나면 서버가 다시 읽은 목록이 오른쪽에 나타난다
+  // 고른 리뷰를 한 건씩 번역 + 약기법 검토한다. 끝나면 서버가 다시 읽은 목록이 오른쪽에 나타난다
   const translatePicked = async () => {
     const ids = [...left.picked];
     let done = 0;
     let mustFix = 0;
     let skipped = 0;
+    let next = 0;
+    let failure: string | null = null;
     setNotice(null);
-    setWorking({ done, total: ids.length });
-    for (let i = 0; i < ids.length; i += TRANSLATE_BATCH) {
-      const chunk = ids.slice(i, i + TRANSLATE_BATCH);
-      const res = await translateReviews(product.id, chunk);
-      if (!res.ok) {
-        setWorking(null);
-        setNotice({ text: `${res.message}${done > 0 ? ` (앞의 ${done}건은 번역됐어요)` : ""}`, error: true });
-        router.refresh();
-        return;
+    setWorking({ done: 0, total: ids.length });
+    // 일꾼 TRANSLATE_PARALLEL개가 남은 리뷰를 하나씩 가져간다. 실패하면 새로 가져가지 않고, 이미 보낸 것만 마저 기다린다
+    const worker = async () => {
+      while (failure === null && next < ids.length) {
+        const id = ids[next++];
+        const res = await translateReviews(product.id, [id]);
+        if (!res.ok) {
+          failure ??= res.message;
+          return;
+        }
+        done += res.data.translated;
+        mustFix += res.data.mustFix;
+        skipped += res.data.skipped;
+        setWorking({ done: done + skipped, total: ids.length });
       }
-      done += res.data.translated;
-      mustFix += res.data.mustFix;
-      skipped += res.data.skipped;
-      setWorking({ done: done + skipped, total: ids.length });
+    };
+    await Promise.all(Array.from({ length: Math.min(TRANSLATE_PARALLEL, ids.length) }, worker));
+    if (failure !== null) {
+      setWorking(null);
+      setNotice({ text: `${failure}${done > 0 ? ` (${done}건은 번역됐어요)` : ""}`, error: true });
+      router.refresh();
+      return;
     }
     setWorking(null);
     left.clear();
@@ -208,20 +240,27 @@ export function TranslateView({
   };
   // 대체 표현 적용 · 승인 · 승인 취소: 한 번에 한 건만 (다시 번역 + 약기법 검토가 돌아서 몇 초 걸린다)
   const [busy, setBusy] = useState<{ id: string; label: string; step: 3 | 4 } | null>(null);
+  // 「이렇게 고치기」는 누르는 즉시 고친 한국어 문장을 먼저 보여 주고, 번역 · 재검토가 끝나 새 목록이 오면 바꿔 끼운다
+  const [preview, setPreview] = useState<{ id: string; ko: string } | null>(null);
+  const [, startRefresh] = useTransition();
+  useEffect(() => setPreview(null), [translated]);
   const run = async (id: string, label: string, step: 3 | 4, job: () => Promise<{ ok: true; text: string } | { ok: false; message: string }>) => {
     setBusy({ id, label, step });
     setNotice(null);
     const res = await job();
     setBusy(null);
+    if (!res.ok) setPreview(null);
     setNotice(res.ok ? { text: res.text, error: false } : { text: res.message, error: true });
-    router.refresh();
+    startRefresh(() => router.refresh());
   };
-  const applyFix = (t: TranslatedRow, finding: string, suggestionJa: string) =>
-    run(t.id, "고쳐서 다시 번역하고 약기법 검토하는 중…", 3, async () => {
-      const res = await applySuggestion(t.id, finding, suggestionJa);
+  const applyFix = (t: TranslatedRow, finding: string, suggestion: { ja: string; ko: string }) => {
+    setPreview({ id: t.id, ko: replaceSentence(t.textKo, { text: finding }, suggestion.ko) ?? suggestion.ko });
+    return run(t.id, "일본어로 다시 옮기고 약기법 검토하는 중…", 3, async () => {
+      const res = await applySuggestion(t.id, finding, suggestion.ja);
       if (!res.ok) return res;
       return { ok: true, text: res.data.mustFix ? "대체 표현을 적용해 다시 검토했어요. 아직 고쳐야 할 표현이 남아 있어요." : "대체 표현을 적용했고 약기법 검토를 다시 마쳤어요. 이제 시안에 담을 수 있어요." };
     });
+  };
   const addPicked = () =>
     run("add", "시안에 담는 중…", 4, async () => {
       const res = await addToReviewDraft(product.id, { translationIds: addable.map((r) => r.id) });
@@ -412,45 +451,56 @@ export function TranslateView({
               </Link>
             </p>
           )}
-          <ul className="space-y-1">
+          <ul className="divide-y">
             {donePaged.rows.map((t) => {
               const on = right.picked.has(t.id);
+              const previewKo = preview?.id === t.id ? preview.ko : null;
+              const fixing = t.status === "fix" && t.fixes.length > 0 && previewKo === null;
               return (
-                <li key={t.id} className={`flex items-start gap-3 rounded-lg px-2 py-2 text-sm ${on ? "bg-muted/40" : ""}`}>
+                <li key={t.id} className={`flex items-start gap-3 px-2 py-3 text-sm ${on ? "bg-muted/40" : ""}`}>
                   <button type="button" role="checkbox" aria-checked={on} aria-label="이 번역 선택" onClick={() => right.toggle(t.id)} className="mt-0.5">
                     <Box state={on ? "on" : "off"} />
                   </button>
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <p lang="ja">{t.textJa}</p>
-                    <p className="text-muted-foreground">
-                      {t.textKo}
-                      {t.edited && <span className="ml-1.5 rounded bg-stone-100 px-1.5 py-0.5 text-xs">고침</span>}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p lang="ja" className={`leading-relaxed transition-opacity duration-300 ${previewKo !== null ? "animate-pulse opacity-40" : ""}`}>
+                      {t.textJa}
                     </p>
-                    {t.note &&
-                      (t.checkId ? (
-                        <Link href={`/ad-check/${t.checkId}`} className={`block text-xs hover:underline ${t.status === "fix" ? "text-orange-800" : "text-muted-foreground"}`}>
-                          {t.note} →
-                        </Link>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">{t.note}</p>
-                      ))}
-                    {t.status === "fix" && t.fixes.length > 0 && (
-                      <ul className="mt-1.5 space-y-2 rounded-md border bg-muted/30 p-2.5">
+                    {previewKo !== null ? (
+                      <p className="rounded-sm bg-emerald-50 leading-relaxed text-emerald-950 transition-colors duration-500">{previewKo}</p>
+                    ) : t.textKo.trim() !== t.textJa.trim() && (
+                      <p className="leading-relaxed text-muted-foreground">{fixing ? <Marked text={t.textKo} marks={t.fixes.map((f) => f.text)} /> : t.textKo}</p>
+                    )}
+                    {/* 고침 표시와 검토 결과는 한 줄로. 고쳐야 함이면 사유는 아래 상자에만 적는다 */}
+                    {(t.edited || t.note || t.checkId) && (
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        {t.edited && <span className="rounded bg-stone-100 px-1.5 py-0.5">고침</span>}
+                        {t.checkId ? (
+                          <Link href={`/ad-check/${t.checkId}`} className="hover:underline">
+                            {fixing ? "약기법 검토 기록" : t.note || "약기법 검토 기록"} →
+                          </Link>
+                        ) : (
+                          !fixing && t.note && <span>{t.note}</span>
+                        )}
+                      </p>
+                    )}
+                    {fixing && (
+                      <ul className="mt-1 space-y-3 rounded-md border bg-muted/30 p-3">
                         {t.fixes.map((f) => (
-                          <li key={f.text} className="space-y-1">
-                            <p className="text-xs">
+                          <li key={f.text} className="space-y-1.5">
+                            <p className="text-xs leading-relaxed">
                               <b className={f.serious ? "text-orange-800" : ""}>「{f.text}」</b> <span className="text-muted-foreground">{f.reason}</span>
                             </p>
-                            <div className="flex flex-wrap gap-1.5">
+                            <div className="flex flex-col gap-1.5">
                               {f.suggestions.map((s) => (
                                 <button
                                   key={s.ja}
                                   type="button"
                                   disabled={busy !== null}
-                                  onClick={() => applyFix(t, f.text, s.ja)}
-                                  className="rounded-md border bg-background px-2 py-1 text-left text-xs hover:bg-muted disabled:opacity-50"
+                                  onClick={() => applyFix(t, f.text, s)}
+                                  className="rounded-md border bg-background px-2.5 py-1.5 text-left text-xs leading-relaxed hover:bg-muted disabled:opacity-50"
                                 >
-                                  <span className="font-medium">이렇게 고치기</span> · {s.ko}
+                                  <span className="mb-0.5 block font-medium text-primary">이렇게 고치기 →</span>
+                                  <span className="block">{s.ko}</span>
                                   <span lang="ja" className="block text-muted-foreground">
                                     {s.ja}
                                   </span>
@@ -476,7 +526,11 @@ export function TranslateView({
                       </p>
                     )}
                   </div>
-                  <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${STATUS[kindOf(t)].className}`}>{STATUS[kindOf(t)].label}</span>
+                  {previewKo !== null ? (
+                    <span className="animate-pulse rounded-md bg-muted px-2 py-0.5 text-xs whitespace-nowrap text-muted-foreground">다시 검토 중</span>
+                  ) : (
+                    <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${STATUS[kindOf(t)].className}`}>{STATUS[kindOf(t)].label}</span>
+                  )}
                 </li>
               );
             })}
