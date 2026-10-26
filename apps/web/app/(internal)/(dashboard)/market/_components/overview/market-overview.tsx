@@ -10,7 +10,9 @@ import type { PromoEvent } from "@/lib/schemas/promo";
 import type { SearchSnap } from "@/lib/schemas/search";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
 import { weekLabel } from "@/app/(internal)/(dashboard)/market/_lib/market";
-import { ownBaseline, seriesOf } from "@/app/(internal)/(dashboard)/market/_lib/overview";
+import { ownBaseline, rankingKey, rankingRowToProduct, rowsAt, seriesOf } from "@/app/(internal)/(dashboard)/market/_lib/overview";
+import { compareParam, parseCompareParam } from "@/app/(internal)/(dashboard)/market/_lib/compare";
+import type { PlatformId } from "@/lib/platforms";
 import { ConditionBar } from "./condition-bar";
 import { SupplyPart } from "./part1-supply";
 import { DemandPart } from "./part2-demand";
@@ -30,6 +32,9 @@ const TABS = [
   { id: "competitors", label: "경쟁제품", title: "경쟁제품 비교", question: "등록된 제품의 가격·용량·성분·특징을 나란히 보면?" },
 ] as const satisfies readonly { id: MarketTab; label: string; title: string; question: string; help?: string }[];
 
+/** 랭킹 출처 → 제품의 판매 플랫폼 slug (lib/platforms.ts) */
+const PLATFORM_ID: Record<MarketPlatform, PlatformId> = { qoo10_ranking: "qoo10", rakuten_ranking: "rakuten" };
+
 const TAB_LABEL = Object.fromEntries(TABS.map((t) => [t.id, t.label])) as Record<MarketTab, string>;
 
 // 열린 탭은 주소의 #id에서 읽는다 (예전 바로가기 주소 #demand 등도 그대로 그 탭으로 열린다). 서버 렌더에서는 요약
@@ -46,6 +51,28 @@ function readTab(): MarketTab {
 }
 function useMarketTab(): MarketTab {
   return useSyncExternalStore(subscribeHash, readTab, () => "summary");
+}
+
+// 경쟁제품 1:1 비교는 주소의 ?compare=자사ID,경쟁ID 로 연다 (공유하면 같은 비교). replaceState는 popstate를 내지 않아서 바꿀 때 이벤트를 직접 보낸다
+const COMPARE_EVENT = "market-compare-change";
+function subscribeCompare(onChange: () => void) {
+  window.addEventListener("popstate", onChange);
+  window.addEventListener(COMPARE_EVENT, onChange);
+  return () => {
+    window.removeEventListener("popstate", onChange);
+    window.removeEventListener(COMPARE_EVENT, onChange);
+  };
+}
+function useCompareSearch(): string {
+  return useSyncExternalStore(subscribeCompare, () => window.location.search, () => "");
+}
+function setCompare(ids: string[] | null) {
+  const params = new URLSearchParams(window.location.search);
+  params.delete("compare");
+  const rest = params.toString();
+  const query = [rest, ids && ids.length > 0 ? `compare=${compareParam(ids)}` : ""].filter(Boolean).join("&");
+  window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}#competitors`);
+  window.dispatchEvent(new Event(COMPARE_EVENT));
 }
 
 export function MarketOverview({
@@ -76,6 +103,7 @@ export function MarketOverview({
   // 표 체크박스와 패널의 [비교에 추가]가 같은 목록을 쓴다 (저장되지 않음)
   const [selected, setSelected] = useState<string[]>([]);
   const tab = useMarketTab();
+  const compareIds = parseCompareParam(useCompareSearch());
 
   const platformInfo = MARKET_PLATFORMS.find((p) => p.source === platform) ?? MARKET_PLATFORMS[0];
   const series = seriesOf(snapshots, platform, category);
@@ -94,6 +122,12 @@ export function MarketOverview({
   const geoCategory = geo.filter((g) => g.category === category);
   const geoIsSample = geoCategory.length > 0 && geoCategory.every((g) => g.id.startsWith("geo-"));
   const productIds = new Set(products.map((p) => p.id));
+  // 플랫폼 분석에서 고른 랭킹 제품 → 경쟁제품 탭. 등록된 제품과 이어져 있으면 그 제품을, 아니면 랭킹 값으로 만든 제품을 쓴다
+  const picked = latest ? rowsAt(series, series.length - 1).filter((r) => selected.includes(rankingKey(r))) : [];
+  const pickedProducts = picked
+    .filter((r) => !(r.product_id && productIds.has(r.product_id)))
+    .map((r) => rankingRowToProduct(r, PLATFORM_ID[platform], category, latest?.captured_at ?? new Date().toISOString()));
+  const pickedIds = picked.map((r) => (r.product_id && productIds.has(r.product_id) ? r.product_id : `rank:${rankingKey(r)}`));
 
   const body: Record<MarketTab, React.ReactNode> = {
     summary: (
@@ -114,12 +148,12 @@ export function MarketOverview({
       />
     ),
     demand: <DemandPart search={searchSnaps} onSearchCollected={(added) => setSearchSnaps((s) => [...s, ...added])} snsNotes={snsNotes} snsPatterns={snsPatterns} snsImported={snsImported} category={category} onOpen={setPanel} />,
-    // 플랫폼 분석 Top 10 표에서 고른 제품을 처음부터 골라 둔다 (등록된 제품만)
-    competitors: <CompetitorsView products={products} initialSelected={selected.filter((id) => productIds.has(id))} />,
+    // 플랫폼 분석 랭킹 표에서 고른 제품을 목록에 더하고, 처음 4개는 나란히 비교에 골라 둔다
+    competitors: <CompetitorsView products={[...products, ...pickedProducts]} initialSelected={pickedIds} compareIds={compareIds} onCompareChange={setCompare} />,
   };
   const current = TABS.find((t) => t.id === tab) ?? TABS[0];
   const rankingTab = tab === "summary" || tab === "supply";
-  const tabBasis = tab === "competitors" ? `등록 제품 ${products.length}개` : rankingTab ? basis : baseBasis;
+  const tabBasis = tab === "competitors" ? `등록 제품 ${products.length}개${pickedProducts.length ? ` + 랭킹에서 ${pickedProducts.length}개` : ""}` : rankingTab ? basis : baseBasis;
 
   // 탭을 바꾸면 맨 위부터 보이게 (요약 카드의 [탭 열기]를 아래에서 눌러도)
   useEffect(() => {
