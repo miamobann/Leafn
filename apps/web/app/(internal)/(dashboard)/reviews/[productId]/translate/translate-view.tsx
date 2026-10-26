@@ -35,7 +35,8 @@ export type TranslatedRow = {
 
 const PICK_PAGE = 8;
 const DONE_PAGE = 6;
-const TRANSLATE_BATCH = 5; // 서버 액션이 한 번에 받는 리뷰 수 (lib/data/review-translation-actions.ts와 같은 값)
+// 리뷰를 한 건씩 번역해 진행 숫자가 1, 2, 3…으로 올라가게 한다. 2건씩 동시에 보내 전체 시간은 늘지 않게 한다
+const TRANSLATE_PARALLEL = 2;
 type RowKind = "added" | "ready" | "fix";
 const STATUS: Record<RowKind, { label: string; className: string }> = {
   added: { label: "시안에 담김", className: "bg-emerald-50 text-emerald-900" },
@@ -174,27 +175,37 @@ export function TranslateView({
     router.refresh();
   };
 
-  // 고른 리뷰를 5건씩 번역 + 약기법 검토한다. 끝나면 서버가 다시 읽은 목록이 오른쪽에 나타난다
+  // 고른 리뷰를 한 건씩 번역 + 약기법 검토한다. 끝나면 서버가 다시 읽은 목록이 오른쪽에 나타난다
   const translatePicked = async () => {
     const ids = [...left.picked];
     let done = 0;
     let mustFix = 0;
     let skipped = 0;
+    let next = 0;
+    let failure: string | null = null;
     setNotice(null);
-    setWorking({ done, total: ids.length });
-    for (let i = 0; i < ids.length; i += TRANSLATE_BATCH) {
-      const chunk = ids.slice(i, i + TRANSLATE_BATCH);
-      const res = await translateReviews(product.id, chunk);
-      if (!res.ok) {
-        setWorking(null);
-        setNotice({ text: `${res.message}${done > 0 ? ` (앞의 ${done}건은 번역됐어요)` : ""}`, error: true });
-        router.refresh();
-        return;
+    setWorking({ done: 0, total: ids.length });
+    // 일꾼 TRANSLATE_PARALLEL개가 남은 리뷰를 하나씩 가져간다. 실패하면 새로 가져가지 않고, 이미 보낸 것만 마저 기다린다
+    const worker = async () => {
+      while (failure === null && next < ids.length) {
+        const id = ids[next++];
+        const res = await translateReviews(product.id, [id]);
+        if (!res.ok) {
+          failure ??= res.message;
+          return;
+        }
+        done += res.data.translated;
+        mustFix += res.data.mustFix;
+        skipped += res.data.skipped;
+        setWorking({ done: done + skipped, total: ids.length });
       }
-      done += res.data.translated;
-      mustFix += res.data.mustFix;
-      skipped += res.data.skipped;
-      setWorking({ done: done + skipped, total: ids.length });
+    };
+    await Promise.all(Array.from({ length: Math.min(TRANSLATE_PARALLEL, ids.length) }, worker));
+    if (failure !== null) {
+      setWorking(null);
+      setNotice({ text: `${failure}${done > 0 ? ` (${done}건은 번역됐어요)` : ""}`, error: true });
+      router.refresh();
+      return;
     }
     setWorking(null);
     left.clear();
