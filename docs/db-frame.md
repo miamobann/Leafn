@@ -96,7 +96,9 @@
 | `promo_milestones` | promo_event_id, label, due_date, done_at | 행사 하나의 준비 마감들. `(promo_event_id, workspace_id)` 복합 FK. 화면의 "준비 마감"은 가장 이른 미완료 마감이다 (칸 `prep_due_date`는 두지 않음) |
 | `platform_notes` | platform_id, status (`reviewing` · `preparing` · `live`), strengths, audience, fees_note, fees_source_url, fees_checked_at, memo, updated_by | `unique (workspace_id, platform_id)`. **화면 없음** (플랫폼별 강점 화면 제거). 확장용으로 남긴다 |
 
-캘린더의 추가·마감 변경은 아직 DB에 저장하지 않는다 (`lib/data/launch-actions.ts`).
+캘린더의 행사·준비 마감 추가·수정·삭제와 완료 체크는 `lib/data/launch-actions.ts`가 저장한다.
+
+- 시작 데이터: `supabase/seeds/promo_events_demo.sql`(시연용 더미 행사 6건 + 준비 마감 25건, `lib/mock/promo-events.ts`와 같은 내용. 2026-10-26 총괄 결정). 시연 뒤에는 화면에서 고치거나 지운다.
 
 ### 소비자 설문 (`20261023030815_survey.sql`)
 
