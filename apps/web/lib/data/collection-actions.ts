@@ -4,6 +4,7 @@
 // 수집 자체는 여기서 하지 않는다: queued 요청만 만들면 수집기(일꾼)가 집어 가서 ready(미리보기)로 만든다 (collectors/collect_to_db.py).
 // 저장은 DB의 save_collection_run()이 한다 (미리보기 → products · reviews).
 import { z } from "zod";
+import { dispatchCollector } from "@/lib/external/github-actions";
 import { CollectionRunRow, StartCollectionInput } from "@/lib/schemas/collection";
 import { createClient } from "@/lib/supabase/server";
 import { buildCollectionView, type CollectionView, getOpenCollection, RUN_COLUMNS } from "./collection";
@@ -58,6 +59,26 @@ export async function startCollection(raw: StartCollectionInput): Promise<Action
     .single();
   if (error) return fail(`수집 요청을 만들지 못했어요: ${error.message}`);
   return { ok: true, data: await buildCollectionView(supabase, data) };
+}
+
+/**
+ * 대기 중인 요청을 수집기가 집어 가도록 GitHub Actions를 실행시킨다 (collect.yml).
+ * 「경쟁 제품 찾기」 직후와 「수집기 다시 깨우기」 버튼이 부른다. 이미 수집 중이거나 끝난 요청이면 아무것도 하지 않는다.
+ * notice가 있으면 화면에 보여 준다 (실행시키지 못했을 때의 안내).
+ */
+export async function wakeCollector(runId: string): Promise<ActionResult<{ woke: boolean; notice: string | null }>> {
+  const id = z.string().min(1).safeParse(runId);
+  if (!id.success) return fail("수집 요청이 올바르지 않아요.");
+  const mine = await getMyWorkspace();
+  if (!mine) return fail("워크스페이스가 없어요. 먼저 로그인하고 워크스페이스를 만들어 주세요.");
+  const { run } = await loadRun(id.data);
+  if (!run) return fail("수집 요청이 사라졌어요. 다시 불러와 주세요.");
+  if (run.status !== "queued") return { ok: true, data: { woke: false, notice: null } };
+
+  const res = await dispatchCollector();
+  if (res.ok) return { ok: true, data: { woke: true, notice: null } };
+  if (res.reason === "not_configured") return { ok: true, data: { woke: false, notice: "자동 실행이 아직 설정되지 않았어요. 수집기를 켜 둔 PC가 있어야 요청을 가져가요." } };
+  return { ok: true, data: { woke: false, notice: res.message } };
 }
 
 /** 화면을 열 때: 이 우리 제품의 가장 최근 미리보기를 되살린다. 없으면 null */

@@ -46,7 +46,7 @@ const SAFE_SEEDS: Record<SkinLineKey, string[]> = {
 const ALL_SAFE_SEEDS = [...new Set(Object.values(SAFE_SEEDS).flat())];
 
 /** 화장품 광고에 쓸 수 없는 말 (질환·치료·효능 보증). 하나라도 있으면 그 추천어는 넘기지 않는다 */
-const RISKY_TERM = /毛穴|シミ|しみ|美白|ホワイトニング|鎮静|ニキビ|にきび|治|消え|消す|アトピー|しわ|シワ|肝斑|そばかす|炎症|赤み|薬|改善|効果|効く|再生|機能|医/;
+const RISKY_TERM = /回復|毛穴|シミ|しみ|美白|ホワイトニング|鎮静|ニキビ|にきび|治|消え|消す|アトピー|しわ|シワ|肝斑|そばかす|炎症|赤み|薬|改善|効果|効く|再生|機能|医/;
 
 /** 추천어에 성분 이름이 있으면 우리 전성분에 그 성분이 있을 때만 넘긴다 (없는 성분을 들어간 것처럼 보이게 하지 않는다, 가이드라인 F5.1) */
 function hasOnlyOwnIngredients(word: string, ownIngredients: string[]): boolean {

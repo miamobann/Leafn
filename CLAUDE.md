@@ -45,7 +45,7 @@
 - 자사 제품명은 `lib/own-products.ts`, 규격은 `lib/own-product-specs.ts` 상수만 쓴다. 이름을 새로 지어 적지 않는다.
 
 **보안**
-- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`, `APIFY_TOKEN`은 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RAKUTEN_APPLICATION_ID`, `SERPAPI_API_KEY`, `APIFY_TOKEN`, `GITHUB_DISPATCH_TOKEN`은 서버 코드에서만 쓴다. `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
 - 키, `.env` 파일, 실제 리뷰 원문 대량 데이터를 커밋하지 않는다.
 
 **Git** (자세한 약속은 `docs/CODING_RULES.md` 1~3장)
@@ -124,6 +124,7 @@
 | 외부 API | Apify (TikTok Scraper, `clockworks/tiktok-scraper`) | SNS 영상 링크 → 캡션·해시태그·조회수·발화 자막 (B 확장, 소비자 트렌드 2-B). 2026-10-25 총괄 허용. SDK 없이 서버에서 `fetch`, 실행당 비용 상한 $0.50 |
 | 배포 | Vercel (Hobby, 하루 빌드 수 한도) | 배포 브랜치는 `Leafn_main`. `sub_main` 머지는 모아서 반영한다 |
 | CI | GitHub Actions (`.github/workflows/ci.yml`, 검사 이름 `web`) | PR마다 typecheck · lint · build |
+| 수집기 실행 | GitHub Actions (`.github/workflows/collect.yml`, `workflow_dispatch`) | 「경쟁 제품 찾기」 버튼이 만든 대기 요청을 `--worker --once`로 처리. 정기 실행은 하지 않는다 (private 저장소의 Actions 무료 시간 월 2,000분을 CI와 나눠 씀, 2026-10-26 Min 결정). 웹 서버가 GitHub API를 `fetch`로 부른다 |
 
 ### 확장용 (데모에서는 쓰지 않음)
 
@@ -131,7 +132,6 @@
 | --- | --- |
 | 라쿠텐 시장 API (상품 검색, 랭킹) | 데모는 Qoo10만 쓰기로 해서 연동하지 않았다. `RAKUTEN_APPLICATION_ID` 칸과 `trend_snapshots.source = rakuten_ranking` 값만 남아 있다 |
 | 올리브영 등 국내 플랫폼 수집기 | 만들지 않았다. 자사 국내 리뷰는 시드(`supabase/seeds/own_sample_reviews.sql`)와 CSV로 넣는다 |
-| GitHub Actions cron 수집 | 수집기는 지금 사람이 실행한다 (`--worker` 모드). 정기 실행이 필요해지면 `collect.yml`을 만든다 |
 | SudachiPy | 일본어 리뷰 형태소 분석. 키워드는 지금 AI 분석으로 뽑는다 |
 
 ### AI 모델 사용 규칙
@@ -354,6 +354,7 @@
 | `SUPABASE_SERVICE_ROLE_KEY` | collectors, 통합 AI 분석 결과 저장 Server Action | RLS 우회 키. 인증·팀·승인본 검증 후 결과 저장 호출에만 사용. 절대 브라우저/커밋 금지 |
 | `RAKUTEN_APPLICATION_ID` | (확장용) | 데모에서는 쓰지 않는다. 라쿠텐을 연동할 때 서버 전용으로 |
 | `SERPAPI_API_KEY` | web 서버 | 브라우저 노출 금지. 유료 호출이라 수집 버튼·예약 실행에서만 부른다 |
+| `GITHUB_DISPATCH_TOKEN`, `GITHUB_DISPATCH_REPO`, `GITHUB_DISPATCH_REF` | web 서버 (Vercel) | 브라우저 노출 금지. 수집기 워크플로를 실행시키는 토큰(이 저장소 Actions 쓰기 권한만, 90일)과 대상 저장소(기본 `miamobann/Leafn`)·브랜치(기본 `Leafn_main`). 없으면 자동 실행을 건너뛰고, 수집기를 켜 둔 PC가 요청을 가져간다 |
 | `APIFY_TOKEN` | web 서버 | 브라우저 노출 금지. 유료 호출이라 SNS [분석 시작] 버튼에서만 부른다 |
 | `GEO_MODEL_CHATGPT`, `GEO_MODEL_CLAUDE`, `GEO_REPEAT_COUNT` | web 서버 | 선택. GEO가 측정하는 엔진의 모델과 반복 횟수(1~3). 키는 `OPENAI_API_KEY`·`ANTHROPIC_API_KEY`를 쓴다 |
 

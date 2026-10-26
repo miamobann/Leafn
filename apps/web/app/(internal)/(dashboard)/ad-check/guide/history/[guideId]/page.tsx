@@ -45,15 +45,15 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
       <AdDisclaimer />
       {guide.parent_id && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>새 검토에서 대체 표현으로 고친 문구를 반영한 수정본이에요. 약기법에 걸렸던 원본과 그 검사 기록은 그대로 남아 있어요.</span>
+          <span>새 검토에서 대체 표현으로 고친 문구를 반영한 수정본이에요. 고치기 전 버전과 그 검사 기록은 목록에서만 숨기고 그대로 남아 있어요.</span>
           <Link href={`/ad-check/guide/history/${guide.parent_id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-            원본 보기
+            이전 버전 보기
           </Link>
         </div>
       )}
       {revisions[0] && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>이 가이드를 고친 수정본이 {revisions.length}개 있어요. 게시에는 수정본을 쓰세요.</span>
+          <span>이전 버전이에요 (목록에서는 숨겨져 있어요). 이 가이드를 고친 수정본이 {revisions.length}개 있어요. 게시에는 최신 수정본을 쓰세요.</span>
           <Link href={`/ad-check/guide/history/${revisions[0].id}`} className={buttonVariants({ size: "sm" })}>
             최신 수정본 보기
           </Link>

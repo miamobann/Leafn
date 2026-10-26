@@ -1,5 +1,6 @@
 // 콘텐츠 제작 가이드 결과 → 화면·PDF에 보여 줄 블록·해시태그·제품 채우기. 제작 화면(content-guide.tsx)이 쓴다.
 import { fillProduct, type GuideBlock, type GuideChannel, type Hashtags, IG_HASHTAG_LIMIT, keywordToHashtag } from "./content-guide-samples";
+import { withShotDefaults } from "./photo-guide";
 import type { LabProduct } from "./products";
 
 /** 인스타그램 해시태그에 붙일 검색어 태그 수 (시장 분석 검색어 1위) */
@@ -30,7 +31,8 @@ export function makeFill(product: LabProduct) {
 }
 
 export function visibleBlocks(blocks: GuideBlock[], channel: GuideChannel, slideCount: number, hasReviews: boolean) {
-  return blocks.filter(
+  // AI가 비운 사진 칸은 블록별 기본 촬영 지시로 채운다 (미리보기 · PDF · 촬영 가이드가 같이 쓴다)
+  return withShotDefaults(blocks, channel).filter(
     (b) =>
       // 리뷰가 없는 제품(개발 중)은 리뷰 블록을 뺀다
       (!b.needs_reviews || hasReviews) &&

@@ -30,9 +30,11 @@ type RequestInput = {
   product: LabProduct;
   usage: z.infer<typeof AdUsage>;
   text: string;
+  /** 만든 가이드에서 넘어온 검토면 그 가이드 */
+  guideId?: string;
 };
 
-export async function requestAdCheck({ workspaceId, product, usage, text }: RequestInput): Promise<AdCheckResult> {
+export async function requestAdCheck({ workspaceId, product, usage, text, guideId }: RequestInput): Promise<AdCheckResult> {
   let res: Response;
   try {
     res = await fetch("/api/ad-check", {
@@ -49,6 +51,7 @@ export async function requestAdCheck({ workspaceId, product, usage, text }: Requ
         },
         usage,
         text,
+        content_guide_id: guideId,
       }),
     });
   } catch {

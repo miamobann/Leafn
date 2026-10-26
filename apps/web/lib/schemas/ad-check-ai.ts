@@ -21,6 +21,8 @@ export const AdCheckRequest = z.object({
   product: AdCheckProductInput,
   usage: AdUsage,
   text: z.string().min(1).max(AD_CHECK_MAX_TEXT_CHARS), // 한 줄 = 한 문구
+  /** 만든 가이드의 「이 문구로 새 검토」에서 왔으면 그 가이드 (ad_checks.content_guide_id) */
+  content_guide_id: Id.optional(),
 });
 export type AdCheckRequest = z.infer<typeof AdCheckRequest>;
 
