@@ -42,8 +42,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "시장 분석",
     icon: ChartLine,
     items: [
+      // 경쟁제품 비교는 시장 분석 안의 「경쟁제품」 탭으로 옮겼다 (2026-10-26). /market/competitors는 그 탭으로 보낸다
       { label: "시장 개요", href: "/market", featureId: "B" },
-      { label: "경쟁제품 비교", href: "/market/competitors", featureId: "C" },
     ],
   },
   {
