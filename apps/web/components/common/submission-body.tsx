@@ -23,10 +23,8 @@ const TEXT = {
   factors: "재구매 요인",
   evidence: (n: number) => `근거 리뷰 ${n}건`,
   adItems: "담은 광고 문구",
-  guide: (n: number) => `콘텐츠 가이드 · v${n}`,
-  guideItems: "이 가이드의 약기법 검토 (자동 검사 · 가이드에 반영한 문구 검토)",
-  guideOpen: "가이드 열기 →",
-  guideChannel: { qoo10_detail: "상세페이지(큐텐)", instagram: "인스타그램", x: "X (엑스)", banner: "배너" } as Record<string, string>,
+  guideItems: "이 가이드의 약기법 검사 · 문구 검토",
+  guideOpen: "콘텐츠 가이드 열기 →",
   appeals: (n: number) => `담은 소구점 ${n}개`,
   quotes: (n: number) => `담은 일본어 후기 ${n}건`,
   quotesHint: "약기법 검토를 통과한 문구 · 승인되면 콘텐츠 제작 가이드가 가져가요",
@@ -206,23 +204,22 @@ function ItemList({ title, items }: { title: string; items: ReviewBody["pain_poi
 function AdBodyView({ body, before }: { body: AdBody; before: AdBody | null }) {
   const beforeIds = new Set(before?.items.map((i) => i.ad_check_id) ?? []);
   const removed = before ? before.items.filter((i) => !body.items.some((n) => n.ad_check_id === i.ad_check_id)).length : 0;
+  const guide = body.content_guide;
   return (
     <div className="space-y-3 text-sm">
-      {body.guide && (
-        <div className="rounded-md border border-primary/40 p-3">
-          <p className="text-xs text-muted-foreground">
-            {TEXT.guide(body.guide.version_no)} · {TEXT.guideChannel[body.guide.channel] ?? body.guide.channel}
-          </p>
-          <p className="font-medium">{body.guide.title_ko}</p>
-          <p className="text-muted-foreground" lang="ja">
-            {body.guide.title_ja}
-          </p>
-          <Link href={`/ad-check/guide/history/${body.guide.guide_id}`} className="text-xs text-primary underline-offset-4 hover:underline">
+      {guide && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+          <span>
+            <b className="font-semibold">콘텐츠 가이드 v{guide.version_no}</b>
+            {guide.title && <span className="ml-2">{guide.title}</span>}
+            {before?.content_guide && before.content_guide.root_id !== guide.root_id && <span className="ml-2 text-xs text-muted-foreground">앞 버전과 다른 가이드</span>}
+          </span>
+          <Link href={`/ad-check/guide/history/${guide.id}`} className="underline-offset-4 hover:underline">
             {TEXT.guideOpen}
           </Link>
         </div>
       )}
-      <h4 className="font-medium">{body.guide ? TEXT.guideItems : TEXT.adItems}</h4>
+      <h4 className="font-medium">{guide ? TEXT.guideItems : TEXT.adItems}</h4>
       <ul className="space-y-2">
         {body.items.map((item) => (
           <li key={item.ad_check_id} className="rounded-md border p-3">

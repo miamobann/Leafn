@@ -30,8 +30,6 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
     loadContentRecord(guide.id),
     guide.product_id ? getProduct(guide.product_id) : null,
   ]);
-  // 결재는 최신 버전만, 「고쳐야 함」 · 「전문가 확인」이 남지 않았을 때 올린다 (약기법 우선, saveGuideDraft 가 서버에서 한 번 더 막는다)
-  const isLatest = record?.latest.id === guide.id;
   const versionNo = (record?.versions.findIndex((v) => v.id === guide.id) ?? -1) + 1;
   // 수정본: 새 검토에서 고친 문구를 「가이드에 반영」한 것 (원본은 그대로 남는다). 목록은 최신순
   const revisions = all.filter((g) => g.parent_id === guide.id);
@@ -149,19 +147,13 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
             </ul>
           </section>
         )}
-        {/* 콘텐츠 가이드 결재 (2026-10-27 TAB 3): 광고 시안 한 버전 = 이 가이드 하나 */}
-        {isLatest && ownProduct && record?.status === "needs_fix" && (
-          <p id="submission" className="rounded-lg border p-3 text-sm text-muted-foreground">
-            결재 올리기 · 「고쳐야 함」이나 「전문가 확인」이 남아 있어요. 걸린 문구를 문구 검토로 고쳐 가이드에 반영하면 결재에 올릴 수 있어요.
-          </p>
-        )}
-        {isLatest && ownProduct && record && record.status !== "needs_fix" && (
+        {/* 콘텐츠 가이드 결재 (2026-10-26 A안): 최신 버전에서만 올린다. 고칠 곳이 남았으면 저장할 때 서버가 막는다 */}
+        {revisions.length === 0 && ownProduct && (
           <SubmissionSection
             tab="ad"
             product={ownProduct}
             saveDraft={saveGuideDraft.bind(null, guide.id)}
-            snapshotNote="이 콘텐츠 가이드(제목 · 버전)와 그 약기법 검토(자동 검사 · 반영한 문구 검토)가 담겨요."
-            className=""
+            snapshotNote={`콘텐츠 가이드 v${versionNo || 1}과 이 가이드의 약기법 검사 · 문구 검토가 시안으로 저장돼요.`}
           />
         )}
         <AiResultMeta model={guide.model} promptVersion={guide.prompt_version} createdAt={guide.created_at} />

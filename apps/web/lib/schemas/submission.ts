@@ -110,22 +110,24 @@ export const ReviewBody = z.object({
 });
 export type ReviewBody = z.infer<typeof ReviewBody>;
 
-/** 광고 검토 시안은 기존 ad_checks를 묶는다. 승인 상태는 결재 때 ad_checks 쪽이 바뀌므로 여기 남기지 않는다 */
-/** 콘텐츠 가이드로 올린 광고 시안이면 그 가이드 (2026-10-27 TAB 3: 결재는 콘텐츠 가이드 단위). 문구 검토만 담은 예전 시안에는 없다 */
+/** 콘텐츠 가이드 결재 (2026-10-26 A안): 가이드 한 버전을 한 건으로 올린다. 문구 검토 목록만 올린 예전 시안에는 없어 선택 칸 */
 export const AdBodyGuide = z.object({
-  /** 결재에 올린 가이드 버전 (content_guides.id) */
-  guide_id: Id,
-  /** 처음 만든 가이드 (수정본 묶음의 뿌리). 같은 콘텐츠의 버전끼리 묶을 때 쓴다 */
+  /** 올린 버전 (content_guides.id) */
+  id: Id,
+  /** 처음 만든 가이드 (parent_id를 따라간 뿌리). 같은 가이드의 버전끼리 묶는다 */
   root_id: Id,
+  /** 처음 만든 것이 v1 */
   version_no: z.number().int().min(1),
+  /** 고른 제목 (한국어, 자리표시자는 제품 값으로 채운 것) */
+  title: z.string(),
   channel: z.string(),
-  title_ko: z.string(),
-  title_ja: z.string(),
 });
 export type AdBodyGuide = z.infer<typeof AdBodyGuide>;
 
+/** 광고 검토 시안은 기존 ad_checks를 묶는다. 승인 상태는 결재 때 ad_checks 쪽이 바뀌므로 여기 남기지 않는다.
+ *  콘텐츠 가이드 결재면 content_guide가 있고, items는 그 가이드의 자동 검사 · 문구 검토다 */
 export const AdBody = z.object({
-  guide: AdBodyGuide.optional(),
+  content_guide: AdBodyGuide.optional(),
   items: z
     .array(
       z.object({
@@ -141,6 +143,14 @@ export const AdBody = z.object({
     .min(1),
 });
 export type AdBody = z.infer<typeof AdBody>;
+
+/** 결재함 · 내 시안에 보일 콘텐츠 가이드 이름 ("콘텐츠 가이드 v2 · 제목"). 가이드 결재가 아니면 null */
+export function guideLabelOf(tab: SubmissionTab, body: unknown): string | null {
+  if (tab !== "ad") return null;
+  const parsed = AdBody.safeParse(body);
+  const g = parsed.success ? parsed.data.content_guide : undefined;
+  return g ? `콘텐츠 가이드 v${g.version_no}${g.title ? ` · ${g.title}` : ""}` : null;
+}
 
 // ── 시장 분석 요약 스냅샷 (2026-10-26). 시장 분석 요약 탭에 보이는 내용을 시안을 올리는 순간 그대로 고정한다.
 // 서버가 요약 탭과 같은 계산(market/_lib/summary.ts)으로 다시 만들고, 결재 문서는 다시 계산하지 않고 이 값을 보여 준다

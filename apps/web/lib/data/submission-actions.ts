@@ -10,7 +10,6 @@ import { MARKET_CATEGORIES, MARKET_PLATFORMS, type MarketPlatform } from "@/lib/
 import { summarySnapshot } from "@/app/(internal)/(dashboard)/market/_lib/summary";
 import { weekLabel } from "@/app/(internal)/(dashboard)/market/_lib/market";
 import { seriesOf } from "@/app/(internal)/(dashboard)/market/_lib/overview";
-import { loadContentRecord } from "@/app/(internal)/(dashboard)/ad-check/_lib/records";
 import { getAdChecks, getGeoSnapshots, getProducts, getSearchSnapshots, getSnsAnalyses, getTrendSnapshots } from "./index";
 import { buildAdSnapshot, buildAppeals, buildGuideSnapshot, buildReviewSnapshot, buildTranslations, type VersionSnapshot, withExtras } from "./submission-bodies";
 import { dbError, fail, ownOnSaleProduct, type SubmissionResult, type WriteContext, writeContext } from "./submission-write";
@@ -263,6 +262,29 @@ export async function saveAdDraft(
 }
 
 /**
+ * 콘텐츠 가이드 결재 (2026-10-26 A안): 가이드 최신 버전을 그 제품의 광고 검토 시안 새 버전(임시)으로 저장한다.
+ * 결재함에는 "콘텐츠 가이드 vN" 한 건으로 보이고, 승인하면 묶인 자동 검사 · 문구 검토의 상태도 같이 바뀐다 (decide_version)
+ */
+export async function saveGuideDraft(guideId: string, input: DraftInput & { carryOver?: boolean }): Promise<SubmissionResult<{ versionId: string }>> {
+  const parsed = DraftInput.safeParse(input);
+  if (!parsed.success) return fail("한 줄 결론은 300자, 메모는 1000자까지예요");
+  if (!Uuid.safeParse(guideId).success) return fail("가이드 번호가 올바르지 않아요");
+  const ctx = await writeContext();
+  if (!ctx.ok) return ctx;
+  let snapshot: Awaited<ReturnType<typeof buildGuideSnapshot>>;
+  try {
+    snapshot = await buildGuideSnapshot(guideId);
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : String(e));
+  }
+  const target = await ownOnSaleProduct(snapshot.productId);
+  if (!target.ok) return target;
+  const submission = await ensureSubmission(ctx, target.product.project_id, snapshot.productId, "ad", `${target.product.name} 광고 문구`);
+  if (!submission.ok) return submission;
+  return insertVersion(ctx, submission.id, snapshot, parsed.data);
+}
+
+/**
  * 시장 분석 시안 (2026-10-26): 시장 분석 요약 탭에 보이는 내용(이번 주 핵심 · 알 수 있는 것 · 한눈에 보기)을 그 순간의 데이터로 서버에서 다시 만들어 고정한다.
  * 고정 기준 = 카테고리 · 플랫폼 · 기준 주 · 수집일 (body.summary.basis) + 시안 제품. 결재 문서는 다시 계산하지 않고 이 값을 보여 준다.
  * 시안 칸은 고른 자사 제품 × 시장 분석 (판매 중 제품만). 내 임시 버전이 가장 최근이면 그 버전을 고치고, 아니면 새 버전을 만든다
@@ -337,52 +359,6 @@ export async function saveMarketDraft(
     if (updateError) return fail(dbError(updateError));
     if (!data) return fail("임시 버전을 고치지 못했어요. 화면을 새로 고쳐 주세요");
     return { ok: true, data: { versionId: String(data.id), versionNo: Number(data.version_no) } };
-  }
-  return insertVersion(ctx, submission.id, snapshot, parsed.data);
-}
-
-/**
- * 콘텐츠 가이드를 광고 시안 새 버전(임시)으로 저장한다 (2026-10-27 TAB 3: 결재는 콘텐츠 가이드 단위).
- * 최신 버전만, 「고쳐야 함」 · 「전문가 확인」이 남지 않았을 때만 올린다 (약기법 우선). 근거는 그 가이드의 자동 검사와 반영한 문구 검토
- */
-export async function saveGuideDraft(guideId: string, input: DraftInput & { carryOver: boolean }): Promise<SubmissionResult<{ versionId: string }>> {
-  const parsed = DraftInput.safeParse(input);
-  if (!parsed.success) return fail("한 줄 결론은 300자, 메모는 1000자까지예요");
-  const ctx = await writeContext();
-  if (!ctx.ok) return ctx;
-  if (!Uuid.safeParse(guideId).success) return fail("콘텐츠 가이드 번호가 올바르지 않아요");
-  const record = await loadContentRecord(guideId);
-  if (!record) return fail("콘텐츠 가이드를 찾지 못했어요");
-  if (record.latest.id !== guideId) return fail("최신 버전의 콘텐츠 가이드만 결재에 올릴 수 있어요");
-  if (record.status === "needs_fix") return fail("「고쳐야 함」이나 「전문가 확인」이 남았어요. 걸린 문구를 고쳐 가이드에 반영한 뒤 올려 주세요");
-  const productId = record.latest.product_id;
-  if (!productId) return fail("제품이 정해지지 않은 콘텐츠 가이드예요");
-  const target = await ownOnSaleProduct(productId);
-  if (!target.ok) return target;
-  const reflected = new Set(record.phrases.filter((p) => p.reflected).map((p) => p.check.id));
-  const checkIds = [
-    ...record.autoChecks.map((a) => a.checkId),
-    ...record.phrases.filter((p) => reflected.has(p.check.id) && p.check.product_id === productId).map((p) => p.check.id),
-  ];
-  if (checkIds.length === 0) return fail("이 콘텐츠 가이드의 약기법 검사 기록이 없어요. 가이드를 다시 만들어 주세요");
-  const submission = await ensureSubmission(ctx, target.product.project_id, productId, "ad", `${target.product.name} 광고 문구`);
-  if (!submission.ok) return submission;
-  let snapshot: VersionSnapshot<object>;
-  try {
-    snapshot = await buildGuideSnapshot(
-      productId,
-      {
-        guide_id: record.latest.id,
-        root_id: record.versions[0]!.id,
-        version_no: record.versions.length,
-        channel: record.latest.channel,
-        title_ko: record.title.ko,
-        title_ja: record.title.ja,
-      },
-      [...new Set(checkIds)],
-    );
-  } catch (e) {
-    return fail(e instanceof Error ? e.message : String(e));
   }
   return insertVersion(ctx, submission.id, snapshot, parsed.data);
 }

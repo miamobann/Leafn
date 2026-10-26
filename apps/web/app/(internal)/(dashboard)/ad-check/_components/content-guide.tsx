@@ -1223,7 +1223,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                   걸린 문구 검토 →
                 </Link>
               ) : (
-                // 결재는 콘텐츠 가이드 상세의 「시안 · 결재」 칸에서 올린다 (2026-10-27)
+                // 가이드 결재는 콘텐츠 가이드 상세 아래의 시안 · 결재 패널에서 올린다 (2026-10-26 A안)
                 <Link href={`/ad-check/guide/history/${savedIds[current.id]}#submission`} className={buttonVariants({ size: "sm" })}>
                   결재 올리기 →
                 </Link>

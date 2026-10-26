@@ -3,7 +3,8 @@
 import { topicStats, verdictOf } from "@/app/(internal)/(dashboard)/reviews/_lib/topics";
 import { translationNeedsFix } from "@/lib/review-translation-state";
 import type { AppealTopic } from "@/lib/schemas/review";
-import { AdBody, type AdBodyGuide, type EvidenceRef, ReviewBody } from "@/lib/schemas/submission";
+import { loadContentRecord } from "@/app/(internal)/(dashboard)/ad-check/_lib/records";
+import { AdBody, type EvidenceRef, ReviewBody } from "@/lib/schemas/submission";
 import { getAdChecks, getAppealComparison, getReviewTranslations } from "./index";
 import { getReviewsOf } from "./reviews";
 import { summarizeReviews } from "./row-adapters";
@@ -83,10 +84,34 @@ export async function buildAdSnapshot(productId: string, adCheckIds: string[]): 
   };
 }
 
-/** 콘텐츠 가이드 시안: 가이드(제목 · 버전) + 그 가이드의 약기법 검토(자동 검사 · 반영한 문구 검토)를 근거로 담는다 */
-export async function buildGuideSnapshot(productId: string, guide: AdBodyGuide, adCheckIds: string[]): Promise<VersionSnapshot<AdBody>> {
-  const base = await buildAdSnapshot(productId, adCheckIds);
-  return { ...base, body: AdBody.parse({ ...base.body, guide }) };
+/**
+ * 콘텐츠 가이드 결재 (2026-10-26 A안): 가이드 최신 버전 한 건을 올린다.
+ * 근거(ad_checks)는 그 가이드의 자동 검사(버전마다) + 문구 검토. DB가 광고 시안마다 같은 제품의 검토 근거를 1건 이상 요구해서 자동 검사를 근거로 쓴다
+ */
+export async function buildGuideSnapshot(guideId: string): Promise<VersionSnapshot<AdBody> & { productId: string }> {
+  const record = await loadContentRecord(guideId);
+  const guide = record?.versions.find((v) => v.id === guideId);
+  if (!record || !guide) throw new Error("콘텐츠 가이드를 찾을 수 없어요");
+  if (record.latest.id !== guide.id) throw new Error("최신 버전만 결재에 올릴 수 있어요. 최신 수정본에서 올려 주세요");
+  if (!guide.product_id) throw new Error("제품이 연결된 콘텐츠 가이드만 결재에 올릴 수 있어요");
+  if (record.status === "needs_fix") throw new Error("「고쳐야 함」이나 「전문가 확인」 문구가 남았어요. 문구 검토로 고쳐 가이드에 반영한 뒤 올려 주세요");
+  const productId = guide.product_id;
+  const wanted = new Set([...record.autoChecks.map((a) => a.checkId), ...record.phrases.map((p) => p.check.id)]);
+  // 지웠거나 다른 제품에 묶인 검토는 DB가 막으므로 미리 뺀다
+  const checkIds = (await getAdChecks({ source: "all" })).filter((c) => wanted.has(c.id) && c.product_id === productId).map((c) => c.id);
+  if (checkIds.length === 0) throw new Error("이 가이드의 약기법 검사 기록이 없어 결재에 올릴 수 없어요. 가이드를 다시 만들어 주세요");
+  const snapshot = await buildAdSnapshot(productId, checkIds);
+  const body = AdBody.parse({
+    ...snapshot.body,
+    content_guide: {
+      id: guide.id,
+      root_id: record.versions[0]!.id,
+      version_no: record.versions.length,
+      title: record.title.ko,
+      channel: guide.channel,
+    },
+  });
+  return { ...snapshot, body, data_as_of: latestOf([snapshot.data_as_of, guide.created_at]), productId };
 }
 
 type Appeal = NonNullable<ReviewBody["appeals"]>[number];
