@@ -9,7 +9,7 @@ import { formatJpy } from "@/lib/format";
 import { APPEAL_TAGS } from "@/lib/market-config";
 import type { Product } from "@/lib/schemas/product";
 import { INGREDIENT_MATCH, PROMO_HOOK_LABEL } from "@/app/(internal)/(dashboard)/market/_lib/market";
-import { ownDiff, type OverviewRow } from "@/app/(internal)/(dashboard)/market/_lib/overview";
+import { ownDiff, rankingKey, type OverviewRow } from "@/app/(internal)/(dashboard)/market/_lib/overview";
 
 /** 오른쪽 패널에 띄울 내용: 제품 요약, 근거 제품 목록, 근거 원문(자동완성·영상 메모) */
 export type PanelContent =
@@ -26,7 +26,8 @@ export type PanelContent =
       rows?: { title: string; items: { row: OverviewRow; note?: string }[] };
     };
 
-export const MAX_COMPARE = 4;
+/** 랭킹에서 골라 경쟁제품 탭으로 가져갈 수 있는 수 (20위까지 전부). 나란히 비교는 경쟁제품 탭에서 4개까지 */
+export const MAX_COMPARE = 20;
 
 /** 전주 대비 순위 변동. 색만으로 구분하지 않게 기호를 함께 쓴다 */
 export function RankChange({ row }: { row: Pick<OverviewRow, "rank" | "prevRank"> }) {
@@ -58,7 +59,8 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 
 function ProductSummary({ row, own, selected, onToggleCompare }: { row: OverviewRow; own: Product | null; selected: string[]; onToggleCompare: (id: string) => void }) {
   const diff = own ? ownDiff(row, own) : null;
-  const inCompare = row.product_id ? selected.includes(row.product_id) : false;
+  const key = rankingKey(row);
+  const inCompare = selected.includes(key);
   const compareFull = !inCompare && selected.length >= MAX_COMPARE;
 
   return (
@@ -138,7 +140,7 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
       </section>
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant={inCompare ? "secondary" : "default"} disabled={!row.product_id || compareFull} onClick={() => row.product_id && onToggleCompare(row.product_id)}>
+        <Button size="sm" variant={inCompare ? "secondary" : "default"} disabled={compareFull} onClick={() => onToggleCompare(key)}>
           {inCompare ? "비교에서 빼기" : "비교에 추가"}
         </Button>
         {row.product_id ? (
@@ -146,7 +148,7 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
             제품 상세 열기 ↗
           </Link>
         ) : (
-          <span className="self-center text-xs text-muted-foreground">상세 없음 (등록되지 않은 제품이라 비교·상세를 열 수 없어요)</span>
+          <span className="self-center text-xs text-muted-foreground">상세 없음 (등록되지 않은 제품이라 상세 페이지는 없어요)</span>
         )}
         {row.url && (
           <a href={row.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}>

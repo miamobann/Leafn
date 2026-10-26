@@ -23,6 +23,7 @@ import {
   tagShare,
   top10,
   type OverviewRow,
+  rankingKey,
 } from "@/app/(internal)/(dashboard)/market/_lib/overview";
 import { ShareDonut } from "@/app/(internal)/(dashboard)/market/_components/charts";
 import { PriceMapSection } from "./price-map";
@@ -107,16 +108,16 @@ export function SupplyPart({
   const { ppm, promo, entries } = conditions;
 
   const rankRow = (r: OverviewRow) => {
-    const checked = r.product_id ? selected.includes(r.product_id) : false;
+    const key = rankingKey(r);
+    const checked = selected.includes(key);
     return (
       <TableRow key={`${r.brand}|${r.name}`} className="cursor-pointer" onClick={() => onOpen({ kind: "product", row: r })}>
         <TableCell className={STICKY.check} onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={checked}
-            disabled={!r.product_id || (!checked && selected.length >= MAX_COMPARE)}
-            onCheckedChange={() => r.product_id && onToggleCompare(r.product_id)}
+            disabled={!checked && selected.length >= MAX_COMPARE}
+            onCheckedChange={() => onToggleCompare(key)}
             aria-label={`${r.brand} ${r.name} 비교에 추가`}
-            title={r.product_id ? undefined : "등록되지 않은 제품이라 비교할 수 없어요"}
           />
         </TableCell>
         <TableCell className={`${STICKY.rank} font-semibold`}>{r.rank}</TableCell>
@@ -197,7 +198,7 @@ export function SupplyPart({
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             1-C Top {TOP_N} 랭킹 · {platformLabel} <LangBadge lang="ja" />
             <HelpTip>
-              행을 누르면 오른쪽에 제품 요약이 열려요. 체크하거나 패널의 [비교에 추가]로 최대 {MAX_COMPARE}개까지 골라 경쟁제품 탭에서 비교해요 (등록된 제품만). 판매가는 평시가예요.
+              행을 누르면 오른쪽에 제품 요약이 열려요. 체크하거나 패널의 [비교에 추가]로 최대 {MAX_COMPARE}개까지 골라 경쟁제품 탭으로 가져가요 (나란히 비교는 그 탭에서 4개까지). 판매가는 평시가예요.
             </HelpTip>
           </h3>
           {selected.length > 0 ? (
