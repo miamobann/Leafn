@@ -15,6 +15,7 @@ import { mock } from "@/lib/mock";
 import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
 import { AdCheckLineRow, type AdCheckSource } from "@/lib/schemas/ad-check";
 import { ContentGuideRow } from "@/lib/schemas/content-guide";
+import { guideSlots } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-to-review";
 import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
 import { APPEAL_MAX_RATING, buildAppealComparison, reviewProductRank } from "./appeal";
@@ -147,16 +148,24 @@ export async function getContentGuides(): Promise<ContentGuideRow[]> {
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-/** 만든 가이드 하나와 그 약기법 검사의 블록별 판정 (block_key 가 있는 줄) */
+/** 만든 가이드 하나와 그 약기법 검사의 블록별 판정 (block_key 가 있는 줄).
+ *  수정본은 새 검토(block_key 없음)로 판정했으므로 줄 순서로 블록을 찾는다 (guideSlots, 제목 줄은 블록이 아니라 뺀다) */
 export async function getContentGuide(id: string) {
   const guide = (await getContentGuides()).find((g) => g.id === id);
   if (!guide) return null;
   const lineRows = guide.ad_check_id ? ((await readRows("ad_check_lines").catch(missingTableOnly)) ?? []) : [];
+  const slots = guide.parent_id ? guideSlots(guide) : [];
+  const blockKeys = new Set(guide.body.blocks.map((b) => b.key));
   const checks = lineRows
     .filter((l) => l.ad_check_id === guide.ad_check_id)
     .flatMap((l) => {
       const parsed = AdCheckLineRow.safeParse(l);
-      return parsed.success && parsed.data.block_key ? [{ key: parsed.data.block_key, action: parsed.data.action, findings: parsed.data.findings }] : [];
+      if (!parsed.success) return [];
+      if (parsed.data.block_key) return blockKeys.has(parsed.data.block_key) ? [{ key: parsed.data.block_key, action: parsed.data.action, findings: parsed.data.findings }] : [];
+      const slot = slots[parsed.data.line_index - 1];
+      if (!slot || !blockKeys.has(slot.key)) return [];
+      // 판정한 문구와 지금 문구가 다르면 재검토를 통과한 대체 표현으로 바꾼 줄이다 (revise API 가 그것만 받는다)
+      return [slot.text === parsed.data.original ? { key: slot.key, action: parsed.data.action, findings: parsed.data.findings } : { key: slot.key, action: "ok" as const, findings: [] }];
     });
   return { guide, checks };
 }

@@ -1,7 +1,8 @@
 "use client";
 
 // 탭 결과 화면 아래의 "시안 · 결재" 패널 (docs/team-approval-ai-analysis.md 3장 1~4, 6장).
-// 지금 결과를 시안 새 버전(임시)으로 저장 → 제출 → 결재. 제출한 버전은 고칠 수 없고 새 버전을 만든다.
+// 지금 결과를 「결재 올리기」(저장 + 제출을 한 번에) 하거나 임시 저장한 뒤 제출 → 팀장 결재. 제출한 버전은 고칠 수 없고 새 버전을 만든다.
+// 맨 위 한 줄에 지금 팀장 검토 상황을 보인다. 결재함은 팀장만 보고, 팀원은 「내 시안」에서 모아 본다
 // 담당 탭이 아니면 히스토리만 보인다 (버튼은 숨기고, DB도 막는다)
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,8 +32,18 @@ const TEXT = {
   summary: "한 줄 결론",
   summaryPlaceholder: "예) 순한 사용감이 재구매 이유, 자극 후기는 민감 피부에서만",
   note: "메모 (선택)",
-  save: "시안으로 저장",
+  upload: "결재 올리기",
+  uploadHint: "지금 결과를 시안으로 저장하고 바로 팀장 결재함에 올려요.",
+  save: "임시 저장",
   saving: "저장 중…",
+  myList: "내 시안 전체 보기 →",
+  state: {
+    none: "아직 올린 시안이 없어요.",
+    submitted: (no: number) => `v${no} 팀장 결재를 기다리고 있어요.`,
+    approved: (no: number) => `v${no}이 승인됐어요. 새 버전을 올려도 승인되기 전까지는 v${no}이 기준이에요.`,
+    rejected: (no: number) => `v${no}이 반려됐어요. 사유를 보고 새 버전을 올려 주세요.`,
+    draft: "임시 저장만 있어요. 제출해야 팀장 결재함에 올라가요.",
+  },
   empty: "아직 시안이 없어요.",
   history: "버전 히스토리",
   rejectedReason: (no: number) => `v${no} 반려 사유`,
@@ -97,11 +108,21 @@ export function SubmissionPanel({
   const [summary, setSummary] = useState("");
   const [note, setNote] = useState("");
   const [carryOver, setCarryOver] = useState(true);
+  const [mode, setMode] = useState<"upload" | "save">("upload");
   const [editing, setEditing] = useState<{ id: string; summary: string; note: string } | null>(null);
 
   const disabled = sampleMode || pending;
   // 가장 최근에 결재된 버전이 반려면 사유를 위에 보인다 (설계 6장: 반려 사유는 다음 버전을 만들 때 보인다)
   const latestDecided = versions.find((v) => v.status === "approved" || v.status === "rejected");
+  // 팀장 검토 상황 한 줄: 결재 대기가 있으면 그것, 없으면 가장 최근 결재, 없으면 임시 저장 여부
+  const waiting = versions.find((v) => v.status === "submitted");
+  const stateLine = waiting
+    ? TEXT.state.submitted(waiting.version_no)
+    : latestDecided
+      ? TEXT.state[latestDecided.status === "approved" ? "approved" : "rejected"](latestDecided.version_no)
+      : versions.some((v) => v.status === "draft")
+        ? TEXT.state.draft
+        : TEXT.state.none;
 
   function run(action: () => Promise<SubmissionResult<unknown>>, after?: () => void) {
     setError(null);
@@ -116,15 +137,23 @@ export function SubmissionPanel({
     });
   }
 
+  // 미리보기는 팀장 · 작성자 · 승인본만 (버전 미리보기 화면과 DB가 같은 규칙)
+  const canPreview = (v: VersionView) => sampleMode || isOwner || v.status === "approved" || (v.author_id !== null && v.author_id === meId);
   const canActOn = (v: VersionView) => !sampleMode && (isOwner || (canEdit && v.author_id !== null && v.author_id === meId));
 
   return (
-    <Card className="mt-6">
+    <Card id="submission" className="mt-6 scroll-mt-6">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle className="text-base">{TEXT.title(tabLabel)}</CardTitle>
-        {status && <SubmissionStatusBadge status={status} />}
+        <span className="flex items-center gap-3">
+          {status && <SubmissionStatusBadge status={status} />}
+          <Link href="/approvals/mine" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+            {TEXT.myList}
+          </Link>
+        </span>
       </CardHeader>
       <CardContent className="space-y-5">
+        <p className="text-sm font-medium">{stateLine}</p>
         {sampleMode && <p className="text-sm text-muted-foreground">{TEXT.sample}</p>}
         {!canEdit && !sampleMode && <p className="text-sm text-muted-foreground">{TEXT.readOnly}</p>}
 
@@ -140,8 +169,17 @@ export function SubmissionPanel({
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
+              if (mode === "upload" && !summary.trim()) {
+                setError(TEXT.submitNeedsSummary);
+                return;
+              }
               run(
-                () => saveDraft({ summary, note: note.trim() || null, carryOver }),
+                async () => {
+                  const saved = await saveDraft({ summary, note: note.trim() || null, carryOver });
+                  // 결재 올리기 = 저장한 임시 버전을 바로 제출. 제출이 실패해도 임시 버전은 남아 히스토리에서 다시 제출할 수 있다
+                  if (!saved.ok || mode === "save") return saved;
+                  return submitVersion(saved.data.versionId);
+                },
                 () => {
                   setSummary("");
                   setNote("");
@@ -149,7 +187,9 @@ export function SubmissionPanel({
               );
             }}
           >
-            <p className="text-sm text-muted-foreground">{snapshotNote}</p>
+            <p className="text-sm text-muted-foreground">
+              {TEXT.uploadHint} {snapshotNote}
+            </p>
             <label className="block space-y-1 text-sm">
               <span className="font-medium">{TEXT.summary}</span>
               <Textarea
@@ -170,9 +210,14 @@ export function SubmissionPanel({
                 {carryOverLabel}
               </label>
             )}
-            <Button type="submit" disabled={disabled}>
-              {pending ? TEXT.saving : TEXT.save}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={disabled} onClick={() => setMode("upload")}>
+                {pending && mode === "upload" ? TEXT.saving : TEXT.upload}
+              </Button>
+              <Button type="submit" variant="outline" disabled={disabled} onClick={() => setMode("save")}>
+                {pending && mode === "save" ? TEXT.saving : TEXT.save}
+              </Button>
+            </div>
           </form>
         )}
 
@@ -195,9 +240,11 @@ export function SubmissionPanel({
                     {v.author_name} · {formatDate(v.submitted_at ?? v.created_at)}
                     {v.data_as_of && ` · ${TEXT.dataAsOf} ${formatDate(v.data_as_of)}`}
                   </span>
-                  <Link href={`/approvals/${v.id}`} className="ml-auto text-sm underline-offset-4 hover:underline">
-                    {TEXT.preview}
-                  </Link>
+                  {canPreview(v) && (
+                    <Link href={`/approvals/${v.id}`} className="ml-auto text-sm underline-offset-4 hover:underline">
+                      {TEXT.preview}
+                    </Link>
+                  )}
                 </div>
 
                 {editing?.id === v.id ? (

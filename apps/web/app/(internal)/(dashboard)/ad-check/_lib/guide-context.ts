@@ -6,7 +6,7 @@ import { getAppealComparison, getPromoEvents, getSearchSnapshots, getWorkspace }
 import { getAdProducts } from "@/lib/data/ad-products";
 import { getToday } from "@/lib/data/launch";
 import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/data/workspace";
-import { APPEAL_TOPICS } from "@/lib/schemas/review";
+import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
 import type { GuideMaterials } from "../_components/content-guide";
 import { productKind, skinLineOf } from "./guide-report";
 
@@ -19,7 +19,10 @@ async function getReportAuthor() {
   return { name: me?.display_name ?? user.email ?? "이름 없음", team: mine.workspace.name };
 }
 
-export async function loadGuideContext() {
+/** 리뷰 분석 「소구점 찾기」에서 고른 소구점 (/ad-check/guide?product=<id>&topics=<키들>). 그 제품에만 적용한다 */
+export type PickedTopics = { productId: string; topics: AppealTopic[] };
+
+export async function loadGuideContext(picked?: PickedTopics) {
   const products = (await getAdProducts()).filter((p) => p.price_jpy > 0 && p.volume !== "미등록" && p.line !== "미등록");
   // 반영할 재료 (가짜 데이터, 읽기만): 리뷰 분석의 소구점 · 시장 분석의 검색어 순위
   const [appeals, snapshots, author, events, today] = await Promise.all([
@@ -35,7 +38,9 @@ export async function loadGuideContext() {
   const materials: GuideMaterials = Object.fromEntries(
     products.map((p, i) => {
       const appeal = appeals[i];
-      const topics = appeal?.topics ?? [];
+      // 고른 소구점이 있으면 그 주제만 쓴다 (칭찬 소구점 · 후보 · 리뷰 인용 모두). 순함은 아래에서 약기법으로 다시 빠진다
+      const pick = picked?.productId === p.id && picked.topics.length > 0 ? picked.topics : null;
+      const topics = (appeal?.topics ?? []).filter((t) => !pick || pick.includes(t.topic));
       // 약기법: 순함(저자극)은 빼고, 오래가는 보습(효과 지속)은 사용감 표현으로 바꿔 넘긴다 (materials.ts)
       const praise = safePraiseLabels(
         topics
@@ -54,7 +59,8 @@ export async function loadGuideContext() {
       const ingredients = pickTrendIngredients(snapshots, productKind(p).ja, own);
       // 검색어·요즘 뜨는 말: 피부 라인에 맞는 고민 자동완성에서 (약기법에 걸리는 말·우리 전성분에 없는 성분이 든 말은 뺀다)
       const words = pickSearchWords(snapshots, skinLineOf(p), own);
-      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, droppedAppeals: praise.dropped, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), keywords: words.search, trending: words.trending, ingredients, megaSale }];
+      // approvedQuotes: 리뷰 탭의 승인본 읽기 함수(getApprovedReviewQuotes, 해원 PR)가 sub_main에 들어오면 채운다. 승인본은 길이만 거른다 (이미 약기법 검토를 통과)
+      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, droppedAppeals: praise.dropped, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), approvedQuotes: [], keywords: words.search, trending: words.trending, ingredients, megaSale, pickedTopics: pick?.length ?? null }];
     }),
   );
   return { products, materials, author, aiEnabled };

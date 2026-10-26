@@ -53,8 +53,31 @@ export function memoLocation(channel: Channel, blocks: GuideBlock[], blockKey: s
   return channel === "x" ? "3. 해시태그 · 검토 메모" : "3. 카피 안 · 검토 메모";
 }
 
-/** 스토리보드 한 쪽에 넣는 장면 수 (3열 × 2줄) */
-const SCENES_PER_PAGE = 6;
+/** 스토리보드 한 줄에 넣는 장면 수 (3열). 한 쪽에는 높이가 허락하는 만큼 줄을 넣는다 (보통 2줄) */
+const SCENES_PER_ROW = 3;
+// 장면 높이 어림 (mm). 문구가 길면(성분 각주 등) 한 쪽에 2줄이 안 들어가 잘리므로 줄 단위로 다음 쪽으로 넘긴다
+const STORYBOARD_HEIGHT_MM = 150; // 쪽 높이 189mm − 머리글·바닥글·섹션 제목
+const ROW_GAP_MM = 5;
+const SCENE_BASE_MM = 38; // 장면 제목 + 사진 칸 30mm + 간격
+const JA_LINE = { chars: 22, mm: 5.4 }; // 3열 한 칸 너비에서 10pt 일본어
+const KO_LINE = { chars: 36, mm: 3.9 }; // 8pt 한국어 (일본어 아래 참고용이라 작게)
+
+function textMm(text: string, line: { chars: number; mm: number }) {
+  if (!text.trim()) return 0;
+  return text.split("\n").reduce((sum, l) => sum + Math.max(1, Math.ceil(l.length / line.chars)), 0) * line.mm;
+}
+
+function sceneMm(block: GuideBlock, fill: Fill, memo?: string) {
+  return SCENE_BASE_MM + (block.needs_evidence ? 0 : textMm(ja(block, fill), JA_LINE) + textMm(ko(block, fill), KO_LINE)) + (memo?.trim() ? textMm(`메모 ${memo}`, KO_LINE) + 2 : 0);
+}
+
+// 한 칸에 다 안 들어가는 장면(전성분 등)은 한 줄을 통째로 쓴다: 사진은 왼쪽 1/3, 문구는 오른쪽 2/3 (한 줄 글자 수 약 2배)
+const WIDE_JA_LINE = { chars: 46, mm: 5.4 };
+const WIDE_KO_LINE = { chars: 74, mm: 3.9 };
+function wideSceneMm(block: GuideBlock, fill: Fill, memo?: string) {
+  const text = textMm(ja(block, fill), WIDE_JA_LINE) + textMm(ko(block, fill), WIDE_KO_LINE) + (memo?.trim() ? textMm(`메모 ${memo}`, WIDE_KO_LINE) + 2 : 0);
+  return 8 + Math.max(30, text);
+}
 
 // 대시보드 레이아웃(사이드바·헤더)은 공용 영역이라 고치지 않고, 인쇄할 때만 보고서 밖을 숨긴다.
 // 보고서를 감싼 요소는 남기되 높이·스크롤 제한을 풀어 여러 쪽으로 이어지게 한다.
@@ -317,7 +340,26 @@ function GallerySection({ gallery }: { gallery: GalleryShot[] }) {
 }
 
 /** 스토리보드 한 장면: 사진 칸 + 바로 아래 문구 (일본어 · 한국어) + 메모 */
-function Scene({ block, no, fill, memo }: { block: GuideBlock; no: number; fill: Fill; memo?: string }) {
+function Scene({ block, no, fill, memo, wide = false }: { block: GuideBlock; no: number; fill: Fill; memo?: string; wide?: boolean }) {
+  if (wide && !block.needs_evidence) {
+    return (
+      <div className="col-span-3 flex flex-col gap-1.5">
+        <p className="font-bold">
+          {pad(no)} · {block.heading}
+        </p>
+        <div className="flex gap-6">
+          <PhotoBox no={no} image={block.image} className="h-[30mm] w-1/3 shrink-0" />
+          <div className="flex flex-1 flex-col gap-1.5">
+            <p className="whitespace-pre-line font-medium" lang="ja">
+              {ja(block, fill)}
+            </p>
+            <p className="whitespace-pre-line text-[8pt] leading-snug text-muted-foreground">{ko(block, fill)}</p>
+            <MemoLine text={memo} />
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-1.5">
       <p className="font-bold">
@@ -334,7 +376,7 @@ function Scene({ block, no, fill, memo }: { block: GuideBlock; no: number; fill:
           <p className="whitespace-pre-line font-medium" lang="ja">
             {ja(block, fill)}
           </p>
-          <p className="whitespace-pre-line text-[9pt] text-muted-foreground">{ko(block, fill)}</p>
+          <p className="whitespace-pre-line text-[8pt] leading-snug text-muted-foreground">{ko(block, fill)}</p>
         </>
       )}
       <MemoLine text={memo} />
@@ -344,8 +386,37 @@ function Scene({ block, no, fill, memo }: { block: GuideBlock; no: number; fill:
 
 function detailPages(props: ContentGuideReportProps): ReactNode[] {
   const { blocks, fill, memos } = props;
-  const groups: GuideBlock[][] = [];
-  for (let i = 0; i < blocks.length; i += SCENES_PER_PAGE) groups.push(blocks.slice(i, i + SCENES_PER_PAGE));
+  // 줄 만들기: 보통 장면은 3개씩, 한 칸에 다 안 들어가는 장면은 혼자 한 줄(넓게)
+  type Row = { start: number; scenes: GuideBlock[]; wide: boolean; mm: number };
+  const rows: Row[] = [];
+  let buffer: GuideBlock[] = [];
+  const flush = (end: number) => {
+    if (buffer.length) rows.push({ start: end - buffer.length, scenes: buffer, wide: false, mm: Math.max(...buffer.map((b) => sceneMm(b, fill, memos[b.key]))) });
+    buffer = [];
+  };
+  blocks.forEach((b, i) => {
+    if (sceneMm(b, fill, memos[b.key]) > STORYBOARD_HEIGHT_MM) {
+      flush(i);
+      rows.push({ start: i, scenes: [b], wide: true, mm: wideSceneMm(b, fill, memos[b.key]) });
+      return;
+    }
+    buffer.push(b);
+    if (buffer.length === SCENES_PER_ROW) flush(i + 1);
+  });
+  flush(blocks.length);
+  // 쪽 나누기: 줄 높이를 더해 쪽 높이를 넘으면 다음 쪽으로 넘긴다
+  const groups: Row[][] = [];
+  let used = 0;
+  for (const row of rows) {
+    const last = groups.at(-1);
+    if (last && used + ROW_GAP_MM + row.mm <= STORYBOARD_HEIGHT_MM) {
+      last.push(row);
+      used += ROW_GAP_MM + row.mm;
+    } else {
+      groups.push([row]);
+      used = row.mm;
+    }
+  }
   return [
     <>
       <Overview props={props} />
@@ -353,15 +424,18 @@ function detailPages(props: ContentGuideReportProps): ReactNode[] {
       <FlowSection props={props} />
     </>,
     ...(props.gallery.length > 0 ? [<GallerySection key="gallery" gallery={props.gallery} />] : []),
-    ...groups.map((group, p) => (
-      <Section key={p} n={4} title={`상세페이지 스토리보드 (${p * SCENES_PER_PAGE + 1}~${p * SCENES_PER_PAGE + group.length}장)`}>
-        <div className="grid grid-cols-3 gap-x-6 gap-y-5">
-          {group.map((b, i) => (
-            <Scene key={b.key} block={b} no={p * SCENES_PER_PAGE + i + 1} fill={fill} memo={memos[b.key]} />
-          ))}
-        </div>
-      </Section>
-    )),
+    ...groups.map((group) => {
+      const first = group[0]!.start + 1;
+      const lastRow = group.at(-1)!;
+      const last = lastRow.start + lastRow.scenes.length;
+      return (
+        <Section key={first} n={4} title={`상세페이지 스토리보드 (${first === last ? `${first}장` : `${first}~${last}장`})`}>
+          <div className="grid grid-cols-3 gap-x-6 gap-y-5">
+            {group.flatMap((row) => row.scenes.map((b, i) => <Scene key={b.key} block={b} no={row.start + i + 1} fill={fill} memo={memos[b.key]} wide={row.wide} />))}
+          </div>
+        </Section>
+      );
+    }),
   ];
 }
 

@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AiResultMeta } from "@/components/common/ai";
 import { PageHeader } from "@/components/layout/page-header";
-import { getContentGuide } from "@/lib/data";
+import { buttonVariants } from "@/components/ui/button";
+import { getContentGuide, getContentGuides } from "@/lib/data";
 import { getMyWorkspace } from "@/lib/data/workspace";
 import { AdDisclaimer } from "../../../_components/ad-disclaimer";
 import { ContentGuide } from "../../../_components/content-guide";
@@ -15,7 +17,9 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
   const found = await getContentGuide((await params).guideId);
   if (!found) notFound();
   const { guide, checks } = found;
-  const [{ products, materials, author, aiEnabled }, mine] = await Promise.all([loadGuideContext(), getMyWorkspace().catch(() => null)]);
+  const [{ products, materials, author, aiEnabled }, mine, all] = await Promise.all([loadGuideContext(), getMyWorkspace().catch(() => null), getContentGuides()]);
+  // 수정본: 새 검토에서 고친 문구를 「가이드에 반영」한 것 (원본은 그대로 남는다). 목록은 최신순
+  const revisions = all.filter((g) => g.parent_id === guide.id);
   const product = products.find((p) => p.id === guide.product_id);
   const draft = GuideDraft.parse({
     id: guide.id,
@@ -39,9 +43,26 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
         )}
       </div>
       <AdDisclaimer />
+      {guide.parent_id && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+          <span>새 검토에서 대체 표현으로 고친 문구를 반영한 수정본이에요. 약기법에 걸렸던 원본과 그 검사 기록은 그대로 남아 있어요.</span>
+          <Link href={`/ad-check/guide/history/${guide.parent_id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            원본 보기
+          </Link>
+        </div>
+      )}
+      {revisions[0] && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+          <span>이 가이드를 고친 수정본이 {revisions.length}개 있어요. 게시에는 수정본을 쓰세요.</span>
+          <Link href={`/ad-check/guide/history/${revisions[0].id}`} className={buttonVariants({ size: "sm" })}>
+            최신 수정본 보기
+          </Link>
+        </div>
+      )}
       <div className="mt-4 space-y-4">
         {product ? (
           <ContentGuide
+            key={guide.id}
             products={products}
             drafts={[]}
             materials={materials}
@@ -55,6 +76,7 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
               direction: guide.input.direction,
               draft,
               warnings: buildWarnings(guide.lint_hits, checks),
+              memos: guide.memos ?? undefined,
             }}
           />
         ) : (

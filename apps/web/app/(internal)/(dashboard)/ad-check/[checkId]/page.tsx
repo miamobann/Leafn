@@ -33,9 +33,17 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
     <>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <PageHeader title="검토 상세" featureId="A" />
-        <Link href={`/ad-check?from=${check.id}`} className={buttonVariants()}>
-          이 내용으로 재검토
-        </Link>
+        <span className="flex flex-wrap gap-2">
+          {/* 결재는 아래 「시안 · 결재」 패널에서 올린다. 팀장 결재함에는 시안으로 올린 건만 들어간다 */}
+          {!isGuideCheck && product?.kind === "own" && product.sale_status === "on_sale" && (
+            <Link href="#submission" className={buttonVariants({ variant: "outline" })}>
+              시안으로 결재 올리기 ↓
+            </Link>
+          )}
+          <Link href={`/ad-check?from=${check.id}`} className={buttonVariants()}>
+            이 내용으로 재검토
+          </Link>
+        </span>
       </div>
       <AdDisclaimer />
       <div className="mt-4">
@@ -115,7 +123,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
             tab="ad"
             product={product}
             saveDraft={saveAdDraft.bind(null, product.id, check.id)}
-            snapshotNote="이 검토 건의 판정과 최종 문구를 시안에 담아요. 시안을 승인 · 반려하면 이 검토 건의 상태도 같이 바뀌어요."
+            snapshotNote="이 검토 건의 판정과 최종 문구를 시안에 담아요. 시안 결재는 이 검토 건의 담당자 검토 상태(승인 · 반려)와 따로 기록돼요."
             carryOverLabel="직전 버전에 담긴 다른 문구도 함께 담기"
           />
         )}

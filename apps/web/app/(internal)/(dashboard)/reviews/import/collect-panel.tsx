@@ -26,9 +26,11 @@ import {
 } from "./import-parts";
 import { IMPORT_PLATFORMS } from "./import-platforms";
 import { useCollection } from "./use-collection";
+import { useReportMaking } from "./use-report-making";
 
 function CollectPanel({ project, picker }: { project: CollectProject; picker: ReactNode }) {
   const c = useCollection(project);
+  const making = useReportMaking();
   const { form, view, status, busy, selected } = c;
 
   const rows = view && (view.run.status === "ready" || view.run.status === "saved") ? view.rows : null;
@@ -96,7 +98,7 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
             <ul className="mt-2 list-disc space-y-1 pl-4">
               <li>{platform ? METHOD[platform.id] : null}</li>
               <li>이미 저장한 리뷰는 건너뛰고, 아직 없는 리뷰만 별점마다 새로 가져와요.</li>
-              <li>별점이 낮아도 배송·누락 같은 제품 외 불만일 수 있어요. 이 리뷰를 AI가 가려내는 기능은 아직 연결 전이에요.</li>
+              <li>별점이 낮아도 배송·누락 같은 제품 외 불만일 수 있어요. 저장하면 AI가 이런 리뷰를 가려내서 분석에서 빼요.</li>
             </ul>
           </details>
         </>
@@ -144,7 +146,7 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
           />
           {errorBox}
           <ActionBar sticky label="체크한 제품" value={chosen.length > 0 ? `${chosen.length}개 제품 · 새 리뷰 ${n(upTo)}건` : "저장할 제품에 체크해 주세요"} note="이미 저장된 리뷰는 다시 저장하지 않아요">
-            <Button className={bigButtonClass} onClick={c.save} disabled={busy !== null || chosen.length === 0}>
+            <Button className={bigButtonClass} onClick={() => c.save(() => void making.start())} disabled={busy !== null || chosen.length === 0}>
               {busy === "save" ? "저장하는 중…" : `${n(upTo)}건 저장하기`}
             </Button>
           </ActionBar>
@@ -153,8 +155,8 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
 
       {view && rows && saved && (
         <>
-          <SavedPanel title={`리뷰 ${n(savedTotal)}건을 저장했어요`} sub={`경쟁 제품 ${savedRows.length}개 · 지금 AI가 리뷰를 읽고 리포트를 만들고 있어요.`}>
-            <MakingReport />
+          <SavedPanel title={`리뷰 ${n(savedTotal)}건을 저장했어요`} sub={`경쟁 제품 ${savedRows.length}개 · 저장한 리뷰로 리포트를 만들어요.`}>
+            <MakingReport making={making.state} onRetry={making.retry} reportHref="/reviews" />
             <div className="border-t border-status-approved/40 pt-4">
               <NextSteps>
                 <Link href="/reviews" className={cn(moveLinkClass, "text-[15px]")}>

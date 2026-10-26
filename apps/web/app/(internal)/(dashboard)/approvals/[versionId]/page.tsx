@@ -1,4 +1,5 @@
-// 버전 미리보기 (docs/team-approval-ai-analysis.md 3장 3, 7장 3단계): 내용 · 근거 · 앞 버전과의 차이를 보고 팀장이 승인 · 반려한다
+// 버전 미리보기 (docs/team-approval-ai-analysis.md 3장 3, 7장 3단계): 내용 · 근거 · 앞 버전과의 차이를 보고 팀장이 승인 · 반려한다.
+// 팀장은 모든 버전을, 팀원은 자기가 만든 버전과 승인본(AI 분석 근거)만 본다 (2026-10-26 총괄 결정. DB도 같은 규칙으로 막는다)
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ReviewStateBadge } from "@/app/(internal)/(dashboard)/ad-check/_components/ad-badges";
@@ -15,6 +16,8 @@ import { DecisionForm } from "./decision-form";
 
 const TEXT = {
   back: "← 결재함",
+  backMine: "← 내 시안",
+  forbidden: "이 시안은 팀장과 작성자만 볼 수 있어요. 승인된 시안은 AI 분석에서 볼 수 있어요.",
   title: (product: string, tab: string, no: number) => `${product} · ${tab} v${no}`,
   submission: "시안",
   author: "작성자",
@@ -44,6 +47,21 @@ export default async function VersionPreviewPage({ params }: { params: Promise<{
   const { version, submission, history, previous, decisions, productName, memberName } = detail;
   const sampleMode = !isSupabaseConfigured();
   const [my, me] = await Promise.all([getMyTabs(), sampleMode ? null : getCurrentUser()]);
+  const isOwner = my.role === "owner";
+  const backLink = (
+    <Link href={isOwner ? "/approvals" : "/approvals/mine"} className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+      {isOwner ? TEXT.back : TEXT.backMine}
+    </Link>
+  );
+  const isAuthor = me !== null && version.author_id === me.id;
+  if (!sampleMode && !isOwner && !isAuthor && version.status !== "approved") {
+    return (
+      <>
+        {backLink}
+        <p className="mt-6 text-sm text-muted-foreground">{TEXT.forbidden}</p>
+      </>
+    );
+  }
 
   // 보완 7: 근거 광고 문구의 지금 상태로 위험 경고를 정한다
   const adIds = new Set(version.evidence.filter((e) => e.kind === "ad_check").map((e) => e.id));
@@ -54,9 +72,7 @@ export default async function VersionPreviewPage({ params }: { params: Promise<{
 
   return (
     <>
-      <Link href="/approvals" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-        {TEXT.back}
-      </Link>
+      {backLink}
       <PageHeader title={TEXT.title(productName, SUBMISSION_TAB_LABELS[submission.tab], version.version_no)} featureId="M" />
       <DetailTemplate
         badges={<VersionStatusBadge status={version.status} />}
