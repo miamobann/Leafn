@@ -6,7 +6,7 @@
 --   아직 오지 않은 시각은 실행 시각으로 당김. 그래서 "최근 7일" 수는 화면 더미와 몇 건 다를 수 있다)
 --
 -- 실행 방법 (DB 관리자)
---   1. 20261023030815_survey.sql 마이그레이션이 적용된 뒤에 실행한다
+--   1. 20261023030815_survey.sql · 20261026160000_survey_concern_other_ko.sql · 20261026170000_survey_reco_events_source.sql 마이그레이션이 적용된 뒤에 실행한다
 --   2. 아래 PUT_INVITE_CODE_HERE를 테스트 워크스페이스의 참여 코드로 바꾼다 (설정 화면 또는 workspaces.invite_code)
 --   3. Supabase SQL Editor(또는 psql)에서 파일 전체를 실행한다
 --
@@ -203,6 +203,28 @@ from _seed s, (values
   (-38066, -38068, '{"age":"30s","after_wash":"brief_tight","t_zone":"oily_visible","cheek":"rough","pores":"nose","moisturizer":"no_need","blotting":"1","new_product":"never","triggers":["sun","pollen","sweat"],"concerns":["acne","dullness"]}', '30s', 'combo', false, 5, 0, 3, 2, array['acne', 'dullness']::text[], null, 'rakuten', null, 'v0.1'),
   (-35108, -35110, '{"age":"40s","after_wash":"brief_tight","t_zone":"oily_visible","cheek":"rough","pores":"nose","moisturizer":"fine","blotting":"1","new_product":"never","triggers":["season"],"concerns":["shine"]}', '40s', 'combo', false, 5, 0, 4, 1, array['shine']::text[], null, 'qoo10', null, 'v0.1')
 ) as v(at_min, consent_min, answers, age_group, skin_type, is_sensitive, t, c, d, sens, concerns, concern_other, source, source_other, consent_version);
+
+-- '기타' 고민의 한국어 번역 (concern_other_ko, 20261026160000 마이그레이션). 원본은 survey-responses.ts의 CONCERN_OTHER
+update public.survey_responses r
+set concern_other_ko = m.ko
+from _seed s, (values
+  ('夕方になると目元が乾いて小じわが目立つ', '저녁이 되면 눈가가 건조해져 잔주름이 눈에 띄어요'),
+  ('生理前にあごまわりにニキビができやすい', '생리 전에 턱 주변에 여드름이 잘 나요'),
+  ('ファンデーションが毛穴に落ちてしまう', '파운데이션이 모공에 끼어요'),
+  ('首のしわが気になってきた', '목주름이 신경 쓰이기 시작했어요'),
+  ('マスクのこすれで鼻の下が赤くなる', '마스크에 쓸려서 코 밑이 빨개져요'),
+  ('目の下のクマがなかなか消えない', '눈 밑 다크서클이 잘 안 없어져요'),
+  ('髪の生え際に吹き出物ができる', '헤어라인에 뾰루지가 나요'),
+  ('日焼けのあとにできたシミが薄くならない', '햇볕에 탄 뒤 생긴 기미가 옅어지지 않아요'),
+  ('小鼻の黒ずみが取れない', '콧방울 블랙헤드가 안 빠져요'),
+  ('冬になると口のまわりが粉をふく', '겨울이 되면 입가에 각질이 일어나요'),
+  ('化粧水がなかなか肌になじまない', '스킨이 피부에 잘 스며들지 않아요'),
+  ('午後になるとメイクがよれてくる', '오후가 되면 화장이 밀려요'),
+  ('頬の毛穴が縦に伸びて見える', '볼 모공이 세로로 늘어져 보여요'),
+  ('季節の変わり目に肌がごわつく', '환절기에 피부가 거칠어져요'),
+  ('寝不足の日は顔色がくすむ', '잠을 못 잔 날은 안색이 칙칙해요')
+) as m(ja, ko)
+where r.survey_id = s.survey_id and r.concern_other = m.ja;
 
 insert into public.survey_minor_counts (workspace_id, survey_id, count_date, count)
 select s.workspace_id, s.survey_id, (now() at time zone 'Asia/Tokyo')::date - v.days_ago, v.count
@@ -534,6 +556,16 @@ from _seed s, (values
   (-6255, 'oily-line', 'notify_open', 'oily'),
   (-18220, 'oily-line', 'notify_open', 'oily')
 ) as v(at_min, product_line, event, skin_type);
+
+-- 추천 기록의 유입 경로 (source, 20261026170000 마이그레이션): 같은 시각 · 같은 피부타입의 응답에서 가져온다
+update public.survey_reco_events e
+set source = (
+  select r.source from public.survey_responses r
+  where r.survey_id = e.survey_id and r.created_at = e.created_at and r.skin_type = e.skin_type
+  limit 1
+)
+from _seed s
+where e.survey_id = s.survey_id;
 
 -- 확인: 응답 150 · 18세 미만 9 · 민감 경향 34
 select

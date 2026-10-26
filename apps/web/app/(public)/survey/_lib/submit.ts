@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { calcScores, judge } from "@/lib/survey/judge";
-import type { SkinType, SurveyQuestion, SurveySession } from "@/lib/schemas/survey";
+import type { SkinType, SurveyQuestion, SurveySession, SurveySource } from "@/lib/schemas/survey";
 
 // 공개 설문 저장 (supabase/migrations/20261023030815_survey.sql의 익명 입력 규칙을 쓴다).
 //  - 18세 미만: rpc("record_survey_minor", { p_slug })만 부른다. 답 · 나이 · 결과 · 유입 경로는 보내지 않는다
@@ -76,7 +76,14 @@ export async function submitSurvey(session: SurveySession, under18: boolean, que
   }
 }
 
-export type RecoEvent = { event: "shown" | "buy_click" | "notify_open"; lineId: string; skinType: SkinType; under18: boolean };
+/** source는 응답자의 유입 경로 (링크 꼬리표 또는 마지막 문항). 채널별 클릭 · 알림 집계에 쓴다 */
+export type RecoEvent = {
+  event: "shown" | "buy_click" | "notify_open";
+  lineId: string;
+  skinType: SkinType;
+  source: SurveySource | null;
+  under18: boolean;
+};
 
 /** 추천 노출 · 클릭 기록 (survey_reco_events). 18세 미만은 기록하지 않는다. 화면을 막지 않게 기다리지 않는다 */
 export function trackReco(e: RecoEvent): void {
@@ -90,6 +97,7 @@ export function trackReco(e: RecoEvent): void {
       product_line: e.lineId,
       event: e.event,
       skin_type: e.skinType,
+      source: e.source,
     });
     if (error) console.error("설문 저장: 추천 기록 실패", error.message);
   })().catch((err) => console.error("설문 저장: 연결 실패", err));

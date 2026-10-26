@@ -161,6 +161,7 @@ function makeResponse(i: number) {
       score_sensitivity: scores.s,
       concerns: [...concerns],
       concern_other: concernOther?.ja ?? null,
+      concern_other_ko: concernOther?.ko ?? null,
       source,
       source_other: source === "other" ? SOURCE_OTHER[Math.floor(rand() * SOURCE_OTHER.length)] : null,
       consent_at: dateOf(daysAgo, minutes - 2),
@@ -202,7 +203,7 @@ export const surveySummary = SurveySummary.parse({
       const [topType, topCount] = [...countBy(rows, (r) => r.skin_type)].sort((a, b) => b[1] - a[1])[0];
       const inLines = (status: "on_sale" | "in_development") =>
         rows.filter((r) => surveyProductLines.some((l) => l.status === status && l.for_types.includes(r.skin_type))).length;
-      // 채널별 반응도 아래 product_lines와 같은 더미 비율 (구매 클릭 35% · 알림 신청 40%)
+      // 채널별 반응도 아래 product_lines와 같은 더미 비율 (구매 클릭 35% · 출시 예정 화면 열기 40%)
       return { source, count, top_skin_type: topType, top_skin_count: topCount, clicks: Math.round(inLines("on_sale") * 0.35), notify: Math.round(inLines("in_development") * 0.4) };
     })
     .sort((a, b) => b.count - a.count),
@@ -224,25 +225,24 @@ export const surveySummary = SurveySummary.parse({
     .filter((g) => g.row.concern_other)
     .sort((a, b) => b.row.created_at.localeCompare(a.row.created_at))
     .map((g) => ({ text_ja: g.row.concern_other ?? "", text_ko: g.concernOtherKo ?? "", date: g.row.created_at.slice(0, 10) })),
-  // 추천 반응은 더미 비율: 판매 중은 구매 클릭 약 35%, 개발 중은 알림 신청 약 40% (메일 45 : LINE 55)
+  // 추천 반응은 더미 비율: 판매 중은 구매 클릭 약 35%, 개발 중은 출시 예정 화면 열기 약 40%
   product_lines: surveyProductLines
     .filter((l) => l.id !== "moisture-essence")
     .map((l) => {
       const shown = shownFor(l.for_types);
       if (l.status === "on_sale") return { line_id: l.id, shown, clicks: Math.round(shown * 0.35) };
-      const notify = Math.round(shown * 0.4);
-      const email = Math.round(notify * 0.45);
-      return { line_id: l.id, shown, notify_email: email, notify_line: notify - email };
+      return { line_id: l.id, shown, notify_open: Math.round(shown * 0.4) };
     }),
-  recent: surveyResponses
+  responses: surveyResponses
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, 10)
     .map((r) => ({
       at: r.created_at,
       age_group: r.age_group,
       skin_type: r.skin_type,
       is_sensitive: r.is_sensitive,
       concerns: r.concerns,
+      concern_other: r.concern_other,
+      concern_other_ko: r.concern_other_ko ?? null,
       source: r.source,
       consent_version: r.consent_version,
     })),
