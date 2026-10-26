@@ -122,13 +122,13 @@ export const STALE_REVIEW_DAYS = 2;
 
 /**
  * 시안 버전을 만든 원본 탭 화면 (#submission은 그 화면의 시안 패널).
- * 리뷰 = 그 제품의 리뷰 리포트, 광고 = 버전에 담긴 첫 검토 건, 시장 분석 = 시장 개요 (시장 탭 시안은 5단계)
+ * 리뷰 = 그 제품의 리뷰 리포트, 광고 = 버전에 담긴 첫 검토 건, 시장 분석 = 시장 분석 요약 맨 아래 시안 패널
  */
 export function sourceHref(submission: TabSubmission, version: SubmissionVersion): string {
   if (submission.tab === "review" && submission.product_id) return `/reviews/${submission.product_id}#submission`;
   const ad = submission.tab === "ad" ? version.evidence.find((e) => e.kind === "ad_check") : undefined;
   if (ad) return `/ad-check/${ad.id}#submission`;
-  return "/market";
+  return "/market#summary";
 }
 
 export type InboxRow = {

@@ -158,3 +158,28 @@ export function NeedPips({ needs, total }: { needs: { label: string; count: numb
     </ul>
   );
 }
+
+/** 순위 막대: 1위만 진하게, 오른쪽에 횟수 (AI 검색 키워드) */
+export function RankBars({ rows, unit }: { rows: { label: string; sub?: string | null; count: number }[]; unit: string }) {
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  return (
+    <ol className="space-y-2 text-[13px]">
+      {rows.map((r, i) => (
+        <li key={r.label} className={cn("grid grid-cols-[1rem_minmax(0,9rem)_minmax(0,1fr)_3.5rem] items-center gap-2", i === 0 && "font-semibold")}>
+          <span className="text-muted-foreground tabular-nums">{i + 1}</span>
+          <span className="min-w-0 truncate" title={r.sub ? `${r.label} · ${r.sub}` : r.label}>
+            <span lang="ja">{r.label}</span>
+            {r.sub && <span className="ml-1 text-xs font-normal text-muted-foreground">{r.sub}</span>}
+          </span>
+          <span className="block h-2.5 overflow-hidden rounded-full bg-muted">
+            <span className={cn("block h-full rounded-full", i === 0 ? "bg-primary" : "bg-neutral-400 dark:bg-neutral-500")} style={{ width: `${Math.round((r.count / max) * 100)}%` }} />
+          </span>
+          <span className="text-right tabular-nums">
+            {r.count}
+            {unit}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}

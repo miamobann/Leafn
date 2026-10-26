@@ -5,6 +5,7 @@ import { ViewStateGate } from "@/components/common/view-state";
 import { MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
 import type { GeoEngine, GeoSnap, GeoSnapshot } from "@/lib/schemas/geo";
 import type { SnsTrendResult } from "@/lib/schemas/market";
+import type { SubmissionPanelData } from "@/components/common/submission-section";
 import type { Product } from "@/lib/schemas/product";
 import type { PromoEvent } from "@/lib/schemas/promo";
 import type { SearchSnap } from "@/lib/schemas/search";
@@ -87,6 +88,7 @@ export function MarketOverview({
   search,
   geo,
   sns,
+  submissionPanels,
 }: {
   snapshots: TrendSnapshot[];
   products: Product[];
@@ -95,6 +97,8 @@ export function MarketOverview({
   geo: GeoSnapshot[];
   /** 저장된 SNS 분석 (분석 시각 오름차순, 카테고리마다 마지막이 최신) */
   sns: SnsTrendResult[];
+  /** 판매 중인 자사 제품별 시장 분석 시안 패널 데이터 (요약 맨 아래) */
+  submissionPanels: Record<string, SubmissionPanelData>;
 }) {
   const [category, setCategory] = useState<MarketCategory>("化粧水");
   // 실데이터는 Qoo10으로 수집한다 (2026-10-24 결정). 楽天은 비교용 샘플
@@ -157,6 +161,8 @@ export function MarketOverview({
         platformLabel={platformInfo.label}
         week={week}
         sns={snsLatest}
+        platform={platform}
+        submissionPanels={submissionPanels}
       />
     ),
     action: <GeoInsights key={geoVersion} initial={geoRows.map((g, i) => ({ ...g, id: g.id.startsWith("run-") ? g.id : `geo-row-${i}` }))} ownProducts={products.filter((p) => p.kind === "own")} category={category} gapFirst />,
