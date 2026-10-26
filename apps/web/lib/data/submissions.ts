@@ -9,6 +9,7 @@ import {
   SubmissionReview,
   SubmissionTab,
   SubmissionVersion,
+  AdBody,
   TabSubmission,
 } from "@/lib/schemas/submission";
 import { dataContext, missingTableOnly, readRows } from "./db";
@@ -56,6 +57,12 @@ export async function getSubmission(id: string) {
 async function getAllVersions(): Promise<SubmissionVersion[]> {
   const rows = await readRows("submission_versions").catch(missingTableOnly);
   return (rows ? rows.map((r) => SubmissionVersion.parse(r)) : mock.submissionVersions).filter((v) => !v.deleted_at);
+}
+
+/** 결재 승인된 콘텐츠 가이드 버전 id (검토 기록의 「결재 승인」 상태) */
+export async function getApprovedGuideIds(): Promise<Set<string>> {
+  const approved = (await getAllVersions()).filter((v) => v.status === "approved");
+  return new Set(approved.flatMap((v) => AdBody.safeParse(v.body).data?.content_guide?.id ?? []));
 }
 
 /** 시안의 숨기지 않은 버전, 최신 번호부터 */
@@ -122,10 +129,12 @@ export const STALE_REVIEW_DAYS = 2;
 
 /**
  * 시안 버전을 만든 원본 탭 화면 (#submission은 그 화면의 시안 패널).
- * 리뷰 = 그 제품의 리뷰 리포트, 광고 = 버전에 담긴 첫 검토 건, 시장 분석 = 시장 분석 요약 맨 아래 시안 패널
+ * 리뷰 = 그 제품의 리뷰 리포트, 광고 = 콘텐츠 가이드 결재면 그 가이드 상세, 아니면 버전에 담긴 첫 검토 건, 시장 분석 = 시장 분석 요약 맨 아래 시안 패널
  */
 export function sourceHref(submission: TabSubmission, version: SubmissionVersion): string {
   if (submission.tab === "review" && submission.product_id) return `/reviews/${submission.product_id}#submission`;
+  const guide = submission.tab === "ad" ? AdBody.safeParse(version.body).data?.content_guide : undefined;
+  if (guide) return `/ad-check/guide/history/${guide.id}#submission`;
   const ad = submission.tab === "ad" ? version.evidence.find((e) => e.kind === "ad_check") : undefined;
   if (ad) return `/ad-check/${ad.id}#submission`;
   return "/market#summary";

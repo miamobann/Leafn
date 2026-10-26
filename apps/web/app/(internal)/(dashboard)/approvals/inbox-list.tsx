@@ -25,6 +25,8 @@ export type InboxItem = {
   tab: SubmissionTab;
   productName: string;
   versionNo: number;
+  /** 콘텐츠 가이드 결재면 "콘텐츠 가이드 vN · 제목" */
+  guideLabel: string | null;
   summary: string;
   note: string | null;
   authorName: string;
@@ -81,6 +83,7 @@ export function InboxList({ items, canDecide }: { items: InboxItem[]; canDecide:
                 <span className="font-medium">
                   {item.productName} · v{item.versionNo}
                 </span>
+                {item.guideLabel && <span className="font-medium">{item.guideLabel}</span>}
                 <span className="text-muted-foreground">
                   {item.authorName} · {item.submittedLabel}
                 </span>

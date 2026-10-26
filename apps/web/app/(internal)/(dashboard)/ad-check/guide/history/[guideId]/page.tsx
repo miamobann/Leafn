@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { AiResultMeta } from "@/components/common/ai";
 import { PageHeader } from "@/components/layout/page-header";
 import { buttonVariants } from "@/components/ui/button";
-import { getContentGuide, getContentGuides } from "@/lib/data";
+import { SubmissionSection } from "@/components/common/submission-section";
+import { getContentGuide, getContentGuides, getProduct } from "@/lib/data";
+import { saveGuideDraft } from "@/lib/data/submission-actions";
 import { getMyWorkspace } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
 import { ActionBadge } from "../../../_components/ad-badges";
@@ -21,7 +23,13 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
   const found = await getContentGuide((await params).guideId);
   if (!found) notFound();
   const { guide, checks } = found;
-  const [{ products, materials, author, aiEnabled }, mine, all, record] = await Promise.all([loadGuideContext(), getMyWorkspace().catch(() => null), getContentGuides(), loadContentRecord(guide.id)]);
+  const [{ products, materials, author, aiEnabled }, mine, all, record, ownProduct] = await Promise.all([
+    loadGuideContext(),
+    getMyWorkspace().catch(() => null),
+    getContentGuides(),
+    loadContentRecord(guide.id),
+    guide.product_id ? getProduct(guide.product_id) : null,
+  ]);
   const versionNo = (record?.versions.findIndex((v) => v.id === guide.id) ?? -1) + 1;
   // 수정본: 새 검토에서 고친 문구를 「가이드에 반영」한 것 (원본은 그대로 남는다). 목록은 최신순
   const revisions = all.filter((g) => g.parent_id === guide.id);
@@ -138,6 +146,15 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
                 )}
             </ul>
           </section>
+        )}
+        {/* 콘텐츠 가이드 결재 (2026-10-26 A안): 최신 버전에서만 올린다. 고칠 곳이 남았으면 저장할 때 서버가 막는다 */}
+        {revisions.length === 0 && ownProduct && (
+          <SubmissionSection
+            tab="ad"
+            product={ownProduct}
+            saveDraft={saveGuideDraft.bind(null, guide.id)}
+            snapshotNote={`콘텐츠 가이드 v${versionNo || 1}과 이 가이드의 약기법 검사 · 문구 검토가 시안으로 저장돼요.`}
+          />
         )}
         <AiResultMeta model={guide.model} promptVersion={guide.prompt_version} createdAt={guide.created_at} />
       </div>
