@@ -3,7 +3,10 @@
 import { Check, CircleCheck, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PIPELINE_PHASE_TEXT } from "../_lib/review-pipeline";
+import type { ReportMaking } from "./use-report-making";
 
 export type ImportType = "own" | "competitor";
 export type CompetitorTab = "auto" | "csv";
@@ -158,14 +161,46 @@ export function SavedPanel({ title, sub, children }: { title: string; sub: strin
   );
 }
 
-/** 저장 직후 리포트 상태. 분석은 저장 뒤 자동으로 돈다 (2026-10-24 결정) */
-export function MakingReport() {
+/** 저장 직후 리포트 상태: 제품명 정리 → AI 분석 → 번역이 끝날 때까지 진행을 보여 주고, 끝나면 리포트로 가는 버튼을 낸다 (2026-10-24 결정: 분석은 저장 뒤 자동) */
+export function MakingReport({ making, onRetry, reportHref }: { making: ReportMaking; onRetry: () => void; reportHref: string }) {
+  if (making.status === "idle") return null;
+  if (making.status === "running") {
+    const p = making.progress;
+    return (
+      <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-3.5">
+        <Spinner className="size-[22px]" />
+        <div>
+          <p className="text-[15px] font-medium">{p ? `${PIPELINE_PHASE_TEXT[p.phase]} ${p.done} / ${p.total}${p.phase === "name" ? "개" : "건"}` : "리포트를 만드는 중이에요…"}</p>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">리뷰가 많으면 몇 분 걸려요. 끝날 때까지 이 화면을 닫지 마세요. 리뷰 50건마다 10~20초쯤 걸려요.</p>
+        </div>
+      </div>
+    );
+  }
+  if (making.status === "done") {
+    return (
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border bg-background px-4 py-3.5">
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-medium">리포트가 준비됐어요</p>
+          {making.summary && <p className="mt-0.5 text-[13px] text-muted-foreground">{making.summary}</p>}
+        </div>
+        <Link href={reportHref} className={buttonVariants({ size: "lg" })}>
+          리포트 보기 →
+        </Link>
+      </div>
+    );
+  }
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-3.5">
-      <Spinner className="size-[22px]" />
-      <div>
-        <p className="text-[15px] font-medium">리포트를 만드는 중이에요. 몇 분 안에 끝나요.</p>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">다 만들어지면 리뷰 리포트 목록에 &lsquo;준비됨&rsquo;으로 표시할게요.</p>
+    <div className="space-y-2 rounded-lg border border-status-rejected/40 bg-status-rejected/5 px-4 py-3.5">
+      <p role="alert" className="text-[15px] font-medium">리뷰는 저장됐지만, 리포트를 끝까지 만들지 못했어요</p>
+      <p className="text-[13px] text-muted-foreground">
+        {making.message}
+        {making.summary ? ` (${making.summary})` : ""}
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm" onClick={onRetry}>
+          이어서 하기
+        </Button>
+        <span className="text-[13px] text-muted-foreground">리뷰 화면의 「AI로 분석하기」로도 이어서 할 수 있어요. 처리한 것은 다시 처리하지 않아요.</span>
       </div>
     </div>
   );
