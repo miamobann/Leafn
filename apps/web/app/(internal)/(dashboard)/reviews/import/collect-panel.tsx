@@ -45,6 +45,11 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
   const savedRows = rows?.filter((r) => (r.savedNow ?? 0) > 0) ?? [];
   const savedTotal = view?.run.savedCount ?? savedRows.reduce((sum, r) => sum + (r.savedNow ?? 0), 0);
 
+  // 요청을 만든 지 얼마나 됐는지. 대기(queued)는 수집기가 아직 집어 가지 않은 것, 수집 중(running)은 읽는 중이다
+  const waitSec = view ? Math.max(0, Math.floor((c.now - new Date(view.run.createdAt).getTime()) / 1000)) : 0;
+  const waitText = waitSec < 60 ? `${waitSec}초` : `${Math.floor(waitSec / 60)}분`;
+  const queued = status === "queued";
+
   const condBar = (action: ReactNode) => (
     <SummaryBar action={action}>
       <span className="text-[13px] text-muted-foreground">찾은 조건</span>
@@ -113,8 +118,26 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
           )}
           <section className="flex min-h-[420px] flex-col items-center justify-center gap-3.5 rounded-xl border p-10 text-center">
             <Spinner className="size-11" />
-            <h2 className="text-xl font-semibold">{platformLabel}에서 경쟁 제품 리뷰를 읽고 있어요. 몇 분 정도 걸려요.</h2>
-            <p className="text-sm text-muted-foreground">이 창을 닫아도 계속 진행돼요. 편하게 다른 작업 보다가 돌아와 주세요.</p>
+            {queued ? (
+              <>
+                <h2 className="text-xl font-semibold">수집기가 요청을 집어 가길 기다리고 있어요 · {waitText}</h2>
+                <p className="text-sm text-muted-foreground">요청은 저장됐어요. 수집기가 시작되면 &lsquo;읽고 있어요&rsquo;로 바뀌어요. 이 창을 닫아도 요청은 남아 있어요.</p>
+                {waitSec >= 60 && (
+                  <div className="space-y-2 rounded-lg border border-status-pending/40 bg-status-pending/5 px-4 py-3 text-sm">
+                    <p>1분이 넘도록 시작되지 않았어요. 수집기가 켜져 있는지 확인하거나 다시 깨워 보세요.</p>
+                    <Button size="sm" onClick={() => c.wake()} disabled={busy !== null}>
+                      수집기 다시 깨우기
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <h2 className="text-xl font-semibold">{platformLabel}에서 경쟁 제품 리뷰를 읽고 있어요 · {waitText} 경과</h2>
+                <p className="text-sm text-muted-foreground">제품 하나에 1분쯤 걸려서 몇 분에서 수십 분이 걸려요. 이 창을 닫아도 계속 진행돼요. 편하게 다른 작업 보다가 돌아와 주세요.</p>
+              </>
+            )}
+            {c.wakeNote && <p className="text-sm text-muted-foreground">{c.wakeNote}</p>}
           </section>
           {errorBox}
         </>
