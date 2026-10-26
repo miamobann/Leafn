@@ -41,6 +41,10 @@ export const CollectionRunRow = z.object({
   error: z.string().nullable(),
   finished_at: z.string().nullable(),
   saved_count: z.number().nullable(),
+  // 진행 표시 (마이그레이션 20261026210000). 수집기가 아직 쓰지 않았으면 null
+  progress_total: z.number().nullable(),
+  progress_done: z.number().nullable(),
+  progress_note: z.string().nullable(),
 });
 export type CollectionRunRow = z.infer<typeof CollectionRunRow>;
 

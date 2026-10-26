@@ -146,6 +146,17 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
             ) : (
               <>
                 <h2 className="text-xl font-semibold">{platformLabel}에서 경쟁 제품 리뷰를 읽고 있어요 · {waitText} 경과</h2>
+                {view.run.progress && (
+                  <div className="w-full max-w-md space-y-1.5">
+                    <p className="text-lg font-medium tabular-nums">
+                      제품 {view.run.progress.done} / {view.run.progress.total}개 읽었어요
+                    </p>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={view.run.progress.total} aria-valuenow={view.run.progress.done}>
+                      <div className="h-full rounded-full bg-foreground transition-all" style={{ width: `${view.run.progress.total > 0 ? Math.min(100, Math.round((view.run.progress.done / view.run.progress.total) * 100)) : 0}%` }} />
+                    </div>
+                    {view.run.progress.note && <p className="truncate text-xs text-muted-foreground" lang="ja">방금 마친 제품: {view.run.progress.note}</p>}
+                  </div>
+                )}
                 <p className="text-sm text-muted-foreground">제품 하나에 1분쯤 걸려서 몇 분에서 수십 분이 걸려요. 이 창을 닫아도 계속 진행돼요. 편하게 다른 작업 보다가 돌아와 주세요.</p>
               </>
             )}

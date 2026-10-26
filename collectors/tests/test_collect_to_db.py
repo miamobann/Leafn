@@ -39,7 +39,7 @@ class DbWorkerCallsTest(unittest.TestCase):
         db, session = make_db([FakeResponse([{"id": "a"}, {"id": "b"}])])
         self.assertEqual(db.fail_stale_runs("2026-10-24T00:00:00+00:00"), 2)
         call = session.calls[0]
-        self.assertEqual((call["params"]["status"], call["params"]["started_at"]), ("eq.running", "lt.2026-10-24T00:00:00+00:00"))
+        self.assertEqual((call["params"]["status"], call["params"]["updated_at"]), ("eq.running", "lt.2026-10-24T00:00:00+00:00"))
         self.assertEqual(call["body"]["status"], "failed")
 
 
@@ -52,6 +52,43 @@ class ProcessRunTest(unittest.TestCase):
         ])
         with mock.patch.object(c.qoo10, "collect", return_value=fake_result()):
             self.assertEqual(c.process_run(db, RUN, say=lambda _m: None), 0)
+        self.assertEqual(session.calls[-1]["body"]["status"], "ready")
+
+    def test_progress_is_written_after_each_product(self):
+        db, session = make_db([
+            FakeResponse([]), FakeResponse([]),
+            FakeResponse(None), FakeResponse(None),
+            FakeResponse([{"id": "rp-1"}]), FakeResponse(None), FakeResponse(None),
+        ])
+
+        def fake_collect(*_args, on_progress, **_kwargs):
+            on_progress(0, 2, "")
+            on_progress(1, 2, "A" * 200)
+            return fake_result()
+
+        with mock.patch.object(c.qoo10, "collect", side_effect=fake_collect):
+            self.assertEqual(c.process_run(db, RUN, say=lambda _m: None), 0)
+        patches = [call["body"] for call in session.calls if call["method"] == "PATCH" and "progress_done" in (call["body"] or {})]
+        self.assertEqual(patches[0], {"progress_done": 0, "progress_total": 2, "progress_note": None})
+        self.assertEqual((patches[1]["progress_done"], patches[1]["progress_total"], len(patches[1]["progress_note"])), (1, 2, 80))
+        self.assertEqual(session.calls[-1]["body"]["status"], "ready")
+
+    def test_progress_failure_does_not_stop_the_collection(self):
+        said = []
+        db, session = make_db([
+            FakeResponse([]), FakeResponse([]),
+            FakeResponse({"message": "column does not exist"}, status=400),
+            FakeResponse([{"id": "rp-1"}]), FakeResponse(None), FakeResponse(None),
+        ])
+
+        def fake_collect(*_args, on_progress, **_kwargs):
+            on_progress(0, 2, "")
+            on_progress(1, 2, "A")  # 한 번 실패한 뒤에는 다시 쓰지 않는다
+            return fake_result()
+
+        with mock.patch.object(c.qoo10, "collect", side_effect=fake_collect):
+            self.assertEqual(c.process_run(db, RUN, say=said.append), 0)
+        self.assertTrue(any("진행 표시" in m for m in said))
         self.assertEqual(session.calls[-1]["body"]["status"], "ready")
 
     def test_unsupported_platform_marks_the_run_failed_without_collecting(self):
