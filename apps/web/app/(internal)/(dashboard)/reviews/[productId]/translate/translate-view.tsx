@@ -30,7 +30,7 @@ export type TranslatedRow = {
 
 const PICK_PAGE = 8;
 const DONE_PAGE = 6;
-const TRANSLATE_BATCH = 10; // 서버 액션이 한 번에 받는 리뷰 수 (lib/data/review-translation-actions.ts와 같은 값)
+const TRANSLATE_BATCH = 5; // 서버 액션이 한 번에 받는 리뷰 수 (lib/data/review-translation-actions.ts와 같은 값)
 const STATUS = {
   approved: { label: "승인", className: "bg-emerald-50 text-emerald-900" },
   pending: { label: "검토 대기", className: "bg-amber-50 text-amber-900" },
@@ -164,11 +164,12 @@ export function TranslateView({
     router.refresh();
   };
 
-  // 고른 리뷰를 10건씩 번역 + 약기법 검토한다. 끝나면 서버가 다시 읽은 목록이 오른쪽에 나타난다
+  // 고른 리뷰를 5건씩 번역 + 약기법 검토한다. 끝나면 서버가 다시 읽은 목록이 오른쪽에 나타난다
   const translatePicked = async () => {
     const ids = [...left.picked];
     let done = 0;
     let mustFix = 0;
+    let skipped = 0;
     setNotice(null);
     setWorking({ done, total: ids.length });
     for (let i = 0; i < ids.length; i += TRANSLATE_BATCH) {
@@ -182,14 +183,15 @@ export function TranslateView({
       }
       done += res.data.translated;
       mustFix += res.data.mustFix;
-      setWorking({ done, total: ids.length });
+      skipped += res.data.skipped;
+      setWorking({ done: done + skipped, total: ids.length });
     }
     setWorking(null);
     left.clear();
     setStatus("");
     setDonePage(1);
     setNotice({
-      text: `${done}건을 번역하고 약기법 검토를 마쳤어요.${mustFix > 0 ? ` 고쳐야 할 표현이 있는 리뷰가 ${mustFix}건 있어요. 오른쪽 목록의 「고쳐야 함」을 확인해 주세요.` : ""}`,
+      text: `${done}건을 번역하고 약기법 검토를 마쳤어요.${mustFix > 0 ? ` 고쳐야 할 표현이 있는 리뷰가 ${mustFix}건 있어요. 오른쪽 목록의 「고쳐야 함」을 확인해 주세요.` : ""}${skipped > 0 ? ` ${skipped}건은 AI가 형식에 맞는 답을 주지 않아 건너뛰었어요. 다시 골라 번역해 보세요.` : ""}`,
       error: false,
     });
     router.refresh();
@@ -315,7 +317,7 @@ export function TranslateView({
           </button>
           <p className="text-xs text-muted-foreground">
             {working
-              ? "10건마다 10~20초쯤 걸려요. 끝날 때까지 이 화면을 닫거나 다른 화면으로 이동하지 마세요."
+              ? "5건마다 10~20초쯤 걸려요. 끝날 때까지 이 화면을 닫거나 다른 화면으로 이동하지 마세요."
               : "번역하면 약기법 검토가 함께 돌아가고, 결과가 오른쪽 목록에 쌓여요. 이미 번역한 리뷰를 다시 고르면 새로 번역해요."}
           </p>
           {notice && (
