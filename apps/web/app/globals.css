@@ -64,8 +64,9 @@
   --color-border: var(--border);
   --color-sidebar: var(--sidebar);
   --color-sidebar-accent: var(--sidebar-accent);
-  --font-sans: var(--font-noto-kr), var(--font-noto-jp), sans-serif;
-  --font-heading: var(--font-noto-kr), var(--font-noto-jp), sans-serif;
+  /* 레이아웃마다 불러오는 글꼴 변수가 다르다 (사내 KR+JP, 공개 설문 JP). 없는 변수는 대체값으로 넘긴다. 대체값이 없으면 선언 전체가 무효가 된다 */
+  --font-sans: var(--font-noto-kr, var(--font-noto-jp, sans-serif)), var(--font-noto-jp, sans-serif), sans-serif;
+  --font-heading: var(--font-noto-kr, var(--font-noto-jp, sans-serif)), var(--font-noto-jp, sans-serif), sans-serif;
   --color-risk-high: var(--risk-high);
   --color-risk-medium: var(--risk-medium);
   --color-risk-low: var(--risk-low);
@@ -167,5 +168,9 @@
   }
   html {
     @apply font-sans;
+  }
+  /* 사내 화면 안의 일본어(lang="ja")는 일본어 글꼴로 그린다. 한국어 글꼴로 그리면 일부 한자 모양이 일본 표준과 다르다 */
+  :lang(ja) {
+    font-family: var(--font-noto-jp, sans-serif), sans-serif;
   }
 }
