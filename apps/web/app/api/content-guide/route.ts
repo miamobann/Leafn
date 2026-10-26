@@ -4,10 +4,11 @@ import { z } from "zod";
 import { AdCheckParseError } from "@/lib/ai/ad-check/judge";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
-import { type BodyCheck, checkBody } from "@/lib/ai/content-guide/check";
+import { type BodyCheck, checkBody, dropFlaggedHashtags } from "@/lib/ai/content-guide/check";
 import { toAdCheck } from "@/lib/ai/ad-check/to-ad-check";
 import { ContentGuideParseError, generateBody, generateTitles } from "@/lib/ai/content-guide/generate";
-import { makeFill } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-report";
+import { finalizeHashtags, makeFill } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-report";
+import { lintBody } from "@/lib/ai/content-guide/lint";
 import { getAdProducts } from "@/lib/data/ad-products";
 import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { ContentGuideInput, GuideTitle } from "@/lib/schemas/content-guide";
@@ -19,8 +20,9 @@ const MAX_BODY_BYTES = 32 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const Request = z.discriminatedUnion("step", [
-  z.object({ step: z.literal("titles"), input: ContentGuideInput, product_id: z.string().optional() }),
-  z.object({ step: z.literal("body"), input: ContentGuideInput, picked: GuideTitle, product_id: z.string().optional() }),
+  z.object({ step: z.literal("titles"), input: ContentGuideInput, product_id: z.string().optional(), promo_event_id: z.string().optional() }),
+  // promo_event_id: 메가와리 게시물이면 고른 캘린더 행사 (content_guides.promo_event_id 로 남긴다)
+  z.object({ step: z.literal("body"), input: ContentGuideInput, picked: GuideTitle, product_id: z.string().optional(), promo_event_id: z.string().optional() }),
 ]);
 
 /** 로그인 확인 (POST /api/ad-check 와 같은 기준): Supabase 를 연결하지 않은 로컬이면 통과 */
@@ -113,8 +115,16 @@ export async function POST(request: Request) {
     // 자동 검사는 실제로 게시될 문장으로: {product_ja} 같은 자리표시자를 그 제품 값으로 바꿔 판정한다 (결과물은 자리표시자 그대로 저장, 화면·PDF 가 채운다)
     const own = (await getAdProducts()).find((x) => x.id === req.product_id);
     const fill = own ? makeFill(own) : (t: string) => t;
-    const filled = { ...made.result, blocks: made.result.blocks.map((b) => ({ ...b, options: b.options.map((o) => ({ ...o, text_ja: fill(o.text_ja) })) })) };
-    const checked = await checkBody(req.input.channel, { name: p.name, product_category: p.category, ingredients: p.ingredients_ja }, filled, {}, fill(req.picked.title_ja));
+    // 인스타그램 검색어 태그는 화면이 아니라 여기서 붙여, 아래 금지어 검사 · 판정을 같이 거친다 (2026-10-27)
+    const tagged = { ...made.result, hashtags: finalizeHashtags(made.result.hashtags, req.input.channel, req.input.keywords.search) };
+    const lintHits = lintBody(tagged);
+    const filled = { ...tagged, blocks: tagged.blocks.map((b) => ({ ...b, options: b.options.map((o) => ({ ...o, text_ja: fill(o.text_ja) })) })) };
+    const judgeProduct = { name: p.name, product_category: p.category, ingredients: p.ingredients_ja };
+    const first = await checkBody(req.input.channel, judgeProduct, filled, {}, fill(req.picked.title_ja));
+    // 걸린 해시태그는 빼고 남은 태그만 다시 판정한다 (해시태그는 문구 검토로 고칠 수 없어서, 2026-10-27)
+    const cleaned = await dropFlaggedHashtags(req.input.channel, judgeProduct, tagged, lintHits, first);
+    const checked = cleaned.checked;
+    const result = { ...tagged, hashtags: cleaned.body.hashtags };
     const checks = checked.blocks.map((b) => ({ key: b.key, action: b.line.action, findings: b.line.findings.map((f) => ({ text: f.text, reason: f.reason })) }));
 
     let id: string | null = null;
@@ -134,12 +144,13 @@ export async function POST(request: Request) {
         id,
         workspace_id: mine.workspace.id,
         product_id: productId,
+        promo_event_id: req.promo_event_id && UUID_RE.test(req.promo_event_id) ? req.promo_event_id : null,
         channel: req.input.channel,
         post_type: req.input.post_type,
         input: req.input,
         title: req.picked,
-        body: made.result,
-        lint_hits: made.lintHits,
+        body: result,
+        lint_hits: cleaned.lintHits,
         ad_check_id: adCheckId,
         model: made.model,
         prompt_version: `content-guide.${made.promptVersion}`,
@@ -150,8 +161,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       id,
       checkSaved,
-      body: made.result,
-      lintHits: made.lintHits,
+      body: result,
+      lintHits: cleaned.lintHits,
       checks,
       meta: { model: made.model, promptVersion: made.promptVersion, usage: made.usage, checkUsage: checked.usage },
     });

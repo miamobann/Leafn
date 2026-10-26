@@ -30,3 +30,9 @@ export function ownProductName(id: OwnProductId): string {
 export function ownProductImage(id: OwnProductId): string {
   return OWN_LINE_IMAGES[OWN_PRODUCTS.find((p) => p.id === id)!.skin_line];
 }
+
+/** 화면에 자사 제품을 늘어놓는 순서 (OWN_PRODUCTS 순서: Deep Skin → Core Essence → …). 자사 제품이 아니면 맨 뒤 */
+export function ownProductOrder(name: string): number {
+  const i = OWN_PRODUCTS.findIndex((p) => p.name === name);
+  return i === -1 ? OWN_PRODUCTS.length : i;
+}

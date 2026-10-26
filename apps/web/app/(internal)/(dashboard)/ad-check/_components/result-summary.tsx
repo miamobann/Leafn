@@ -1,81 +1,50 @@
-// 검토 결과 맨 위의 결론 (두괄식) + 「원문 → 추천 대체 표현」 비교표 (실무자 비판 9번). 새 검토와 검토 상세에서 같이 쓴다.
+// 검토 결과 맨 위의 결론 (두괄식): 판정 개수 · 문제 줄로 바로 가기 · 다음 할 일. 새 검토와 검토 상세에서 같이 쓴다.
+// 줄별 내용은 아래 ResultLines 가 문제 줄부터 보여 주므로 여기서는 전체 표를 그리지 않는다 (2026-10-27 UI 정리).
+import type { ReactNode } from "react";
 import type { AdCheck } from "@/lib/schemas/ad-check";
 import { countByAction } from "../_lib/lines";
 import { ACTION_TONE, ActionBadge } from "./ad-badges";
+import { ACTION_ORDER } from "./result-lines";
 
-export function ResultSummary({ check }: { check: AdCheck }) {
+export function ResultSummary({ check, next }: { check: AdCheck; /** 다음 할 일 (버튼 · 안내) */ next?: ReactNode }) {
   const lines = check.line_results ?? [];
   const counts = countByAction(lines);
-  const toFix = lines.filter((l) => l.action !== "ok");
-  /** 줄마다 위험 표현별로 재검토를 통과한 첫 대체 표현 (없으면 null) */
-  const bestFor = (lineIndex: number) =>
-    check.findings
-      .filter((f) => f.line_index === lineIndex)
-      .map((f) => ({ text: f.text, pick: (f.suggestion_rechecks ?? []).find((r) => r.recheck === "pass") ?? null }));
-  const sentence =
-    toFix.length === 0
-      ? `${lines.length}줄 모두 그대로 써도 됩니다.`
-      : `${lines.length}줄 중 ${toFix.length}줄을 확인해야 합니다 (수정 필수 ${counts.must_fix} · 수정 권장 ${counts.should_fix} · 전문가 확인 ${counts.expert}).`;
+  const problems = lines.filter((l) => l.action !== "ok").toSorted((a, b) => ACTION_ORDER[a.action] - ACTION_ORDER[b.action] || a.line_index - b.line_index);
+  const sentence = problems.length === 0 ? `${lines.length}줄 모두 그대로 써도 됩니다.` : `${lines.length}줄 중 ${problems.length}줄을 확인해야 합니다.`;
+  const chips = (["must_fix", "expert", "should_fix", "ok"] as const).filter((a) => counts[a] > 0);
 
   return (
-    <section aria-label="결론" className="rounded-lg border p-3 text-sm">
+    <section aria-label="결론" className="space-y-3 rounded-lg border bg-muted/40 p-4 text-sm">
       <p className="flex flex-wrap items-center gap-2 text-base font-semibold">
         {check.overall_action && <ActionBadge action={check.overall_action} />}
         {sentence}
       </p>
-      {lines.length > 0 && (
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs text-muted-foreground">
-              <tr className="border-b">
-                <th className="py-1 pr-2 font-medium">#</th>
-                <th className="py-1 pr-2 font-medium">판정</th>
-                <th className="py-1 pr-2 font-medium">원문</th>
-                <th className="py-1 font-medium">추천 대체 표현</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((l) => {
-                const picks = bestFor(l.line_index);
-                return (
-                  <tr key={l.line_index} className="border-b align-top last:border-0">
-                    <td className="py-2 pr-2">
-                      <a href={`#line-${l.line_index}`} className="hover:underline">
-                        {l.line_index}
-                      </a>
-                    </td>
-                    <td className="py-2 pr-2">
-                      <span className={`rounded px-1.5 text-xs whitespace-nowrap ${ACTION_TONE[l.action].badge}`}>{ACTION_TONE[l.action].label}</span>
-                    </td>
-                    <td className="py-2 pr-2">{l.original}</td>
-                    <td className="py-2">
-                      {l.action === "ok" || picks.length === 0 ? (
-                        <span className="text-muted-foreground">그대로 사용</span>
-                      ) : (
-                        <ul className="space-y-1">
-                          {picks.map((p) => (
-                            <li key={p.text}>
-                              <span className="text-muted-foreground">「{p.text}」 → </span>
-                              {p.pick ? (
-                                <>
-                                  <span lang="ja">{p.pick.text}</span>
-                                  {p.pick.text_ko && <span className="block text-xs text-muted-foreground">{p.pick.text_ko}</span>}
-                                </>
-                              ) : (
-                                <span className="text-risk-medium">통과한 대체 표현 없음 · 아래 카드 확인</span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <p className="flex flex-wrap gap-1.5">
+        {chips.map((a) => (
+          <span key={a} className={`rounded px-1.5 py-0.5 text-xs ${ACTION_TONE[a].badge}`}>
+            {ACTION_TONE[a].label} {counts[a]}
+          </span>
+        ))}
+      </p>
+      {problems.length > 0 && (
+        <ol className="space-y-1">
+          {problems.map((l) => {
+            const words = check.findings.filter((f) => f.line_index === l.line_index).map((f) => `「${f.text}」`);
+            return (
+              <li key={l.line_index}>
+                <a href={`#line-${l.line_index}`} className="flex gap-2 underline-offset-4 hover:underline">
+                  <span className="w-8 shrink-0 text-muted-foreground">#{l.line_index}</span>
+                  <span className={`shrink-0 rounded px-1.5 text-xs ${ACTION_TONE[l.action].badge}`}>{ACTION_TONE[l.action].label}</span>
+                  <span className="truncate" lang="ja">
+                    {words.length ? words.join(" ") : l.original}
+                  </span>
+                </a>
+              </li>
+            );
+          })}
+        </ol>
       )}
+      {next && <div className="border-t pt-3">{next}</div>}
     </section>
   );
 }
