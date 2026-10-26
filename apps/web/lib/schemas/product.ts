@@ -96,3 +96,34 @@ export function pricePerMl(p: Pick<Product, "price_jpy" | "volume_ml">): number 
   if (p.price_jpy == null || p.volume_ml == null) return null;
   return Math.round((p.price_jpy / p.volume_ml) * 10) / 10;
 }
+
+// ── 경쟁제품 CSV 등록 (시장 분석 · 경쟁제품 탭, 2026-10-26) ─────────────
+
+/** CSV 한 줄을 읽은 결과 (브라우저가 열을 맞춰 보낸다). Qoo10 상품만 받는다 */
+export const CompetitorImportRow = z.object({
+  /** Qoo10 상품코드. (workspace_id, platform_id, external_id)로 같은 제품은 한 번만 */
+  external_id: z.string().regex(/^\d+$/, "상품코드는 숫자여야 해요"),
+  brand: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  url: z.string().url().nullable(),
+  price_jpy: z.number().int().positive(),
+  sale_price_jpy: z.number().int().positive().nullable(),
+  coupon_price_jpy: z.number().int().positive().nullable(),
+  /** 상품명·용량 열에서 찾은 용량. 서로 다른 제품을 묶은 세트는 null */
+  volume_ml: z.number().positive().nullable(),
+  ingredients: z.array(z.string()),
+  /** 핵심 유효 성분 (한국어, 수집 CSV 값) */
+  key_ingredients_ko: z.string().nullable(),
+  /** CSV 원본 한 줄 (DB의 source_raw로 그대로 보관) */
+  raw: z.record(z.string(), z.string()),
+});
+export type CompetitorImportRow = z.infer<typeof CompetitorImportRow>;
+
+export const CompetitorImportInput = z.object({
+  fileName: z.string().max(200),
+  category: z.string().min(1),
+  /** 이 경쟁 제품들과 연결할 자사 제품 (선택). 연결하면 product_competitors에 들어간다 */
+  ownProductId: z.string().uuid().nullable(),
+  rows: z.array(CompetitorImportRow).min(1).max(200),
+});
+export type CompetitorImportInput = z.infer<typeof CompetitorImportInput>;
