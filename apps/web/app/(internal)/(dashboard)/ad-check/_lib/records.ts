@@ -18,7 +18,7 @@ export function worstAction(actions: AdAction[]): AdAction | null {
 
 export type ContentStatus = "needs_fix" | "before_approval" | "approved";
 export const CONTENT_STATUS: Record<ContentStatus, { label: string; tone: string; hint: string }> = {
-  needs_fix: { label: "수정 필요", tone: "border-risk-high/40 text-risk-high", hint: "「고쳐야 함」이나 「전문가 확인」이 남았어요. 걸린 문구를 새 검토로 고쳐 가이드에 반영해 주세요" },
+  needs_fix: { label: "수정 필요", tone: "border-risk-high/40 text-risk-high", hint: "「고쳐야 함」이나 「전문가 확인」이 남았어요. 걸린 문구를 문구 검토로 고쳐 가이드에 반영해 주세요" },
   before_approval: { label: "결재 전", tone: "text-muted-foreground", hint: "고칠 곳이 없어요. 콘텐츠 가이드를 결재에 올려요 (결재 연동 준비 중)" },
   approved: { label: "게시 가능", tone: "border-risk-low/50 text-risk-low", hint: "팀장이 결재에서 승인했어요 (법적 승인은 아니에요)" },
 };

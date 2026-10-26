@@ -48,7 +48,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
   const canSubmit = !fromGuide && product?.kind === "own" && product.sale_status === "on_sale";
   // 결론 칸의 「다음 할 일」
   const nextStep = isGuideCheck
-    ? "콘텐츠 가이드 자동 검사라 보기만 해요. 고치려면 만든 가이드에서 「이 문구로 새 검토」를 해요."
+    ? "콘텐츠 가이드 자동 검사라 보기만 해요. 고치려면 콘텐츠 가이드에서 「걸린 문구 검토」를 해요."
     : [
         fromGuide && reflectState?.kind === "ready" ? "① 대체 표현 고르기 → ② 「가이드에 반영」 → ③ 콘텐츠 가이드에서 결재 올리기" : null,
         fromGuide && reflectState?.kind === "reflected" ? "가이드에 반영됨 → 콘텐츠 가이드에서 결재 올리기" : null,

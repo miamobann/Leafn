@@ -1097,7 +1097,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                         )),
                       )}
                     </ul>
-                    <p className="text-xs text-muted-foreground">「새 검토」에서 문구를 고쳐 다시 판정할 수 있어요.</p>
+                    <p className="text-xs text-muted-foreground">「걸린 문구 검토」에서 문구를 고쳐 다시 판정할 수 있어요.</p>
                   </section>
                 )}
                 <BodyPager
@@ -1170,7 +1170,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
             <span>
               {flagged > 0
-                ? `다음 단계 · 걸린 문구 ${flagged}줄을 새 검토로 고쳐 주세요. 고친 문구는 「가이드에 반영」으로 이 가이드에 돌아와요.`
+                ? `다음 단계 · 걸린 문구 ${flagged}줄을 문구 검토로 고쳐 주세요. 고친 문구는 「가이드에 반영」으로 이 가이드에 돌아와요.`
                 : "다음 단계 · 자동 검사에서 걸린 문구가 없어요. 이대로 써도 돼요."}
             </span>
             <span className="flex flex-wrap gap-2">
@@ -1181,7 +1181,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
               )}
               {flagged > 0 ? (
                 <Link href={`/ad-check?guide=${savedIds[current.id]}`} className={buttonVariants({ size: "sm" })}>
-                  걸린 문구 새 검토 →
+                  걸린 문구 검토 →
                 </Link>
               ) : (
                 // 가이드 결재 올리기는 결재 쪽 연동을 기다린다 (버튼 자리만 둔다)

@@ -44,7 +44,7 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
       <div className="flex flex-wrap items-start justify-between gap-2">
         <PageHeader
           title={`콘텐츠 가이드${record && record.versions.length > 1 ? ` · v${versionNo}` : ""}`}
-          description="만든 콘텐츠 가이드를 그대로 보여 줘요. 걸린 문구는 새 검토로 고쳐 반영하고, 다 고치면 결재에 올려요"
+          description="만든 콘텐츠 가이드를 그대로 보여 줘요. 걸린 문구는 문구 검토로 고쳐 반영하고, 다 고치면 결재에 올려요"
           featureId="A"
         />
         {/* 최신 버전의 삭제 = 모든 버전 + 묶인 문구 검토 숨김 (검토 기록 목록과 같다). 이전 버전 화면에서는 그 버전만 지운다 */}
@@ -62,7 +62,7 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
       <AdDisclaimer />
       {guide.parent_id && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>새 검토에서 대체 표현으로 고친 문구를 반영한 수정본이에요. 고치기 전 버전과 그 검사 기록은 목록에서만 숨기고 그대로 남아 있어요.</span>
+          <span>문구 검토에서 대체 표현으로 고친 문구를 반영한 수정본이에요. 고치기 전 버전과 그 검사 기록은 목록에서만 숨기고 그대로 남아 있어요.</span>
           <Link href={`/ad-check/guide/history/${guide.parent_id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
             이전 버전 보기
           </Link>
@@ -109,7 +109,7 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
                 return (
                   <li key={check.id}>
                     <Link href={`/ad-check/${check.id}`} className="flex flex-wrap items-center gap-2 underline-offset-4 hover:underline">
-                      <span className="shrink-0 text-xs text-muted-foreground">새 검토</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">문구 검토</span>
                       <span className="min-w-0 truncate">{first?.text ?? ""}</span>
                       {rest.length > 0 && <span className="shrink-0 text-xs text-muted-foreground">외 {rest.length}줄</span>}
                       {check.overall_action && <ActionBadge action={check.overall_action} />}

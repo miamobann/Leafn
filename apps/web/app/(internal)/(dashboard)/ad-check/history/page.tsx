@@ -47,11 +47,11 @@ export default async function RecordsPage({ searchParams }: HistoryPageProps) {
             콘텐츠 가이드 만들기 +
           </Link>
           <Link href="/ad-check" className={buttonVariants({ variant: "outline" })}>
-            문구만 검토 +
+            문구 검토 +
           </Link>
         </span>
       </div>
-      <p className="mb-4 text-xs text-muted-foreground">① 콘텐츠 가이드 만들기 → ② 걸린 문구 새 검토 → ③ 가이드에 반영 → ④ 콘텐츠 가이드 결재 올리기</p>
+      <p className="mb-4 text-xs text-muted-foreground">① 콘텐츠 가이드 만들기 → ② 걸린 문구 검토 → ③ 가이드에 반영 → ④ 콘텐츠 가이드 결재 올리기</p>
       <div className="mb-4">
         <HistoryFilters
           filters={[
