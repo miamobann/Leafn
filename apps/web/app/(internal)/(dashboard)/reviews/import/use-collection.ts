@@ -20,6 +20,8 @@ export function useCollection(project: CollectProject) {
   });
   const [view, setView] = useState<CollectionView | null>(null);
   const [restoring, setRestoring] = useState(true);
+  // 화면을 열 때 지난 요청이 되살아났는가 (방금 만든 요청과 구분해서 "이전 요청이 남아 있어요"를 알려 준다)
+  const [restored, setRestored] = useState(false);
   const [busy, setBusy] = useState<"start" | "save" | "reset" | "wake" | null>(null);
   const [wakeNote, setWakeNote] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -52,8 +54,10 @@ export function useCollection(project: CollectProject) {
     restoreCollection(project.id)
       .then((res) => {
         if (off) return;
-        if (res.ok && res.data) adopt(res.data);
-        else if (!res.ok) setMessage(res.message);
+        if (res.ok && res.data) {
+          adopt(res.data);
+          setRestored(true);
+        } else if (!res.ok) setMessage(res.message);
       })
       .catch(() => !off && setMessage("저장된 요청을 불러오지 못했어요. 새로고침해 주세요."))
       .finally(() => !off && setRestoring(false));
@@ -91,6 +95,7 @@ export function useCollection(project: CollectProject) {
   async function find() {
     setBusy("start");
     setMessage(null);
+    setRestored(false);
     try {
       const res = await startCollection({ ownProductId: project.id, platformId: form.platformId, category: form.categoryId, topN: form.topN, stars: form.stars, reviewLimit: form.limit });
       if (res.ok) {
@@ -149,6 +154,7 @@ export function useCollection(project: CollectProject) {
         }
       }
       lastStatus.current = null;
+      setRestored(false);
       setWakeNote(null);
       setView(null);
       setSelected(new Set());
@@ -173,5 +179,5 @@ export function useCollection(project: CollectProject) {
     setSelected(next);
   }
 
-  return { form, setForm, view, status, waiting, restoring, busy, message, wakeNote, selected, setSelected, toggle, now, find, save, reset, again, wake };
+  return { form, setForm, view, status, waiting, restoring, busy, message, wakeNote, restored, selected, setSelected, toggle, now, find, save, reset, again, wake };
 }

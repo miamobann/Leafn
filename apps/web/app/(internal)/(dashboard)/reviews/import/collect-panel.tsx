@@ -116,6 +116,18 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
               {busy === "reset" ? "취소하는 중…" : "요청 취소"}
             </Button>,
           )}
+          {c.restored && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-status-pending/40 bg-status-pending/5 px-4 py-3 text-sm">
+              <p className="min-w-0 flex-1">
+                <b className="font-medium">이전에 보낸 요청이 남아 있어요</b> ({waitText} 전). {queued ? "아직 시작되지 않았어요. 다른 조건으로 하려면 취소하고 새로 정해 주세요." : "이미 읽기 시작해서 끝난 뒤에 정리할 수 있어요."}
+              </p>
+              {queued && (
+                <Button size="sm" onClick={c.reset} disabled={busy !== null}>
+                  {busy === "reset" ? "취소하는 중…" : "취소하고 새로 정하기"}
+                </Button>
+              )}
+            </div>
+          )}
           <section className="flex min-h-[420px] flex-col items-center justify-center gap-3.5 rounded-xl border p-10 text-center">
             <Spinner className="size-11" />
             {queued ? (
