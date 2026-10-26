@@ -20,7 +20,7 @@ export function SectionTabs({ role }: { role: NavRole }) {
   const links = items.filter((item) => item.external);
 
   return (
-    <nav aria-label={`${group.label} 하위 메뉴`} className="mb-6 flex items-end gap-6 border-b border-border">
+    <nav aria-label={`${group.label} 하위 메뉴`} className="mb-6 flex items-center gap-1">
       {tabs.map((item) => {
         const active = item.href === current;
         return (
@@ -28,21 +28,23 @@ export function SectionTabs({ role }: { role: NavRole }) {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className={`-mb-px flex h-10 items-center border-b-2 text-sm whitespace-nowrap ${
-              active ? "border-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground"
+            className={`flex h-9 items-center rounded-full px-4 text-sm whitespace-nowrap ${
+              active
+                ? "bg-accent font-medium text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
             }`}
           >
             {item.label}
           </Link>
         );
       })}
-      {/* 새 창으로 여는 메뉴(공개 설문)는 줄 오른쪽 끝의 검정 버튼으로 둔다 */}
+      {/* 새 창으로 여는 메뉴(공개 설문)는 줄 오른쪽 끝의 주 버튼으로 둔다 */}
       {links.map((item) => (
         <Link
           key={item.href}
           href={item.href}
           target="_blank"
-          className={cn(buttonVariants(), "mb-1.5 ml-auto whitespace-nowrap")}
+          className={cn(buttonVariants(), "ml-auto whitespace-nowrap")}
         >
           {item.label}
         </Link>

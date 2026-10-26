@@ -10,6 +10,8 @@
   --sidebar: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --background: oklch(1 0 0);
+  /* 앱 틀 바깥 바탕 (dashboard layout). 기본은 바탕과 같아 틀이 드러나지 않는다 */
+  --canvas: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -45,27 +47,129 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  /* 위험도·감성·검토 상태 (색만으로 구분하지 않고 글자·아이콘을 함께 쓴다) */
-  --risk-high: oklch(0.58 0.2 27);
-  --risk-medium: oklch(0.7 0.15 70);
-  --risk-low: oklch(0.6 0.12 150);
-  --sentiment-positive: oklch(0.55 0.15 250);
-  --sentiment-negative: oklch(0.58 0.2 27);
-  --sentiment-neutral: oklch(0.6 0 0);
-  --status-pending: oklch(0.7 0.15 70);
-  --status-approved: oklch(0.6 0.12 150);
-  --status-rejected: oklch(0.58 0.2 27);
+  /* 위험도·감성·검토 상태 (색만으로 구분하지 않고 글자·아이콘을 함께 쓴다)
+     글자색과 15% 바탕(bg-x/15)을 같은 토큰으로 만들므로, 흰색·#fafbfa·#f0f5ee 위 15% 바탕에서 글자 대비 4.5:1 이상,
+     적색약·녹색약 시야에서도 단계가 구분되는 값으로 정했다 (2026-10-26, 디자인 전환 계획 0단계) */
+  --risk-high: #742f25;
+  --risk-medium: #905004;
+  --risk-low: #0f6a6e;
+  --sentiment-positive: #344868;
+  --sentiment-negative: #742f25;
+  --sentiment-neutral: #5a5f5b;
+  --status-pending: #905004;
+  --status-approved: #0f6a6e;
+  --status-rejected: #742f25;
+}
+
+/* 디자인 전환 1단계: 목업(대시보드 새 UI 목업)의 색·모서리·그림자 (2026-10-26)
+   html에 data-theme="leaf"가 있을 때만 적용된다. 속성을 빼면 기존 디자인으로 돌아간다 */
+:root[data-theme="leaf"] {
+  --background: #fafbfa;
+  --canvas: #f1f3f0;
+  --foreground: #1e2b22;
+  --card: #ffffff;
+  --card-foreground: #1e2b22;
+  --popover: #ffffff;
+  --popover-foreground: #1e2b22;
+  --primary: #3e6b4c;
+  --primary-foreground: #f7fbf5;
+  --secondary: #eef4ec;
+  --secondary-foreground: #1e2b22;
+  --muted: #f0f5ee;
+  --muted-foreground: #56685b;
+  --accent: #e8f0e6;
+  --accent-foreground: #1e2b22;
+  --destructive: #742f25;
+  --border: #e8ede7;
+  /* 입력 칸·체크박스 테두리. 바탕 대비 3:1 이상(WCAG 1.4.11)이라 칸 경계가 보인다 (디자인 전환 3단계) */
+  --input: #7d8f82;
+  --ring: #5e8f68;
+  --chart-1: #d3e0d1;
+  --chart-2: #6f8475;
+  --chart-3: #56685b;
+  --chart-4: #3a4d40;
+  --chart-5: #1e2b22;
+  --radius: 1rem;
+  --sidebar: #fafbfa;
+  --sidebar-foreground: #3a4d40;
+  --sidebar-primary: #3e6b4c;
+  --sidebar-primary-foreground: #f7fbf5;
+  --sidebar-accent: #e8f0e6;
+  --sidebar-accent-foreground: #1e2b22;
+  --sidebar-border: #e8ede7;
+  --sidebar-ring: #5e8f68;
+  /* 카드 테두리 1px와 연한 초록 그림자 2겹. 카드 부품의 ring-1을 대신한다 */
+  --shadow-card: 0 0 0 1px rgb(30 43 34 / 0.06), 0 1px 2px rgb(62 107 76 / 0.06), 0 8px 24px rgb(62 107 76 / 0.06);
+}
+/* ring-0으로 테두리를 일부러 없앤 카드(홈 캘린더 옆 할 일 칸 등)는 그대로 둔다 */
+:root[data-theme="leaf"] [data-slot="card"]:not(.ring-0) {
+  box-shadow: var(--shadow-card);
+}
+
+/* 디자인 전환 5-1: 프로모션 캘린더(FullCalendar, 홈·/calendar)의 기본 남색 테마를 leaf 색에 맞춘다.
+   FullCalendar가 :root에 두는 --fc-* 값을 .fc 안에서 덮어쓰고, 버튼은 공통 outline 버튼처럼 32px 알약으로 바꾼다.
+   행사 막대·마감 색은 promo-calendar.tsx가 정하므로 그대로다 */
+:root[data-theme="leaf"] .fc {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--card);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-list-event-hover-bg-color: var(--muted);
+  --fc-today-bg-color: var(--accent);
+  --fc-button-text-color: var(--foreground);
+  --fc-button-bg-color: var(--background);
+  --fc-button-border-color: var(--border);
+  --fc-button-hover-bg-color: var(--muted);
+  --fc-button-hover-border-color: var(--border);
+  --fc-button-active-bg-color: var(--accent);
+  --fc-button-active-border-color: var(--accent);
+}
+:root[data-theme="leaf"] .fc .fc-button {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+}
+/* 이전·다음처럼 붙은 버튼 묶음은 바깥 끝만 둥글게 */
+:root[data-theme="leaf"] .fc .fc-button-group > .fc-button:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+:root[data-theme="leaf"] .fc .fc-button-group > .fc-button:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* 고른 보기(월·일정목록)는 구역 탭처럼 연한 초록 바탕에 굵게 */
+:root[data-theme="leaf"] .fc .fc-button-active {
+  font-weight: 500;
+}
+/* 포커스: 남색 그림자 대신 공통 부품과 같은 초록 링을 키보드로 옮겨 갈 때만 보인다.
+   :not(:disabled)는 FullCalendar의 고른 버튼 포커스 규칙보다 우선하려고 붙인다 */
+:root[data-theme="leaf"] .fc .fc-button:not(:disabled):focus {
+  box-shadow: none;
+}
+:root[data-theme="leaf"] .fc .fc-button:not(:disabled):focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+/* 월 제목은 카드 제목보다 조금 큰 20px. 기본 28px(홈 24.5px)은 페이지 제목보다 컸다 */
+:root[data-theme="leaf"] .fc .fc-toolbar-title {
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-canvas: var(--canvas);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-sidebar: var(--sidebar);
   --color-sidebar-accent: var(--sidebar-accent);
-  --font-sans: var(--font-noto-kr), var(--font-noto-jp), sans-serif;
-  --font-heading: var(--font-noto-kr), var(--font-noto-jp), sans-serif;
+  /* 레이아웃마다 불러오는 글꼴 변수가 다르다 (사내 KR+JP, 공개 설문 JP). 없는 변수는 대체값으로 넘긴다. 대체값이 없으면 선언 전체가 무효가 된다 */
+  --font-sans: var(--font-noto-kr, var(--font-noto-jp, sans-serif)), var(--font-noto-jp, sans-serif), sans-serif;
+  --font-heading: var(--font-noto-kr, var(--font-noto-jp, sans-serif)), var(--font-noto-jp, sans-serif), sans-serif;
   --color-risk-high: var(--risk-high);
   --color-risk-medium: var(--risk-medium);
   --color-risk-low: var(--risk-low);
@@ -167,5 +271,15 @@
   }
   html {
     @apply font-sans;
+  }
+  /* 사내 화면 안의 일본어(lang="ja")는 일본어 글꼴로 그린다. 한국어 글꼴로 그리면 일부 한자 모양이 일본 표준과 다르다 */
+  :lang(ja) {
+    font-family: var(--font-noto-jp, sans-serif), sans-serif;
+  }
+  /* 키보드 포커스: 자체 포커스 모양이 없는 요소(링크·기본 선택 상자 등)는 브라우저 기본 대신 같은 초록 외곽선 2px.
+     공통 부품(버튼·입력 칸)은 자기 링을 그대로 쓴다 (디자인 전환 3단계) */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }

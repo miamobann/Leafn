@@ -1,7 +1,7 @@
 type PageHeaderProps = {
   title: string;
   description?: string;
-  /** 기획안 기능 ID. 테스트·리뷰 때 추적용, 정식 출시 전 제거 */
+  /** 기획안 기능 ID. 개발 서버에서만 보인다 (테스트·리뷰 때 추적용, 정식 출시 전 제거) */
   featureId?: string;
 };
 
@@ -10,7 +10,7 @@ export function PageHeader({ title, description, featureId }: PageHeaderProps) {
     <div className="mb-6">
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-semibold">{title}</h1>
-        {featureId && (
+        {featureId && process.env.NODE_ENV === "development" && (
           <span className="rounded border border-border px-1.5 text-xs text-muted-foreground">{featureId}</span>
         )}
       </div>
