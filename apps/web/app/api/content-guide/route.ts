@@ -7,6 +7,8 @@ import { AiConfigError } from "@/lib/ai/config";
 import { type BodyCheck, checkBody } from "@/lib/ai/content-guide/check";
 import { toAdCheck } from "@/lib/ai/ad-check/to-ad-check";
 import { ContentGuideParseError, generateBody, generateTitles } from "@/lib/ai/content-guide/generate";
+import { makeFill } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-report";
+import { getAdProducts } from "@/lib/data/ad-products";
 import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { ContentGuideInput, GuideTitle } from "@/lib/schemas/content-guide";
 import { createClient } from "@/lib/supabase/server";
@@ -108,7 +110,11 @@ export async function POST(request: Request) {
     }
     const made = await generateBody(req.input, req.picked);
     const p = req.input.product;
-    const checked = await checkBody(req.input.channel, { name: p.name, product_category: p.category, ingredients: p.ingredients_ja }, made.result);
+    // 자동 검사는 실제로 게시될 문장으로: {product_ja} 같은 자리표시자를 그 제품 값으로 바꿔 판정한다 (결과물은 자리표시자 그대로 저장, 화면·PDF 가 채운다)
+    const own = (await getAdProducts()).find((x) => x.id === req.product_id);
+    const fill = own ? makeFill(own) : (t: string) => t;
+    const filled = { ...made.result, blocks: made.result.blocks.map((b) => ({ ...b, options: b.options.map((o) => ({ ...o, text_ja: fill(o.text_ja) })) })) };
+    const checked = await checkBody(req.input.channel, { name: p.name, product_category: p.category, ingredients: p.ingredients_ja }, filled);
     const checks = checked.blocks.map((b) => ({ key: b.key, action: b.line.action, findings: b.line.findings.map((f) => ({ text: f.text, reason: f.reason })) }));
 
     let id: string | null = null;

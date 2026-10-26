@@ -7,6 +7,7 @@ import { ReviewWorkspace } from "./_components/review-workspace";
 import { getAdProducts } from "@/lib/data/ad-products";
 import { AdDisclaimer } from "./_components/ad-disclaimer";
 import { guideToReviewInput } from "./_lib/guide-to-review";
+import { makeFill } from "./_lib/guide-report";
 
 type AdCheckPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -26,8 +27,13 @@ export default async function AdCheckPage({ searchParams }: AdCheckPageProps) {
   const initial = source
     ? { productId: source.product_id, usage: source.usage, text: source.input_text }
     : guide
-      ? guideToReviewInput(guide.guide)
+      ? guideToReviewInput(guide.guide, guideFill(guide.guide.product_id))
       : undefined;
+  /** 가이드의 자리표시자({product_ja} 등)를 그 제품 값으로 (제품을 못 찾으면 그대로) */
+  function guideFill(productId: string | null) {
+    const product = products.find((p) => p.id === productId);
+    return product ? makeFill(product) : undefined;
+  }
   const canApprove = !isSupabaseConfigured() || mine?.role === "owner";
 
   return (

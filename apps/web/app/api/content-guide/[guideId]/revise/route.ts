@@ -3,7 +3,9 @@
 // 약기법 우선: 고친 줄은 그 검토가 낸 대체 표현 중 재검토를 통과한 것만 받고, 「고쳐야 함」 줄은 그대로 반영하지 않는다. AI는 다시 부르지 않는다.
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { makeFill } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-report";
 import { guideSlots, slotText, TITLE_SLOT } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-to-review";
+import { getAdProducts } from "@/lib/data/ad-products";
 import { lintBody } from "@/lib/ai/content-guide/lint";
 import { getAdCheck, getContentGuide } from "@/lib/data";
 import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
@@ -29,11 +31,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ gui
   if (!parsed.success) return fail(400, "입력이 올바르지 않습니다");
   const { ad_check_id: checkId, picks } = parsed.data;
 
-  const [found, check] = await Promise.all([getContentGuide(guideId), getAdCheck(checkId)]);
+  const [found, check, products] = await Promise.all([getContentGuide(guideId), getAdCheck(checkId), getAdProducts()]);
   if (!found || found.guide.workspace_id !== mine.workspace.id) return fail(404, "가이드를 찾을 수 없습니다.");
   if (!check || check.workspace_id !== mine.workspace.id) return fail(404, "검토 기록을 찾을 수 없습니다. 판정이 저장됐는지 확인해 주세요.");
   const parent = found.guide;
-  const slots = guideSlots(parent);
+  // 새 검토 입력칸은 자리표시자를 실제 값으로 바꿔 채웠다 (새 검토 화면과 같은 기준으로 줄을 맞춘다)
+  const product = products.find((p) => p.id === parent.product_id);
+  const fill = product ? makeFill(product) : (t: string) => t;
+  const slots = guideSlots(parent, fill);
   const lines = check.line_results ?? [];
   if (lines.length !== slots.length) return fail(409, `가이드는 ${slots.length}줄인데 검토는 ${lines.length}줄이에요. 줄을 더하거나 지우지 말고 다시 판정해 주세요.`);
 
@@ -54,7 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gui
     if (line.action === "must_fix") return fail(422, `${line.line_index}번째 줄은 「고쳐야 함」이에요. 대체 표현을 골라 주세요.`);
     // 고치지 않은 줄: 처음 문구 그대로면 원래 한국어 뜻, 입력칸에서 직접 고친 줄이면 그 판정의 역번역
     const original = slot.key === TITLE_SLOT ? parent.title.title_ko : (parent.body.blocks.find((b) => b.key === slot.key)?.options[0]?.text_ko ?? "");
-    finals.set(slot.key, { ja: line.original, ko: line.original === slot.text ? original : (line.back_translation_ko ?? "") });
+    finals.set(slot.key, { ja: line.original, ko: line.original === slot.text ? fill(original) : (line.back_translation_ko ?? "") });
   }
 
   const title = finals.get(TITLE_SLOT);

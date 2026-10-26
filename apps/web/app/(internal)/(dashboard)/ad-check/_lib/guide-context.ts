@@ -41,9 +41,9 @@ export async function loadGuideContext(picked?: PickedTopics) {
   const materials: GuideMaterials = Object.fromEntries(
     products.map((p, i) => {
       const appeal = appeals[i];
-      // 고른 소구점이 있으면 그 주제만 쓴다 (칭찬 소구점 · 후보 · 리뷰 인용 모두). 순함은 아래에서 약기법으로 다시 빠진다
+      // 리뷰 분석에서 고른 소구점이 넘어오면 화면에서 그것만 미리 골라 둔다 (담당자가 다시 고를 수 있게 전체 목록은 넘긴다)
       const pick = picked?.productId === p.id && picked.topics.length > 0 ? picked.topics : null;
-      const topics = (appeal?.topics ?? []).filter((t) => !pick || pick.includes(t.topic));
+      const topics = appeal?.topics ?? [];
       // 약기법: 순함(저자극)은 빼고, 오래가는 보습(효과 지속)은 사용감 표현으로 바꿔 넘긴다 (materials.ts)
       const praise = safePraiseLabels(
         topics
@@ -52,6 +52,8 @@ export async function loadGuideContext(picked?: PickedTopics) {
           .map((t) => ({ key: t.topic, ko: APPEAL_TOPICS[t.topic].positive.ko })),
       );
       const praised = praise.labels;
+      // 약기법: 순함은 고른 것에 들어 있어도 조용히 뺀다
+      const pickedAppeals = pick ? safePraiseLabels(topics.filter((t) => t.praises.length > 0 && pick.includes(t.topic)).map((t) => ({ key: t.topic, ko: APPEAL_TOPICS[t.topic].positive.ko }))).labels : null;
       const complaints = topics
         .filter((t) => t.complaints.length > 0)
         .toSorted((a, b) => b.complaintShare - a.complaintShare)
@@ -63,7 +65,7 @@ export async function loadGuideContext(picked?: PickedTopics) {
       // 검색어·요즘 뜨는 말: 피부 라인에 맞는 고민 자동완성에서 (약기법에 걸리는 말·우리 전성분에 없는 성분이 든 말은 뺀다)
       const words = pickSearchWords(snapshots, skinLineOf(p), own);
       // 승인된 일본어 후기가 있으면 한국어 리뷰 원문 대신 그대로 인용한다 (프롬프트 v4). 고른 소구점과 관계없이 쓴다 (후기에는 주제 정보가 없다)
-      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, droppedAppeals: praise.dropped, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), approvedQuotes: pickApprovedQuotes(approved[i] ?? []), keywords: words.search, trending: words.trending, ingredients, megaSale, pickedTopics: pick?.length ?? null }];
+      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, pickedAppeals, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), approvedQuotes: pickApprovedQuotes(approved[i] ?? []), keywords: words.search, trending: words.trending, ingredients, megaSale }];
     }),
   );
   return { products, materials, author, aiEnabled };

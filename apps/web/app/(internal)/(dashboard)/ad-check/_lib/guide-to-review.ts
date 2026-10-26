@@ -14,10 +14,13 @@ export const TITLE_SLOT = "title";
 const LINE_JOIN = " / ";
 
 export type GuideSlot = { key: string; text: string };
+type Fill = (text: string) => string;
+const asIs: Fill = (t) => t;
 
-/** 새 검토의 n번째 줄이 가이드의 어느 칸(제목 · 블록)인지. 빈 칸은 건너뛴다 */
-export function guideSlots(guide: Pick<ContentGuideRow, "title" | "body">): GuideSlot[] {
-  return [{ key: TITLE_SLOT, text: guide.title.title_ja }, ...guide.body.blocks.map((b) => ({ key: b.key, text: b.options[0]?.text_ja ?? "" }))]
+/** 새 검토의 n번째 줄이 가이드의 어느 칸(제목 · 블록)인지. 빈 칸은 건너뛴다.
+ *  fill: {product_ja} 같은 자리표시자를 실제 값으로 (화면 · PDF 와 같은 makeFill). 실제로 게시될 문장으로 검토한다 */
+export function guideSlots(guide: Pick<ContentGuideRow, "title" | "body">, fill: Fill = asIs): GuideSlot[] {
+  return [{ key: TITLE_SLOT, text: fill(guide.title.title_ja) }, ...guide.body.blocks.map((b) => ({ key: b.key, text: fill(b.options[0]?.text_ja ?? "") }))]
     .map((s) => ({ key: s.key, text: s.text.trim().replace(/\n+/g, LINE_JOIN) }))
     .filter((s) => s.text)
     .slice(0, MAX_LINES);
@@ -28,6 +31,6 @@ export function slotText(line: string): string {
   return line.split(LINE_JOIN).join("\n");
 }
 
-export function guideToReviewInput(guide: ContentGuideRow) {
-  return { productId: guide.product_id ?? undefined, usage: USAGE[guide.channel], text: guideSlots(guide).map((s) => s.text).join("\n") };
+export function guideToReviewInput(guide: ContentGuideRow, fill: Fill = asIs) {
+  return { productId: guide.product_id ?? undefined, usage: USAGE[guide.channel], text: guideSlots(guide, fill).map((s) => s.text).join("\n") };
 }
