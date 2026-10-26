@@ -10,8 +10,9 @@ import { surveyProductLines, surveyQuestions } from "./survey";
 
 const RESPONSE_COUNT = 150;
 const DAYS = 30;
-// 설문은 다른 가짜 데이터(PROTOTYPE_TODAY)와 따로, 11월 한 달 동안 받은 것으로 둔다
-const SURVEY_TODAY = "2026-11-30";
+// 설문은 Qoo10 상세페이지에 링크로 넣는 구매 전 도구라 숍 오픈(2027-01-15)부터 응답이 쌓인다.
+// 다른 가짜 데이터(PROTOTYPE_TODAY)와 따로, 숍 오픈 뒤 30일(01-15 ~ 02-13) 동안 받은 예시로 둔다
+const SURVEY_TODAY = "2027-02-13";
 
 export const survey = Survey.parse({
   id: "sv-leafn",
