@@ -30,7 +30,10 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
     getAdProducts(),
   ]);
   const isOwner = mine?.role === "owner";
-  const guides = all.filter((g) => (!productFilter || g.product_id === productFilter) && (!channelFilter || g.channel === channelFilter));
+  // 수정 전 버전은 숨긴다: 수정본(parent_id 로 이어진 다음 버전)이 있는 가이드는 목록에서 빼고 최신 수정본만 보여 준다.
+  // 지우지 않으므로 수정본 화면의 「이전 버전 보기」로 열 수 있다 (약기법에 걸린 문구와 검사 기록은 증거로 남는다)
+  const superseded = new Set(all.flatMap((g) => (g.parent_id ? [g.parent_id] : [])));
+  const guides = all.filter((g) => !superseded.has(g.id) && (!productFilter || g.product_id === productFilter) && (!channelFilter || g.channel === channelFilter));
   const memberName = (id: string | null) => members.find((m) => m.user_id === id)?.display_name ?? "—";
   const productName = (id: string | null) => products.find((p) => p.id === id)?.name ?? "—";
   const actionOf = (checkId: string | null) => checks.find((c) => c.id === checkId)?.overall_action ?? null;
