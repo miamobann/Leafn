@@ -10,6 +10,8 @@
   --sidebar: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --background: oklch(1 0 0);
+  /* 앱 틀 바깥 바탕 (dashboard layout). 기본은 바탕과 같아 틀이 드러나지 않는다 */
+  --canvas: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -63,6 +65,7 @@
    html에 data-theme="leaf"가 있을 때만 적용된다. 속성을 빼면 기존 디자인으로 돌아간다 */
 :root[data-theme="leaf"] {
   --background: #fafbfa;
+  --canvas: #f1f3f0;
   --foreground: #1e2b22;
   --card: #ffffff;
   --card-foreground: #1e2b22;
@@ -104,6 +107,7 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-canvas: var(--canvas);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
