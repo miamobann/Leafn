@@ -3,6 +3,7 @@
 // 플랫폼 수집 화면의 쓰기 함수 (Server Action). 로그인한 사용자의 세션으로 쓰므로 RLS가 워크스페이스를 가른다.
 // 수집 자체는 여기서 하지 않는다: queued 요청만 만들면 수집기(일꾼)가 집어 가서 ready(미리보기)로 만든다 (collectors/collect_to_db.py).
 // 저장은 DB의 save_collection_run()이 한다 (미리보기 → products · reviews).
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dispatchCollector } from "@/lib/external/github-actions";
 import { CollectionRunRow, STALE_RUNNING_MS, StartCollectionInput } from "@/lib/schemas/collection";
@@ -115,6 +116,8 @@ export async function saveCollection(runId: string, keepIds: string[]): Promise<
 
   const saved = await supabase.rpc("save_collection_run", { p_run_id: run.id });
   if (saved.error) return fail(`저장하지 못했어요: ${saved.error.message}`);
+  // 새 경쟁 제품·리뷰가 리뷰 리포트·소구점 비교·시장 분석에 바로 보이게 화면 캐시를 비운다 (새로고침 없이)
+  revalidatePath("/", "layout");
   const after = await loadRun(run.id);
   if (!after.run) return fail("저장은 끝났지만 결과를 불러오지 못했어요.");
   return { ok: true, data: await buildCollectionView(after.supabase, after.run) };
