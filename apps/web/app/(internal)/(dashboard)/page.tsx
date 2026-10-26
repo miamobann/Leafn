@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { getCurrentMember } from "@/components/layout/current-member";
 import { getAdChecks, getProducts, getProjectsWithProducts } from "@/lib/data";
-import { getPlatformViews, getPromoEventViews, getToday } from "@/lib/data/launch";
-import { getApprovalInbox, getMyTabs, getProgressGrid, STALE_REVIEW_DAYS } from "@/lib/data/submissions";
+import { getHomeProgress } from "@/lib/data/home";
+import { getPlatformViews, getPromoEventViews } from "@/lib/data/launch";
+import { getMyTabs, STALE_REVIEW_DAYS } from "@/lib/data/submissions";
 import { dDay } from "@/lib/format";
 import { OWN_PRODUCT_LINE } from "@/lib/own-products";
 import { CopyQueue } from "./_home/copy-queue";
@@ -27,24 +28,22 @@ function dateLabel(date: string) {
 
 /**
  * 홈 (2026-10-26 홈 새 디자인): 인사와 요약 세 칸 → 프로젝트 진행 현황 + 문구 검토 대기 → 캘린더 + 할 일.
- * 탭별 요약 카드 4개는 뺐다. 현황판은 결재 기준 4칸이다 (8단계 현황판을 바꾼 일은 PR에서 Min에게 확인받는다)
+ * 탭별 요약 카드 4개는 뺐다. 현황판은 판매 중 제품 × 4칸의 시안 상태와 데이터 준비다 (서버 데이터 연동 작업 지침서 4번 A안)
  */
 export default async function HomePage() {
-  const [pending, lines, events, platforms, today, inbox, my, me, ownProducts] = await Promise.all([
+  const [pending, lines, events, platforms, my, me, ownProducts] = await Promise.all([
     getAdChecks({ status: "pending" }),
     getProjectsWithProducts(),
     getPromoEventViews(),
     getPlatformViews(),
-    getToday(),
-    getApprovalInbox({ recentLimit: 0 }),
     getMyTabs(),
     getCurrentMember(),
     getProducts({ kind: "own" }),
   ]);
-  const grids = Object.fromEntries(await Promise.all(lines.map(async (line) => [line.id, await getProgressGrid(line.id)] as const)));
-  const waiting = Object.fromEntries(inbox.pending.map((r) => [r.submission.id, r.waitingDays]));
+  const progress = await getHomeProgress(lines.map((line) => line.id));
+  const { today } = progress;
   // 결재가 한 사람에게 몰려 늦어지는 것을 홈에서 보이게 한다 (docs/team-approval-ai-analysis.md 8장 보완 4). 결재함은 팀장만 보므로 알림도 팀장에게만
-  const staleReviews = my.role === "owner" ? inbox.pending.filter((r) => r.waitingDays > STALE_REVIEW_DAYS).length : 0;
+  const staleReviews = my.role === "owner" ? progress.staleReviews : 0;
 
   // 요약 칸: 끝내지 않은 준비 마감(지난 것 포함) 중 2주 안, 가장 이른 것이 가장 급한 일
   const until = addDays(today, TODO_WINDOW_DAYS);
@@ -60,7 +59,7 @@ export default async function HomePage() {
       ? { label: urgent.label, when: urgent.dueDate < today ? `지남 ${urgentWhen.slice(2)}일` : urgentWhen, overdue: urgent.dueDate < today }
       : null,
   };
-  const nextEvent = events.filter((e) => e.startDate >= today).toSorted((a, b) => a.startDate.localeCompare(b.startDate))[0];
+  const nextEvent = progress.nextEvent;
   const next: HomeNextEvent = nextEvent
     ? { id: nextEvent.id, dDay: dDay(nextEvent.startDate, today), title: nextEvent.title, date: nextEvent.startDate.slice(5) }
     : null;
@@ -96,7 +95,14 @@ export default async function HomePage() {
         }
       />
       <div className="flex flex-wrap items-stretch gap-5">
-        <ProjectBoard lines={lines} grids={grids} waiting={waiting} staleDays={STALE_REVIEW_DAYS} />
+        <ProjectBoard
+          lines={lines}
+          grids={progress.grids}
+          readiness={progress.readiness}
+          waiting={progress.waiting}
+          staleDays={STALE_REVIEW_DAYS}
+          next={next}
+        />
         <CopyQueue items={queue} />
       </div>
       <HomeCalendar events={events} platformKeys={platforms.map((p) => p.key)} today={today} />
