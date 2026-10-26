@@ -301,7 +301,7 @@ export function AppealCompare({
                     </>
                   )}
                   {drafted.size > 0 && (
-                    <Link href="/reviews/summary" className={buttonVariants({ variant: "outline", size: "lg" })}>
+                    <Link href={`/reviews/summary?product=${data.own.id}`} className={buttonVariants({ variant: "outline", size: "lg" })}>
                       요약에서 결재 올리기 →
                     </Link>
                   )}

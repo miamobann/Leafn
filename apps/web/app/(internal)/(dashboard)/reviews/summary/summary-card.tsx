@@ -1,5 +1,5 @@
 // 리뷰 분석 요약 탭의 제품 카드 (서버 컴포넌트). 시안에 담은 소구점 · 일본어 후기와 리포트 숫자를 한 장으로 보인다.
-// 결재 올리기 패널은 이 카드 아래에 SubmissionSection으로 붙는다 (page.tsx).
+// 결재 올리기 패널은 이 카드 오른쪽 열에 SubmissionSection으로 붙는다 (page.tsx).
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { APPEAL_TOPICS } from "@/lib/schemas/review";

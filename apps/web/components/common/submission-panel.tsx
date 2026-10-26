@@ -88,6 +88,7 @@ export function SubmissionPanel({
   saveDraft,
   snapshotNote,
   carryOverLabel,
+  className = "mt-6",
 }: {
   tabLabel: string;
   status: SubmissionStatus | null;
@@ -101,6 +102,7 @@ export function SubmissionPanel({
   snapshotNote: string;
   /** 있으면 "직전 버전 내용도 함께 담기" 체크를 보인다 (광고 검토) */
   carryOverLabel?: string;
+  className?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -142,7 +144,7 @@ export function SubmissionPanel({
   const canActOn = (v: VersionView) => !sampleMode && (isOwner || (canEdit && v.author_id !== null && v.author_id === meId));
 
   return (
-    <Card id="submission" className="mt-6 scroll-mt-6">
+    <Card id="submission" className={`scroll-mt-6 ${className}`}>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle className="text-base">{TEXT.title(tabLabel)}</CardTitle>
         <span className="flex items-center gap-3">
