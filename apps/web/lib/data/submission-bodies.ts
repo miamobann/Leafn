@@ -1,8 +1,10 @@
 // 시안 버전에 저장할 탭별 결과 스냅샷 (docs/team-approval-ai-analysis.md 5장 body · evidence · data_as_of).
 // 화면이 보낸 내용을 믿지 않고 저장하는 순간의 데이터로 서버에서 다시 만든다. 근거 ID는 실제로 읽은 행만 넣는다 (DB_RULES 4.2).
 import { topicStats, verdictOf } from "@/app/(internal)/(dashboard)/reviews/_lib/topics";
+import { translationNeedsFix } from "@/lib/review-translation-state";
+import type { AppealTopic } from "@/lib/schemas/review";
 import { AdBody, type EvidenceRef, ReviewBody } from "@/lib/schemas/submission";
-import { getAdChecks } from "./index";
+import { getAdChecks, getAppealComparison, getReviewTranslations } from "./index";
 import { getReviewsOf } from "./reviews";
 import { summarizeReviews } from "./row-adapters";
 
@@ -79,4 +81,68 @@ export async function buildAdSnapshot(productId: string, adCheckIds: string[]): 
     evidence: checks.map((c) => ({ kind: "ad_check", id: c.id })),
     data_as_of: latestOf(checks.map((c) => c.created_at)),
   };
+}
+
+type Appeal = NonNullable<ReviewBody["appeals"]>[number];
+type Translation = NonNullable<ReviewBody["translations"]>[number];
+
+/**
+ * 시안에 담을 소구점. strict면 소구점 후보가 아닌 주제가 하나라도 있을 때 오류를 던지고,
+ * strict가 아니면(이미 담은 것을 새로 고칠 때) 이제 후보가 아닌 주제는 조용히 뺀다.
+ */
+export async function buildAppeals(productId: string, topics: AppealTopic[], strict: boolean): Promise<Appeal[]> {
+  const wanted = new Set(topics);
+  if (wanted.size === 0) return [];
+  const comparison = await getAppealComparison(productId);
+  const rows = (comparison?.topics ?? []).filter((t) => t.isCandidate && wanted.has(t.topic));
+  if (strict && rows.length !== wanted.size) throw new Error("소구점 후보가 아닌 주제가 있어요. 화면을 새로 고친 뒤 다시 골라 주세요");
+  return rows.map((t) => ({
+    topic: t.topic,
+    own_praises: t.praises.length,
+    competitor_complaints: t.complaints.length,
+    evidence_review_ids: t.praises.slice(0, MAX_EVIDENCE_PER_ITEM).map((r) => r.id),
+  }));
+}
+
+/**
+ * 시안에 담을 일본어 후기. 이 제품의 번역이어야 하고, 고쳐야 할 표현이 남은 번역은 담을 수 없다.
+ * strict가 아니면(이미 담은 것을 새로 고칠 때) 지워졌거나 다시 고쳐야 하게 된 번역은 조용히 뺀다.
+ */
+export async function buildTranslations(productId: string, ids: string[], strict: boolean): Promise<Translation[]> {
+  const wanted = new Set(ids);
+  if (wanted.size === 0) return [];
+  const [translations, checks, reviews] = await Promise.all([
+    getReviewTranslations(productId),
+    getAdChecks({ source: "all" }),
+    getReviewsOf(productId, { lang: "ko" }),
+  ]);
+  const checkById = new Map(checks.map((c) => [c.id, c]));
+  const originalById = new Map(reviews.map((r) => [r.id, r.body]));
+  const items: Translation[] = [];
+  for (const t of translations.filter((x) => wanted.has(x.id))) {
+    const check = t.ad_check_id ? checkById.get(t.ad_check_id) : undefined;
+    if (translationNeedsFix(check)) {
+      if (strict) throw new Error("고쳐야 할 표현이 남은 후기는 담을 수 없어요. 「이렇게 고치기」로 고친 뒤 담아 주세요");
+      continue;
+    }
+    const original = originalById.get(t.review_id) ?? "";
+    const textKo = check?.input_text ?? original;
+    items.push({
+      review_translation_id: t.id,
+      review_id: t.review_id,
+      ad_check_id: t.ad_check_id,
+      text_ja: t.text_ja,
+      text_ko: textKo,
+      edited: textKo.replace(/\s+/g, " ").trim() !== original.replace(/\s+/g, " ").trim().slice(0, 500),
+    });
+  }
+  if (strict && items.length !== wanted.size) throw new Error("이 제품의 번역이 아닌 후기가 있어요. 화면을 새로 고친 뒤 다시 골라 주세요");
+  return items;
+}
+
+/** 리포트 스냅샷에 담은 소구점 · 후기를 붙이고, 그 후기들의 원문 리뷰도 근거에 더한다 */
+export function withExtras(snapshot: VersionSnapshot<ReviewBody>, appeals: Appeal[], translations: Translation[]): VersionSnapshot<ReviewBody> {
+  const body = ReviewBody.parse({ ...snapshot.body, appeals, translations });
+  const cited = new Set([...snapshot.evidence.map((e) => e.id), ...translations.map((t) => t.review_id), ...appeals.flatMap((a) => a.evidence_review_ids)]);
+  return { body, evidence: [...cited].map((id) => ({ kind: "review" as const, id })), data_as_of: snapshot.data_as_of };
 }

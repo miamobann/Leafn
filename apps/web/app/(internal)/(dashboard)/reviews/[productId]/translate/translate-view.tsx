@@ -1,13 +1,15 @@
 "use client";
 
-// 상세페이지용 리뷰 (참조 F, prototype-plan P5). 고르기 → 번역 + 자동 약기법 검토 → 팀장 승인 → 콘텐츠 제작 가이드.
-// 리뷰가 쌓여도 고르기 쉽게 양쪽 모두 페이지 넘기기와 "이 페이지 전체 선택"을 둔다. 승인된 리뷰만 콘텐츠 제작 가이드의 후기 재료가 된다
+// 상세페이지용 리뷰 (참조 F, prototype-plan P5). 고르기 → 번역 + 자동 약기법 검토 → 고치기 → 시안에 담기 → (요약 탭에서) 팀장 결재 → 콘텐츠 제작 가이드.
+// 리뷰가 쌓여도 고르기 쉽게 양쪽 모두 페이지 넘기기와 "이 페이지 전체 선택"을 둔다. 문구마다 승인하지 않고, 담은 후기를 시안 하나로 묶어 팀장이 결재한다.
+// 결재된 시안에 담긴 후기만 콘텐츠 제작 가이드의 후기 재료가 된다
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Minus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import { applySuggestion, approveTranslation, deleteTranslations, revokeApproval, translateReviews } from "@/lib/data/review-translation-actions";
+import { applySuggestion, deleteTranslations, translateReviews } from "@/lib/data/review-translation-actions";
+import { addToReviewDraft, removeFromReviewDraft } from "@/lib/data/submission-actions";
 import type { ReviewWithAnalysis } from "@/lib/data/reviews";
 import type { AppealTopic } from "@/lib/schemas/review";
 import { BackTitle, paginate, Pager } from "../../_components/parts";
@@ -19,7 +21,10 @@ export type TranslatedRow = {
   reviewId: string;
   textJa: string;
   textKo: string;
-  status: "approved" | "pending" | "fix";
+  /** ready = 약기법 검토 통과(담을 수 있음) · fix = 고쳐야 함(고치기 전에는 담을 수 없음) */
+  status: "ready" | "fix";
+  /** 이 제품의 리뷰 분석 시안에 이미 담겼는가 */
+  drafted: boolean;
   note: string;
   checkId: string | null;
   /** 대체 표현을 적용해 고친 문장이면 true */
@@ -31,16 +36,18 @@ export type TranslatedRow = {
 const PICK_PAGE = 8;
 const DONE_PAGE = 6;
 const TRANSLATE_BATCH = 5; // 서버 액션이 한 번에 받는 리뷰 수 (lib/data/review-translation-actions.ts와 같은 값)
-const STATUS = {
-  approved: { label: "승인", className: "bg-emerald-50 text-emerald-900" },
-  pending: { label: "검토 대기", className: "bg-amber-50 text-amber-900" },
+type RowKind = "added" | "ready" | "fix";
+const STATUS: Record<RowKind, { label: string; className: string }> = {
+  added: { label: "시안에 담김", className: "bg-emerald-50 text-emerald-900" },
+  ready: { label: "검토 통과", className: "bg-amber-50 text-amber-900" },
   fix: { label: "고쳐야 함", className: "bg-red-50 text-red-900" },
-} as const;
+};
+const kindOf = (r: TranslatedRow): RowKind => (r.drafted ? "added" : r.status);
 const STEPS = [
   ["1 리뷰 고르기", "강점 리뷰가 위로"],
   ["2 번역 + 자동 약기법 검토", "번역하는 순간 같이 돌아가요"],
-  ["3 고치고 팀장 승인", "대체 표현으로 고친 뒤 승인"],
-  ["4 콘텐츠 제작 가이드로", "승인된 것만 인용"],
+  ["3 대체 표현으로 고치기", "고쳐야 함은 고친 뒤에 담아요"],
+  ["4 시안에 담기", "요약 탭에서 팀장 결재"],
 ] as const;
 const selectClass = "h-9 rounded-md border bg-background px-2 text-sm";
 
@@ -93,14 +100,14 @@ export function TranslateView({
   reviews,
   translated,
   initialPicked,
-  isOwner,
+  draft,
 }: {
   product: { id: string; name: string };
   reviews: ReviewWithAnalysis[];
   translated: TranslatedRow[];
   initialPicked: string[];
-  /** 팀장(워크스페이스 owner)만 승인·승인 취소 버튼이 보인다. 서버도 같은 확인을 한다 */
-  isOwner: boolean;
+  /** 리뷰 분석 시안의 지금 상태. canAdd가 false면 「시안에 담기」를 숨기고 reason을 보인다 */
+  draft: { canAdd: boolean; reason: string | null; versionNo: number | null; draftStatus: string | null; count: number };
 }) {
   const stats = topicStats(reviews).filter((s) => s.pos.length > 0).toSorted((a, b) => b.pos.length - a.pos.length);
   const [topic, setTopic] = useState<AppealTopic | "">("");
@@ -124,7 +131,7 @@ export function TranslateView({
   // 번역한 리뷰는 서버가 읽어 준 목록(translated)이 기준이다. 지운 것만 화면에서 먼저 뺀다
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const rows = translated.filter((r) => !removed.has(r.id));
-  const [status, setStatus] = useState<TranslatedRow["status"] | "">("");
+  const [status, setStatus] = useState<RowKind | "">("");
   const [donePage, setDonePage] = useState(1);
   const right = usePicks();
   const [working, setWorking] = useState<{ done: number; total: number } | null>(null);
@@ -146,9 +153,12 @@ export function TranslateView({
   );
   const pickPaged = paginate(candidates, pickPage, PICK_PAGE);
 
-  const counts = { approved: 0, pending: 0, fix: 0 };
-  for (const r of rows) counts[r.status] += 1;
-  const shownRows = status ? rows.filter((r) => r.status === status) : rows;
+  const counts = { added: 0, ready: 0, fix: 0 };
+  for (const r of rows) counts[kindOf(r)] += 1;
+  const shownRows = status ? rows.filter((r) => kindOf(r) === status) : rows;
+  // 고른 번역 중 지금 시안에 담을 수 있는 것: 이미 담았거나 고쳐야 하는 것은 뺀다
+  const addable = rows.filter((r) => right.picked.has(r.id) && r.status === "ready" && !r.drafted);
+  const pickedFix = rows.filter((r) => right.picked.has(r.id) && r.status === "fix").length;
   const donePaged = paginate(shownRows, donePage, DONE_PAGE);
   const removePicked = async () => {
     const ids = [...right.picked];
@@ -210,17 +220,19 @@ export function TranslateView({
     run(t.id, "고쳐서 다시 번역하고 약기법 검토하는 중…", async () => {
       const res = await applySuggestion(t.id, finding, suggestionJa);
       if (!res.ok) return res;
-      return { ok: true, text: res.data.mustFix ? "대체 표현을 적용해 다시 검토했어요. 아직 고쳐야 할 표현이 남아 있어요." : "대체 표현을 적용했고 약기법 검토를 다시 마쳤어요. 팀장 승인을 기다려요." };
+      return { ok: true, text: res.data.mustFix ? "대체 표현을 적용해 다시 검토했어요. 아직 고쳐야 할 표현이 남아 있어요." : "대체 표현을 적용했고 약기법 검토를 다시 마쳤어요. 이제 시안에 담을 수 있어요." };
     });
-  const approve = (t: TranslatedRow) =>
-    run(t.id, "승인하는 중…", async () => {
-      const res = await approveTranslation(t.id);
-      return res.ok ? { ok: true, text: "승인했어요. 이제 콘텐츠 제작 가이드에서 인용할 수 있어요." } : res;
+  const addPicked = () =>
+    run("add", "시안에 담는 중…", async () => {
+      const res = await addToReviewDraft(product.id, { translationIds: addable.map((r) => r.id) });
+      if (!res.ok) return res;
+      right.clear();
+      return { ok: true, text: `${addable.length}건을 시안 v${res.data.versionNo}에 담았어요. 요약 탭에서 한 줄 결론을 쓰고 결재를 올려 주세요.` };
     });
-  const revoke = (t: TranslatedRow) =>
-    run(t.id, "승인을 취소하는 중…", async () => {
-      const res = await revokeApproval(t.id);
-      return res.ok ? { ok: true, text: "승인을 취소했어요. 다시 고칠 수 있어요." } : res;
+  const removeOne = (t: TranslatedRow) =>
+    run(t.id, "시안에서 빼는 중…", async () => {
+      const res = await removeFromReviewDraft(product.id, { translationId: t.id });
+      return res.ok ? { ok: true, text: `시안 v${res.data.versionNo}에서 뺐어요.` } : res;
     });
   const changeLeft = (fn: () => void) => {
     fn();
@@ -232,7 +244,7 @@ export function TranslateView({
       <header className="space-y-1">
         <BackTitle href={`/reviews/${product.id}`} title={`상세페이지용 리뷰 · ${product.name.replace(/^Leaf& Dew /, "")}`} />
         <p className="pl-8 text-sm text-muted-foreground">
-          국내 리뷰를 골라 일본어로 번역하면 약기법 검토가 자동으로 돌아가요. 팀장이 승인한 리뷰만 콘텐츠 제작 가이드에서 인용할 수 있어요.
+          국내 리뷰를 골라 일본어로 번역하면 약기법 검토가 자동으로 돌아가요. 고쳐서 시안에 담으면 팀장이 시안을 결재하고, 결재된 후기만 콘텐츠 제작 가이드에서 인용할 수 있어요.
         </p>
       </header>
 
@@ -331,15 +343,15 @@ export function TranslateView({
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="font-semibold">번역한 리뷰</h2>
             <span className="text-sm text-muted-foreground">
-              {rows.length}건 · 승인 {counts.approved} · 검토 대기 {counts.pending} · 고쳐야 함 {counts.fix}
+              {rows.length}건 · 시안에 담김 {counts.added} · 검토 통과 {counts.ready} · 고쳐야 함 {counts.fix}
             </span>
           </div>
           <div role="tablist" className="flex flex-wrap gap-1.5">
             {(
               [
                 ["", `전체 ${rows.length}`],
-                ["approved", `승인 ${counts.approved}`],
-                ["pending", `검토 대기 ${counts.pending}`],
+                ["added", `담김 ${counts.added}`],
+                ["ready", `검토 통과 ${counts.ready}`],
                 ["fix", `고쳐야 함 ${counts.fix}`],
               ] as const
             ).map(([key, label]) => (
@@ -361,16 +373,23 @@ export function TranslateView({
           <div className="flex flex-wrap items-center justify-between gap-2 border-y py-2">
             <PageToggle ids={donePaged.rows.map((r) => r.id)} picked={right.picked} setMany={right.setMany} count={right.picked.size} />
             <span className="flex gap-2">
+              {draft.canAdd && (
+                <button type="button" disabled={addable.length === 0 || working !== null || busy !== null} onClick={addPicked} className={buttonVariants({ size: "sm" })}>
+                  시안에 담기 {addable.length > 0 && `(${addable.length}건)`}
+                </button>
+              )}
               <button type="button" disabled={right.picked.size === 0 || working !== null} onClick={removePicked} className={buttonVariants({ variant: "outline", size: "sm" })}>
                 선택 삭제
               </button>
             </span>
           </div>
-          {counts.approved > 0 && (
+          {pickedFix > 0 && draft.canAdd && <p className="text-xs text-muted-foreground">고쳐야 함 {pickedFix}건은 담기에서 빠져요. 「이렇게 고치기」로 고친 뒤 담아 주세요.</p>}
+          {draft.reason && <p className="text-xs text-muted-foreground">{draft.reason}</p>}
+          {draft.count > 0 && (
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              승인된 후기 {counts.approved}건이 있어요. 약기법 검토와 팀장 승인을 거친 일본어 후기라 콘텐츠를 만들 때 그대로 인용할 수 있어요.
-              <Link href={`/ad-check/guide?product=${product.id}`} className="font-medium underline-offset-4 hover:underline">
-                콘텐츠 제작 가이드 열기 →
+              시안 v{draft.versionNo}에 일본어 후기 {draft.count}건이 담겨 있어요. 요약 탭에서 한 줄 결론을 쓰고 결재를 올리면 팀장이 한 번에 승인해요.
+              <Link href="/reviews/summary" className="font-medium underline-offset-4 hover:underline">
+                요약으로 가기 →
               </Link>
             </p>
           )}
@@ -396,7 +415,7 @@ export function TranslateView({
                       ) : (
                         <p className="text-xs text-muted-foreground">{t.note}</p>
                       ))}
-                    {t.status !== "approved" && t.fixes.length > 0 && (
+                    {t.status === "fix" && t.fixes.length > 0 && (
                       <ul className="mt-1.5 space-y-2 rounded-md border bg-muted/30 p-2.5">
                         {t.fixes.map((f) => (
                           <li key={f.text} className="space-y-1">
@@ -430,26 +449,15 @@ export function TranslateView({
                         {busy.label}
                       </p>
                     )}
-                    {t.status === "pending" && (
+                    {t.drafted && draft.canAdd && (
                       <p className="pt-0.5">
-                        {isOwner ? (
-                          <button type="button" disabled={busy !== null} onClick={() => approve(t)} className={buttonVariants({ size: "sm" })}>
-                            승인
-                          </button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">팀장이 승인해요</span>
-                        )}
-                      </p>
-                    )}
-                    {t.status === "approved" && isOwner && (
-                      <p className="pt-0.5">
-                        <button type="button" disabled={busy !== null} onClick={() => revoke(t)} className="text-xs text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50">
-                          승인 취소
+                        <button type="button" disabled={busy !== null} onClick={() => removeOne(t)} className="text-xs text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50">
+                          시안에서 빼기
                         </button>
                       </p>
                     )}
                   </div>
-                  <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${STATUS[t.status].className}`}>{STATUS[t.status].label}</span>
+                  <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${STATUS[kindOf(t)].className}`}>{STATUS[kindOf(t)].label}</span>
                 </li>
               );
             })}
@@ -457,7 +465,7 @@ export function TranslateView({
           </ul>
           <Pager page={donePaged.page} pageCount={donePaged.pageCount} onChange={setDonePage} summary={`${shownRows.length}건 중 ${donePaged.from}~${donePaged.to}`} />
           <p className="text-xs text-muted-foreground">
-            고쳐야 할 표현은 「이렇게 고치기」로 바로 바꿔요. 바꾸면 다시 번역하고 약기법 검토가 한 번 더 돌아가요. 승인은 팀장(owner)이 하고, 승인 전인 리뷰는 인용할 수 없어요. 승인은 광고 검토 이력에도 「내부 검토 완료」로 남아요. 선택 삭제를 해도 약기법 검토 기록은 광고 검토 이력에 남아요. 법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 해요.
+            고쳐야 할 표현은 「이렇게 고치기」로 바로 바꿔요. 바꾸면 다시 번역하고 약기법 검토가 한 번 더 돌아가요. 문구마다 승인하지 않고, 시안에 담은 후기를 팀장이 시안 단위로 결재해요. 선택 삭제를 해도 약기법 검토 기록은 광고 검토 이력에 남아요. 법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 해요.
           </p>
         </section>
       </div>
