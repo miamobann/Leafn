@@ -198,9 +198,12 @@ class Db:
         return bool(got)
 
     def fail_stale_runs(self, older_than: str) -> int:
-        """수집 중인데 older_than(ISO 시각)보다 오래 소식이 없는 요청을 실패로 바꾼다 (일꾼이 도중에 꺼진 경우)."""
+        """수집 중인데 older_than(ISO 시각)보다 오래 소식이 없는 요청을 실패로 바꾼다 (일꾼이 도중에 꺼진 경우).
+
+        소식 = updated_at: 수집기가 제품 하나를 마칠 때마다 진행 칸을 갱신하면 트리거가 updated_at도 고치므로, 오래 걸려도 진행 중이면 멈춘 것으로 보지 않는다.
+        """
         got = self._call(
-            "PATCH", "collection_runs", {**self._ws(), "status": "eq.running", "started_at": f"lt.{older_than}", "select": "id"},
+            "PATCH", "collection_runs", {**self._ws(), "status": "eq.running", "updated_at": f"lt.{older_than}", "select": "id"},
             {"status": "failed", "finished_at": now_iso(), "error": "수집기가 도중에 멈춘 것 같아요. 다시 불러와 주세요"}, prefer="return=representation",
         )
         return len(got or [])

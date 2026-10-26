@@ -30,6 +30,23 @@ def log(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def progress_reporter(db: Db, run_id: str, say: Callable[[str], None]) -> Callable[[int, int, str], None]:
+    """제품 하나를 마칠 때마다 진행(몇 개 중 몇 개)을 요청 행에 적는다. 적지 못해도 수집은 계속한다 (칸이 없는 옛 DB 등)."""
+    broken = False
+
+    def report(done: int, total: int, title: str) -> None:
+        nonlocal broken
+        if broken:
+            return
+        try:
+            db.update_run(run_id, progress_done=done, progress_total=total, progress_note=title[:80] or None)
+        except DbError as err:
+            broken = True
+            say(f"! 진행 표시를 쓰지 못해 건너뛰어요: {err}")
+
+    return report
+
+
 def process_run(db: Db, run: dict[str, Any], say: Callable[[str], None] = log) -> int:
     """수집 중(running)이 된 요청 한 건을 처리한다. 미리보기까지 잘 끝나면 0, 막히거나 실패하면 1.
 
@@ -43,7 +60,10 @@ def process_run(db: Db, run: dict[str, Any], say: Callable[[str], None] = log) -
             raise ValueError(f"아직 지원하지 않는 제품 종류예요: {run['category']} (지원: {', '.join(qoo10.CATEGORIES)})")
         known_ids, saved_products = db.history(run["platform_id"])
         say(f"이미 저장한 리뷰 {len(known_ids)}건 · 저장한 적 있는 제품 {len(saved_products)}개")
-        result = qoo10.collect(run["category"], run["top_n"], run["stars"], run["review_limit"], known_ids, saved_products, log=say)
+        result = qoo10.collect(
+            run["category"], run["top_n"], run["stars"], run["review_limit"], known_ids, saved_products, log=say,
+            on_progress=progress_reporter(db, run_id, say),
+        )
         summary = write_result(db, run_id, result)
     except Exception as err:
         db.update_run(run_id, status="failed", finished_at=now_iso(), error=str(err)[:300])

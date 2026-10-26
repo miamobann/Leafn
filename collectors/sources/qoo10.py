@@ -423,10 +423,12 @@ def collect(
     saved_products: set[str] | None = None,
     client: Client | None = None,
     log: Callable[[str], None] = lambda _msg: None,
+    on_progress: Callable[[int, int, str], None] = lambda _done, _total, _title: None,
 ) -> dict[str, Any]:
     """stars: 가져올 별점(예: [3] 또는 [1, 2, 3]). limit: 별점마다 새로 가져올 건수. 이미 가진 리뷰(known_ids)는 세지 않는다.
 
     saved_products: 이전에 리뷰를 저장한 적이 있는 제품 번호(gd_no). 저장 상태(save_state)를 정하는 데 쓴다.
+    on_progress(done, total, title): 순위를 가져온 직후 (0, 읽을 제품 수, "")로, 제품 하나를 마칠 때마다(실패해도) 한 번씩 부른다.
     """
     client = client or Client()
     known = set(known_ids or ())  # 호출한 쪽의 집합을 바꾸지 않는다
@@ -449,6 +451,8 @@ def collect(
         products, excluded = fetch_ranking(client, category, top_n)
         result["meta"]["skipped"] = len(excluded)
         result["excluded"] = excluded
+        total = len(products)
+        on_progress(0, total, "")
         for product in products:
             log(f"[{product['rank']}위] {product['gd_no']} {product['title'][:30]}")
             status: dict[str, Any] = {**product, "status": "failed", "error": None}
@@ -473,6 +477,7 @@ def collect(
                 status.update(error=str(err)[:200], collected=0)
                 log(f"  ! 실패: {err}")
             result["products"].append(status)
+            on_progress(len(result["products"]), total, product["title"])
     except BlockedError as err:
         result["meta"]["aborted"] = f"접근이 막혀 멈췄어요: {err}"
         log(f"! {result['meta']['aborted']}")

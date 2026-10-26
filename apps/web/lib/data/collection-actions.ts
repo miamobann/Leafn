@@ -5,7 +5,7 @@
 // 저장은 DB의 save_collection_run()이 한다 (미리보기 → products · reviews).
 import { z } from "zod";
 import { dispatchCollector } from "@/lib/external/github-actions";
-import { CollectionRunRow, StartCollectionInput } from "@/lib/schemas/collection";
+import { CollectionRunRow, STALE_RUNNING_MS, StartCollectionInput } from "@/lib/schemas/collection";
 import { createClient } from "@/lib/supabase/server";
 import { buildCollectionView, type CollectionView, getOpenCollection, RUN_COLUMNS } from "./collection";
 import { getMyWorkspace } from "./workspace";
@@ -122,8 +122,20 @@ export async function saveCollection(runId: string, keepIds: string[]): Promise<
 
 /** 저장하지 않고 닫기: 요청을 지운다 (제품별 결과와 임시 리뷰도 함께 지워진다) */
 export async function discardCollection(runId: string): Promise<ActionResult<null>> {
+  const id = z.string().min(1).parse(runId);
   const supabase = await createClient();
-  const { error } = await supabase.from("collection_runs").delete().eq("id", z.string().min(1).parse(runId)).in("status", ["queued", "ready", "failed"]);
+  // 수집 중(running)인 요청은 수집기가 꺼진 것이 확실할 때(오래 소식이 없을 때)만 지운다. 수집기가 읽는 동안 지우면 결과가 갈 곳이 없다
+  const cutoff = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
+  const { data, error } = await supabase
+    .from("collection_runs")
+    .delete()
+    .eq("id", id)
+    .or(`status.in.(queued,ready,failed),and(status.eq.running,updated_at.lt.${cutoff})`)
+    .select("id");
   if (error) return fail(`지우지 못했어요: ${error.message}`);
+  if (data.length === 0) {
+    const { data: still } = await supabase.from("collection_runs").select("status").eq("id", id).maybeSingle();
+    if (still?.status === "running") return fail("수집기가 아직 읽고 있어요. 소식이 10분 넘게 없으면 취소할 수 있어요.");
+  }
   return { ok: true, data: null };
 }

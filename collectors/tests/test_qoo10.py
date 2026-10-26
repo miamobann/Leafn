@@ -410,6 +410,17 @@ class CollectTest(unittest.TestCase):
         self.assertEqual([r["external_id"] for r in result["reviews"]], ["7"])
         self.assertEqual(result["reviews"][0]["product_gd_no"], "2")
 
+    def test_progress_is_reported_after_the_ranking_and_after_every_product(self):
+        client = FakeClient(
+            gets=[listing_html([("1", "A"), ("2", "B")]), summary_html(), summary_html()],
+            posts=[requests.ConnectionError("boom"), review_html([("7", 1)])],
+        )
+        seen = []
+        q.collect("toner", top_n=2, stars=[1], limit=10, client=client, on_progress=lambda d, t, title: seen.append((d, t, title)))
+        # 제품 하나가 실패해도 그 제품을 마친 것으로 센다
+        self.assertEqual([(d, t) for d, t, _ in seen], [(0, 2), (1, 2), (2, 2)])
+        self.assertEqual(seen[0][2], "")
+
     def test_blocked_stops_everything_and_keeps_partial_result(self):
         client = FakeClient(
             gets=[listing_html([("1", "A"), ("2", "B")]), summary_html(), summary_html()],
