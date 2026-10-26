@@ -23,7 +23,7 @@ import { MAX_COMPARE, OverviewPanel, type PanelContent } from "./side-panel";
 
 // 탭 순서 = 팀장이 읽는 순서 (요약 → 우리 제품 대응 → 플랫폼 분석 → 소비자 트렌드 → 경쟁제품). 2026-10-25 한 페이지 스크롤을 탭으로 나눴다
 const TABS = [
-  { id: "summary", label: "요약", title: "이번 주 핵심", question: "각 탭에서 바로 써먹을 결론과 할 일", help: "각 탭의 계산 결과로 만든 결론과 할 일이에요 (AI 없이 정해진 규칙). 할 일은 제안이고 최종 판단은 담당자가 해요. 카드의 ? 에 근거 숫자가 있어요." },
+  { id: "summary", label: "요약", title: "이번 주 핵심", question: "각 탭에서 바로 써먹을 결론과 할 일", help: "각 탭의 계산 결과로 만든 결론과 할 일이에요 (AI 없이 정해진 규칙). 할 일은 제안이고 최종 판단은 담당자가 해요." },
   { id: "action", label: "우리 제품 대응", title: "우리 제품 대응", question: "AI 검색이 경쟁 제품을 추천할 때 드는 이유 중 우리가 채울 것은?" },
   { id: "supply", label: "플랫폼 분석", title: "플랫폼 분석", question: "이 플랫폼 상위권에 들려면 무엇이 필요하고, 얼마에 팔리나?" },
   { id: "demand", label: "소비자 트렌드", title: "소비자 트렌드", question: "소비자는 지금 무엇을 기준으로 고르나?" },
