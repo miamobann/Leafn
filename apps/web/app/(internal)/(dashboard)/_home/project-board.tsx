@@ -3,10 +3,13 @@
 // 홈 프로젝트 진행 현황: 판매 중 제품 × 4개 탭(시장 분석·리뷰 분석·광고 검토·AI 분석) (서버 데이터 연동 작업 지침서 4번 A안, 2026-10-26).
 // 칸마다 시안 상태(벽돌)와 데이터 준비 숫자(벽돌 아래)를 보여 준다. 값은 lib/data/home.ts getHomeProgress()에서 오고,
 // 시안 상태는 /projects 진행 표와 같은 getProgressGrid()다. 상단 바에서 고른 프로젝트를 따른다.
+// 현황판에는 고른 2개만 보이고, 전체보기(오른쪽 패널)에서 판매 중 제품을 모두 보고 홈에 보일 2개를 고른다 (8단계 현황판의 기능을 되살림)
 // 벽돌 색은 홈 새 디자인 시안(대시보드 새 UI 목업)의 현황판 색을 그대로 쓴다
 import { ArrowUpRight, Check } from "lucide-react";
 import Link from "next/link";
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { z } from "zod";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { type ProjectWithProducts, useProjects } from "@/components/layout/project-store";
 import type { HomeProgress, HomeReadiness } from "@/lib/data/home";
 import type { ProgressCell } from "@/lib/data/submissions";
@@ -19,7 +22,15 @@ type GridRow = HomeProgress["grids"][string]["rows"][number];
 const TEXT = {
   title: "프로젝트 진행 현황",
   basis: "판매 중 제품 · 시안 상태와 데이터 준비",
-  all: "진행 표 전체 보기",
+  all: "전체보기",
+  sheetTitle: "판매 중 제품",
+  sheetCount: (n: number) => `${n}개`,
+  sheetDescription: "홈 현황판에는 '홈에 표시'를 켠 제품만 보여요. 칸을 누르면 그 시안이나 탭으로 가요.",
+  pin: "홈에 표시",
+  pinFull: "켜 둔 2개가 홈 현황판에 보여요. 다른 제품을 켜려면 하나를 먼저 꺼 주세요.",
+  pinOpen: (n: number) => `${n}개를 더 켤 수 있어요. 켜면 바로 홈 현황판에 보여요.`,
+  emptyRow: "전체보기에서 '홈에 표시'를 켜면 여기에 보여요",
+  grid: "진행 표 전체 보기 →",
   product: "제품",
   ai: "AI 분석",
   progress: "진행",
@@ -59,6 +70,28 @@ const LEGEND: { kind: BrickKind; label: string }[] = [
 ];
 
 const COLUMNS = [...SubmissionTab.options.map((tab) => SUBMISSION_TAB_LABELS[tab]), TEXT.ai];
+
+// 홈 현황판에 보일 제품 수와, 고른 것을 이 브라우저에 기억하는 키 (프로젝트 ID → 제품 ID 목록)
+const PICK_LIMIT = 2;
+const PICKS_KEY = "leafn.home.boardProducts";
+const SavedPicks = z.record(z.string(), z.array(z.string()));
+type Picks = z.infer<typeof SavedPicks>;
+
+function readSaved(key: string): unknown {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+function save(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // 기억하지 못해도 현황판은 그대로 동작한다 (새로고침하면 처음 2개로 돌아감)
+  }
+}
 const ROW = "grid grid-cols-[minmax(170px,1.6fr)_repeat(4,minmax(84px,1fr))_minmax(170px,1.4fr)] items-center gap-3";
 
 /** 시안이 없는 칸이 가는 곳: 그 탭에서 결과를 만든 뒤 시안으로 저장한다 (projects/progress-grid.tsx와 같은 규칙) */
@@ -89,6 +122,18 @@ function aiBrick(row: GridRow): Brick {
   return a.lead_checked_at
     ? { kind: "done", label: "팀장 확인", next: null, href: `/ai-analysis/${a.id}`, waitDays: null }
     : { kind: "doing", label: "팀장 확인 전", next: "팀장 확인 대기", href: `/ai-analysis/${a.id}`, waitDays: null };
+}
+
+function rowBricks(row: GridRow, waiting: Record<string, number>): Brick[] {
+  return [...SubmissionTab.options.map((tab) => tabBrick(row.cells[tab], tab, row.productId, waiting)), aiBrick(row)];
+}
+
+/** 진행 칸 아래 한 줄: 반려가 있으면 다시 올리기, 아니면 승인 안 된 첫 칸의 다음 일 */
+function nextStep(bricks: Brick[]): { text: string; stuck: boolean } {
+  const stuckAt = bricks.findIndex((b) => b.kind === "stuck");
+  if (stuckAt >= 0) return { text: `${COLUMNS[stuckAt]} ${TEXT.redo}`, stuck: true };
+  const nextAt = bricks.findIndex((b) => b.kind !== "done");
+  return { text: nextAt >= 0 ? `${TEXT.next} ${COLUMNS[nextAt]} ${bricks[nextAt].next ?? ""}` : TEXT.allDone, stuck: false };
 }
 
 const mmdd = (date: string) => date.slice(5);
@@ -145,6 +190,30 @@ export function ProjectBoard({
   const platform = current?.platform_id ? platformLabel(current.platform_id) : null;
   const scope = grid?.projectRow.market ? tabBrick(grid.projectRow.market, "market", null, waiting) : null;
 
+  // 처음엔 앞의 2개. 서버 화면과 어긋나지 않도록, 기억해 둔 선택은 화면이 뜬 뒤에 불러온다
+  const [picks, setPicks] = useState<Picks>({});
+  useEffect(() => {
+    const saved = SavedPicks.safeParse(readSaved(PICKS_KEY));
+    if (saved.success) setPicks(saved.data);
+  }, []);
+  const ids = rows.map((r) => r.productId);
+  // 판매를 멈춘 제품 ID는 버린다. 그래서 2개보다 적을 수 있다 (현황판이 빈 줄로 안내)
+  const picked = current && picks[current.id] ? ids.filter((id) => picks[current.id].includes(id)) : ids.slice(0, PICK_LIMIT);
+  const shown = rows.filter((r) => picked.includes(r.productId));
+  const emptyRows = Math.min(PICK_LIMIT, rows.length) - shown.length;
+  // 이미 2개를 켰으면 먼저 하나를 꺼야 켤 수 있다
+  const togglePick = (productId: string) => {
+    if (!current) return;
+    const nextPicked = picked.includes(productId)
+      ? picked.filter((id) => id !== productId)
+      : picked.length < PICK_LIMIT
+        ? ids.filter((id) => id === productId || picked.includes(id))
+        : picked;
+    const nextPicks = { ...picks, [current.id]: nextPicked };
+    setPicks(nextPicks);
+    save(PICKS_KEY, nextPicks);
+  };
+
   return (
     <section
       aria-labelledby="board-title"
@@ -166,13 +235,16 @@ export function ProjectBoard({
               </Link>
             </p>
           )}
-          <Link
-            href="/projects"
-            aria-label={TEXT.all}
-            className="inline-flex size-9 items-center justify-center rounded-full border border-border hover:bg-muted"
-          >
-            <ArrowUpRight aria-hidden className="size-4" />
-          </Link>
+          <ProductsSheet
+            rows={rows}
+            picked={picked}
+            onToggle={togglePick}
+            waiting={waiting}
+            subOf={(id) => {
+              const product = productOf.get(id);
+              return [product?.skin_line ? TEXT.line[product.skin_line] : null, product?.category, platform].filter(Boolean).join(" · ");
+            }}
+          />
         </div>
       </div>
 
@@ -197,12 +269,11 @@ export function ProjectBoard({
                 {TEXT.progress}
               </span>
             </div>
-            {rows.map((row) => {
-              const bricks = [...SubmissionTab.options.map((tab) => tabBrick(row.cells[tab], tab, row.productId, waiting)), aiBrick(row)];
+            {shown.map((row) => {
+              const bricks = rowBricks(row, waiting);
               const ready = readinessLines(readiness[row.productId]);
               const approved = bricks.filter((b) => b.kind === "done").length;
-              const stuckAt = bricks.findIndex((b) => b.kind === "stuck");
-              const nextAt = bricks.findIndex((b) => b.kind !== "done");
+              const step = nextStep(bricks);
               const product = productOf.get(row.productId);
               const sub = [product?.skin_line ? TEXT.line[product.skin_line] : null, product?.category, platform].filter(Boolean).join(" · ");
               return (
@@ -252,17 +323,17 @@ export function ProjectBoard({
                     <span className="block h-1.5 w-full max-w-[120px] overflow-hidden rounded-full bg-[#e6efe4]">
                       <span className="block h-full rounded-full bg-[#5e8f68]" style={{ width: `${(approved / bricks.length) * 100}%` }} />
                     </span>
-                    <span className={`max-w-full truncate text-xs ${stuckAt >= 0 ? "text-[#a65a3f]" : "text-muted-foreground"}`}>
-                      {stuckAt >= 0
-                        ? `${COLUMNS[stuckAt]} ${TEXT.redo}`
-                        : nextAt >= 0
-                          ? `${TEXT.next} ${COLUMNS[nextAt]} ${bricks[nextAt].next ?? ""}`
-                          : TEXT.allDone}
-                    </span>
+                    <span className={`max-w-full truncate text-xs ${step.stuck ? "text-[#a65a3f]" : "text-muted-foreground"}`}>{step.text}</span>
                   </span>
                 </div>
               );
             })}
+            {/* 현황판 높이가 늘 같도록, 2개보다 적게 골랐으면 빈 줄로 채운다 */}
+            {Array.from({ length: emptyRows }, (_, i) => (
+              <div key={i} role="row" className="flex min-h-[75px] items-center border-b border-[#e6efe4] text-xs text-muted-foreground">
+                <span role="cell">{TEXT.emptyRow}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -294,5 +365,106 @@ export function ProjectBoard({
         </ul>
       </div>
     </section>
+  );
+}
+
+/** 현황판 머리의 "전체보기": 오른쪽 패널에서 판매 중 제품을 모두 보고, 홈 현황판에 보일 2개를 켜고 끈다 */
+function ProductsSheet({
+  rows,
+  picked,
+  onToggle,
+  waiting,
+  subOf,
+}: {
+  rows: GridRow[];
+  picked: string[];
+  onToggle: (productId: string) => void;
+  waiting: Record<string, number>;
+  /** 제품 ID → "건성 라인 · 化粧水 · Qoo10" */
+  subOf: (productId: string) => string;
+}) {
+  const full = picked.length >= PICK_LIMIT;
+  return (
+    <Sheet>
+      <SheetTrigger
+        aria-label={TEXT.all}
+        title={TEXT.all}
+        className="inline-flex size-9 items-center justify-center rounded-full border border-border hover:bg-muted"
+      >
+        <ArrowUpRight aria-hidden className="size-4" />
+      </SheetTrigger>
+      <SheetContent className="gap-3 overflow-y-auto data-[side=right]:sm:max-w-[35rem]">
+        <SheetHeader className="pr-12 pb-0">
+          <SheetTitle className="flex items-baseline gap-2 text-lg font-semibold">
+            {TEXT.sheetTitle}
+            <span className="text-sm font-normal text-muted-foreground">{TEXT.sheetCount(rows.length)}</span>
+          </SheetTitle>
+          <SheetDescription>{TEXT.sheetDescription}</SheetDescription>
+        </SheetHeader>
+        <p aria-live="polite" className="mx-4 rounded-lg bg-muted px-2.5 py-2 text-xs text-muted-foreground">
+          {TEXT.pin}{" "}
+          <b className="font-semibold text-foreground">
+            {picked.length}/{PICK_LIMIT}
+          </b>{" "}
+          · {full ? TEXT.pinFull : TEXT.pinOpen(PICK_LIMIT - picked.length)}
+        </p>
+        <ul className="space-y-2 px-4">
+          {rows.map((row) => {
+            const on = picked.includes(row.productId);
+            const bricks = rowBricks(row, waiting);
+            const approved = bricks.filter((b) => b.kind === "done").length;
+            const step = nextStep(bricks);
+            const sub = subOf(row.productId);
+            return (
+              <li key={row.productId} className={`space-y-1.5 rounded-lg border px-3 py-2.5 ${on ? "border-foreground bg-muted/40" : ""}`}>
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 leading-snug">
+                    <span className="block truncate font-semibold">{row.productName}</span>
+                    {sub && <span className="block text-xs text-muted-foreground">{sub}</span>}
+                  </span>
+                  <span aria-hidden className="text-xs text-muted-foreground">
+                    {TEXT.pin}
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={on}
+                    aria-label={`${row.productName} ${TEXT.pin}`}
+                    disabled={!on && full}
+                    onClick={() => onToggle(row.productId)}
+                    // 꺼짐 색은 입력 칸 테두리와 같은 --input: 바탕 대비 3:1 이상이라 꺼진 스위치의 모양도 보인다
+                    className={`relative h-5 w-9 shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40 ${
+                      on ? "bg-primary" : "bg-input"
+                    }`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-background transition-transform ${on ? "translate-x-4" : ""}`} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {bricks.map((b, i) => (
+                    <Link
+                      key={COLUMNS[i]}
+                      href={b.href}
+                      aria-label={`${row.productName} ${COLUMNS[i]}: ${b.label}`}
+                      title={`${COLUMNS[i]}: ${b.label}`}
+                      className={`h-3 rounded-sm hover:opacity-80 ${BRICK[b.kind]}`}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs">
+                  <b className="font-semibold">
+                    {approved}/{bricks.length}
+                  </b>{" "}
+                  승인 · <span className={step.stuck ? "text-[#a65a3f]" : "text-muted-foreground"}>{step.text}</span>
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+        <Link href="/projects" className="mx-4 mb-4 text-sm font-medium underline-offset-4 hover:underline">
+          {TEXT.grid}
+        </Link>
+      </SheetContent>
+    </Sheet>
   );
 }
