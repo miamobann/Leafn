@@ -4,9 +4,11 @@
 // 맨 위에 결론(소구점 후보 → 고른 후보의 소구 정리)을 두고, 비교 대상 랭킹은 그 아래, 근거 리뷰는 누를 때만 오른쪽에 연다.
 // 리뷰끼리 맞대는 게 목적이 아니라 주제 단위로 비교하고, 리뷰는 AI 분류가 맞는지 확인하는 증거로만 보여준다
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Check, ChevronRight, Info } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { addToReviewDraft, removeFromReviewDraft } from "@/lib/data/submission-actions";
 import type { AppealComparisonView } from "@/lib/data/reviews";
 import { euroOf } from "@/lib/korean";
 import { titleParts } from "@/lib/product-title";
@@ -15,6 +17,8 @@ import { EvidencePanel, linkClass, paginate, Pager, ReviewCard, SegmentTabs } fr
 import { distribution, share } from "../_lib/topics";
 
 export type AppealComparison = AppealComparisonView;
+/** 제품별 리뷰 분석 시안 상태: 담을 수 있는가, 지금 담긴 소구점 */
+export type AppealDraft = { canAdd: boolean; reason: string | null; versionNo: number | null; topics: AppealTopic[] };
 type TopicRow = AppealComparison["topics"][number];
 
 const RANK_PAGE = 10;
@@ -42,11 +46,16 @@ export function AppealCompare({
   comparisons,
   initialOwnId,
   initialTopics,
+  drafts,
 }: {
   comparisons: AppealComparison[];
   initialOwnId?: string;
   initialTopics: AppealTopic[];
+  drafts: Record<string, AppealDraft>;
 }) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
   const start = comparisons.find((c) => c.own.id === initialOwnId) ?? comparisons[0];
   const candidatesOf = (c: AppealComparison | undefined) => c?.topics.filter((t) => t.isCandidate) ?? [];
   const firstPick = (c: AppealComparison | undefined, wanted: AppealTopic[]) => {
@@ -68,6 +77,29 @@ export function AppealCompare({
 
   const candidates = candidatesOf(data);
   const chosen = candidates.filter((t) => picked.has(t.topic));
+  const draft = drafts[data.own.id];
+  const drafted = new Set(draft?.topics ?? []);
+  const toAdd = chosen.filter((t) => !drafted.has(t.topic));
+  const addToDraft = async () => {
+    setSaving(true);
+    setNotice(null);
+    const res = await addToReviewDraft(data.own.id, { topics: toAdd.map((t) => t.topic) });
+    setSaving(false);
+    setNotice(
+      res.ok
+        ? { text: `소구점 ${toAdd.length}개를 시안 v${res.data.versionNo}에 담았어요. 요약 탭에서 한 줄 결론을 쓰고 결재를 올려 주세요.`, error: false }
+        : { text: res.message, error: true },
+    );
+    router.refresh();
+  };
+  const removeFromDraft = async (topic: AppealTopic) => {
+    setSaving(true);
+    setNotice(null);
+    const res = await removeFromReviewDraft(data.own.id, { topic });
+    setSaving(false);
+    setNotice(res.ok ? { text: `시안 v${res.data.versionNo}에서 ${APPEAL_TOPICS[topic].name}을(를) 뺐어요.`, error: false } : { text: res.message, error: true });
+    router.refresh();
+  };
   const focus = chosen[0] ?? candidates[0];
   const panelRow = panel && data.topics.find((t) => t.topic === panel.topic);
 
@@ -186,7 +218,10 @@ export function AppealCompare({
                       {on && <Check className="size-3" />}
                     </span>
                     <span className="space-y-1">
-                      <span className="block font-semibold">{APPEAL_TOPICS[t.topic].name}</span>
+                      <span className="block font-semibold">
+                        {APPEAL_TOPICS[t.topic].name}
+                        {drafted.has(t.topic) && <span className="ml-2 rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-normal text-emerald-900">시안 v{draft?.versionNo}에 담김</span>}
+                      </span>
                       <span className="block text-muted-foreground">
                         {negLabel(t)} 불만 {Math.round(t.complaintShare * 100)}% → {posLabel(t)} 칭찬 {Math.round(t.praiseShare * 100)}%
                       </span>
@@ -254,11 +289,43 @@ export function AppealCompare({
                   </div>
                 )}
                 <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
-                  <p className="text-xs text-muted-foreground">고른 소구점 {chosen.length}개를 콘텐츠 제작 가이드로 넘겨요</p>
+                  {draft?.reason && <p className="mr-auto text-xs text-muted-foreground">{draft.reason}</p>}
+                  {draft?.canAdd && (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        {toAdd.length > 0 ? `고른 소구점 ${toAdd.length}개를 이 제품의 시안에 담아요` : "고른 소구점은 모두 시안에 담겨 있어요"}
+                      </p>
+                      <button type="button" disabled={saving || toAdd.length === 0} onClick={addToDraft} className={buttonVariants({ size: "lg" })}>
+                        {saving ? "담는 중…" : "시안에 담기"}
+                      </button>
+                    </>
+                  )}
+                  {drafted.size > 0 && (
+                    <Link href="/reviews/summary" className={buttonVariants({ variant: "outline", size: "lg" })}>
+                      요약에서 결재 올리기 →
+                    </Link>
+                  )}
                   <Link href={`/ad-check/guide?product=${data.own.id}&topics=${chosen.map((t) => t.topic).join(",")}`} className={buttonVariants({ size: "lg" })}>
                     이 소구점으로 콘텐츠 만들기 →
                   </Link>
                 </div>
+                {notice && (
+                  <p role={notice.error ? "alert" : "status"} className={`text-right text-sm ${notice.error ? "text-destructive" : "text-muted-foreground"}`}>
+                    {notice.text}
+                  </p>
+                )}
+                {draft?.canAdd && chosen.some((t) => drafted.has(t.topic)) && (
+                  <p className="flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
+                    시안에서 빼기:
+                    {chosen
+                      .filter((t) => drafted.has(t.topic))
+                      .map((t) => (
+                        <button key={t.topic} type="button" disabled={saving} onClick={() => removeFromDraft(t.topic)} className="underline-offset-4 hover:underline disabled:opacity-50">
+                          {APPEAL_TOPICS[t.topic].name}
+                        </button>
+                      ))}
+                  </p>
+                )}
               </div>
             )}
           </section>

@@ -23,6 +23,10 @@ const TEXT = {
   factors: "재구매 요인",
   evidence: (n: number) => `근거 리뷰 ${n}건`,
   adItems: "담은 광고 문구",
+  appeals: (n: number) => `담은 소구점 ${n}개`,
+  quotes: (n: number) => `담은 일본어 후기 ${n}건`,
+  quotesHint: "약기법 검토를 통과한 문구 · 승인되면 콘텐츠 제작 가이드가 가져가요",
+  edited: "고침",
   expert: "전문가 확인 요청",
   finalText: "최종 문구",
   added: "새로 담음",
@@ -67,6 +71,9 @@ function BadShape() {
 
 function ReviewBodyView({ body, before }: { body: ReviewBody; before: ReviewBody | null }) {
   const topicBefore = new Map(before?.topics.map((t) => [t.topic, t]) ?? []);
+  // 앞 버전이 있으면 이번에 새로 담은 소구점 · 후기를 초록으로 표시한다
+  const beforeTopics = before ? new Set((before.appeals ?? []).map((a) => a.topic)) : null;
+  const beforeQuotes = before ? new Set((before.translations ?? []).map((t) => t.review_translation_id)) : null;
   return (
     <div className="space-y-4 text-sm">
       <p>
@@ -119,6 +126,49 @@ function ReviewBodyView({ body, before }: { body: ReviewBody; before: ReviewBody
       <div className="grid gap-4 sm:grid-cols-2">
         <ItemList title={TEXT.painPoints} items={body.pain_points} />
         <ItemList title={TEXT.factors} items={body.repurchase_factors} />
+      </div>
+      <div>
+        <h4 className="mb-1 font-medium">{TEXT.appeals(body.appeals?.length ?? 0)}</h4>
+        {(body.appeals ?? []).length === 0 ? (
+          <p className="text-muted-foreground">{TEXT.empty}</p>
+        ) : (
+          <ul className="space-y-1">
+            {(body.appeals ?? []).map((a) => (
+              <li key={a.topic} className={beforeTopics && !beforeTopics.has(a.topic) ? "rounded bg-emerald-50 px-2 py-1" : undefined}>
+                <b>{APPEAL_TOPICS[a.topic].name}</b>{" "}
+                <span className="text-muted-foreground">
+                  · 경쟁 불만 {a.competitor_complaints}건 → 우리 칭찬 {a.own_praises}건 · {TEXT.evidence(a.evidence_review_ids.length)}
+                </span>
+                {beforeTopics && !beforeTopics.has(a.topic) && <span className="ml-2 text-xs text-emerald-900">{TEXT.added}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div>
+        <h4 className="mb-1 font-medium">
+          {TEXT.quotes(body.translations?.length ?? 0)} <span className="font-normal text-muted-foreground">{TEXT.quotesHint}</span>
+        </h4>
+        {(body.translations ?? []).length === 0 ? (
+          <p className="text-muted-foreground">{TEXT.empty}</p>
+        ) : (
+          <ul className="space-y-2">
+            {(body.translations ?? []).map((t) => {
+              const isNew = beforeQuotes && !beforeQuotes.has(t.review_translation_id);
+              return (
+                <li key={t.review_translation_id} className={`rounded-md border px-3 py-2 ${isNew ? "bg-emerald-50" : ""}`}>
+                  <p lang="ja">
+                    {t.text_ja} {isNew && <span className="ml-1 text-xs text-emerald-900">{TEXT.added}</span>}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {t.text_ko}
+                    {t.edited && <span className="ml-1.5 rounded bg-stone-100 px-1.5 py-0.5 text-xs">{TEXT.edited}</span>}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
       <p>
         <Link href={`/reviews/${body.product_id}`} className="underline-offset-4 hover:underline">
