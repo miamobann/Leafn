@@ -1223,10 +1223,10 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                   걸린 문구 검토 →
                 </Link>
               ) : (
-                // 가이드 결재 올리기는 결재 쪽 연동을 기다린다 (버튼 자리만 둔다)
-                <Button type="button" size="sm" disabled title="가이드 결재 올리기는 결재 연동 뒤에 열려요">
-                  결재 올리기 (준비 중)
-                </Button>
+                // 결재는 콘텐츠 가이드 상세의 「시안 · 결재」 칸에서 올린다 (2026-10-27)
+                <Link href={`/ad-check/guide/history/${savedIds[current.id]}#submission`} className={buttonVariants({ size: "sm" })}>
+                  결재 올리기 →
+                </Link>
               )}
             </span>
           </div>

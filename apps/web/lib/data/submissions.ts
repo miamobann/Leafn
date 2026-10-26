@@ -5,11 +5,13 @@
 import { mock } from "@/lib/mock";
 import { AiAnalysis } from "@/lib/schemas/ai-analysis";
 import {
+  AdBody,
   MemberTab,
   SubmissionReview,
   SubmissionTab,
   SubmissionVersion,
   TabSubmission,
+  type VersionStatus,
 } from "@/lib/schemas/submission";
 import { dataContext, missingTableOnly, readRows } from "./db";
 import { getMembers, getProducts } from "./index";
@@ -63,6 +65,21 @@ export async function getSubmissionVersions(submissionId: string): Promise<Submi
   return (await getAllVersions())
     .filter((v) => v.submission_id === submissionId)
     .toSorted((a, b) => b.version_no - a.version_no);
+}
+
+/** 콘텐츠 가이드별 결재 상태 (광고 시안 중 가이드로 올린 버전, 가이드 id → 그 가이드의 가장 최근 버전 상태). 검토 기록 화면이 쓴다 */
+export async function getGuideApprovalStates(): Promise<Map<string, VersionStatus>> {
+  const adIds = new Set((await getSubmissions({ tab: "ad" })).map((s) => s.id));
+  const out = new Map<string, { at: string; status: VersionStatus }>();
+  for (const v of await getAllVersions()) {
+    if (!adIds.has(v.submission_id)) continue;
+    const guide = AdBody.safeParse(v.body);
+    if (!guide.success || !guide.data.guide) continue;
+    const id = guide.data.guide.guide_id;
+    const prev = out.get(id);
+    if (!prev || v.created_at > prev.at) out.set(id, { at: v.created_at, status: v.status });
+  }
+  return new Map([...out].map(([id, x]) => [id, x.status]));
 }
 
 /** 결재 기록. versionIds를 주면 그 버전들의 기록만, 최근 결재부터 */
@@ -122,10 +139,13 @@ export const STALE_REVIEW_DAYS = 2;
 
 /**
  * 시안 버전을 만든 원본 탭 화면 (#submission은 그 화면의 시안 패널).
- * 리뷰 = 그 제품의 리뷰 리포트, 광고 = 버전에 담긴 첫 검토 건, 시장 분석 = 시장 분석 요약 맨 아래 시안 패널
+ * 리뷰 = 그 제품의 리뷰 리포트, 광고 = 콘텐츠 가이드 상세(가이드로 올린 시안) 또는 버전에 담긴 첫 검토 건, 시장 분석 = 시장 분석 요약 맨 아래 시안 패널
  */
 export function sourceHref(submission: TabSubmission, version: SubmissionVersion): string {
   if (submission.tab === "review" && submission.product_id) return `/reviews/${submission.product_id}#submission`;
+  // 콘텐츠 가이드로 올린 광고 시안은 그 가이드 상세의 시안 패널로
+  const guide = submission.tab === "ad" ? AdBody.safeParse(version.body) : null;
+  if (guide?.success && guide.data.guide) return `/ad-check/guide/history/${guide.data.guide.guide_id}#submission`;
   const ad = submission.tab === "ad" ? version.evidence.find((e) => e.kind === "ad_check") : undefined;
   if (ad) return `/ad-check/${ad.id}#submission`;
   return "/market#summary";

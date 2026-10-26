@@ -3,7 +3,7 @@
 import { topicStats, verdictOf } from "@/app/(internal)/(dashboard)/reviews/_lib/topics";
 import { translationNeedsFix } from "@/lib/review-translation-state";
 import type { AppealTopic } from "@/lib/schemas/review";
-import { AdBody, type EvidenceRef, ReviewBody } from "@/lib/schemas/submission";
+import { AdBody, type AdBodyGuide, type EvidenceRef, ReviewBody } from "@/lib/schemas/submission";
 import { getAdChecks, getAppealComparison, getReviewTranslations } from "./index";
 import { getReviewsOf } from "./reviews";
 import { summarizeReviews } from "./row-adapters";
@@ -81,6 +81,12 @@ export async function buildAdSnapshot(productId: string, adCheckIds: string[]): 
     evidence: checks.map((c) => ({ kind: "ad_check", id: c.id })),
     data_as_of: latestOf(checks.map((c) => c.created_at)),
   };
+}
+
+/** 콘텐츠 가이드 시안: 가이드(제목 · 버전) + 그 가이드의 약기법 검토(자동 검사 · 반영한 문구 검토)를 근거로 담는다 */
+export async function buildGuideSnapshot(productId: string, guide: AdBodyGuide, adCheckIds: string[]): Promise<VersionSnapshot<AdBody>> {
+  const base = await buildAdSnapshot(productId, adCheckIds);
+  return { ...base, body: AdBody.parse({ ...base.body, guide }) };
 }
 
 type Appeal = NonNullable<ReviewBody["appeals"]>[number];

@@ -111,7 +111,21 @@ export const ReviewBody = z.object({
 export type ReviewBody = z.infer<typeof ReviewBody>;
 
 /** 광고 검토 시안은 기존 ad_checks를 묶는다. 승인 상태는 결재 때 ad_checks 쪽이 바뀌므로 여기 남기지 않는다 */
+/** 콘텐츠 가이드로 올린 광고 시안이면 그 가이드 (2026-10-27 TAB 3: 결재는 콘텐츠 가이드 단위). 문구 검토만 담은 예전 시안에는 없다 */
+export const AdBodyGuide = z.object({
+  /** 결재에 올린 가이드 버전 (content_guides.id) */
+  guide_id: Id,
+  /** 처음 만든 가이드 (수정본 묶음의 뿌리). 같은 콘텐츠의 버전끼리 묶을 때 쓴다 */
+  root_id: Id,
+  version_no: z.number().int().min(1),
+  channel: z.string(),
+  title_ko: z.string(),
+  title_ja: z.string(),
+});
+export type AdBodyGuide = z.infer<typeof AdBodyGuide>;
+
 export const AdBody = z.object({
+  guide: AdBodyGuide.optional(),
   items: z
     .array(
       z.object({

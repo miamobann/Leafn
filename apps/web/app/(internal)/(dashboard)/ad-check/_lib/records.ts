@@ -1,8 +1,9 @@
 // 「검토 기록」 탭 재료 (서버 전용, 2026-10-27 TAB 3 흐름 개편): 만든 콘텐츠가 위, 그 콘텐츠에서 나온 문구 검토는 그 아래에 묶는다.
 // 콘텐츠 가이드에서 오지 않은 검토는 「문구 검토」 줄로 같은 목록에 둔다. 리뷰 번역 검토는 리뷰 분석 탭(상세페이지용 리뷰)에서 다루므로 빼고 돌려준다.
-// 결재는 콘텐츠 가이드 단위로 올린다. 콘텐츠 가이드 결재가 연결되기 전까지는 예전 승인(검토 한 건의 결재 · 내부 검토 완료)을 세지 않고 모두 「결재 전」 (2026-10-27).
+// 결재는 콘텐츠 가이드 단위로 올린다 (광고 시안 body.guide). 상태는 최신 버전 가이드의 결재 상태로 정하고, 예전 승인(검토 한 건의 결재 · 내부 검토 완료)은 세지 않는다 (2026-10-27).
 import { getAdChecks, getContentGuideChecks, getContentGuides, getReviewTranslationCheckIds } from "@/lib/data";
 import { getAdProducts } from "@/lib/data/ad-products";
+import { getGuideApprovalStates } from "@/lib/data/submissions";
 import type { AdAction, AdCheck } from "@/lib/schemas/ad-check";
 import type { ContentGuideRow } from "@/lib/schemas/content-guide";
 import { makeFill } from "./guide-report";
@@ -14,11 +15,13 @@ export function worstAction(actions: AdAction[]): AdAction | null {
   return actions.reduce<AdAction | null>((worst, a) => (worst === null || ACTION_WEIGHT[a] > ACTION_WEIGHT[worst] ? a : worst), null);
 }
 
-export type ContentStatus = "needs_fix" | "before_approval" | "approved";
+export type ContentStatus = "needs_fix" | "before_approval" | "in_review" | "approved" | "rejected";
 export const CONTENT_STATUS: Record<ContentStatus, { label: string; tone: string; hint: string }> = {
   needs_fix: { label: "수정 필요", tone: "border-risk-high/40 text-risk-high", hint: "「고쳐야 함」이나 「전문가 확인」이 남았어요. 걸린 문구를 문구 검토로 고쳐 가이드에 반영해 주세요" },
-  before_approval: { label: "결재 전", tone: "text-muted-foreground", hint: "고칠 곳이 없어요. 콘텐츠 가이드를 결재에 올려요 (결재 연동 준비 중)" },
+  before_approval: { label: "결재 전", tone: "text-muted-foreground", hint: "고칠 곳이 없어요. 콘텐츠 가이드 상세에서 결재를 올려요" },
+  in_review: { label: "결재 대기", tone: "border-status-pending/50 text-status-pending", hint: "팀장 결재함에 올라가 있어요" },
   approved: { label: "결재 승인", tone: "border-risk-low/50 text-risk-low", hint: "팀장이 결재함에서 이 콘텐츠 가이드를 승인했어요 (법적 승인은 아니에요)" },
+  rejected: { label: "반려", tone: "border-risk-high/40 text-risk-high", hint: "팀장이 반려했어요. 콘텐츠 가이드 상세의 결재 칸에서 사유를 보고 고쳐 다시 올려요" },
 };
 
 export type PhraseCheck = { check: AdCheck; /** 이 검토로 콘텐츠를 고쳤는지 */ reflected: boolean };
@@ -39,12 +42,13 @@ export type ContentRecord = {
 export type PhraseRecord = { check: AdCheck };
 
 export async function loadRecords(): Promise<{ contents: ContentRecord[]; phrases: PhraseRecord[] }> {
-  const [guides, manual, autoChecks, reviewCheckIds, adProducts] = await Promise.all([
+  const [guides, manual, autoChecks, reviewCheckIds, adProducts, approvals] = await Promise.all([
     getContentGuides(),
     getAdChecks(),
     getAdChecks({ source: "content_guide" }),
     getReviewTranslationCheckIds(),
     getAdProducts(),
+    getGuideApprovalStates(),
   ]);
   const checksOf = await getContentGuideChecks(guides);
   const fillFor = (productId: string | null) => {
@@ -81,8 +85,18 @@ export async function loadRecords(): Promise<{ contents: ContentRecord[]; phrase
     const action = latest.parent_id
       ? worstAction((checksOf.get(latest.id) ?? []).map((c) => c.action))
       : (autoChecks.find((c) => c.id === latest.ad_check_id)?.overall_action ?? null);
-    // 「결재 승인」(approved)은 콘텐츠 가이드 결재가 결재함에 연결되면 그 결재 상태로 채운다. 그 전에는 예전 승인을 세지 않는다
-    const status: ContentStatus = action === "must_fix" || action === "expert" ? "needs_fix" : "before_approval";
+    // 고칠 곳이 남았으면 「수정 필요」. 아니면 최신 버전 가이드의 결재 상태 (올리지 않았거나 임시 · 제출 취소면 「결재 전」)
+    const approval = approvals.get(latest.id);
+    const status: ContentStatus =
+      action === "must_fix" || action === "expert"
+        ? "needs_fix"
+        : approval === "submitted"
+          ? "in_review"
+          : approval === "approved"
+            ? "approved"
+            : approval === "rejected"
+              ? "rejected"
+              : "before_approval";
     const fill = fillFor(latest.product_id) ?? ((t: string) => t);
     return {
       latest,
