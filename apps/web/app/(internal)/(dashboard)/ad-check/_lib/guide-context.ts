@@ -1,0 +1,61 @@
+// 콘텐츠 제작 가이드 화면 재료 (서버 전용): 제품 · 리뷰 소구점 · 검색어 · 메가와리 · PDF 작성자.
+// 제작 화면(guide/page.tsx)과 저장된 결과물 화면(guide/history/[guideId])이 같이 쓴다.
+import { pickMegaSale, pickReviewQuotes, safeComplaintLabel, safePraiseLabels } from "@/lib/ai/content-guide/materials";
+import { pickSearchWords, pickTrendIngredients } from "@/lib/ai/content-guide/market";
+import { getAppealComparison, getPromoEvents, getSearchSnapshots, getWorkspace } from "@/lib/data";
+import { getAdProducts } from "@/lib/data/ad-products";
+import { getToday } from "@/lib/data/launch";
+import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/data/workspace";
+import { APPEAL_TOPICS } from "@/lib/schemas/review";
+import type { GuideMaterials } from "../_components/content-guide";
+import { productKind, skinLineOf } from "./guide-report";
+
+/** PDF 머리글의 작성자: 로그인한 사람 이름 · 팀(워크스페이스 이름). 로그인 전에는 샘플 팀 이름만 */
+async function getReportAuthor() {
+  const user = await getCurrentUser();
+  const mine = user ? await getMyWorkspace() : null;
+  if (!user || !mine) return { name: "로그인 전", team: (await getWorkspace()).name };
+  const me = (await getMyWorkspaceMembers(mine.workspace.id)).find((m) => m.user_id === user.id);
+  return { name: me?.display_name ?? user.email ?? "이름 없음", team: mine.workspace.name };
+}
+
+export async function loadGuideContext() {
+  const products = (await getAdProducts()).filter((p) => p.price_jpy > 0 && p.volume !== "미등록" && p.line !== "미등록");
+  // 반영할 재료 (가짜 데이터, 읽기만): 리뷰 분석의 소구점 · 시장 분석의 검색어 순위
+  const [appeals, snapshots, author, events, today] = await Promise.all([
+    Promise.all(products.map((p) => getAppealComparison(p.id))),
+    getSearchSnapshots(),
+    getReportAuthor(),
+    getPromoEvents(),
+    getToday(),
+  ]);
+  // 키가 있으면 「제작하기」가 AI를 부른다. 키 값은 화면에 넘기지 않고 있는지만 넘긴다
+  const aiEnabled = Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
+  const megaSale = pickMegaSale(events, today);
+  const materials: GuideMaterials = Object.fromEntries(
+    products.map((p, i) => {
+      const appeal = appeals[i];
+      const topics = appeal?.topics ?? [];
+      // 약기법: 순함(저자극)은 빼고, 오래가는 보습(효과 지속)은 사용감 표현으로 바꿔 넘긴다 (materials.ts)
+      const praise = safePraiseLabels(
+        topics
+          .filter((t) => t.praises.length > 0)
+          .toSorted((a, b) => b.praiseShare - a.praiseShare)
+          .map((t) => ({ key: t.topic, ko: APPEAL_TOPICS[t.topic].positive.ko })),
+      );
+      const praised = praise.labels;
+      const complaints = topics
+        .filter((t) => t.complaints.length > 0)
+        .toSorted((a, b) => b.complaintShare - a.complaintShare)
+        .map((t) => safeComplaintLabel(t.topic, APPEAL_TOPICS[t.topic].negative.ko));
+      const candidates = safePraiseLabels(topics.filter((t) => t.isCandidate).map((t) => ({ key: t.topic, ko: APPEAL_TOPICS[t.topic].positive.ko }))).labels;
+      // 관심 성분: 시장 분석의 성분 검색 관심도 중 이 제품 전성분에 있는 것만 (약기법: 없는 성분은 쓰지 않는다)
+      const own = p.ingredients.map((i) => i.ja);
+      const ingredients = pickTrendIngredients(snapshots, productKind(p).ja, own);
+      // 검색어·요즘 뜨는 말: 피부 라인에 맞는 고민 자동완성에서 (약기법에 걸리는 말·우리 전성분에 없는 성분이 든 말은 뺀다)
+      const words = pickSearchWords(snapshots, skinLineOf(p), own);
+      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, droppedAppeals: praise.dropped, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), keywords: words.search, trending: words.trending, ingredients, megaSale }];
+    }),
+  );
+  return { products, materials, author, aiEnabled };
+}

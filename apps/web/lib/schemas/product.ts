@@ -3,6 +3,22 @@ import { PlatformId } from "../platforms";
 import { Id, Timestamp, WorkspaceRow } from "./common";
 import { SaleStatus, SkinLine } from "./project";
 
+/**
+ * AI가 긴 제품명(주로 Qoo10 일본어 제목)을 정리한 결과. 원문은 Product.name에 그대로 있다.
+ * 값은 모두 제목에 적힌 것만 쓰고, 제목에 없으면 null이다 (prompts/product-title.v1.md)
+ */
+export const ProductTitleAi = z.object({
+  brand_ko: z.string().nullable(),
+  name_short_ja: z.string(),
+  name_ko: z.string(),
+  volume: z.string().nullable(),
+  key_ingredient_ja: z.string().nullable(),
+  key_ingredient_ko: z.string().nullable(),
+  model: z.string(),
+  prompt_version: z.string(),
+});
+export type ProductTitleAi = z.infer<typeof ProductTitleAi>;
+
 export const Product = WorkspaceRow.extend({
   kind: z.enum(["own", "competitor"]),
   brand: z.string(),
@@ -23,6 +39,8 @@ export const Product = WorkspaceRow.extend({
   project_id: Id.nullable().default(null),
   sale_status: SaleStatus.nullable().default(null),
   skin_line: SkinLine.nullable().default(null),
+  // 정리 전이거나 모양이 틀리면 null → 화면은 원문 제품명을 보여 준다 (이 칸 때문에 제품 전체가 읽히지 않는 일이 없게 .catch)
+  title_ai: ProductTitleAi.nullable().catch(null),
 });
 export type Product = z.infer<typeof Product>;
 
@@ -42,6 +60,34 @@ export type ProductListing = z.infer<typeof ProductListing>;
 
 export function readListing(p: Pick<Product, "source_raw">): ProductListing | null {
   const parsed = ProductListing.safeParse(p.source_raw);
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * 자사 제품 규격 (source_raw.spec). 제품규격서에서 옮긴 값이고, 아직 화면 한두 곳에서만 쓰여 컬럼 대신 raw에 둔다 (DB_RULES 2.1).
+ * 가격·용량·全成分(일본어)·특징은 products의 칸에 있고, 여기는 그 밖의 값이다. 값은 lib/own-product-specs.ts
+ */
+const LineCopy = z.object({ main_ja: z.string(), sub_ja: z.string(), claim_ja: z.string() });
+export const OwnProductSpec = z.object({
+  source: z.string(),
+  name_ja: z.string(),
+  type_ja: z.string(),
+  type_ko: z.string(),
+  summary_ko: z.string(),
+  texture_ko: z.string(),
+  look_ko: z.string(),
+  feel_ja: z.string(),
+  feel_ko: z.string(),
+  main_actives: z.array(z.string()),
+  sub_actives: z.array(z.string()),
+  container_ko: z.string(),
+  ingredients_ko: z.array(z.string()),
+  line_copy: LineCopy,
+});
+export type OwnProductSpec = z.infer<typeof OwnProductSpec>;
+
+export function readOwnSpec(p: Pick<Product, "source_raw">): OwnProductSpec | null {
+  const parsed = OwnProductSpec.safeParse(p.source_raw?.spec);
   return parsed.success ? parsed.data : null;
 }
 

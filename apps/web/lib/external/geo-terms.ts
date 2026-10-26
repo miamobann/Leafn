@@ -97,8 +97,16 @@ export const KNOWN_BRANDS: Record<string, string[]> = {
   LANEIGE: ["LANEIGE", "ラネージュ", "라네즈"],
   MEDIHEAL: ["MEDIHEAL", "メディヒール", "메디힐"],
   "Beauty of Joseon": ["Beauty of Joseon", "朝鮮美女", "조선미녀"],
-  Isntree: ["Isntree", "イズントリー", "이즈앤트리"],
+  Isntree: ["Isntree", "イズントリー", "イズエンツリー", "이즈앤트리"],
   "ma:nyo": ["ma:nyo", "manyo", "魔女工場", "마녀공장"],
+  // Qoo10 化粧水 랭킹 실데이터에 나온 브랜드 (2026-10-24 팀원 수집 CSV)
+  // 표기는 CSV의 브랜드·샵명에 실제로 나온 것만 쓴다 (모르는 영문·한글 표기는 지어내지 않음)
+  "SKIN&LAB": ["SKIN&LAB", "スキンアンドラブ"],
+  Madeca21: ["Madeca21", "マデカ21"],
+  "p'ffeel": ["p'ffeel", "pffeel", "ピフィール"],
+  "OOTD BEAUTY": ["OOTD BEAUTY"],
+  "トゥヴェール": ["トゥヴェール"],
+  AESTURA: ["AESTURA"],
   BIODANCE: ["BIODANCE", "バイオダンス", "바이오던스"],
   "I'm From": ["I'm From", "アイムフロム", "아임프롬"],
   "肌ラボ": ["肌ラボ", "Hada Labo", "ハダラボ"],
@@ -142,21 +150,57 @@ export function keywordDictionaryFor(category: string | null) {
   return { ...DECISIVE_KEYWORDS, ...INGREDIENT_KEYWORDS, ...(category ? (CATEGORY_KEYWORDS[category] ?? {}) : {}) };
 }
 
-/** 인용 도메인의 종류 (타겟 매체 액션 문구에 쓴다) */
-export const DOMAIN_TYPES: { match: string; label: string; action: string }[] = [
-  { match: "cosme.net", label: "@cosme (리뷰·랭킹)", action: "@cosme 리뷰 수·랭킹 진입 확보" },
-  { match: "the360.life", label: "LDK the Beauty (비교 검증 매체)", action: "LDK 비교 테스트에 샘플 제공" },
-  { match: "prtimes.jp", label: "PR TIMES (보도자료)", action: "PR TIMES 보도자료 배포" },
-  { match: "maquia.hpplus.jp", label: "MAQUIA (뷰티 매체)", action: "뷰티 매체 기사·광고 노출" },
-  { match: "biteki.com", label: "美的.com (뷰티 매체)", action: "뷰티 매체 기사·광고 노출" },
-  { match: "ameblo.jp", label: "Ameba 블로그", action: "블로거 시딩" },
-  { match: "note.com", label: "note (블로그)", action: "블로거 시딩" },
-  { match: "rakuten.co.jp", label: "楽天市場 (상품 페이지)", action: "楽天 상세페이지 문구 보강" },
-  { match: "qoo10.jp", label: "Qoo10 (상품 페이지)", action: "Qoo10 상세페이지 문구 보강" },
+/**
+ * 인용 도메인의 종류. kind로 타겟 매체에서 뺄 곳(패션·라이프)을 가른다.
+ * 일본 소비자가 보는 곳만 적는다 (2026-10-25: ChatGPT가 일본어 질문에도 영어 패션지를 인용해 타겟 매체가 흐려졌다)
+ */
+export type DomainKind = "review" | "beauty" | "ec" | "blog" | "video" | "pr" | "fashion" | "other";
+export const DOMAIN_KIND_LABEL: Record<DomainKind, string> = {
+  review: "리뷰·랭킹",
+  beauty: "뷰티 매체",
+  ec: "쇼핑몰",
+  blog: "블로그",
+  video: "영상",
+  pr: "보도자료",
+  fashion: "패션·라이프 매체",
+  other: "기타",
+};
+export const DOMAIN_TYPES: { match: string; label: string; action: string; kind: DomainKind }[] = [
+  { match: "cosme.net", label: "@cosme (리뷰·랭킹)", action: "@cosme 리뷰 수·랭킹 진입 확보", kind: "review" },
+  { match: "lips.jp", label: "LIPS (리뷰 앱)", action: "LIPS 리뷰·체험단", kind: "review" },
+  { match: "hwahae.com", label: "화해 일본판 (리뷰)", action: "화해 리뷰 수·랭킹 확보", kind: "review" },
+  { match: "the360.life", label: "LDK the Beauty (비교 검증 매체)", action: "LDK 비교 테스트에 샘플 제공", kind: "beauty" },
+  { match: "maquia.hpplus.jp", label: "MAQUIA (뷰티 매체)", action: "뷰티 매체 기사·광고 노출", kind: "beauty" },
+  { match: "biteki.com", label: "美的.com (뷰티 매체)", action: "뷰티 매체 기사·광고 노출", kind: "beauty" },
+  { match: "i-voce.jp", label: "VOCE (뷰티 매체)", action: "뷰티 매체 기사·광고 노출", kind: "beauty" },
+  { match: "prtimes.jp", label: "PR TIMES (보도자료)", action: "PR TIMES 보도자료 배포", kind: "pr" },
+  { match: "ameblo.jp", label: "Ameba 블로그", action: "블로거 시딩", kind: "blog" },
+  { match: "note.com", label: "note (블로그)", action: "블로거 시딩", kind: "blog" },
+  { match: "rakuten.co.jp", label: "楽天市場 (상품 페이지)", action: "楽天 상세페이지 문구 보강", kind: "ec" },
+  { match: "qoo10.jp", label: "Qoo10 (상품 페이지)", action: "Qoo10 상세페이지 문구 보강", kind: "ec" },
+  { match: "amazon.co.jp", label: "Amazon (상품 페이지)", action: "Amazon 상세페이지 문구 보강", kind: "ec" },
+  { match: "youtube.com", label: "YouTube", action: "뷰티 유튜버 리뷰 협업", kind: "video" },
+  { match: "elle.com", label: "ELLE (패션지)", action: "패션지 뷰티 섹션 노출 검토", kind: "fashion" },
+  { match: "vogue.co.jp", label: "VOGUE JAPAN (패션지)", action: "패션지 뷰티 섹션 노출 검토", kind: "fashion" },
+  { match: "stylehaus.jp", label: "STYLE HAUS (패션·라이프)", action: "패션·라이프 매체 노출 검토", kind: "fashion" },
 ];
 
 export function domainType(domain: string) {
-  return DOMAIN_TYPES.find((d) => domain === d.match || domain.endsWith(`.${d.match}`)) ?? { match: domain, label: domain, action: "매체 노출 검토" };
+  return DOMAIN_TYPES.find((d) => domain === d.match || domain.endsWith(`.${d.match}`)) ?? { match: domain, label: domain, action: "매체 노출 검토", kind: "other" as const };
+}
+
+/**
+ * 일본 소비자가 읽는 일본어 페이지인지: 제목에 가나가 있거나, 주소가 .jp이거나 /jp/·/ja/ 경로.
+ * 한자만으로는 중국어와 구별이 안 돼 가나로 본다. 제목이 없는 인용은 주소로만 판단한다
+ */
+export function isJapanesePage(c: { url: string; domain: string; title: string | null }): boolean {
+  if (c.title && /[\u3040-\u30ff]/.test(c.title)) return true;
+  if (c.domain.endsWith(".jp")) return true;
+  try {
+    return /^\/(jp|ja|ja-jp)(\/|$)/i.test(new URL(c.url).pathname);
+  } catch {
+    return false;
+  }
 }
 
 export function domainOf(url: string): string {

@@ -2,18 +2,30 @@
 import type { Product } from "@/lib/schemas/product";
 import type { GeoSnap } from "@/lib/schemas/geo";
 import { fold } from "@/lib/ai/appeal-normalize";
-import { attributeKeyword, domainType, isIngredientKeyword, KEYWORD_DICTIONARY, sentenceHas, splitSentences } from "@/lib/external/geo-terms";
+import { attributeKeyword, domainType, isIngredientKeyword, isJapanesePage, KEYWORD_DICTIONARY, sentenceHas, splitSentences } from "@/lib/external/geo-terms";
 
 const pct = (n: number) => Math.round(n * 100);
 
-/** 인용 도메인 점유: 그 도메인을 인용한 답변 수와 전체 인용 중 비율 */
+/** 답변마다 일본어 페이지 인용의 도메인 (해외 영어 페이지는 일본 소비자가 보는 매체가 아니라 뺀다) */
+function japaneseDomains(r: GeoSnap): Set<string> {
+  return new Set(r.citations.filter(isJapanesePage).map((c) => c.domain));
+}
+
+/** 일본어가 아닌 페이지만 인용된 도메인 수 (화면 주석용) */
+function foreignDomainCount(snaps: GeoSnap[]): number {
+  const ja = new Set(snaps.flatMap((r) => [...japaneseDomains(r)]));
+  return new Set(snaps.flatMap((r) => r.citations.map((c) => c.domain)).filter((d) => !ja.has(d))).size;
+}
+
+/** 인용 도메인 점유: 그 도메인의 일본어 페이지를 인용한 답변 수와 비율. foreign = 뺀 해외 도메인 수 */
 export function citationShare(snaps: GeoSnap[]) {
-  const total = snaps.reduce((s, r) => s + new Set(r.citations.map((c) => c.domain)).size, 0);
+  const total = snaps.reduce((s, r) => s + japaneseDomains(r).size, 0);
   const counts = new Map<string, number>();
-  for (const r of snaps) for (const d of new Set(r.citations.map((c) => c.domain))) counts.set(d, (counts.get(d) ?? 0) + 1);
-  return [...counts]
+  for (const r of snaps) for (const d of japaneseDomains(r)) counts.set(d, (counts.get(d) ?? 0) + 1);
+  const rows = [...counts]
     .map(([domain, answers]) => ({ domain, label: domainType(domain).label, answers, share: total === 0 ? 0 : pct(answers / total) }))
     .toSorted((a, b) => b.answers - a.answers);
+  return { rows, foreign: foreignDomainCount(snaps) };
 }
 
 function keywordAliases(keyword: string, matched: string[]): string[] {
@@ -70,22 +82,29 @@ export function keywordGap(snaps: GeoSnap[], ownProducts: Product[], ownBrand: s
     });
 }
 
-/** 타겟 매체: 경쟁사는 나오고 자사는 안 나온 답변이 인용한 도메인 */
+/**
+ * 타겟 매체: 경쟁사는 나오고 자사는 안 나온 답변이 인용한 일본어 페이지의 도메인.
+ * 해외(일본어 아닌) 페이지와 패션·라이프 매체는 빼고, 뺀 것은 화면 주석에 남긴다 (2026-10-25)
+ */
 export function targetMedia(snaps: GeoSnap[], ownBrand: string, top = 5) {
   const counts = new Map<string, { gap: number; own: number }>();
   for (const s of snaps) {
     const hasOwn = s.brands_mentioned.includes(ownBrand);
     const hasComp = s.brands_mentioned.some((b) => b !== ownBrand);
-    for (const d of new Set(s.citations.map((c) => c.domain))) {
+    for (const d of japaneseDomains(s)) {
       const e = counts.get(d) ?? { gap: 0, own: 0 };
       if (hasOwn) e.own += 1;
       else if (hasComp) e.gap += 1;
       counts.set(d, e);
     }
   }
-  return [...counts]
+  const all = [...counts]
     .filter(([, e]) => e.gap > 0)
     .map(([domain, e]) => ({ domain, ...domainType(domain), gapAnswers: e.gap, ownAnswers: e.own }))
-    .toSorted((a, b) => b.gapAnswers - a.gapAnswers)
-    .slice(0, top);
+    .toSorted((a, b) => b.gapAnswers - a.gapAnswers);
+  return {
+    items: all.filter((m) => m.kind !== "fashion").slice(0, top),
+    fashion: all.filter((m) => m.kind === "fashion").map((m) => m.label),
+    foreign: foreignDomainCount(snaps),
+  };
 }

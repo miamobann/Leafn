@@ -13,12 +13,14 @@ const BANNED: { pattern: RegExp; reason: string }[] = [
 
 export type LintHit = { key: string; reason: string; text: string };
 
-/** 블록마다 모든 안을 검사한다 */
+const hits = (key: string, text: string): LintHit[] =>
+  BANNED.flatMap(({ pattern, reason }) => {
+    const m = text.match(pattern);
+    return m ? [{ key, reason, text: m[0] }] : [];
+  });
+
+/** 블록마다 모든 안을 검사한다. 해시태그도 광고 표시라 같이 검사한다 (키 「hashtags」) */
 export function lintBody(body: GuideBodyResult): LintHit[] {
-  return body.blocks.flatMap((b) =>
-    b.options.flatMap((o) => BANNED.flatMap(({ pattern, reason }) => {
-      const m = o.text_ja.match(pattern);
-      return m ? [{ key: b.key, reason, text: m[0] }] : [];
-    })),
-  );
+  const tags = [...body.hashtags.brand, ...body.hashtags.ingredient, ...body.hashtags.trend].join(" ");
+  return [...body.blocks.flatMap((b) => b.options.flatMap((o) => hits(b.key, o.text_ja))), ...(tags ? hits("hashtags", tags) : [])];
 }

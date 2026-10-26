@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ProductCategory } from "./ad-check";
+import { AiMeta, Id, WorkspaceRow } from "./common";
 
 // 콘텐츠 제작 가이드 AI의 입력·출력 모양 (prompts/content-guide-*.v1.md).
 // 출력은 OpenAI 구조화 출력으로 강제하므로 모든 칸을 필수로 두고, 비어 있을 수 있는 칸은 nullable 로 둔다 (optional·default 를 쓰지 않는다).
@@ -25,7 +26,8 @@ export const ContentGuideInput = z.object({
     line_products: z.array(z.string()),
   }),
   appeals: z.object({ praised: z.array(z.string()), competitor_complaints: z.array(z.string()), candidates: z.array(z.string()) }),
-  keywords: z.object({ search: z.array(z.string()), ingredients: z.array(z.string()) }),
+  // trending = 요즘 새로 뜬 검색어 (SNS만, 프롬프트 v3). 예전에 저장한 입력에는 없다
+  keywords: z.object({ search: z.array(z.string()), ingredients: z.array(z.string()), trending: z.array(z.string()).optional() }),
   /** 후기 블록에 쓸 실제 한국어 리뷰 원문 (리뷰 분석 데이터에서 고른 것). 없으면 빈 배열 → 후기를 지어내지 않는다 */
   review_quotes: z.array(z.string().min(1)).max(4),
   evidence: z.array(z.string()),
@@ -67,3 +69,18 @@ export const GuideBodyResult = z.object({
   gallery: z.array(z.object({ role: z.string(), image: z.string(), rules: z.array(z.string()) })),
 });
 export type GuideBodyResult = z.infer<typeof GuideBodyResult>;
+
+// ── DB 행 모양 (supabase/migrations/20261024130000_create_ad_checks.sql content_guides) ──
+export const ContentGuideRow = WorkspaceRow.merge(AiMeta).extend({
+  created_by: Id.nullable(),
+  product_id: Id.nullable(),
+  promo_event_id: Id.nullable(),
+  channel: ContentChannel,
+  post_type: ContentPostType,
+  input: ContentGuideInput,
+  title: GuideTitle,
+  body: GuideBodyResult,
+  lint_hits: z.array(z.object({ key: z.string(), reason: z.string(), text: z.string() })),
+  ad_check_id: Id.nullable(),
+});
+export type ContentGuideRow = z.infer<typeof ContentGuideRow>;

@@ -1,193 +1,151 @@
-# Leafn 통합 DB 프레임 (초안)
+# Leafn 현재 DB 지도
 
-> 상태: 논의용 초안 · 2026-10-22 · 팀 합의 전. 합의 전까지 테이블 정의는 [CLAUDE.md](../CLAUDE.md) 5장이 기준이고, 작업 규칙은 [DB_RULES.md](DB_RULES.md)를 따른다
-> 확정된 절: 2장 "진출 실행" (2026-10-23). 확정된 절은 이 문서가 기준이다
-> 근거: `apps/web/lib/schemas` (Zod 11개), `docs/prototype-plan.md` 8장(스키마 제안 18개)·11장, `docs/CODING_RULES.md` 7장
+> 상태: **현재 DB 기준** · 처음 초안 2026-10-22 · 2026-10-25에 실제 마이그레이션 17개 기준으로 다시 씀 (정리 전 초안: [archive/pre_db-frame.md](archive/pre_db-frame.md))
+> 기준의 우선순위: `supabase/migrations/`의 실제 파일 → 이 문서 → [CLAUDE.md](../CLAUDE.md) 5장(테이블 목록). 이 문서와 마이그레이션이 다르면 마이그레이션이 맞고 이 문서를 고친다.
+> 작업 절차는 [DB_RULES.md](DB_RULES.md), 화면별 연결 상태는 [DATA_CONNECTIONS.md](DATA_CONNECTIONS.md).
 
 ## 0. 이 문서의 범위
 
-지금 정하는 것은 **실제 데이터가 들어와도 바뀌지 않는 뼈대**다.
+지금 원격 DB(Supabase 프로젝트 `Leaf&`)에 있는 테이블과 핵심 칸, 관계, RLS 규칙을 한곳에 모은다. 칸 하나하나의 제약(check 값, 길이)은 마이그레이션 파일을 본다.
 
-- 정한다: 테이블 목록, PK·FK 관계, `workspace_id` 여부, RLS 패턴, 수집 데이터의 공통 칸, 테이블 이름 규칙
-- 미룬다: 화면별 세부 필드, 수집 API마다 다른 값. 이런 값은 `raw jsonb`에 그대로 담아 두고, 화면에서 자주 쓰게 되면 컬럼으로 꺼낸다 (새 마이그레이션 파일로)
-- `ad_checks`의 세부 필드는 TAB 3 담당자 안을 따른다. 프레임에는 FK 자리만 둔다
-
-프로토타입 동안 화면은 계속 `lib/data/` → `lib/mock/`을 쓴다. 나중에 `lib/data/` 함수의 내부만 Supabase 쿼리로 바꾸면 된다.
+- 모양이 일정하지 않은 값(수집 원본, AI 결과 목록)은 `jsonb` 칸 하나 + Zod로 모양을 고정한다. 화면에서 자주 쓰게 되면 새 마이그레이션으로 칸을 꺼낸다.
+- 화면은 `lib/data/` 함수만 부른다. Supabase 환경 변수가 없을 때만 `lib/mock/` 샘플을 쓴다.
 
 ## 1. 공통 규칙
 
 | 항목 | 규칙 |
 | --- | --- |
-| PK | 업무 테이블은 `id uuid default gen_random_uuid()`. 기준표 `platforms`만 slug(`text`) PK |
-| 공통 칸 | `id`, `created_at timestamptz default now()`. 수정되는 테이블은 `updated_at`도 둔다 |
-| 팀 데이터 | `workspace_id uuid not null references workspaces` + RLS `is_member(workspace_id)` |
-| 공용 데이터 | `workspace_id` 없음. 로그인한 사용자는 누구나 읽기 가능, 쓰기는 서버(service role)만 |
-| 수집 데이터 공통 칸 | `source`(수집 방법: `scraper` · `api` · `csv` · `manual`), `platform_id`(어느 플랫폼에서), `external_id`(플랫폼 쪽 ID), `raw jsonb`(원본), `collected_at` |
-| 중복 방지 | 수집 테이블은 `unique (workspace_id, platform_id, external_id)` 또는 공용이면 `unique (platform_id, external_id)` |
-| AI 결과 | `model`, `prompt_version` 필수 (CLAUDE.md 5장) |
-| 고정 값 목록 | Postgres enum 대신 `text` + `check (... in (...))`. 값을 바꿀 때 마이그레이션이 쉽다 |
+| PK | `id uuid default gen_random_uuid()` (`profiles.id`만 `auth.users.id`) |
+| 공통 칸 | `id`, `created_at timestamptz default now()`. 수정되는 테이블은 `updated_at` + `set_updated_at()` 트리거 |
+| 팀 데이터 | 모든 테이블에 `workspace_id uuid not null references workspaces on delete cascade` + RLS. 공용 테이블은 지금 없다 |
+| 같은 팀 FK | 다른 팀 행을 가리키지 못하게 `(x_id, workspace_id)` 복합 FK를 쓴다. 대상 테이블에 `unique (id, workspace_id)` |
+| 수집 데이터 | `platform_id`(또는 `reviews.source`), `external_id`, 원본 `raw`/`source_raw jsonb`, `collected_at` + 팀 단위 unique 키 |
+| 플랫폼 | `platform_id text` (FK 없음). slug는 코드 상수 `apps/web/lib/platforms.ts` (`qoo10`, `rakuten`). 데모는 `qoo10`만 |
+| AI 결과 | `model`, `prompt_version` 필수 |
+| 고정 값 목록 | Postgres enum 대신 `text` + `check (... in (...))` |
 | 이름 | 테이블은 복수형 snake_case, FK는 `<단수>_id` |
 
-## 2. 테이블 목록
+## 2. 테이블 (26개)
 
-### 기반
-
-| 테이블 | 범위 | 핵심 칸 | 비고 |
-| --- | --- | --- | --- |
-| `workspaces` | — | name, invite_code | |
-| `profiles` | 사용자 | `id = auth.users.id`, display_name, title | 8장 16번. Auth 메타데이터 대신 테이블로 (조인·표시가 쉬움) |
-| `workspace_members` | 팀 | workspace_id, user_id → profiles, role(`owner`·`member`) | `unique (workspace_id, user_id)` |
-| `activity_log` | 팀 | actor_id, action, target_type, target_id | target_id는 FK 없이 uuid (여러 테이블을 가리킴) |
-
-### 프로젝트 · 제품 (확정 · 2026-10-24 · 총괄)
-
-워크스페이스(팀) → 프로젝트(제품군, 예: Leaf& Dew) → 제품. 화면 헤더에서 프로젝트를 고르고, 그 안의 제품은 탭을 나누지 않고 한 화면에서 다룬다. 마이그레이션 `20261024104911_projects_products.sql`이 이 정의를 따른다.
-
-| 테이블 | 범위 | 핵심 칸 | 비고 |
-| --- | --- | --- | --- |
-| `projects` | 팀 | name, platform_id(FK 없음, 진출 실행 테이블과 같은 이유), description, created_by → profiles, updated_at | `unique (workspace_id, name)`, `unique (id, workspace_id)` (복합 FK 대상) |
-
-- **제품은 `products`에 칸을 더한다** (별도 테이블을 만들지 않음): `project_id`, `sale_status`(`on_sale`·`in_development`), `skin_line`(`dry`·`oily`·`combo`). `(project_id, workspace_id)` → projects 복합 FK, 프로젝트를 지우면 `project_id`만 null (`on delete set null (project_id)`). 한 프로젝트 안에서 제품 이름은 겹치지 않는다 (부분 unique 인덱스).
-- `products` 테이블 자체는 TAB 2 마이그레이션 `20261023202113_create_products_reviews.sql`(PR #48)이 만든다. 이 마이그레이션은 그 뒤에 칸만 더하므로 #48 다음에 적용한다.
-- `skin_line`은 제품이 겨냥하는 피부 라인이다. 설문의 `skin_type`(진단 결과, 5종)과는 다른 값이다.
-- 홈 진행 현황판의 가짜 데이터는 코드에서 `boardProjects`(현황판 한 줄 = 자사 제품 하나)로 이름을 바꿨다. DB 테이블은 대시보드 작업에서 제품 단위로 정한다.
-- 시작 데이터(Leaf& Dew 6종)는 `supabase/seeds/projects_leaf_dew.sql`. DB 관리자가 마이그레이션 적용 뒤 참여 코드를 넣어 실행한다.
-
-### 기준표 (공용)
+### 기반 (`20261022082907_base_workspaces.sql`)
 
 | 테이블 | 핵심 칸 | 비고 |
 | --- | --- | --- |
-| `platforms` | `id text` (qoo10, rakuten, amazon_jp, cosme, …), name_ja, name_ko, channel_type(`ec`·`review_sns`·`offline`), rating_scale | 처음엔 코드 상수와 같은 slug로 시드. 리뷰 평점 척도(8장 8번)도 여기에 |
+| `profiles` | id = auth.users.id, display_name, title | 가입하면 `handle_new_user()` 트리거가 만든다. 같은 팀원끼리만 읽는다 |
+| `workspaces` | name, invite_code (10자, 자동) | 만들기·참여는 `create_workspace()`, `join_workspace()` 함수로만 |
+| `workspace_members` | workspace_id, user_id → profiles, role (`owner` = 팀장 · `member`) | `unique (workspace_id, user_id)`. owner는 여러 명일 수 있다 |
 
-### TAB 2 리뷰 · 제품
+함수: `is_member(ws)`, `is_owner(ws)`, `shares_workspace(other)`, `set_updated_at()`, `set_updated_by()`.
 
-| 테이블 | 범위 | 핵심 칸 | 비고 |
-| --- | --- | --- | --- |
-| `products` | 팀 | kind(`own`·`competitor`), brand, name, category, platform_id → platforms, url, price_jpy, price_kind, volume_ml, ingredients `text[]`, features `text[]`, image_path, raw, **project_id**, **sale_status**, **skin_line** | ml당 가격은 저장하지 않음 (8장 11번). project_id · sale_status · skin_line은 2026-10-24 추가 (위 "프로젝트 · 제품") |
-| `reviews` | 팀 | product_id, **platform_id**, **source**, external_id, lang, rating, body, body_ko, reviewer_attrs `jsonb`, posted_at, raw, collected_at | 지금 Zod의 `source`(cosme·rakuten·…·csv)를 플랫폼과 수집 방법 둘로 나눈다 |
-| `review_analyses` | 팀 | **workspace_id**, review_id (unique), sentiment, keywords `jsonb` [{text, category}], pain_points, repurchase_factors, model, prompt_version | Zod에는 workspace_id가 없음 → 추가 (RLS를 단순하게) |
-| `review_insights` | 팀 | product_id, kind, label, label_ko, count, evidence_review_ids `uuid[]` | 분석을 다시 돌리면 다시 만들어지는 파생 데이터 |
-| `review_translations` | 팀 | **workspace_id**, review_id, text_ja, ad_check_id → ad_checks, status | workspace_id 추가 |
+### 프로젝트 · 제품 (`20261023202113_create_products_reviews.sql`, `20261024104911_projects_products.sql`)
 
-### TAB 3 광고 검토
+워크스페이스(팀) → 프로젝트(제품군, 예: Leaf& Dew) → 제품. 화면 헤더에서 프로젝트를 고르고, 그 안의 제품은 탭을 나누지 않고 한 화면에서 다룬다 (2026-10-24 총괄 결정).
 
-| 테이블 | 범위 | 핵심 칸 (프레임) | 비고 |
-| --- | --- | --- | --- |
-| `ad_checks` | 팀 | input_text, input_lang, findings `jsonb`, overall_risk, review_status, reviewer_id → profiles, reviewed_at, product_id → products, promo_event_id → promo_events, model, prompt_version | 나머지(final_text, usage, product_category, 번역·역번역 등)는 TAB 3 담당자 안 확정 후 추가 |
-
-**TAB 3 담당자 안 (2026-10-22, 팀 합의 전)** — 기존 칸은 바꾸지 않고 열만 추가한다. Zod는 `lib/schemas/ad-check.ts`에 `.nullable()`로 반영함.
-
-| 칸 | 타입 | 내용 |
+| 테이블 | 핵심 칸 | 비고 |
 | --- | --- | --- |
-| `overall_action` | text check (`must_fix`·`should_fix`·`expert`·`ok`) | 행동 기준 4단계 전체 판정. `overall_risk`는 그대로 둔다 |
-| `line_results` | `jsonb` [{line_index, original, action, ingredient_check, translated_text, back_translation_ko, localized_note}] | 여러 줄 입력의 줄별 판정 |
-| `is_expert_review_requested` | boolean | 전문가 확인 요청 여부. `review_status`(pending·approved·rejected)는 공용 값 그대로 두고, 화면에서 approved를 "내부 검토 완료"로 표시한다 |
-| `usage` 선택지 | text check | `notify_button`(알림받기 버튼) 추가 |
-| `findings[]` 안 | jsonb 항목 | `line_index`, `action`, `basis_status`(`confirmed`·`needs_check`), `suggestion_rechecks` [{text, text_ko, recheck(`pass`·`needs_rework`), recheck_reason}] 추가. `text`는 일본어 대체 표현, `text_ko`는 그 한국어 번역(2026-10-23 추가, 프롬프트 v5). 기존 `suggestions`(문자열 목록)는 유지 |
+| `projects` | name, platform_id, description, created_by → profiles, updated_at | `unique (workspace_id, name)` |
+| `products` | kind (`own` · `competitor`), brand, name, category, platform_id, external_id, url, price_jpy, price_kind (`regular` · `sale`), volume_ml, ingredients `text[]`, features `text[]`, image_path, source_raw `jsonb`, collected_at, **project_id**, **sale_status** (`on_sale` · `in_development`), **skin_line** (`dry` · `oily` · `combo`), **title_ai** `jsonb` | `unique (workspace_id, platform_id, external_id)`. 자사 제품은 project_id로 프로젝트에 속하고, 프로젝트를 지우면 project_id만 null. 한 프로젝트 안에서 제품 이름은 겹치지 않는다. 자사 규격(일본어명·제형·용기 등)은 `source_raw.spec`. `title_ai`는 경쟁 제품의 긴 제목을 AI가 정리한 결과 `{brand_ko, name_short_ja, name_ko, volume, key_ingredient_ja, key_ingredient_ko, model, prompt_version}`이고 null이면 정리 전(화면은 원문 `name`을 보여 준다). 수집 저장(`save_collection_run`)은 이 칸을 덮어쓰지 않는다 |
+| `product_competitors` | own_product_id → products, competitor_product_id → products | `unique (own_product_id, competitor_product_id)`. 수집 저장(`save_collection_run`)이 만든다 |
 
-판정 근거 자료: `knowledge/yakkiho/`. 마이그레이션 SQL은 프레임 합의 후 `..._ad_checks.sql`로 만든다.
+- `skin_line`은 제품이 겨냥하는 피부 라인이다. 설문의 `skin_type`(진단 결과, 5종)과는 다른 값이다.
+- 개발 중 제품(`sale_status = in_development`)은 진행 표·시안·AI 분석 대상이 아니다.
+- 시작 데이터: `supabase/seeds/projects_leaf_dew.sql`(프로젝트 1 + 자사 6종), `leaf_dew_product_specs.sql`(규격).
 
-### TAB 1 시장
+### 리뷰 · 수집 (`20261023202113`, `20261023202213`, `20261023211500`, `20261024010000`, `20261024020000`, `20261024030000`, `20261024040000`)
 
-| 테이블 | 범위 | 핵심 칸 | 비고 |
-| --- | --- | --- | --- |
-| `trend_snapshots` | **공용** | platform_id, category, captured_at, data `jsonb` {ranking[], ingredients[]} | 라쿠텐 랭킹은 공개 데이터라 팀마다 따로 모을 필요가 없음. 지금 Zod의 workspace_id는 빼는 쪽 |
-| `geo_snapshots` | 팀 | engine, query, answer, brands_mentioned `text[]`, captured_at, model | 자사 브랜드 질의라 팀 데이터 |
-
-### 진출 실행 (확정 · 2026-10-23 · 총괄)
-
-이 절의 테이블 3개는 확정이다. 마이그레이션 `..._launch.sql`은 이 정의를 그대로 따른다. 다른 절은 아직 초안이다.
-
-- **플랫폼 칸:** `platform_id text`로 두되, **지금은 FK를 걸지 않는다.** `platforms` 테이블과 slug 목록은 다른 탭의 DB가 나온 뒤 맞추기로 미뤘다 (2026-10-23 결정). 그때 새 마이그레이션에서 FK 제약만 추가한다 (칸 이름은 바뀌지 않는다).
-- **RLS:** 세 테이블 모두 기반 마이그레이션의 `is_member(workspace_id)`로 정책 4개 (4장 패턴).
-- **`prep_due_date`는 칸으로 두지 않는다.** 준비 마감은 모두 `promo_milestones`의 행이다. 화면의 "준비 마감"은 가장 이른 미완료 마감이다.
-
-**`platform_notes`** — 팀이 보는 플랫폼별 메모 (H)
-
-| 칸 | 타입 | 비고 |
+| 테이블 | 핵심 칸 | 비고 |
 | --- | --- | --- |
-| `id`, `created_at`, `updated_at` | 공통 | |
-| `workspace_id` | `uuid not null` → workspaces, `on delete cascade` | 인덱스 |
-| `platform_id` | `text not null` | FK는 나중에 (위 참고) |
-| `status` | `text` · check `reviewing`·`preparing`·`live` | null = 아직 안 봄 |
-| `strengths`, `audience` | `text` | 샘플 문구는 화면에서 "샘플" 표시 |
-| `fees_note` | `text` | 공식 자료 확인 전에는 null |
-| `fees_source_url`, `fees_checked_at` | `text`, `date` | 틀리면 해가 되는 수치라 출처와 확인일을 함께 둔다 |
-| `memo` | `text` | 팀 메모 |
-| `updated_by` | `uuid` → profiles, `on delete set null` | |
-| | `unique (workspace_id, platform_id)` | 워크스페이스마다 플랫폼 하나에 메모 하나 |
+| `reviews` | product_id → products, source (`cosme` · `rakuten` · `qoo10` · `oliveyoung` · `csv`), external_id, lang (`ko` · `ja`), rating, rating_scale, body, **body_ko** (일본어 리뷰의 한국어 번역), reviewer_attrs `jsonb`, posted_at, raw, collected_at, **excluded_reason** | `unique (workspace_id, source, external_id)`. excluded_reason이 있으면(배송·파손 등 제품 외 불만) 분석·집계에서 뺀다 |
+| `review_analyses` | review_id → reviews (unique), sentiment, keywords `jsonb` [{text, category}], pain_points, repurchase_factors, topics `jsonb`, model, prompt_version | 리뷰 한 건 = 분석 한 행 |
+| `collection_runs` | created_by, platform_id, category, own_product_id, top_n, **stars** `smallint[]`(가져올 별점), max_star, review_limit(별점마다), status (`queued` · `running` · `ready` · `saved` · `failed`), error, started_at·finished_at·saved_at, saved_count | 화면의 "경쟁 제품 불러오기" 요청. 수집기(`--worker`)가 집어 간다 |
+| `collection_run_products` | run_id → collection_runs, rank, external_id, brand, title, url, status, read_count, skipped_known, stop_reason, site_total_count, site_low_count, site_low_count_exact, star_counts `jsonb`, saved_count, product_id | 요청 하나의 랭킹 상품별 진행 |
+| `collection_staged_reviews` | run_product_id → collection_run_products, external_id, lang, rating, body, body_ko, raw, excluded_reason | 저장 전 임시 리뷰. `save_collection_run()`이 products·reviews·product_competitors로 옮긴다 |
+| `collection_run_skipped` | run_id, rank, external_id, title, reason (`set` · `multi_type` · `not_toner`) | 수집에서 뺀 랭킹 상품과 이유 |
 
-**`promo_events`** — 플랫폼 행사와 자사 캠페인 (I)
+`review_insights`는 테이블로 만들지 않았다. `review_analyses`에서 계산하고 근거 리뷰 ID를 함께 돌려준다 (`DATA_CONNECTIONS.md`).
 
-| 칸 | 타입 | 비고 |
+### 광고 검토 (`20261024130000_create_ad_checks.sql`, `20261024172221_harden_ad_review_writes.sql`)
+
+결정의 이유는 [tab3-db-plan.md](tab3-db-plan.md).
+
+| 테이블 | 핵심 칸 | 비고 |
 | --- | --- | --- |
-| `id`, `created_at`, `updated_at` | 공통 | |
-| `workspace_id` | `uuid not null` → workspaces, `on delete cascade` | 인덱스 `(workspace_id, start_date)` |
-| `platform_id` | `text` | 자사 캠페인이면 null 허용 |
-| `kind` | `text not null` · check `platform_event`·`own_campaign` | |
-| `title` | `text not null` | |
-| `start_date`, `end_date` | `date not null` · check `end_date >= start_date` | |
-| `is_confirmed` | `boolean not null default false` | false = 과거 패턴으로 넣은 예상 일정 |
-| `source_url` | `text` | 공식 공지 링크 |
-| `memo` | `text` | |
-| `created_by` | `uuid` → profiles, `on delete set null` | |
-| | `unique (id, workspace_id)` | `promo_milestones`가 같은 워크스페이스의 행사에만 붙도록 복합 FK의 대상 |
+| `ad_checks` | created_by (기본 auth.uid()), source (`manual` · `content_guide`), input_text, input_lang, usage, product_category, product_id, promo_event_id, overall_risk, overall_action (`must_fix` · `should_fix` · `expert` · `ok`), review_status (`pending` · `approved` · `rejected`), reviewer_id, reviewer_note, reviewed_at, final_text, is_expert_review_requested, model, prompt_version, deleted_at | 판정할 때 자동 저장. 새 행은 `pending`으로만 시작. 승인·반려(update)는 **owner만**. 삭제 = 숨김(`deleted_at`), delete 정책 없음 |
+| `ad_check_lines` | ad_check_id → ad_checks, line_index, block_key, original, action, findings `jsonb`, ingredient_check, translated_text, back_translation_ko, localized_note | 검토 한 건의 줄별 판정. update는 owner만, delete 정책 없음 |
+| `content_guides` | created_by, product_id, promo_event_id, channel (`qoo10_detail` · `instagram` · `x` · `banner`), post_type (`general` · `mega_sale` · `season`), input·title·body·lint_hits `jsonb`, ad_check_id, model, prompt_version | 콘텐츠 제작 가이드 결과물. 작성자 = 로그인 사용자로 강제. update·delete는 owner만 |
 
-**`promo_milestones`** — 행사 하나의 준비 마감들 (참가 신청, 할인 설정, 입고, 문구 승인 등)
+| `review_translations` | created_by (기본 auth.uid()), review_id → reviews (unique), ad_check_id → ad_checks, text_ja, status (`draft` · `approved`), updated_at | 국내 리뷰 한 건의 일본어 번역(상세페이지용, F). 번역은 광고 검토 AI가 낸 `ad_check_lines.translated_text`이고, 번역 한 건마다 `ad_checks` 한 건(source `manual`, usage `detail_page`)이 함께 생긴다. 승인 상태는 그 검토의 `review_status`가 기준(owner가 광고 검토 화면에서 변경). 멤버가 읽기·쓰기·삭제. 리뷰를 지우면 번역도 함께 지워지고, 검토를 지우면 `ad_check_id`만 null |
 
-| 칸 | 타입 | 비고 |
+제품·행사·검토를 가리키는 칸은 참고 링크라서, 그쪽이 지워지면 그 칸만 null이 된다 (`on delete set null (칸)`).
+
+### 시장 (`20261023030834`, `20261023030835`, `20261023050041`, `20261023064526`)
+
+| 테이블 | 핵심 칸 | 비고 |
 | --- | --- | --- |
-| `id`, `created_at`, `updated_at` | 공통 | |
-| `workspace_id` | `uuid not null` → workspaces, `on delete cascade` | RLS를 단순하게. 인덱스 `(workspace_id, due_date)` |
-| `promo_event_id` | `uuid not null` | 인덱스. FK는 아래 복합 키로 건다 |
-| `label` | `text not null` | |
-| `due_date` | `date not null` | |
-| `done_at` | `timestamptz` | null = 미완료. 완료 시각도 남는다 |
-| | `foreign key (promo_event_id, workspace_id) references promo_events (id, workspace_id) on delete cascade` | 두 팀에 속한 사람이 다른 팀 행사에 마감을 붙이지 못하게 한다 (RLS는 `workspace_id`만 본다) |
+| `trend_snapshots` | source (`rakuten_ranking` · `qoo10_ranking`), category, captured_at, data `jsonb` | 팀 데이터 (초안의 "공용" 안은 쓰지 않았다). 데모는 `qoo10_ranking` |
+| `search_snapshots` | engine (`google_autocomplete` · `google_trends`), seed, gl, hl, captured_at, suggestions `jsonb` [{value, position, relevance}] | SerpApi 결과 |
+| `geo_snapshots` | engine (`chatgpt` · `claude` · `gemini` · `perplexity`), model, prompt_version, category, query, query_concern, run_index, answer, brands_mentioned `text[]`, brand_mentions·citations·keywords `jsonb`, captured_at | AI 검색 응답 측정 |
 
-**다른 탭과의 연결 (이 절에서 만들지 않음)**
-- `ad_checks.promo_event_id` → promo_events (`on delete set null`): TAB 3 담당자 테이블. 담당자 안이 확정되면 그쪽 마이그레이션에서 추가한다.
+### 캘린더 (`20261023030000_launch.sql`, 2026-10-23 확정)
 
-### 소비자 설문
+"진출 실행" 탭은 2026-10-24에 없앴고, 캘린더는 홈으로 옮겼다. 테이블은 그대로 쓴다.
 
-| 테이블 | 범위 | 핵심 칸 | 비고 |
-| --- | --- | --- | --- |
-| `surveys` | 팀 | public_slug (unique), title_ja, questions `jsonb`, is_open | 새로 추가. 공개 링크 → 어느 팀 설문인지 찾는 용도 |
-| `survey_responses` | 팀 | survey_id, answers `jsonb`, skin_type, consent_at, locale | 공개 페이지에서 익명 insert만 허용 |
+| 테이블 | 핵심 칸 | 비고 |
+| --- | --- | --- |
+| `promo_events` | platform_id (자사 캠페인이면 null), kind (`platform_event` · `own_campaign`), title, start_date, end_date, is_confirmed, source_url, memo, created_by | `unique (id, workspace_id)`. is_confirmed = false는 과거 패턴으로 넣은 예상 일정 |
+| `promo_milestones` | promo_event_id, label, due_date, done_at | 행사 하나의 준비 마감들. `(promo_event_id, workspace_id)` 복합 FK. 화면의 "준비 마감"은 가장 이른 미완료 마감이다 (칸 `prep_due_date`는 두지 않음) |
+| `platform_notes` | platform_id, status (`reviewing` · `preparing` · `live`), strengths, audience, fees_note, fees_source_url, fees_checked_at, memo, updated_by | `unique (workspace_id, platform_id)`. **화면 없음** (플랫폼별 강점 화면 제거). 확장용으로 남긴다 |
 
-## 3. 관계 요약
+캘린더의 추가·마감 변경은 아직 DB에 저장하지 않는다 (`lib/data/launch-actions.ts`).
+
+### 소비자 설문 (`20261023030815_survey.sql`)
+
+| 테이블 | 핵심 칸 | 비고 |
+| --- | --- | --- |
+| `surveys` | public_slug (unique), title_ja, questions `jsonb`, is_open | 공개 링크 → 어느 팀 설문인지 찾는 용도. 열린 설문은 누구나 읽는다 |
+| `survey_responses` | survey_id, answers `jsonb`, age_group, skin_type (`dry` · `oily` · `combo` · `inner_dry` · `normal`), is_sensitive, score_* 4개, concerns, concern_other(기타 직접 입력), concern_other_ko(그 한국어 번역, null = 번역 전), source(유입 경로), consent_at, consent_version, locale | anon은 열린 설문에 insert만. 18세 이상·동의한 응답만 |
+| `survey_minor_counts` | survey_id, count_date, count | 18세 미만은 답을 저장하지 않고 날짜별 수만 센다 (`record_survey_minor()`) |
+| `survey_reco_events` | survey_id, product_line, event (`shown` · `buy_click` · `notify_open`), skin_type, source(유입 경로, null = 없음) | 추천 노출·구매 클릭·출시 예정 화면 열기 횟수. `notify_open`은 알림 신청이나 고유 인원 수가 아니다. anon insert만 |
+
+공개 설문 제출은 아직 보내지 않는다 (`app/(public)/survey/_lib/submit.ts`). 집계 화면은 DB를 읽는다.
+
+## 3. 아직 없는 테이블
+
+| 테이블 | 상태 |
+| --- | --- |
+| `member_tabs`, `tab_submissions`, `submission_versions`, `submission_reviews`, `ai_analyses` | 탭별 시안·팀장 결재·AI 분석. **설계 확정, 미구현** ([team-approval-ai-analysis.md](team-approval-ai-analysis.md) 5장). 1단계 PR에서 만들고 이 문서에 옮긴다 |
+| `platforms` | slug 기준표. 만들면 `platform_id` 칸들에 FK를 새 마이그레이션으로 추가한다 (칸 이름은 그대로) |
+| `activity_log` | 홈 활동 기록. 지금은 실제 모드에서 표시하지 않는다 |
+| `review_insights` | 만들지 않기로 함 (계산값) |
+
+## 4. 관계 요약
 
 ```
 workspaces ─┬─ workspace_members ── profiles (= auth.users)
-            ├─ projects ── products (project_id)
-            ├─ products ──┬─ reviews ──┬─ review_analyses
-            │             │            └─ review_translations ── ad_checks
-            │             ├─ review_insights
-            │             └─ ad_checks ── promo_events ── promo_milestones
+            ├─ projects ── products (project_id, 자사)
+            ├─ products ──┬─ product_competitors (자사 ↔ 경쟁)
+            │             ├─ reviews ── review_analyses
+            │             ├─ ad_checks ── ad_check_lines
+            │             └─ content_guides
+            ├─ collection_runs ──┬─ collection_run_products ── collection_staged_reviews
+            │                    └─ collection_run_skipped
+            ├─ promo_events ──┬─ promo_milestones
+            │                 └─ ad_checks · content_guides (promo_event_id)
             ├─ platform_notes
-            ├─ geo_snapshots
-            ├─ surveys ── survey_responses
-            └─ activity_log
+            ├─ trend_snapshots · search_snapshots · geo_snapshots
+            └─ surveys ──┬─ survey_responses
+                         ├─ survey_minor_counts
+                         └─ survey_reco_events
 
-platforms (공용) ← products, reviews, platform_notes, promo_events, trend_snapshots
-trend_snapshots (공용)
+(다음) projects/products ── tab_submissions ── submission_versions ── submission_reviews
+                              └── ai_analyses (input_version_ids)
 ```
 
-## 4. RLS 패턴
+## 5. RLS 패턴
 
-모든 팀 테이블에 같은 정책 4개를 건다. 6명 팀 기준으로 처음에는 역할 구분 없이 "멤버면 읽기·쓰기"로 시작하고, 필요해지면 좁힌다.
+기본: 팀 테이블마다 정책 4개를 `is_member(workspace_id)`로 건다.
 
 ```sql
--- 한 번만
-create function public.is_member(ws uuid) returns boolean
-language sql security definer stable set search_path = public as $$
-  select exists (
-    select 1 from workspace_members
-    where workspace_id = ws and user_id = auth.uid()
-  );
-$$;
-
--- 팀 테이블마다 (예: products)
 alter table products enable row level security;
 create policy "members read"   on products for select using (is_member(workspace_id));
 create policy "members insert" on products for insert with check (is_member(workspace_id));
@@ -195,43 +153,49 @@ create policy "members update" on products for update using (is_member(workspace
 create policy "members delete" on products for delete using (is_member(workspace_id));
 ```
 
-예외:
+예외 (지금 DB에 있는 것):
 
-- `workspace_members`: 읽기는 멤버, 추가·삭제는 `owner`만
-- `platforms`, `trend_snapshots`: `select`는 `auth.role() = 'authenticated'`, 쓰기 정책 없음 (수집기가 service role로 씀)
-- `survey_responses`: anon에게 `insert`만, 대상 설문이 `is_open`일 때. 읽기는 멤버
-- 수집기(GitHub Actions의 Python)는 service role 키로 RLS를 우회해 쓴다. 대신 `workspace_id`를 코드에서 꼭 넣는다
+- `workspaces`: 읽기는 멤버, 수정·삭제는 owner. 만들기·참여는 함수로만
+- `workspace_members`: 읽기는 멤버, 수정은 owner, 삭제는 owner 또는 본인
+- `profiles`: 본인과 같은 팀원만 읽기, 수정은 본인
+- `ad_checks`·`ad_check_lines`: update는 `is_owner`, delete 정책 없음. 새 검토는 `pending`으로만 insert (restrictive 정책)
+- `content_guides`: update·delete는 `is_owner`, 작성자 = 로그인 사용자 (restrictive 정책)
+- `surveys`: 열린 설문은 누구나 읽기. `survey_responses`·`survey_reco_events`는 anon insert(열린 설문일 때)만, 읽기는 멤버
+- 수집기(Python)는 service role 키로 RLS를 우회해 쓴다. 대신 `workspace_id`를 코드에서 꼭 넣는다
 
-## 5. 마이그레이션 파일 나누기 (제안)
+(다음) 결재 공통 층은 `has_tab(ws, tab)`(담당 탭인지, owner는 항상 true)을 더한다.
 
-CODING_RULES 7장에 따라 새 파일로만 추가한다. 실제 파일은 `npx supabase migration new <이름>`으로 만들고, 아래 `...`에는 CLI가 붙이는 14자리 시각이 들어간다.
+## 6. 마이그레이션 파일 (적용 순서)
 
-1. `..._base.sql`: workspaces, profiles, workspace_members, `is_member()`, activity_log
-2. `..._platforms.sql`: platforms + 시드 (slug 목록)
-3. `..._reviews.sql`: products, reviews, review_analyses, review_insights
-4. `..._ad_checks.sql`: ad_checks, review_translations (TAB 3 안 확정 후)
-5. `..._market.sql`: trend_snapshots, geo_snapshots
-6. `..._launch.sql`: platform_notes, promo_events, promo_milestones
-7. `..._survey.sql`: surveys, survey_responses
-
-각 파일에 해당 테이블의 RLS 정책을 함께 넣는다.
-
-## 6. Zod 스키마와 달라지는 점 (프레임 확정 시 함께 고칠 것)
-
-| Zod | 프레임 |
+| 파일 | 내용 |
 | --- | --- |
-| `Product.platform: string` | `platform_id` (platforms FK) |
-| `Review.source` = cosme·rakuten·qoo10·oliveyoung·csv | `platform_id` + `source`(scraper·api·csv·manual)로 분리 |
-| `ReviewAnalysis`, `ReviewTranslation`에 workspace_id 없음 | workspace_id 추가 |
-| `TrendSnapshot`에 workspace_id 있음 | 공용으로 빼고 `source` → `platform_id` |
-| `PromoEvent.prep_due_date`, `milestones[]` | `promo_milestones` 테이블 (확정) |
-| `WorkspaceMember.display_name`, `title` | `profiles`로 이동 |
-| 설문 문항이 mock에만 있음 | `surveys.questions` |
-| ID가 문자열 (`p-own-1` 등) | uuid. mock은 그대로 둬도 됨 (Zod `Id`가 문자열이라 통과) |
+| `20261022082907_base_workspaces.sql` | profiles, workspaces, workspace_members, 함수들 |
+| `20261023030000_launch.sql` | platform_notes, promo_events, promo_milestones |
+| `20261023030815_survey.sql` | surveys, survey_responses, survey_minor_counts, survey_reco_events |
+| `20261023030834_create_trend_snapshots.sql` | trend_snapshots |
+| `20261023030835_create_search_snapshots.sql` | search_snapshots |
+| `20261023050041_create_geo_snapshots.sql` | geo_snapshots |
+| `20261023064526_search_snapshots_add_google_trends.sql` | search_snapshots.engine에 google_trends 추가 |
+| `20261023202113_create_products_reviews.sql` | products, product_competitors, reviews |
+| `20261023202213_create_review_analyses.sql` | review_analyses |
+| `20261023211500_create_collection_runs.sql` | collection_runs, collection_run_products, collection_staged_reviews, `save_collection_run()` |
+| `20261024010000_add_review_excluded_reason.sql` | reviews·staged reviews에 excluded_reason |
+| `20261024020000_add_site_low_count_exact.sql` | collection_run_products.site_low_count_exact |
+| `20261024030000_create_collection_run_skipped.sql` | collection_run_skipped |
+| `20261024040000_add_collection_stars.sql` | collection_runs.stars, collection_run_products.star_counts (별점별 수집) |
+| `20261024104911_projects_products.sql` | projects, products에 project_id · sale_status · skin_line |
+| `20261024130000_create_ad_checks.sql` | ad_checks, ad_check_lines, content_guides |
+| `20261024172221_harden_ad_review_writes.sql` | 광고 검토 쓰기 권한을 owner로, 작성자 기본값 |
+| `20261026140000_create_review_translations.sql` | review_translations (상세페이지용 리뷰 번역) |
+| `20261026150000_products_add_title_ai.sql` | products.title_ai (AI가 정리한 제품명) |
+| `20261026160000_survey_concern_other_ko.sql` | survey_responses.concern_other_ko ('기타' 고민의 한국어 번역) |
+| `20261026170000_survey_reco_events_source.sql` | survey_reco_events.source (추천 기록의 유입 경로) |
 
-## 7. 아직 열린 질문
+새 파일은 `npx supabase migration new <이름>`으로 만들고, 원격 적용은 DB 관리자(Min)가 한다 (DB_RULES 6장).
 
-- 한 회사 = 한 워크스페이스로 볼지, 한 사용자가 여러 워크스페이스에 속할 수 있게 할지 (프레임은 여러 개를 허용하는 구조)
-- 광고 검토 승인을 아무 멤버나 할 수 있는지, 검토자 역할을 따로 둘지 → TAB 3 담당자
-- 리뷰 원문을 얼마나 보관할지 (저작권·이용약관 확인 항목과 연결, prototype-plan 11장)
+## 7. 열린 질문
+
 - 이미지 파일: Supabase Storage 버킷을 워크스페이스별 폴더(`<workspace_id>/...`)로 나눌지
+- 리뷰 원문을 얼마나 보관할지 (저작권·이용약관 확인 항목과 연결, CLAUDE.md 11장)
+- `reviews.source`(플랫폼 이름)와 `products.platform_id`(slug)의 이름이 다르다. `platforms` 기준표를 만들 때 맞출지
+- 결재 공통 층의 탭별 `body` 모양 (1단계 PR에서 정한다)

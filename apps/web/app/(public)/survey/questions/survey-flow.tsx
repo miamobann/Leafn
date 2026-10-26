@@ -24,7 +24,8 @@ const COPY = {
   otherPlaceholder: "例：目の下のクマ",
   otherHint: "お名前や連絡先など、個人を特定できる内容は記入しないでください。（50文字まで）",
   source: {
-    title: "この診断を何で知りましたか？",
+    title: "最後に、この診断を何で知りましたか？",
+    lead: "あと1問で結果が表示されます。",
     placeholder: "選択してください",
     otherLabel: "具体的にご記入ください",
     otherPlaceholder: "例：雑誌",
@@ -74,14 +75,15 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
   const linkSource = SurveySource.safeParse(new URLSearchParams(search).get("src"));
   const knownSource = linkSource.success ? linkSource.data : null;
 
-  // (링크에 경로가 없을 때만) 유입 경로 → 나이 → (18세 이상만) 동의 → 나머지 문항.
-  // 18세 미만은 저장하지 않으므로 동의를 받지 않는다
+  // 나이 → (18세 이상만) 동의 → 나머지 문항 → (링크에 경로가 없을 때만) 유입 경로 → 결과.
+  // 경로는 피부 문항을 다 답한 뒤 결과 직전에 묻는다 (시작하자마자 묻으면 이탈이 늘어서).
+  // 18세 미만은 저장하지 않으므로 동의 · 경로를 받지 않는다
   const under18 = isUnder18(questions, answers);
   const steps: Step[] = [
-    ...(knownSource ? [] : [{ kind: "source" } as const]),
     { kind: "question", index: 0 },
     ...(under18 ? [] : [{ kind: "consent" } as const]),
     ...questions.slice(1).map((_, i) => ({ kind: "question", index: i + 1 }) as const),
+    ...(knownSource || under18 ? [] : [{ kind: "source" } as const]),
   ];
   const step = steps[Math.min(pos, steps.length - 1)];
   const isLast = pos >= steps.length - 1;
@@ -123,7 +125,7 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
       setPos((p) => p + 1);
       return;
     }
-    const source = knownSource ?? picked;
+    const source = under18 ? null : (knownSource ?? picked);
     const session = {
       answers,
       other_text: otherOn ? otherText.trim().slice(0, 50) : "",
@@ -133,7 +135,7 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
       source_other: source === "other" && !knownSource ? sourceOther.trim().slice(0, 50) : "",
     };
     saveSession(session);
-    await submitSurvey(session, under18);
+    await submitSurvey(session, under18, questions);
     router.push("/survey/result");
   }
 
@@ -154,6 +156,7 @@ export function SurveyFlow({ questions }: { questions: SurveyQuestion[] }) {
           <label htmlFor="source" className="block text-lg leading-relaxed font-semibold">
             {COPY.source.title}
           </label>
+          <p className="text-sm text-muted-foreground">{COPY.source.lead}</p>
           <select
             id="source"
             value={picked ?? ""}

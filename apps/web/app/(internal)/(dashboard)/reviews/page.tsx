@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
+import { getAnalysisStatus } from "@/lib/data/review-analysis-actions";
 import { getReviewProductList, getReviewsOf } from "@/lib/data/reviews";
 import { platformLabel } from "@/lib/platforms";
+import { titleParts } from "@/lib/product-title";
+import { AnalyzeButton } from "./_components/analyze-button";
 import { ImportButton } from "./_components/parts";
 import { CompetitorTable, type CompetitorRow } from "./competitor-table";
 import { average, latestDate, SKIN_LINE_LABEL, topicLabel, topicStats, topThree, verdictOf } from "./_lib/topics";
@@ -12,6 +15,7 @@ const categoryLabel = (c: string | null) => (c ? (CATEGORY_LABEL[c] ?? c) : "카
 export default async function ReviewsPage() {
   const products = await getReviewProductList();
   const withReviews = await Promise.all(products.map(async (p) => ({ ...p, reviews: await getReviewsOf(p.id) })));
+  const analysis = await getAnalysisStatus();
 
   const own = withReviews
     .filter((p) => p.kind === "own")
@@ -43,7 +47,9 @@ export default async function ReviewsPage() {
       const candidates = mine ? stats.filter((s) => s.neg.length > 0 && mine.strengths.has(s.topic)).length : 0;
       return {
         id: p.id,
-        name: `${p.brand} ${p.name}`,
+        name: titleParts({ brand: p.brand, name: p.name }).full,
+        title: titleParts({ brand: p.brand, name: p.name, title_ai: p.titleAi }).main,
+        caption: titleParts({ brand: p.brand, name: p.name, title_ai: p.titleAi }).caption,
         category: categoryLabel(p.category),
         platform: platformLabel(p.platform),
         rank: p.rank,
@@ -59,6 +65,7 @@ export default async function ReviewsPage() {
         <PageHeader title="리뷰 리포트" description="제품을 고르면 그 제품의 강점·약점과 근거 리뷰를 볼 수 있어요" featureId="E" />
         <ImportButton />
       </div>
+      <AnalyzeButton pending={analysis.pending} untranslated={analysis.untranslated} untitled={analysis.untitled} />
 
       <section className="mb-8 space-y-3">
         <div className="flex items-baseline gap-2">
@@ -68,25 +75,38 @@ export default async function ReviewsPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {own.map((p) => {
             const status = p.ko.length === 0 ? "리뷰 없음" : p.analyzed ? "분석 완료" : "분석 전";
-            return (
-              <Link
-                key={p.id}
-                href={p.ko.length === 0 ? "/reviews/import" : `/reviews/${p.id}`}
-                className="flex flex-col gap-3 rounded-xl border bg-card p-5 transition-colors hover:border-foreground/40"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-base font-semibold">{p.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {[p.skinLine && SKIN_LINE_LABEL[p.skinLine], categoryLabel(p.category), p.saleStatus === "in_development" && "개발중"]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                  </div>
+            const unreleased = p.saleStatus === "in_development";
+            const head = (
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-base font-semibold">{p.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {[p.skinLine && SKIN_LINE_LABEL[p.skinLine], categoryLabel(p.category), unreleased && "개발중"].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                {!unreleased && (
                   <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${p.analyzed ? "bg-emerald-50 text-emerald-900" : "bg-muted text-muted-foreground"}`}>
                     {status}
                   </span>
+                )}
+              </div>
+            );
+            // 출시 전 제품은 리뷰가 없어 갈 곳이 없다: 링크 없이 안내만 보여 준다
+            if (unreleased) {
+              return (
+                <div key={p.id} className="flex flex-col gap-3 rounded-xl border bg-card p-5 opacity-80">
+                  {head}
+                  <p className="text-sm text-muted-foreground">출시 전 제품이에요</p>
                 </div>
+              );
+            }
+            return (
+              <Link
+                key={p.id}
+                href={p.ko.length === 0 ? `/reviews/import?type=own&product=${p.id}` : `/reviews/${p.id}`}
+                className="flex flex-col gap-3 rounded-xl border bg-card p-5 transition-colors hover:border-foreground/40"
+              >
+                {head}
                 {p.ko.length === 0 ? (
                   <>
                     <p className="text-sm text-muted-foreground">아직 리뷰가 없어요. 출시 전이거나 리뷰를 가져오지 않았어요.</p>
@@ -94,16 +114,11 @@ export default async function ReviewsPage() {
                   </>
                 ) : (
                   <>
-                    {p.analyzed && p.strength && (
-                      <p className="text-sm">
-                        가장 많이 칭찬받은 점은 ‘{p.strength}’{p.weakness ? `, 가장 큰 불만은 ‘${p.weakness}’예요.` : "이에요."}
-                      </p>
-                    )}
                     {!p.analyzed && <p className="text-sm text-muted-foreground">리뷰를 가져왔지만 AI 분석 전이에요.</p>}
                     {p.analyzed && (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {p.strength && <span className="rounded-md border border-sky-200 px-2 py-0.5 text-sky-900">강점 · {p.strength}</span>}
-                        {p.weakness && <span className="rounded-md border border-orange-200 px-2 py-0.5 text-orange-900">약점 · {p.weakness}</span>}
+                      <div className="flex flex-wrap gap-2 text-sm font-medium">
+                        <span className="rounded-md border border-sky-200 px-2.5 py-1 text-sky-900">강점 · {p.strength ?? "아직 없음"}</span>
+                        <span className="rounded-md border border-orange-200 px-2.5 py-1 text-orange-900">약점 · {p.weakness ?? "아직 없음"}</span>
                       </div>
                     )}
                     <div className="flex gap-4 border-t pt-2.5 text-sm text-muted-foreground">
@@ -119,7 +134,13 @@ export default async function ReviewsPage() {
         </div>
       </section>
 
-      <CompetitorTable rows={competitors} />
+      <section className="space-y-3">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-lg font-semibold">경쟁 제품</h2>
+          <span className="text-sm text-muted-foreground">일본 리뷰 기준 · {competitors.length}개</span>
+        </div>
+        <CompetitorTable rows={competitors} />
+      </section>
     </>
   );
 }

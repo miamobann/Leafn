@@ -86,11 +86,14 @@ async function countOf(query: Counted): Promise<number> {
 
 /** 우리 제품(자사). 화면의 "우리 제품" 드롭다운. 연결이 없거나 워크스페이스가 없으면 빈 목록 */
 export async function getCollectionOwnProducts(): Promise<CollectProject[]> {
-  if (!isSupabaseConfigured() || !(await getMyWorkspace())) return [];
+  if (!isSupabaseConfigured()) return [];
+  const mine = await getMyWorkspace();
+  if (!mine) return [];
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("products")
     .select("id, brand, name, category, volume_ml, price_jpy")
+    .eq("workspace_id", mine.workspace.id)
     .eq("kind", "own")
     .order("created_at", { ascending: true });
   if (error) throw new Error(`우리 제품을 불러오지 못했습니다: ${error.message}`);
@@ -200,11 +203,14 @@ export async function buildCollectionView(supabase: Supabase, runRaw: unknown): 
 
 /** 이 우리 제품의 가장 최근 수집 요청. 저장이 끝난 요청이면 새로 시작하도록 null */
 export async function getOpenCollection(ownProductId: string): Promise<CollectionView | null> {
-  if (!isSupabaseConfigured() || !(await getMyWorkspace())) return null;
+  if (!isSupabaseConfigured()) return null;
+  const mine = await getMyWorkspace();
+  if (!mine) return null;
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("collection_runs")
     .select(RUN_COLUMNS)
+    .eq("workspace_id", mine.workspace.id)
     .eq("own_product_id", ownProductId)
     .order("created_at", { ascending: false })
     .limit(1)

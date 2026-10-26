@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { HelpTip } from "@/components/common/help-tip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportTemplate } from "@/components/templates";
-import { GEO_CATEGORIES } from "@/lib/external/geo-terms";
+import { DOMAIN_KIND_LABEL, GEO_CATEGORIES } from "@/lib/external/geo-terms";
 import { GEO_ENGINE_LABEL, GeoRunResult, type GeoEngine, type GeoSnap } from "@/lib/schemas/geo";
 import type { Product } from "@/lib/schemas/product";
 import { OWN_BRAND } from "@/app/(internal)/(dashboard)/market/_lib/market";
@@ -17,6 +18,12 @@ import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/tog
 // 질의는 항상 정밀 모드(질의마다 3회)로 돌려 평균을 쓴다
 
 type GeoRow = GeoSnap & { id: string };
+type Card = { title: string; content: React.ReactNode; wide?: boolean; help?: React.ReactNode };
+
+/** Gap 액션 플랜(마지막 카드)을 맨 앞으로 */
+function orderCards(cards: Card[], gapFirst: boolean): Card[] {
+  return gapFirst ? [cards[cards.length - 1], ...cards.slice(0, -1)] : cards;
+}
 
 const CATEGORY_OPTIONS = GEO_CATEGORIES.map((c) => c.category);
 /** 버튼 한 번에 차례로 묻는 엔진. 키가 없는 엔진은 건너뛴다 */
@@ -32,7 +39,18 @@ const GAP_LABEL: Record<GapStatus, { badge: string; variant: "default" | "second
 type EngineResult = { engine: GeoEngine; ok: true; result: GeoRunResult } | { engine: GeoEngine; ok: false; message: string };
 
 /** category를 넘기면 원페이지 조건 바의 카테고리를 따르고 카테고리 버튼을 숨긴다 */
-export function GeoInsights({ initial, ownProducts, category: fixedCategory }: { initial: GeoRow[]; ownProducts: Product[]; category?: string }) {
+export function GeoInsights({
+  initial,
+  ownProducts,
+  category: fixedCategory,
+  gapFirst = false,
+}: {
+  initial: GeoRow[];
+  ownProducts: Product[];
+  category?: string;
+  /** Gap 액션 플랜을 맨 앞에 (원페이지 「우리 제품 대응」) */
+  gapFirst?: boolean;
+}) {
   const [all, setAll] = useState(initial);
   const [pickedCategory, setCategory] = useState<string>(CATEGORY_OPTIONS[0]);
   const category = fixedCategory ?? pickedCategory;
@@ -101,9 +119,10 @@ export function GeoInsights({ initial, ownProducts, category: fixedCategory }: {
           </div>
         </div>
       }
-      cards={[
+      cards={orderCards([
         {
-          title: "결정 키워드 · 경쟁사 추천 문장",
+          title: "AI가 경쟁 제품을 추천한 이유",
+          help: "AI 답변에서 경쟁 브랜드를 추천하며 든 말이에요 (같은 문장 안). ＋ = 미리 정한 목록에 없던 말 (답변 원문에 그대로 있는 것만).",
           content: (
             <>
               <HorizontalBarChart
@@ -111,16 +130,19 @@ export function GeoInsights({ initial, ownProducts, category: fixedCategory }: {
                 unit="문장"
                 labelWidth={200}
               />
-              <p className="mt-2 text-xs text-muted-foreground">AI가 경쟁 브랜드를 추천하며 든 이유 (같은 문장에서 그 브랜드 바로 뒤에 나온 말) · ＋ = 사전에 없어 LLM이 찾은 말 (원문 대조 통과)</p>
             </>
           ),
         },
         {
           title: "AI가 인용한 출처 도메인",
+          help: `그 도메인의 일본어 페이지를 출처로 단 답변 수예요. 출처는 엔진 API의 인용 칸에서만 가져와요.${domains.foreign > 0 ? ` 일본 소비자가 보지 않는 해외(일본어 아닌) 사이트 ${domains.foreign}곳은 뺐어요.` : ""}`,
           content: (
             <>
-              <HorizontalBarChart items={domains.map((d) => ({ id: d.domain, label: d.label, value: d.answers }))} unit="건" labelWidth={200} />
-              <p className="mt-2 text-xs text-muted-foreground">그 도메인을 출처로 단 답변 수 · 출처는 엔진 API의 인용 칸에서만 가져와요</p>
+              {domains.rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">일본어 페이지 인용이 없어요</p>
+              ) : (
+                <HorizontalBarChart items={domains.rows.map((d) => ({ id: d.domain, label: d.label, value: d.answers }))} unit="건" labelWidth={200} />
+              )}
             </>
           ),
         },
@@ -130,7 +152,10 @@ export function GeoInsights({ initial, ownProducts, category: fixedCategory }: {
           content: (
             <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
               <div>
-                <p className="mb-2 text-sm font-medium">보강할 키워드 (경쟁사 추천 사유 Top {gap.length})</p>
+                <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                  보강할 키워드 (경쟁사 추천 사유 Top {gap.length})
+                  <HelpTip>자사 제품 정보 = 등록된 자사 제품의 이름·특징·全成分. 「〜テスト済み」 같은 표기는 실제 시험 근거가 있을 때만 써요.</HelpTip>
+                </p>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -158,20 +183,29 @@ export function GeoInsights({ initial, ownProducts, category: fixedCategory }: {
                     ))}
                   </TableBody>
                 </Table>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  자사 제품 정보 = 등록된 자사 제품의 이름·특징·全成分 · 「〜テスト済み」 같은 표기는 실제 시험 근거가 있을 때만 쓰고, 광고 검토(약기법)를 거쳐 주세요
-                </p>
+                {/* 문구를 바로 쓰기 전에 꼭 봐야 하는 안내라 ? 에 숨기지 않는다 */}
+                <p className="mt-2 text-xs text-muted-foreground">문구는 광고 검토(약기법)를 거쳐 주세요</p>
               </div>
               <div>
-                <p className="mb-2 text-sm font-medium">타겟 매체 (경쟁사만 나온 답변이 인용한 곳)</p>
-                {media.length === 0 ? (
+                <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                  타겟 매체 (경쟁사만 나온 답변이 인용한 곳)
+                  <HelpTip>
+                    일본어 페이지만 셌어요.
+                    {media.foreign > 0 && ` 해외(일본어 아닌) 사이트 ${media.foreign}곳 제외.`}
+                    {media.fashion.length > 0 && ` 화장품 구매와 거리가 먼 패션·라이프 매체 제외: ${media.fashion.join(", ")}.`}
+                  </HelpTip>
+                </p>
+                {media.items.length === 0 ? (
                   <p className="text-sm text-muted-foreground">없어요</p>
                 ) : (
                   <ul className="space-y-2 text-sm">
-                    {media.map((m) => (
+                    {media.items.map((m) => (
                       <li key={m.domain} className="rounded-md border p-2">
                         <p className="flex items-center justify-between gap-2">
-                          <span className="font-medium">{m.label}</span>
+                          <span className="font-medium">
+                            {m.label}
+                            <span className="ml-1 text-xs font-normal text-muted-foreground">{DOMAIN_KIND_LABEL[m.kind]}</span>
+                          </span>
                           <span className="shrink-0 text-xs text-muted-foreground">
                             경쟁만 {m.gapAnswers}건 · 자사 {m.ownAnswers}건
                           </span>
@@ -185,7 +219,7 @@ export function GeoInsights({ initial, ownProducts, category: fixedCategory }: {
             </div>
           ),
         },
-      ]}
+      ], gapFirst)}
     />
   );
 }

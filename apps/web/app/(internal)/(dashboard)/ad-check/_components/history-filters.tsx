@@ -1,6 +1,6 @@
 "use client";
 
-// 검토 내역 필터 2개 (제품 · 검토 상태). 고른 값은 주소(?product=&status=)에 남아 새로고침해도 유지된다.
+// 목록 필터 (검토 이력: 제품 · 검토 상태 / 만든 가이드: 제품 · 채널). 고른 값은 주소(?product=&status=…)에 남아 새로고침해도 유지된다.
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 // shadcn select는 아직 설치되지 않아 기본 select를 같은 모양으로 쓴다 (components/ui는 공용 영역)
@@ -8,17 +8,15 @@ const SELECT = "h-9 rounded-md border border-input bg-transparent px-3 text-sm";
 
 type Option = { value: string; label: string };
 
-type HistoryFiltersProps = {
-  products: Option[];
-  statuses: Option[];
-};
+/** key = 주소 칸 이름. allLabel 이 없으면 「전체」 없이 options 중 하나를 고른다 (첫 값이 기본) */
+export type HistoryFilter = { key: string; label: string; options: Option[]; allLabel?: string | null };
 
-export function HistoryFilters({ products, statuses }: HistoryFiltersProps) {
+export function HistoryFilters({ filters }: { filters: HistoryFilter[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
 
-  function change(key: "product" | "status", value: string) {
+  function change(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
     if (value) next.set(key, value);
     else next.delete(key);
@@ -28,28 +26,22 @@ export function HistoryFilters({ products, statuses }: HistoryFiltersProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-3 text-sm">
-      <label className="flex items-center gap-2">
-        제품
-        <select className={SELECT} value={params.get("product") ?? ""} onChange={(e) => change("product", e.target.value)}>
-          <option value="">전체</option>
-          {products.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex items-center gap-2">
-        검토 상태
-        <select className={SELECT} value={params.get("status") ?? ""} onChange={(e) => change("status", e.target.value)}>
-          <option value="">전체</option>
-          {statuses.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      {filters.map((f) => {
+        const hasAll = f.allLabel !== null;
+        return (
+          <label key={f.key} className="flex items-center gap-2">
+            {f.label}
+            <select className={SELECT} value={params.get(f.key) ?? (hasAll ? "" : (f.options[0]?.value ?? ""))} onChange={(e) => change(f.key, e.target.value)}>
+              {hasAll && <option value="">{f.allLabel ?? "전체"}</option>}
+              {f.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
     </div>
   );
 }

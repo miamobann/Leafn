@@ -1,6 +1,7 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
+import type { ReactNode } from "react";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 
 // 팀 테마(globals.css)의 무채색 차트 색을 쓴다. 색만으로 구분하지 않도록 선 모양(실선·점선)과 범례·라벨을 같이 쓴다.
 const AXIS = { fontSize: 11, fill: "var(--muted-foreground)" };
@@ -218,7 +219,7 @@ export function PriceMapChart({
           width={64}
           domain={domainY ?? ["auto", "auto"]}
           tickFormatter={(v: number) => `${v}円`}
-          label={{ value: "ml당 실질 가격", angle: -90, position: "insideLeft", fontSize: 12, fill: "var(--muted-foreground)" }}
+          label={{ value: "ml당 가격", angle: -90, position: "insideLeft", fontSize: 12, fill: "var(--muted-foreground)" }}
         />
         {/* 점 크기를 키워 겹쳐도 알아보기 쉽게 */}
         <ZAxis range={[110, 110]} />
@@ -250,5 +251,114 @@ export function PriceMapChart({
         <Scatter name="자사 (정가)" data={own} fill="var(--primary)" shape="diamond" stroke="var(--card)" strokeWidth={2} isAnimationActive={false} />
       </ScatterChart>
     </ResponsiveContainer>
+  );
+}
+
+export type ShareItem = {
+  id: string;
+  label: string;
+  value: number;
+  /** 이름 옆 옅은 글씨 (원문 표기 등) */
+  hint?: string;
+  /** % 옆에 붙는 수치 (예: 3/10개) */
+  sub?: string;
+  /** 맨 끝에 붙는 표시 (순위 변화 등) */
+  extra?: ReactNode;
+};
+
+const SHARE_COLORS = ["var(--chart-cat-1)", "var(--chart-cat-2)", "var(--chart-cat-3)", "var(--chart-cat-4)", "var(--chart-cat-5)"];
+const OTHER_COLOR = "var(--chart-2)";
+const OTHER_ID = "__other";
+
+/**
+ * 비중 원형 그래프 (왼쪽) + 비율 순 목록 (오른쪽). 큰 순서로 5개까지 색을 주고 나머지는 회색 「기타」 조각으로 묶는다.
+ * 목록이 범례를 겸한다: 같은 색 표시 · 이름 · % 를 모두 보여 줘 색만으로 구분하지 않는다
+ */
+export function ShareDonut({ items, onSelect }: { items: ShareItem[]; onSelect?: (id: string) => void }) {
+  const sorted = items.toSorted((a, b) => b.value - a.value);
+  const total = sorted.reduce((sum, it) => sum + it.value, 0);
+  const pctOf = (v: number) => (total === 0 ? 0 : Math.round((v / total) * 100));
+  const colorOf = (i: number) => SHARE_COLORS[i] ?? OTHER_COLOR;
+  // 「기타」가 하나뿐이면 묶지 않고 그대로 한 줄로 보여 준다
+  const headCount = sorted.length === SHARE_COLORS.length + 1 ? sorted.length : SHARE_COLORS.length;
+  const rest = sorted.slice(headCount);
+  // 끝 칸(순위 변화 등)이 하나라도 있으면 모든 줄에 같은 폭을 비워 둬 %가 한 줄로 맞게
+  const hasExtra = sorted.some((it) => it.extra !== undefined);
+  const slices = [
+    ...sorted.slice(0, headCount).map((it, i) => ({ id: it.id, label: it.label, value: it.value, color: colorOf(i) })),
+    ...(rest.length > 0 ? [{ id: OTHER_ID, label: `기타 ${rest.length}개`, value: rest.reduce((sum, it) => sum + it.value, 0), color: OTHER_COLOR }] : []),
+  ];
+  const select = (id: string) => {
+    if (onSelect && id !== OTHER_ID) onSelect(id);
+  };
+
+  const row = (it: ShareItem, color: string) => (
+    <button
+      type="button"
+      disabled={!onSelect}
+      onClick={() => select(it.id)}
+      className="flex w-full items-center gap-2 rounded px-1 leading-7 text-left enabled:hover:bg-muted"
+    >
+      <span aria-hidden className="size-3 shrink-0 rounded-sm" style={{ background: color }} />
+      <span className="min-w-0 flex-1 truncate pr-3">
+        {it.label}
+        {it.hint && <span className="ml-1 text-xs text-muted-foreground">{it.hint}</span>}
+      </span>
+      {it.sub && <span className="shrink-0 text-xs text-muted-foreground">{it.sub}</span>}
+      <span className="w-10 shrink-0 text-right font-semibold tabular-nums">{pctOf(it.value)}%</span>
+      {hasExtra && <span className="w-7 shrink-0 text-right">{it.extra}</span>}
+    </button>
+  );
+
+  return (
+    // 색이 있는 5개만 한 줄씩, 나머지는 회색 「기타」 한 줄 + 이름·% 나열 (목록이 그래프보다 길어져 빈 공간이 생기지 않게)
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div className="size-40 shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={slices}
+              dataKey="value"
+              nameKey="label"
+              innerRadius="58%"
+              outerRadius="100%"
+              stroke="var(--card)"
+              strokeWidth={2}
+              isAnimationActive={false}
+              onClick={(_d, index) => select(slices[index].id)}
+              className={onSelect ? "cursor-pointer" : undefined}
+            >
+              {slices.map((s) => (
+                <Cell key={s.id} fill={s.color} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => `${pctOf(Number(v))}%`} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="min-w-0 flex-1 text-[15px]">
+        <ol>
+          {sorted.slice(0, headCount).map((it, i) => (
+            <li key={it.id}>{row(it, colorOf(i))}</li>
+          ))}
+        </ol>
+        {rest.length > 0 && (
+          <div>
+            {row({ id: OTHER_ID, label: `기타 ${rest.length}개`, value: rest.reduce((sum, it) => sum + it.value, 0) }, OTHER_COLOR)}
+            <p className="pl-6 text-xs leading-5 text-muted-foreground">
+              {rest.map((it, i) => (
+                <span key={it.id}>
+                  {i > 0 && " · "}
+                  <button type="button" disabled={!onSelect} onClick={() => select(it.id)} className="enabled:hover:text-foreground enabled:hover:underline">
+                    {it.label} {pctOf(it.value)}%{it.sub ? ` (${it.sub})` : ""}
+                  </button>
+                  {it.extra !== undefined && <span className="ml-0.5">{it.extra}</span>}
+                </span>
+              ))}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

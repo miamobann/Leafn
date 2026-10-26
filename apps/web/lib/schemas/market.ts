@@ -43,3 +43,77 @@ export const SnsPattern = WorkspaceRow.extend({
   analyzed_at: Timestamp,
 }).extend(AiMeta.shape);
 export type SnsPattern = z.infer<typeof SnsPattern>;
+
+// ── SNS 영상 분석 (POST /api/market/sns-trends) ─────────────
+// 2026-10-25: 마케터 메모 대신 영상 링크만 넣으면 Apify가 캡션·해시태그·발화 자막을 가져오고, AI가 핵심 키워드·트렌드를 뽑는다
+
+/** 분석 입력: 영상 링크 (메모는 선택. 있으면 영상 정보와 같이 AI에 넣는다) */
+export const SnsTrendInput = z.object({
+  category: z.string().min(1),
+  videos: z
+    .array(z.object({ url: z.string().url("영상 링크가 올바르지 않아요"), memo: z.string().trim().max(2000).default("") }))
+    .min(2, "영상을 2개 이상 넣어 주세요")
+    .max(10, "영상은 10개까지 넣을 수 있어요"),
+});
+export type SnsTrendInput = z.infer<typeof SnsTrendInput>;
+
+/** 영상 하나에서 가져온 정보 (Apify TikTok Scraper) */
+export const SnsVideoFacts = z.object({
+  index: z.number().int().positive(),
+  url: z.string(),
+  author: z.string(),
+  caption: z.string(),
+  hashtags: z.array(z.string()),
+  /** 영상에서 말한 내용 (TikTok 자동 자막, 일본어). 없으면 null */
+  transcript: z.string().nullable(),
+  play_count: z.number().nullable(),
+  like_count: z.number().nullable(),
+  save_count: z.number().nullable(),
+  /** TikTok 광고 표시. 없다고 광고가 아니라는 보장은 없다 (ステマ規制) */
+  is_ad: z.boolean().nullable(),
+  posted_at: z.string().nullable(),
+  /** 가져오지 못한 이유 */
+  error: z.string().nullable(),
+});
+export type SnsVideoFacts = z.infer<typeof SnsVideoFacts>;
+
+/** AI 응답 모양 (prompts/sns-trends.v1.md): 소비자 니즈마다 그 니즈를 나타내는 키워드와 근거 문구. 서버가 원문과 대조한다 */
+export const SnsTrendAiOutput = z.object({
+  needs: z.array(
+    z.object({
+      need_ko: z.string(),
+      summary_ko: z.string(),
+      keywords: z.array(z.object({ keyword_ja: z.string(), keyword_ko: z.string() })),
+      evidence: z.array(z.object({ video: z.number().int().positive(), quote_ja: z.string() })),
+    }),
+  ),
+});
+export type SnsTrendAiOutput = z.infer<typeof SnsTrendAiOutput>;
+
+const SnsNeedKeyword = z.object({ keyword_ja: z.string(), keyword_ko: z.string(), videos: z.array(z.number().int().positive()).min(1) });
+
+/** 분석 결과 (대조를 통과한 것만, 많이 나온 순). 저장하지 않고 화면에 바로 보여준다 */
+export const SnsTrendResult = z.object({
+  category: z.string(),
+  videos: z.array(SnsVideoFacts),
+  /** 핵심 니즈 순위: 언급한 영상 수 → 조회수 합 순. 영상 수는 서버가 원문에서 다시 센다 */
+  needs: z.array(
+    z.object({
+      need_ko: z.string(),
+      summary_ko: z.string(),
+      keywords: z.array(SnsNeedKeyword).min(1),
+      /** 이 니즈의 키워드·근거가 나온 영상 번호 */
+      videos: z.array(z.number().int().positive()).min(1),
+      views: z.number().nonnegative(),
+      evidence: z.array(z.object({ video: z.number().int().positive(), quote_ja: z.string() })),
+    }),
+  ),
+  /** 많이 나온 키워드 순위 (니즈에 묶인 키워드 전체에서) */
+  keywords: z.array(SnsNeedKeyword.extend({ need_ko: z.string() })),
+  /** 영상 정보에 없어 버린 키워드·근거 수 (할루시네이션 의심) */
+  dropped: z.number().int().nonnegative(),
+  model: z.string(),
+  prompt_version: z.string(),
+  analyzed_at: Timestamp,
+});
+export type SnsTrendResult = z.infer<typeof SnsTrendResult>;

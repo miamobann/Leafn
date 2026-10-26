@@ -1,13 +1,14 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "cn";
 import { MARKET_CATEGORIES, MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
 import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/toggle-group";
 
-export type SectionLink = { id: string; label: string };
+export type TabLink = { id: string; label: string };
 
 /**
- * 상단 고정 조건 바. 카테고리·플랫폼을 바꾸면 아래 모든 섹션이 함께 바뀐다.
+ * 상단 고정 조건 바 + 탭. 카테고리·플랫폼을 바꾸면 모든 탭이 함께 바뀐다.
  * 스크롤 영역(main)의 p-8 안쪽에서 붙으므로 -top-8로 맨 위에 맞추고, 좌우 여백은 음수 여백으로 덮어 폭 전체에 깐다.
  */
 export function ConditionBar({
@@ -16,7 +17,8 @@ export function ConditionBar({
   platform,
   onPlatform,
   week,
-  sections,
+  tabs,
+  active,
 }: {
   category: MarketCategory;
   onCategory: (c: MarketCategory) => void;
@@ -24,7 +26,9 @@ export function ConditionBar({
   onPlatform: (p: MarketPlatform) => void;
   /** 선택한 플랫폼·카테고리의 최신 수집 주 (없으면 null) */
   week: string | null;
-  sections: readonly SectionLink[];
+  tabs: readonly TabLink[];
+  /** 지금 열린 탭 id */
+  active: string;
 }) {
   return (
     <div className="sticky -top-8 z-20 -mx-8 mb-6 space-y-2 border-b bg-background px-8 py-3">
@@ -46,15 +50,20 @@ export function ConditionBar({
           </Button>
         </div>
       </div>
-      <nav aria-label="섹션 바로가기" className="flex flex-wrap items-center gap-1 text-sm">
-        <span className="mr-1 text-xs text-muted-foreground">바로가기</span>
-        {sections.map((s, i) => (
-          <span key={s.id} className="flex items-center gap-1">
-            {i > 0 && <span className="text-muted-foreground">·</span>}
-            <a href={`#${s.id}`} className="rounded px-1 underline-offset-4 hover:underline">
-              {s.label}
-            </a>
-          </span>
+      {/* 탭은 주소의 #id로 바뀐다 (새로고침·링크 공유해도 같은 탭) */}
+      <nav aria-label="시장 분석 탭" className="-mb-3 flex flex-wrap gap-1">
+        {tabs.map((t) => (
+          <a
+            key={t.id}
+            href={`#${t.id}`}
+            aria-current={t.id === active ? "page" : undefined}
+            className={cn(
+              "border-b-2 px-3 py-2 text-sm",
+              t.id === active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </a>
         ))}
       </nav>
     </div>

@@ -26,7 +26,33 @@ type PromoLike = { platform: string; title: string; start_date: string; end_date
 /** 오늘 이후(또는 진행 중) 가장 가까운 Qoo10 메가와리 일정을 프롬프트 [행사] 글로. 없으면 null → AI는 날짜를 쓰지 않는다 */
 export function pickMegaSale(events: PromoLike[], today: string): string | null {
   const next = events
-    .filter((e) => e.platform === "Qoo10" && /メガ割|메가와리/.test(e.title) && e.end_date >= today)
+    .filter((e) => (e.platform === "qoo10" || e.platform === "Qoo10") && /メガ割|메가와리/.test(e.title) && e.end_date >= today)
     .toSorted((a, b) => a.start_date.localeCompare(b.start_date))[0];
   return next ? `Qoo10メガ割 ${next.start_date}~${next.end_date} / 사은품: 없음` : null;
+}
+
+// ── 리뷰 소구점 이름을 광고용으로 (약기법 우선, 2026-10-25) ──────────────
+// 리뷰 분석의 주제 이름은 소비자 말이라 그대로 AI에 넘기면 광고 문구가 근거 없는 표현이 되기 쉽다.
+// - 순함(저자극): 근거 자료 없이 쓸 수 없다 (가이드라인 F7.5) → 소구점에서 뺀다
+// - 오래가는 보습(효과 지속): 근거 자료 없이 쓸 수 없다 → 사용감 표현 「촉촉한 보습감」으로 바꿔 넘긴다
+
+/** 칭찬·소구점 후보로 넘길 이름. null 이면 넘기지 않는다 */
+const SAFE_PRAISE: Record<string, string | null> = { irritation: null, lasting_moisture: "촉촉한 보습감" };
+/** 경쟁 불만으로 넘길 이름 (대비 문구로 저자극을 주장하지 않게 단서를 붙인다) */
+const SAFE_COMPLAINT: Record<string, string> = { irritation: "자극 (우리 제품의 저자극은 주장하지 않는다)" };
+
+/** 칭찬·후보 주제 → 광고에 써도 되는 이름. 뺀 주제는 dropped 로 돌려준다 (화면 안내용) */
+export function safePraiseLabels(topics: { key: string; ko: string }[]): { labels: string[]; dropped: string[] } {
+  const labels: string[] = [];
+  const dropped: string[] = [];
+  for (const t of topics) {
+    const safe = t.key in SAFE_PRAISE ? SAFE_PRAISE[t.key] : t.ko;
+    if (safe === null) dropped.push(t.ko);
+    else if (!labels.includes(safe)) labels.push(safe);
+  }
+  return { labels, dropped };
+}
+
+export function safeComplaintLabel(key: string, ko: string): string {
+  return SAFE_COMPLAINT[key] ?? ko;
 }

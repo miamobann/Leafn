@@ -13,10 +13,11 @@ export const AdCheckProductInput = z.object({
 });
 export type AdCheckProductInput = z.infer<typeof AdCheckProductInput>;
 
-/** POST /api/ad-check 요청 본문. 저장 단계(ad_checks) 전까지 workspace_id 는 호출하는 쪽이 넘기고, 저장 단계에서 서버가 로그인 정보로 정한다 */
+/** POST /api/ad-check 요청 본문. 저장 단계에서 서버가 로그인 정보로 workspace_id 를 정한다 */
 export const AD_CHECK_MAX_TEXT_CHARS = 4000;
 export const AdCheckRequest = z.object({
   workspace_id: Id,
+  product_id: Id.optional(),
   product: AdCheckProductInput,
   usage: AdUsage,
   text: z.string().min(1).max(AD_CHECK_MAX_TEXT_CHARS), // 한 줄 = 한 문구
