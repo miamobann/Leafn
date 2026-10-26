@@ -68,3 +68,16 @@ export const TrendSnapshot = WorkspaceRow.extend({
 });
 export type TrendSnapshot = z.infer<typeof TrendSnapshot>;
 
+
+/**
+ * 랭킹 수집 CSV 저장 입력 (시장 분석 · 플랫폼 분석의 [랭킹 CSV 올리기], 2026-10-26).
+ * 브라우저가 CSV를 랭킹 항목으로 바꿔 보내고, 서버가 trend_snapshots 한 행으로 저장한다 (데모는 Qoo10만)
+ */
+export const RankingImportInput = z.object({
+  category: z.string().min(1),
+  /** 수집한 날 (CSV에 날짜가 없어 사람이 고른다) */
+  captured_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "수집 날짜를 골라 주세요"),
+  file_name: z.string().max(200),
+  ranking: z.array(RankingItem).min(1).max(100),
+});
+export type RankingImportInput = z.infer<typeof RankingImportInput>;
