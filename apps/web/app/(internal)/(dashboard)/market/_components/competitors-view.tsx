@@ -86,12 +86,11 @@ export function CompetitorsView({ products, initialSelected = [] }: { products: 
     <div className="space-y-6">
       {registering && (
         <RegisterPanel
-          nextIndex={added.length + 1}
+          ownProducts={products.filter((p) => p.kind === "own")}
           onClose={() => setRegistering(false)}
-          onAdd={(p) => {
-            setAdded((a) => [...a, p]);
+          onAddLocal={(list) => {
+            setAdded((a) => [...a, ...list]);
             setCategory("전체");
-            setRegistering(false);
           }}
         />
       )}
