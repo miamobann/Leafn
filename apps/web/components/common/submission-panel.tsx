@@ -51,9 +51,6 @@ const TEXT = {
   submitNeedsSummary: "한 줄 결론을 적어야 제출할 수 있어요",
   edit: "결론 · 메모 고치기",
   editHint: (no: number) => `임시 저장된 v${no}의 한 줄 결론과 메모를 고쳐요. 담은 소구점 · 후기는 그대로예요. 다 쓰면 저장한 뒤 「제출」을 눌러 주세요.`,
-  editSubmittedHint: (no: number) =>
-    `결재 대기 중인 v${no}을 고쳐요. 저장하면 v${no}은 제출 취소되고, 고친 내용으로 새 버전이 바로 다시 결재에 올라가요. 담은 소구점 · 후기는 그대로예요.`,
-  editResubmit: "고쳐서 다시 올리기",
   editSave: "저장",
   cancel: "취소",
   hide: "삭제",
@@ -115,8 +112,7 @@ export function SubmissionPanel({
   const [note, setNote] = useState("");
   const [carryOver, setCarryOver] = useState(true);
   const [mode, setMode] = useState<"upload" | "save">("upload");
-  // submitted: 결재 대기 버전 고치기. DB는 제출한 버전을 잠그므로 제출 취소 → 새 버전 → 저장 → 다시 제출을 한 번에 한다
-  const [editing, setEditing] = useState<{ id: string; summary: string; note: string; submitted: boolean } | null>(null);
+  const [editing, setEditing] = useState<{ id: string; summary: string; note: string } | null>(null);
 
   const disabled = sampleMode || pending;
   // 가장 최근에 결재된 버전이 반려면 사유를 위에 보인다 (설계 6장: 반려 사유는 다음 버전을 만들 때 보인다)
@@ -137,8 +133,6 @@ export function SubmissionPanel({
       const result = await action();
       if (!result.ok) {
         setError(result.message);
-        // 여러 단계(고쳐서 다시 올리기) 중간에 실패해도 바뀐 히스토리는 보이게
-        router.refresh();
         return;
       }
       after?.();
@@ -258,7 +252,7 @@ export function SubmissionPanel({
 
                 {editing?.id === v.id ? (
                   <div className="mt-2 space-y-2">
-                    <p className="text-xs text-muted-foreground">{editing.submitted ? TEXT.editSubmittedHint(v.version_no) : TEXT.editHint(v.version_no)}</p>
+                    <p className="text-xs text-muted-foreground">{TEXT.editHint(v.version_no)}</p>
                     <label className="block space-y-1 text-sm">
                       <span className="font-medium">{TEXT.summary}</span>
                       <Textarea
@@ -276,28 +270,15 @@ export function SubmissionPanel({
                     <div className="flex gap-2">
                       <Button
                         size="sm"
-                        disabled={disabled || (editing.submitted && !editing.summary.trim())}
-                        title={editing.submitted && !editing.summary.trim() ? TEXT.submitNeedsSummary : undefined}
-                        onClick={() => {
-                          const input = { summary: editing.summary, note: editing.note.trim() || null };
+                        disabled={disabled}
+                        onClick={() =>
                           run(
-                            editing.submitted
-                              ? async () => {
-                                  const withdrawn = await withdrawVersion(v.id);
-                                  if (!withdrawn.ok) return withdrawn;
-                                  const next = await newVersionFrom(v.id);
-                                  if (!next.ok) return next;
-                                  const saved = await updateDraft(next.data.versionId, input);
-                                  // 저장이 실패해도 새 임시 버전은 남아 히스토리에서 고쳐 제출할 수 있다
-                                  if (!saved.ok) return saved;
-                                  return submitVersion(next.data.versionId);
-                                }
-                              : () => updateDraft(v.id, input),
+                            () => updateDraft(v.id, { summary: editing.summary, note: editing.note.trim() || null }),
                             () => setEditing(null),
-                          );
-                        }}
+                          )
+                        }
                       >
-                        {editing.submitted ? TEXT.editResubmit : TEXT.editSave}
+                        {TEXT.editSave}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => setEditing(null)}>
                         {TEXT.cancel}
@@ -335,21 +316,11 @@ export function SubmissionPanel({
                           size="sm"
                           variant="outline"
                           disabled={disabled}
-                          onClick={() => setEditing({ id: v.id, summary: v.summary, note: v.note ?? "", submitted: false })}
+                          onClick={() => setEditing({ id: v.id, summary: v.summary, note: v.note ?? "" })}
                         >
                           {TEXT.edit}
                         </Button>
                       </>
-                    )}
-                    {v.status === "submitted" && canEdit && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={disabled}
-                        onClick={() => setEditing({ id: v.id, summary: v.summary, note: v.note ?? "", submitted: true })}
-                      >
-                        {TEXT.edit}
-                      </Button>
                     )}
                     {v.status === "submitted" && (
                       <Button size="sm" variant="outline" disabled={disabled} onClick={() => run(() => withdrawVersion(v.id))}>
