@@ -62,7 +62,8 @@ export function SubmissionBody({
     return now.success ? <AdBodyView body={now.data} before={before?.success ? before.data : null} /> : <BadShape />;
   }
   const now = MarketBody.safeParse(body);
-  return now.success ? <MarketBodyView body={now.data} /> : <BadShape />;
+  const before = previous ? MarketBody.safeParse(previous) : null;
+  return now.success ? <MarketBodyView body={now.data} before={before?.success ? before.data : null} /> : <BadShape />;
 }
 
 function BadShape() {
@@ -229,15 +230,111 @@ function AdBodyView({ body, before }: { body: AdBody; before: AdBody | null }) {
   );
 }
 
-function MarketBodyView({ body }: { body: MarketBody }) {
+/** 시장 분석 시안: 올린 순간의 요약 탭(이번 주 핵심 · 알 수 있는 것 · 한눈에 보기)을 다시 계산하지 않고 그대로 보여 준다. 앞 버전과 달라진 칸은 초록 */
+function MarketBodyView({ body, before }: { body: MarketBody; before: MarketBody | null }) {
+  const sum = body.summary;
+  if (!sum) {
+    return (
+      <div className="space-y-2 text-sm">
+        <p className="text-muted-foreground">{TEXT.scope[body.scope]}</p>
+        <ul className="list-disc space-y-1 pl-5">
+          {body.points.map((p) => (
+            <li key={p.text}>{p.text}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  const prev = before?.summary ?? null;
+  // 앞 버전이 있을 때만 비교한다. 같은 id/key 칸의 내용이 다르거나 새로 생긴 칸이면 초록
+  const changed = <T extends object>(list: T[] | undefined, key: (t: T) => string, item: T) => {
+    if (!prev || !list) return null;
+    const old = list.find((o) => key(o) === key(item));
+    return !old ? TEXT.added : JSON.stringify(old) !== JSON.stringify(item) ? "바뀜" : null;
+  };
+  const mark = (tag: string | null) => (tag ? <span className="ml-2 text-xs font-normal text-emerald-900">{tag}</span> : null);
+  const { basis } = sum;
   return (
-    <div className="space-y-2 text-sm">
-      <p className="text-muted-foreground">{TEXT.scope[body.scope]}</p>
-      <ul className="list-disc space-y-1 pl-5">
-        {body.points.map((p) => (
-          <li key={p.text}>{p.text}</li>
-        ))}
-      </ul>
+    <div className="space-y-4 text-sm">
+      <p className="text-muted-foreground">
+        <span lang="ja">{basis.category}</span> · {basis.platform_label} · {basis.week ?? "기준 주 없음"}
+        {basis.captured_at && ` (${basis.captured_at.slice(0, 10)} 랭킹 수집)`}
+      </p>
+
+      {sum.core.length > 0 && (
+        <div>
+          <h4 className="mb-1 font-medium">이번 주 핵심</h4>
+          <div className="grid gap-2 md:grid-cols-3">
+            {sum.core.map((c) => {
+              const tag = changed(prev?.core, (x) => x.id, c);
+              return (
+                <div key={c.id} className={`rounded-md border p-3 ${tag ? "bg-emerald-50" : ""}`}>
+                  <p className="text-xs text-muted-foreground">
+                    {c.label}
+                    {mark(tag)}
+                  </p>
+                  <p className="font-semibold">{c.value}</p>
+                  <p>{c.meaning}</p>
+                  {c.sub && <p className="text-xs text-muted-foreground">{c.sub}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {sum.points.length > 0 && (
+        <div>
+          <h4 className="mb-1 font-medium">이번 분석으로 알 수 있는 것</h4>
+          <ul className="divide-y rounded-md border">
+            {sum.points.map((pt) => {
+              const tag = changed(prev?.points, (x) => x.id, pt);
+              return (
+                <li key={pt.id} className={`grid gap-x-3 px-3 py-2 sm:grid-cols-[7rem_minmax(0,1fr)] ${tag ? "bg-emerald-50" : ""}`}>
+                  <span className="text-muted-foreground">{pt.label}</span>
+                  <span>
+                    <b className="font-semibold">{pt.headline}</b>
+                    {pt.sample && <span className="ml-1 text-xs text-muted-foreground">(샘플)</span>}
+                    {mark(tag)}
+                    <span className="block text-muted-foreground">할 일: {pt.action}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <div>
+        <h4 className="mb-1 font-medium">한눈에 보기</h4>
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {sum.tiles.map((t) => {
+            const tag = changed(prev?.tiles, (x) => x.key, t);
+            return (
+              <div key={t.key} className={`rounded-md border p-3 ${tag ? "bg-emerald-50" : ""}`}>
+                <p className="text-xs text-muted-foreground">
+                  {t.title}
+                  {mark(tag)}
+                </p>
+                <p>
+                  <b className="text-base font-semibold">{t.value}</b> {t.label && <span className="font-medium">{t.label}</span>}
+                </p>
+                {t.lines.map((l) => (
+                  <p key={l} className="text-xs text-muted-foreground">
+                    {l}
+                  </p>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <p>
+        <Link href="/market#summary" className="underline-offset-4 hover:underline">
+          시장 분석 요약 열기 →
+        </Link>
+      </p>
     </div>
   );
 }
