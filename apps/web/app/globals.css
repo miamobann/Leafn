@@ -159,6 +159,94 @@
   font-weight: 600;
 }
 
+/* 홈 캘린더 (2026-10-26 홈 새 디자인 목업): 줄 없이 둥근 칸을 6px 간격으로 놓고, 오늘 칸은 초록 테두리, 일정은 작은 칩.
+   머리줄과 범례는 _home/home-calendar.tsx가 그린다. promo-calendar.tsx가 홈에서만 .fc-home을 붙이므로 /calendar 화면은 그대로다 */
+:root[data-theme="leaf"] .fc-home .fc {
+  --fc-border-color: transparent;
+  --fc-today-bg-color: transparent;
+  --fc-small-font-size: 11px;
+}
+/* 칸 사이 6px: 표 칸 안쪽 틀에 3px씩 여백을 준다 */
+:root[data-theme="leaf"] .fc-home .fc-daygrid-day-frame {
+  min-height: 96px;
+  margin: 3px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #f7faf6;
+}
+:root[data-theme="leaf"] .fc-home .fc-day-other .fc-daygrid-day-frame {
+  opacity: 0.45;
+}
+:root[data-theme="leaf"] .fc-home .fc-day-other .fc-daygrid-day-top {
+  opacity: 1;
+}
+/* 오늘: 테두리를 그림자로 그려 칸 크기가 바뀌지 않게 한다 */
+:root[data-theme="leaf"] .fc-home .fc-day-today .fc-daygrid-day-frame {
+  background: #eef4ec;
+  box-shadow: inset 0 0 0 1.5px var(--primary);
+}
+:root[data-theme="leaf"] .fc-home .fc-day-today .fc-daygrid-day-number {
+  color: var(--primary);
+  font-weight: 600;
+}
+/* 날짜는 왼쪽 위 (FullCalendar 기본은 오른쪽) */
+:root[data-theme="leaf"] .fc-home .fc-daygrid-day-top {
+  flex-direction: row;
+}
+:root[data-theme="leaf"] .fc-home .fc-daygrid-day-number {
+  padding: 0;
+  font-size: 13px;
+}
+:root[data-theme="leaf"] .fc-home .fc-daygrid-body-natural .fc-daygrid-day-events {
+  margin-bottom: 0;
+}
+/* 요일 줄: 작은 회색 글자를 칸 날짜와 같은 왼쪽에 */
+:root[data-theme="leaf"] .fc-home .fc-col-header-cell {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+:root[data-theme="leaf"] .fc-home .fc-col-header-cell-cushion {
+  padding: 0 0 6px 11px;
+}
+/* 일정 칩: 목업 색. 글자가 넘치면 말줄임 */
+:root[data-theme="leaf"] .fc-home .fc-daygrid-event {
+  margin: 4px 0 0;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+:root[data-theme="leaf"] .fc-home .fc-daygrid-event .fc-event-title {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+:root[data-theme="leaf"] .fc-home .home-chip-platform {
+  --fc-event-bg-color: #d5e2e8;
+  --fc-event-border-color: #d5e2e8;
+  --fc-event-text-color: #1e2b22;
+}
+:root[data-theme="leaf"] .fc-home .home-chip-own {
+  --fc-event-bg-color: #cfe3cb;
+  --fc-event-border-color: #cfe3cb;
+  --fc-event-text-color: #1e2b22;
+}
+:root[data-theme="leaf"] .fc-home .home-chip-prep {
+  --fc-event-bg-color: #f2e4d6;
+  --fc-event-border-color: #f2e4d6;
+  --fc-event-text-color: #7a4128;
+}
+:root[data-theme="leaf"] .fc-home .home-chip-done {
+  --fc-event-bg-color: var(--card);
+  --fc-event-border-color: #d3e0d1;
+  --fc-event-text-color: var(--muted-foreground);
+}
+:root[data-theme="leaf"] .fc-home .fc-daygrid-more-link {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-canvas: var(--canvas);

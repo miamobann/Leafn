@@ -16,7 +16,7 @@ import type { ReviewStatus, Lang, Sentiment } from "@/lib/schemas/common";
 import { AdCheckLineRow, type AdCheckSource } from "@/lib/schemas/ad-check";
 import { ContentGuideRow } from "@/lib/schemas/content-guide";
 import { guideSlots } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-to-review";
-import { ProjectProduct, StageKey } from "@/lib/schemas/project";
+import { ProjectProduct } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
 import { APPEAL_MAX_RATING, buildAppealComparison, reviewProductRank } from "./appeal";
 import { analysisToResult, SnsTrendAnalysisRow, type SnsTrendResult } from "@/lib/schemas/market";
@@ -321,18 +321,6 @@ export async function getProjectsWithProducts() {
     products: products
       .filter((p) => p.project_id === project.id)
       .map((p) => ProjectProduct.parse({ ...p, project_id: project.id, category: p.category ?? null })),
-  }));
-}
-
-/** 홈 진행 현황판: 현황판 한 줄(자사 제품 하나)마다 8단계를 업무 흐름 순서로, 담당자 이름과 함께 */
-export async function getBoardProjects() {
-  if (await dataContext()) return []; // 저장 구조가 없는 샘플 결과를 실제 결과로 표시하지 않는다.
-  return mock.boardProjects.map((p) => ({
-    ...p,
-    stages: mock.projectStages
-      .filter((s) => s.project_id === p.id)
-      .toSorted((a, b) => StageKey.options.indexOf(a.stage) - StageKey.options.indexOf(b.stage))
-      .map((s) => ({ ...s, owner_name: mock.members.find((m) => m.user_id === s.owner_id)?.display_name ?? null })),
   }));
 }
 
