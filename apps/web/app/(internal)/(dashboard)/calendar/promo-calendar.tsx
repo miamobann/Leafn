@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useMemo, useState, useTransition } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import listPlugin from "@fullcalendar/list";
@@ -25,10 +25,24 @@ const nextDay = (d: string) => new Date(Date.parse(d) + 86_400_000).toISOString(
 const COLOR = { platform_event: "var(--sentiment-positive)", own_campaign: "var(--risk-low)", milestone: "var(--risk-high)" };
 
 // 홈에 넣을 때는 플랫폼 고르기·행사 추가·수정을 빼고 높이를 줄인다. 다 쓰려면 이 화면(전체보기)으로 온다.
-// 홈의 보기 전환은 월·주만 (2026-10-26 홈 새 디자인)
+// 홈은 머리줄(월·주 전환 · 이전 · 다음 · 범례)을 _home/home-calendar.tsx가 그리므로 기본 툴바를 끄고, 칸 높이만큼 늘어난다 (2026-10-26 홈 새 디자인 목업)
 const VIEW = {
   page: { height: 640, headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listMonth" } },
-  home: { height: 520, headerToolbar: { left: "title", center: "", right: "dayGridMonth,dayGridWeek prev,next" } },
+  home: { height: "auto", headerToolbar: false },
+} as const;
+
+// 홈 칸 안의 일정 칩. 색은 globals.css의 .fc-home 규칙이 정한다 (목업 색)
+const HOME_CHIP = { platform_event: "home-chip-platform", own_campaign: "home-chip-own", milestone: "home-chip-prep", done: "home-chip-done" };
+
+/** 홈 머리줄이 보기 전환 · 이전 · 다음을 부를 때 쓰는 값 */
+export type CalendarControls = {
+  view: "dayGridMonth" | "dayGridWeek";
+  /** 보이는 기간의 첫날과, 마지막 날의 다음 날. 캘린더가 뜨기 전에는 null */
+  start: Date | null;
+  end: Date | null;
+  prev: () => void;
+  next: () => void;
+  setView: (view: CalendarControls["view"]) => void;
 };
 
 export function PromoCalendar({
@@ -37,7 +51,7 @@ export function PromoCalendar({
   today,
   variant = "page",
   renderIdle,
-  header,
+  toolbar,
   panelId,
 }: {
   events: PromoEventView[];
@@ -46,8 +60,8 @@ export function PromoCalendar({
   variant?: keyof typeof VIEW;
   /** 아무 일정도 고르지 않았을 때 오른쪽 패널에 보일 내용 (홈의 할 일). 없으면 안내 문구 */
   renderIdle?: (ctx: { events: PromoEventView[]; select: (eventId: string) => void }) => ReactNode;
-  /** 홈: 캘린더 카드 맨 위 줄 (제목 · 일정 관리 링크) */
-  header?: ReactNode;
+  /** 홈: 캘린더 카드 맨 위 줄 (제목 · 보기 전환 · 이전 · 다음 · 범례). FullCalendar 기본 툴바 대신 */
+  toolbar?: (controls: CalendarControls) => ReactNode;
   /** 홈: 할 일 카드의 id (상단 바 알림 버튼이 이 카드로 이동한다) */
   panelId?: string;
 }) {
@@ -58,6 +72,25 @@ export function PromoCalendar({
   const [adding, setAdding] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const calendarRef = useRef<FullCalendar>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [range, setRange] = useState<{ view: string; start: Date; end: Date } | null>(null);
+
+  // 홈: FullCalendar는 창 크기가 바뀔 때만 폭을 다시 잰다. 사이드바를 접고 펴거나 옆 카드가 줄을 바꿔
+  // 칸 폭만 바뀌면 오른쪽이 비므로, 감싼 칸의 크기를 지켜보다가 다시 재게 한다
+  useEffect(() => {
+    if (isPage || !wrapRef.current) return;
+    // 높이만 바뀔 때(칸에 일정이 늘 때 등)는 다시 재지 않는다
+    let width = 0;
+    const observer = new ResizeObserver(([entry]) => {
+      const next = Math.round(entry.contentRect.width);
+      if (next === width) return;
+      width = next;
+      calendarRef.current?.getApi().updateSize();
+    });
+    observer.observe(wrapRef.current);
+    return () => observer.disconnect();
+  }, [isPage]);
 
   const selected = events.find((e) => e.id === selectedId) ?? null;
   // 플랫폼 메모가 없는 플랫폼의 행사도 고를 수 있게 행사 쪽 플랫폼을 합친다
@@ -69,19 +102,38 @@ export function PromoCalendar({
   const calendarEvents = useMemo<EventInput[]>(
     () =>
       events.filter((e) => !platform || e.platformKey === platform).flatMap((e) => [
-        { id: e.id, title: `${e.isConfirmed ? "" : "예상 · "}${e.platformName} · ${e.title}`, start: e.startDate, end: nextDay(e.endDate), allDay: true, color: COLOR[e.kind] },
+        {
+          id: e.id,
+          title: `${e.isConfirmed ? "" : "예상 · "}${e.platformName} · ${e.title}`,
+          start: e.startDate,
+          end: nextDay(e.endDate),
+          allDay: true,
+          ...(isPage ? { color: COLOR[e.kind] } : { classNames: [HOME_CHIP[e.kind]] }),
+        },
         ...e.milestones.map((m) => ({
           id: m.id,
           groupId: e.id,
           title: `${m.done ? "✓" : "▲"} ${m.label} (${e.title})`,
           start: m.dueDate,
           allDay: true,
-          display: "list-item",
-          color: m.done ? "var(--muted-foreground)" : COLOR.milestone,
+          // 홈은 점 대신 칩으로 보인다
+          ...(isPage
+            ? { display: "list-item", color: m.done ? "var(--muted-foreground)" : COLOR.milestone }
+            : { display: "block", classNames: [m.done ? HOME_CHIP.done : HOME_CHIP.milestone] }),
         })),
       ]),
-    [events, platform],
+    [events, platform, isPage],
   );
+
+  const api = () => calendarRef.current?.getApi();
+  const controls: CalendarControls = {
+    view: range?.view === "dayGridWeek" ? "dayGridWeek" : "dayGridMonth",
+    start: range?.start ?? null,
+    end: range?.end ?? null,
+    prev: () => api()?.prev(),
+    next: () => api()?.next(),
+    setView: (view) => api()?.changeView(view),
+  };
 
   const patchEvent = (eventId: string, patch: Partial<PromoEventView>) =>
     setEvents((prev) => prev.map((e) => (e.id === eventId ? { ...e, ...patch } : e)).toSorted((a, b) => a.startDate.localeCompare(b.startDate)));
@@ -103,9 +155,11 @@ export function PromoCalendar({
   };
 
   const calendar = (
-      <div className="min-w-0">
-        <div className="mb-3 flex items-center gap-2 text-sm">
-          {isPage && (
+      // 홈 칸 모양(둥근 칸 · 간격 · 오늘 테두리 · 칩)은 globals.css의 .fc-home 규칙
+      <div ref={wrapRef} className={isPage ? "min-w-0" : "fc-home min-w-0"}>
+        {/* 홈은 범례를 머리줄(toolbar)이 그린다 */}
+        {isPage && (
+          <div className="mb-3 flex items-center gap-2 text-sm">
             <label className="flex items-center gap-2">
               플랫폼
               <select className="rounded-md border bg-background px-2 py-1" value={platform} onChange={(e) => setPlatform(e.target.value)}>
@@ -117,18 +171,16 @@ export function PromoCalendar({
                 ))}
               </select>
             </label>
-          )}
-          <span className="ml-auto flex gap-3 text-xs text-muted-foreground">
-            <span style={{ color: COLOR.platform_event }}>■ 플랫폼 행사</span>
-            <span style={{ color: COLOR.own_campaign }}>■ 자사 캠페인</span>
-            <span style={{ color: COLOR.milestone }}>▲ 준비 마감</span>
-          </span>
-          {isPage && (
+            <span className="ml-auto flex gap-3 text-xs text-muted-foreground">
+              <span style={{ color: COLOR.platform_event }}>■ 플랫폼 행사</span>
+              <span style={{ color: COLOR.own_campaign }}>■ 자사 캠페인</span>
+              <span style={{ color: COLOR.milestone }}>▲ 준비 마감</span>
+            </span>
             <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
               {adding ? "닫기" : "행사 추가"}
             </Button>
-          )}
-        </div>
+          </div>
+        )}
         {isPage && adding && (
           <NewEventForm
             platformKeys={SAMPLE ? platformKeys : PLATFORMS.map((p) => p.id)}
@@ -140,6 +192,7 @@ export function PromoCalendar({
           />
         )}
         <FullCalendar
+          ref={calendarRef}
           plugins={[dayGridPlugin, listPlugin, interactionPlugin]}
           locale={koLocale}
           initialView="dayGridMonth"
@@ -149,6 +202,18 @@ export function PromoCalendar({
           height={VIEW[variant].height}
           events={calendarEvents}
           eventClick={(info) => setSelectedId(info.event.groupId || info.event.id)}
+          datesSet={(info) => setRange({ view: info.view.type, start: info.view.currentStart, end: info.view.currentEnd })}
+          // 홈: 그 달의 주만, 칸마다 일정 2개까지, 날짜는 "27일" 대신 "27". 칩 글자가 잘리면 마우스를 올려 본다
+          fixedWeekCount={isPage}
+          dayMaxEvents={isPage ? false : 2}
+          dayCellContent={isPage ? undefined : (arg) => arg.dayNumberText.replace("일", "")}
+          eventDidMount={
+            isPage
+              ? undefined
+              : (info) => {
+                  info.el.title = info.event.title;
+                }
+          }
         />
       </div>
   );
@@ -265,7 +330,7 @@ export function PromoCalendar({
     return (
       <div className="flex flex-wrap items-stretch gap-5">
         <Card className="min-w-0 flex-[999_1_600px]">
-          {header && <CardHeader>{header}</CardHeader>}
+          {toolbar && <CardHeader>{toolbar(controls)}</CardHeader>}
           <CardContent>{calendar}</CardContent>
         </Card>
         {panel}

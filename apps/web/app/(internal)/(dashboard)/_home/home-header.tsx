@@ -1,16 +1,9 @@
-"use client";
-
-// 홈 맨 위 줄: 인사와 요약 세 칸 (2026-10-26 홈 새 디자인). 판매 중 제품은 상단 바에서 고른 프로젝트를 따른다
+// 홈 맨 위 줄: 인사와 요약 두 칸 (2026-10-26 홈 새 디자인). 판매 중 제품 칸은 아래 현황판 줄과 겹쳐서 뺐다
 import Link from "next/link";
-import { type ProjectWithProducts, useProjects } from "@/components/layout/project-store";
-import { OWN_PRODUCT_LINE } from "@/lib/own-products";
 
 const TEXT = {
   hello: (name: string) => `안녕하세요, ${name}님`,
   sub: "이번 주 할 일과 프로젝트 진행",
-  onSale: "판매 중 제품",
-  onSaleUnit: "개",
-  noOnSale: "판매 중인 제품이 없어요",
   todo: "마감 2주 안 할 일",
   todoUnit: "건",
   urgent: "가장 급한 일",
@@ -27,13 +20,9 @@ export type HomeNextEvent = { id: string; dDay: string; title: string; date: str
 const TILE = "flex min-w-0 flex-col gap-0.5 rounded-xl bg-card px-5 py-3.5 ring-1 ring-foreground/10 hover:bg-muted/50";
 const VALUE = "text-3xl leading-tight font-normal text-primary tabular-nums";
 
-/** "Leaf& Dew Deep Skin" → "Deep Skin" (요약 칸이 좁아 프로젝트 이름은 뺀다) */
-const shortName = (name: string) => (name.startsWith(OWN_PRODUCT_LINE) ? name.slice(OWN_PRODUCT_LINE.length).trim() : name);
-
 export function HomeHeader({
   name,
   dateLabel,
-  lines,
   todo,
   next,
   todoHref,
@@ -42,7 +31,6 @@ export function HomeHeader({
   name: string;
   /** "10월 26일 월요일" */
   dateLabel: string;
-  lines: ProjectWithProducts[];
   todo: HomeTodoSummary;
   next: HomeNextEvent;
   /** 할 일 칸을 누르면 갈 곳 (홈 할 일 카드) */
@@ -50,9 +38,6 @@ export function HomeHeader({
   /** 인사 아래 한 줄 알림 (팀장의 결재 지연). 따로 줄을 만들지 않아 아래 카드가 올라온다 */
   notice?: React.ReactNode;
 }) {
-  const { current } = useProjects(lines);
-  const onSale = (current?.products ?? []).filter((p) => p.sale_status === "on_sale");
-
   return (
     // 인사는 요약 칸 위쪽 끝에 맞춘다 (아래로 맞추면 상단 바와 사이가 벌어진다)
     <section aria-label="인사와 요약" className="flex flex-wrap items-start gap-5">
@@ -63,14 +48,7 @@ export function HomeHeader({
         </p>
         {notice}
       </div>
-      <div className="grid min-w-0 flex-[2_1_640px] grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-        <Link href="/projects" data-slot="card" className={TILE}>
-          <span className="text-xs text-muted-foreground">{TEXT.onSale}</span>
-          <span className={VALUE}>
-            {onSale.length} <span className="text-sm text-foreground/80">{TEXT.onSaleUnit}</span>
-          </span>
-          <span className="truncate text-xs text-foreground/80">{onSale.length > 0 ? onSale.map((p) => shortName(p.name)).join(" · ") : TEXT.noOnSale}</span>
-        </Link>
+      <div className="grid min-w-0 flex-[1_1_440px] grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <Link href={todoHref} data-slot="card" className={TILE}>
           <span className="text-xs text-muted-foreground">{TEXT.todo}</span>
           <span className={VALUE}>

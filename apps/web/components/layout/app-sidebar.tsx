@@ -193,7 +193,8 @@ export function AppSidebar({ activity, role }: { activity: SidebarActivity[]; ro
         animateWidth ? "transition-[width] duration-200 ease-out motion-reduce:transition-none" : ""
       }`}
     >
-      <div className={`flex items-center py-4 ${collapsed ? "justify-center px-2" : "justify-between pr-3 pl-5"}`}>
+      {/* 맨 윗줄은 높이를 64px로 고정한다. 접으면 로고(32px)가 빠져 줄이 낮아지고 아래 메뉴 아이콘이 4px 올라갔다 */}
+      <div className={`flex h-16 shrink-0 items-center ${collapsed ? "justify-center px-2" : "justify-between pr-3 pl-5"}`}>
         {!collapsed && (
           <span className="flex items-end gap-2">
             <Image src="/brand/leaf-and-wordmark.png" alt={TEXT.logoAlt} width={102} height={32} priority />

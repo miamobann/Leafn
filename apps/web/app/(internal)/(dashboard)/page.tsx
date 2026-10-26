@@ -27,7 +27,7 @@ function dateLabel(date: string) {
 }
 
 /**
- * 홈 (2026-10-26 홈 새 디자인): 인사와 요약 세 칸 → 프로젝트 진행 현황 + 문구 검토 대기 → 캘린더 + 할 일.
+ * 홈 (2026-10-26 홈 새 디자인): 인사와 요약 두 칸 → 프로젝트 진행 현황 + 문구 검토 대기 → 캘린더 + 할 일.
  * 탭별 요약 카드 4개는 뺐다. 현황판은 판매 중 제품 × 4칸의 시안 상태와 데이터 준비다 (서버 데이터 연동 작업 지침서 4번 A안)
  */
 export default async function HomePage() {
@@ -80,7 +80,6 @@ export default async function HomePage() {
       <HomeHeader
         name={me.name}
         dateLabel={dateLabel(today)}
-        lines={lines}
         todo={todo}
         next={next}
         todoHref={`#${HOME_TODO_ID}`}
@@ -105,7 +104,7 @@ export default async function HomePage() {
         />
         <CopyQueue items={queue} />
       </div>
-      <HomeCalendar events={events} platformKeys={platforms.map((p) => p.key)} today={today} />
+      <HomeCalendar events={events} platformKeys={platforms.map((p) => p.key)} today={today} next={next} />
       <ScrollButtons />
     </div>
   );
