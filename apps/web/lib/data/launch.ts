@@ -76,13 +76,13 @@ export async function getPromoEventViews(opts: { platformKey?: string } = {}): P
       const milestones = e.milestones ?? [{ label: "준비 마감", due_date: e.prep_due_date }];
       return {
         id: e.id,
-        platformKey: e.platform,
+        platformKey: e.platform || null,
         platformName: e.platform ? platformLabel(e.platform) : "자사 캠페인",
         kind: e.kind ?? "platform_event",
         title: e.title,
         startDate: e.start_date,
         endDate: e.end_date,
-        milestones: deadlines ? deadlines.filter((m) => m.promo_event_id === e.id).map((m) => ({ id: m.id, label: m.label, dueDate: m.due_date, done: m.done_at !== null })) : milestones.map((m, i) => ({ id: `${e.id}-m${i}`, label: m.label, dueDate: m.due_date, done: false })),
+        milestones: deadlines ? deadlines.filter((m) => m.promo_event_id === e.id).map((m) => ({ id: m.id, label: m.label, dueDate: m.due_date, done: m.done_at !== null })) : milestones.map((m, i) => ({ id: `${e.id}-m${i}`, label: m.label, dueDate: m.due_date, done: Boolean("done_at" in m && m.done_at) })),
         adCheck: check ? { id: check.id, status: check.review_status } : null,
         // 확정 여부가 비어 있으면 팀이 날짜를 정하는 자사 캠페인만 확정으로 본다
         isConfirmed: e.is_confirmed ?? e.kind === "own_campaign",
