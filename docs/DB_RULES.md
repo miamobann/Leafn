@@ -173,7 +173,7 @@ create policy "members delete" on influencers for delete using (is_member(worksp
 | workspaces, workspace_members, profiles, projects | 총괄 |
 | products (자사 제품 칸: project_id · sale_status · skin_line · source_raw.spec) | 총괄 |
 | products (경쟁 제품), product_competitors, reviews, review_analyses, collection_runs 외 수집 테이블 3개 | 리뷰 분석 (TAB 2) |
-| trend_snapshots, search_snapshots, geo_snapshots | 시장 분석 (TAB 1) |
+| trend_snapshots, search_snapshots, geo_snapshots, sns_trend_analyses | 시장 분석 (TAB 1) |
 | ad_checks, ad_check_lines, content_guides | 광고 검토 (TAB 3) |
 | promo_events, promo_milestones, platform_notes | 총괄 (홈 캘린더) |
 | surveys, survey_responses, survey_minor_counts, survey_reco_events | 소비자 설문 |

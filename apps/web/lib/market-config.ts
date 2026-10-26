@@ -6,9 +6,6 @@ import type { TrendSource } from "@/lib/schemas/trend";
 export const MARKET_CATEGORIES = ["化粧水", "美容液"] as const;
 export type MarketCategory = (typeof MARKET_CATEGORIES)[number];
 
-/** 실데이터(수집 CSV·DB)로 만든 랭킹 스냅샷의 id 접두사. 화면에서 "샘플" 대신 "실데이터"로 표시한다 */
-export const IMPORTED_SNAPSHOT_PREFIX = "import:";
-
 /** 두 플랫폼의 랭킹은 합치지 않는다 (고객층·랭킹 산정 방식이 달라 상위권 조건이 왜곡된다) */
 // eventPlatform = promo_events.platform 표기 (랭킹 주가 플랫폼 행사와 겹치는지 볼 때 쓴다)
 export const MARKET_PLATFORMS = [

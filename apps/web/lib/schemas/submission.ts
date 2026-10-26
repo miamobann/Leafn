@@ -72,6 +72,25 @@ const ReviewBodyTopic = z.object({
   evidence_review_ids: z.array(Id),
 });
 
+/** 소구점 찾기에서 시안에 담은 소구점 (경쟁 불만 → 자사 칭찬). 주제는 같은 시안의 성적표(topics)에도 있는 강점 주제다 */
+const ReviewBodyAppeal = z.object({
+  topic: AppealTopic,
+  own_praises: z.number().int().nonnegative(),
+  competitor_complaints: z.number().int().nonnegative(),
+  evidence_review_ids: z.array(Id),
+});
+
+/** 상세페이지용 리뷰에서 시안에 담은 일본어 후기. 시안이 승인되면 콘텐츠 제작 가이드가 이 문구를 인용한다 */
+const ReviewBodyTranslation = z.object({
+  review_translation_id: Id,
+  review_id: Id,
+  ad_check_id: Id.nullable(),
+  text_ja: z.string().min(1),
+  text_ko: z.string(),
+  /** 약기법 검토의 대체 표현으로 고친 문장이면 true */
+  edited: z.boolean(),
+});
+
 export const ReviewBody = z.object({
   product_id: Id,
   review_count: z.number().int().nonnegative(),
@@ -85,6 +104,9 @@ export const ReviewBody = z.object({
   pain_points: z.array(ReviewBodyItem),
   repurchase_factors: z.array(ReviewBodyItem),
   keywords: z.array(ReviewBodyItem),
+  /** 이전에 저장한 시안에는 없는 칸이라 선택으로 둔다 */
+  appeals: z.array(ReviewBodyAppeal).optional(),
+  translations: z.array(ReviewBodyTranslation).optional(),
 });
 export type ReviewBody = z.infer<typeof ReviewBody>;
 

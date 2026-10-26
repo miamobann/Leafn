@@ -50,6 +50,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "리뷰 분석",
     icon: MessageSquareText,
     items: [
+      // 첫 화면: 제품별로 담은 소구점 · 일본어 후기를 한 장으로 요약해 팀장 결재를 올린다 (2026-10-26)
+      { label: "요약", href: "/reviews/summary", featureId: "E" },
       { label: "리뷰 리포트", href: "/reviews", featureId: "E" },
       { label: "소구점 찾기", href: "/reviews/compare", featureId: "E" },
       // 화면은 제품마다(/reviews/<제품>/translate) 있어서 탭 주소는 안내용 입구(가장 리뷰 많은 자사 제품으로 보낸다)

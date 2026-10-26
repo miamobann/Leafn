@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ViewStateGate } from "@/components/common/view-state";
-import { IMPORTED_SNAPSHOT_PREFIX, MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
-import type { GeoSnapshot } from "@/lib/schemas/geo";
-import type { SnsPattern, SnsVideoNote } from "@/lib/schemas/market";
+import { MARKET_PLATFORMS, type MarketCategory, type MarketPlatform } from "@/lib/market-config";
+import type { GeoEngine, GeoSnap, GeoSnapshot } from "@/lib/schemas/geo";
+import type { SnsTrendResult } from "@/lib/schemas/market";
 import type { Product } from "@/lib/schemas/product";
 import type { PromoEvent } from "@/lib/schemas/promo";
 import type { SearchSnap } from "@/lib/schemas/search";
@@ -14,7 +14,9 @@ import { ownBaseline, rankingKey, rankingRowToProduct, rowsAt, seriesOf } from "
 import { compareParam, parseCompareParam } from "@/app/(internal)/(dashboard)/market/_lib/compare";
 import type { PlatformId } from "@/lib/platforms";
 import { ConditionBar } from "./condition-bar";
+import { DataUpdate } from "./data-update";
 import { SupplyPart } from "./part1-supply";
+import { RankingUpload } from "./ranking-upload";
 import { DemandPart } from "./part2-demand";
 import { SummaryPart } from "./summary";
 import type { MarketTab } from "@/app/(internal)/(dashboard)/market/_lib/summary";
@@ -24,6 +26,7 @@ import { SectionHeader } from "./section-header";
 import { MAX_COMPARE, OverviewPanel, type PanelContent } from "./side-panel";
 
 // 탭 순서 = 팀장이 읽는 순서 (요약 → 우리 제품 대응 → 플랫폼 분석 → 소비자 트렌드 → 경쟁제품). 2026-10-25 한 페이지 스크롤을 탭으로 나눴다
+// 2026-10-26: 위쪽 탭 줄에는 요약·경쟁제품만 둔다. 나머지 세 탭은 요약 칸 아래 「~ 탭 열기」로 들어가고, 주소(#id)는 그대로라 예전 링크도 열린다
 const TABS = [
   { id: "summary", label: "요약", title: "이번 주 핵심", question: "각 탭에서 바로 써먹을 결론과 할 일", help: "각 탭의 계산 결과로 만든 결론과 할 일이에요 (AI 없이 정해진 규칙). 할 일은 제안이고 최종 판단은 담당자가 해요." },
   { id: "action", label: "우리 제품 대응", title: "우리 제품 대응", question: "AI 검색이 경쟁 제품을 추천할 때 드는 이유 중 우리가 채울 것은?" },
@@ -36,6 +39,8 @@ const TABS = [
 const PLATFORM_ID: Record<MarketPlatform, PlatformId> = { qoo10_ranking: "qoo10", rakuten_ranking: "rakuten" };
 
 const TAB_LABEL = Object.fromEntries(TABS.map((t) => [t.id, t.label])) as Record<MarketTab, string>;
+/** 위쪽 탭 줄에 보이는 탭 */
+const NAV_TABS = TABS.filter((t) => t.id === "summary" || t.id === "competitors");
 
 // 열린 탭은 주소의 #id에서 읽는다 (예전 바로가기 주소 #demand 등도 그대로 그 탭으로 열린다). 서버 렌더에서는 요약
 // 시장 개관 탭은 2026-10-25에 없앴다: 가격 포지셔닝 맵은 플랫폼 분석으로 옮겼으니 예전 주소 #market은 플랫폼 분석으로 연다
@@ -80,19 +85,16 @@ export function MarketOverview({
   products,
   promoEvents,
   search,
-  snsNotes,
-  snsPatterns,
   geo,
-  snsImported,
+  sns,
 }: {
   snapshots: TrendSnapshot[];
   products: Product[];
   promoEvents: PromoEvent[];
   search: SearchSnap[];
-  snsNotes: SnsVideoNote[];
-  snsPatterns: SnsPattern[];
   geo: GeoSnapshot[];
-  snsImported: { category: string; url: string; memo: string }[];
+  /** 저장된 SNS 분석 (분석 시각 오름차순, 카테고리마다 마지막이 최신) */
+  sns: SnsTrendResult[];
 }) {
   const [category, setCategory] = useState<MarketCategory>("化粧水");
   // 실데이터는 Qoo10으로 수집한다 (2026-10-24 결정). 楽天은 비교용 샘플
@@ -100,6 +102,17 @@ export function MarketOverview({
   const [panel, setPanel] = useState<PanelContent | null>(null);
   // 검색 데이터 한 벌 (지금 수집 결과를 붙이면 2-A 자동완성·요약이 같이 바뀐다)
   const [searchSnaps, setSearchSnaps] = useState(search);
+  // AI 검색 답변 한 벌 ([데이터 업데이트]로 새로 받으면 같은 엔진·카테고리의 이전 답변을 바꾼다. DB에는 측정 시각별로 쌓인다)
+  const [geoRows, setGeoRows] = useState<(GeoSnap & { id: string })[]>(geo);
+  // 「우리 제품 대응」 탭은 처음 받은 값으로 상태를 만들어서, 새 답변이 오면 다시 그리게 키를 바꾼다
+  const [geoVersion, setGeoVersion] = useState(0);
+  // SNS 분석 한 벌 (새로 분석하거나 결과 JSON을 올리면 뒤에 더한다. 요약·2-B·업데이트 안내가 같이 바뀐다)
+  const [snsList, setSnsList] = useState(sns);
+  const replaceGeo = (engine: GeoEngine, cat: string, fresh: GeoSnap[]) => {
+    const rows = fresh.map((s) => ({ ...s, id: `run-${s.engine}-${s.captured_at}-${s.query}-${s.run_index}` }));
+    setGeoRows((prev) => [...prev.filter((g) => !(g.engine === engine && g.category === cat)), ...rows]);
+    setGeoVersion((v) => v + 1);
+  };
   // 표 체크박스와 패널의 [비교에 추가]가 같은 목록을 쓴다 (저장되지 않음)
   const [selected, setSelected] = useState<string[]>([]);
   const tab = useMarketTab();
@@ -111,7 +124,8 @@ export function MarketOverview({
   const latest = series.at(-1);
   const week = latest ? `${weekLabel(latest.captured_at)} 주` : null;
   // 랭킹을 쓰는 탭(요약·플랫폼 분석)은 실데이터면 실데이터로 표시한다. 소비자 트렌드·우리 제품 대응·경쟁제품은 랭킹 데이터가 아니라 그대로
-  const realRanking = Boolean(latest?.id.startsWith(IMPORTED_SNAPSHOT_PREFIX));
+  // 실데이터 = DB에 저장된 랭킹(uuid, [랭킹 CSV 올리기]). 샘플은 id가 「ts-」로 시작한다
+  const realRanking = Boolean(latest && !latest.id.startsWith("ts-"));
   const baseBasis = week ? `${week} · ${platformInfo.label}` : `${platformInfo.label} · 이 카테고리 데이터 없음`;
   const basis = week && realRanking ? `${baseBasis} 수집 데이터` : baseBasis;
 
@@ -119,7 +133,8 @@ export function MarketOverview({
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX_COMPARE ? cur : [...cur, id]));
 
   // 샘플 GEO 답변은 id가 「geo-」로 시작한다 (DB 행은 uuid)
-  const geoCategory = geo.filter((g) => g.category === category);
+  const geoCategory = geoRows.filter((g) => g.category === category);
+  const snsLatest = snsList.filter((s) => s.category === category).at(-1) ?? null;
   const geoIsSample = geoCategory.length > 0 && geoCategory.every((g) => g.id.startsWith("geo-"));
   const productIds = new Set(products.map((p) => p.id));
   // 플랫폼 분석에서 고른 랭킹 제품 → 경쟁제품 탭. 등록된 제품과 이어져 있으면 그 제품을, 아니면 랭킹 값으로 만든 제품을 쓴다
@@ -131,23 +146,38 @@ export function MarketOverview({
 
   const body: Record<MarketTab, React.ReactNode> = {
     summary: (
-      <SummaryPart series={series} products={products} category={category} search={searchSnaps} geo={geo} geoIsSample={geoIsSample} tabLabel={TAB_LABEL} />
-    ),
-    action: <GeoInsights initial={geo.map((g, i) => ({ ...g, id: `geo-row-${i}` }))} ownProducts={products.filter((p) => p.kind === "own")} category={category} gapFirst />,
-    supply: (
-      <SupplyPart
+      <SummaryPart
         series={series}
-        sameSource={sameSource}
-        platformLabel={platformInfo.label}
-        platformName={platformInfo.eventPlatform}
-        promoEvents={promoEvents}
         products={products}
-        selected={selected}
-        onToggleCompare={toggleCompare}
-        onOpen={setPanel}
+        category={category}
+        search={searchSnaps}
+        geo={geoRows}
+        geoIsSample={geoIsSample}
+        tabLabel={TAB_LABEL}
+        platformLabel={platformInfo.label}
+        week={week}
+        sns={snsLatest}
       />
     ),
-    demand: <DemandPart search={searchSnaps} onSearchCollected={(added) => setSearchSnaps((s) => [...s, ...added])} snsNotes={snsNotes} snsPatterns={snsPatterns} snsImported={snsImported} category={category} onOpen={setPanel} />,
+    action: <GeoInsights key={geoVersion} initial={geoRows.map((g, i) => ({ ...g, id: g.id.startsWith("run-") ? g.id : `geo-row-${i}` }))} ownProducts={products.filter((p) => p.kind === "own")} category={category} gapFirst />,
+    // 랭킹 CSV 올리기: 배포 서버에는 이 PC의 CSV가 없어서 DB에 저장해 같은 실데이터를 본다
+    supply: (
+      <div className="space-y-4">
+        <RankingUpload defaultCategory={category} />
+        <SupplyPart
+          series={series}
+          sameSource={sameSource}
+          platformLabel={platformInfo.label}
+          platformName={platformInfo.eventPlatform}
+          promoEvents={promoEvents}
+          products={products}
+          selected={selected}
+          onToggleCompare={toggleCompare}
+          onOpen={setPanel}
+        />
+      </div>
+    ),
+    demand: <DemandPart search={searchSnaps} onSearchCollected={(added) => setSearchSnaps((s) => [...s, ...added])} snsLatest={snsLatest} onSnsAnalyzed={(r) => setSnsList((list) => [...list, r])} category={category} onOpen={setPanel} />,
     // 플랫폼 분석 랭킹 표에서 고른 제품을 목록에 더하고, 처음 4개는 나란히 비교에 골라 둔다
     competitors: <CompetitorsView products={[...products, ...pickedProducts]} initialSelected={pickedIds} compareIds={compareIds} onCompareChange={setCompare} />,
   };
@@ -162,9 +192,31 @@ export function MarketOverview({
 
   return (
     <>
-      <ConditionBar category={category} onCategory={setCategory} platform={platform} onPlatform={setPlatform} week={week} tabs={TABS} active={tab} />
+      {/* 제목 + [데이터 업데이트] (탭마다 따로 누르던 지금 수집·AI 질의를 한 번에) */}
+      <div className="mb-6">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold">시장 분석</h1>
+          <DataUpdate
+            category={category}
+            rankingAt={latest?.captured_at ?? null}
+            search={searchSnaps}
+            geo={geoRows}
+            snsAt={snsLatest?.analyzed_at ?? null}
+            onSearch={(added) => setSearchSnaps((s) => [...s, ...added])}
+            onGeo={replaceGeo}
+          />
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">저장된 시장 데이터 · 카테고리·플랫폼별 조회</p>
+      </div>
+      <ConditionBar category={category} onCategory={setCategory} platform={platform} onPlatform={setPlatform} week={week} tabs={NAV_TABS} active={tab} />
       <ViewStateGate>
         <section aria-labelledby={`${current.id}-title`}>
+          {/* 탭 줄에 없는 탭(요약 칸에서 들어옴)은 요약으로 돌아가는 길을 둔다 */}
+          {!NAV_TABS.some((t) => t.id === current.id) && (
+            <a href="#summary" className="mb-2 inline-block text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">
+              ← 요약으로
+            </a>
+          )}
           <SectionHeader titleId={`${current.id}-title`} title={current.title} question={current.question} basis={tabBasis} real={realRanking && rankingTab} help={"help" in current ? current.help : undefined} />
           {body[current.id]}
         </section>

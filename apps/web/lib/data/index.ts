@@ -19,7 +19,7 @@ import { guideSlots } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-to-
 import { ProjectProduct, StageKey } from "@/lib/schemas/project";
 import type { TrendSource } from "@/lib/schemas/trend";
 import { APPEAL_MAX_RATING, buildAppealComparison, reviewProductRank } from "./appeal";
-import { importedSnapshots, importedSnsVideos } from "./market-imports";
+import { analysisToResult, SnsTrendAnalysisRow, type SnsTrendResult } from "@/lib/schemas/market";
 
 export async function getWorkspace() {
   if (await dataContext()) return (await getMyWorkspace())!.workspace;
@@ -209,12 +209,9 @@ export async function getContentGuide(id: string) {
 
 /** source는 필수 (楽天·Qoo10 시계열이 섞이지 않게). category를 빼면 모든 카테고리. captured_at 오름차순 */
 export async function getTrendSnapshots(opts: { source: TrendSource; category?: string }) {
+  // Qoo10 랭킹은 화면의 [랭킹 CSV 올리기]로 DB에 저장한다 (서버 데이터 연동 작업 지침서 1번). 서버 코드는 PC 파일을 읽지 않는다
   const rows = await readRows("trend_snapshots");
-  const base = rows ? TrendSnapshot.array().parse(rows) : mock.trendSnapshots;
-  // 이 PC의 수집 CSV(실데이터): 샘플 모드에서는 같은 플랫폼·카테고리 샘플을 대신하고, DB 모드에서는 DB에 없는 플랫폼·카테고리만 채운다
-  const imported = importedSnapshots().filter((i) => !rows || !base.some((t) => t.source === i.source && t.category === i.category));
-  const replaced = (t: { source: string; category: string }) => imported.some((i) => i.source === t.source && i.category === t.category);
-  return [...base.filter((t) => !replaced(t)), ...imported]
+  return (rows ? TrendSnapshot.array().parse(rows) : mock.trendSnapshots)
     .filter((t) => t.source === opts.source)
     .filter((t) => !opts.category || t.category === opts.category)
     .toSorted((a, b) => a.captured_at.localeCompare(b.captured_at));
@@ -231,21 +228,14 @@ export async function getIngredientInterest(opts: { source: TrendSource; categor
   return latest?.data.ingredients ?? [];
 }
 
-/** 마케터가 등록한 영상 메모 (수요 · SNS 공통 패턴) */
-export async function getSnsVideoNotes() {
-  if (await dataContext()) return []; // 저장 구조가 없는 샘플 결과를 실제 결과로 표시하지 않는다.
-  return mock.snsVideoNotes;
-}
-
-/** 이 PC에 있는 실제 SNS 영상 목록 (수집 CSV, .gitignore). 없으면 빈 배열 */
-export async function getImportedSnsVideos() {
-  return importedSnsVideos();
-}
-
-/** 영상 메모에서 묶은 공통 패턴 (AI 결과 샘플) */
-export async function getSnsPatterns() {
-  if (await dataContext()) return []; // 저장 구조가 없는 샘플 결과를 실제 결과로 표시하지 않는다.
-  return mock.snsPatterns;
+/**
+ * SNS 영상 분석 결과 (sns_trend_analyses, 지침서 2번). 분석 시각 오름차순이라 카테고리마다 마지막 것이 최신이다.
+ * 테이블 적용 전이면 빈 목록 (화면은 [분석 시작] 결과만 보여 준다). 샘플 모드는 mock
+ */
+export async function getSnsAnalyses(): Promise<SnsTrendResult[]> {
+  const rows = await readRows("sns_trend_analyses").catch(missingTableOnly);
+  const list = rows ? SnsTrendAnalysisRow.array().parse(rows) : mock.snsAnalyses;
+  return list.map(analysisToResult).toSorted((a, b) => a.analyzed_at.localeCompare(b.analyzed_at));
 }
 
 export async function getGeoSnapshots() {

@@ -6,7 +6,7 @@ import { products } from "./products";
 import { boardProjects, projectStages, projects } from "./projects";
 import { searchSnapshots } from "./search";
 import { aiAnalyses, memberTabs, submissionReviews, submissionVersions, tabSubmissions } from "./submissions";
-import { snsPatterns, snsVideoNotes } from "./sns-notes";
+import { snsAnalyses } from "./sns-analyses";
 import { promoEvents } from "./promo-events";
 import { reviewAnalyses } from "./review-analyses";
 import { reviewInsights } from "./review-insights";
@@ -73,13 +73,12 @@ function checkRefs() {
     }
   }
 
-  // SNS 공통 패턴이 가리키는 영상은 같은 카테고리의 영상 메모에 있어야 한다
-  for (const p of snsPatterns)
-    for (const vid of p.video_ids) {
-      const note = snsVideoNotes.find((n) => n.id === vid);
-      expect(Boolean(note), `snsPatterns ${p.id} 영상 ${vid}`);
-      if (note) expect(note.category === p.category, `snsPatterns ${p.id} 영상 ${vid}의 카테고리가 다름`);
-    }
+  // SNS 분석의 니즈·키워드·근거가 가리키는 영상 번호는 그 분석의 영상 목록 안에 있어야 한다
+  for (const a of snsAnalyses) {
+    const count = a.videos.length;
+    const refs = [...a.result.needs.flatMap((n) => [...n.videos, ...n.evidence.map((e) => e.video), ...n.keywords.flatMap((k) => k.videos)]), ...a.result.keywords.flatMap((k) => k.videos)];
+    for (const v of refs) expect(v >= 1 && v <= count, `snsAnalyses ${a.id} 영상 ${v}번이 없음 (${count}개)`);
+  }
 
   // 설문 집계가 가리키는 라인 · 연령대 · 고민 값이 문항과 추천 라인에 있어야 한다
   const lineIds = ids(surveyProductLines);
@@ -166,8 +165,7 @@ export const mock = {
   adChecks,
   trendSnapshots,
   searchSnapshots,
-  snsVideoNotes,
-  snsPatterns,
+  snsAnalyses,
   geoSnapshots,
   promoEvents,
   platforms,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import Papa from "papaparse";
+import { useRef, useState } from "react";
 import { LangBadge } from "@/components/common/badges";
 import { EvidenceSheet } from "@/components/common/evidence-sheet";
 import { HelpTip } from "@/components/common/help-tip";
@@ -11,17 +12,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/format";
-import { SNS_PLATFORM_LABEL, SnsTrendResult, type SnsPattern, type SnsPatternKind, type SnsVideoNote } from "@/lib/schemas/market";
+import { SnsTrendResult } from "@/lib/schemas/market";
+import { saveSnsAnalysisJson } from "@/lib/data/sns-analysis-actions";
 import { parseTikTokLink } from "@/lib/external/tiktok";
 import type { SearchSnap } from "@/lib/schemas/search";
-import {
-  AUTOCOMPLETE_STATUS_LABEL,
-  concernSuggestions,
-  commonPatterns,
-  SNS_PATTERN_KIND_LABEL,
-  type AutocompleteRow,
-  type AutocompleteStatus,
-} from "@/app/(internal)/(dashboard)/market/_lib/demand";
+import { AUTOCOMPLETE_STATUS_LABEL, concernSuggestions, type AutocompleteRow, type AutocompleteStatus } from "@/app/(internal)/(dashboard)/market/_lib/demand";
 import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/toggle-group";
 import { IngredientInterestCard, SearchCollectBar } from "@/app/(internal)/(dashboard)/market/_components/search-trend";
 import type { PanelContent } from "./side-panel";
@@ -29,8 +24,9 @@ import type { PanelContent } from "./side-panel";
 // 화면 문구
 const TEXT = {
   autocompleteNote: "고민 단어를 치면 구글 검색창이 띄우는 추천어예요 (검색량이 아니에요). 지난 수집과 비교해 새로 나타난 말·사라진 말을 표시해요 · おすすめ 같은 일반어는 뺐어요",
-  snsBasis: "선택한 영상 기준 · 마케터가 고른 영상이라 시장 전체를 대표하지 않아요 · 고정된 샘플 결과 · 저장되지 않음",
-  snsRealBasis: "영상의 캡션·해시태그·발화 자막(TikTok 자동 자막)을 AI가 읽은 결과 · 키워드·근거는 영상 정보에 그대로 있는 말만 · 고른 영상 기준이라 시장 전체를 대표하지 않아요 · 저장되지 않음",
+  snsRealBasis: "영상의 캡션·해시태그·발화 자막(TikTok 자동 자막)을 AI가 읽은 결과 · 키워드·근거는 영상 정보에 그대로 있는 말만 · 고른 영상 기준이라 시장 전체를 대표하지 않아요 · 결과는 팀 DB에 저장돼요",
+  videoCsv: "영상 목록 CSV: 열 이름 category · url · memo (카테고리 · 링크 · 메모도 돼요). 카테고리마다 최대 10개를 분석 목록에 채워요. 파일은 저장하지 않아요",
+  resultJson: "PC에서 따로 돌린 분석 결과 JSON(화면의 분석 결과와 같은 모양)을 올리면 팀 DB에 저장해요",
   memoWhy: "링크만 넣으면 돼요. [분석 시작]을 누르면 영상의 캡션·해시태그·조회수·발화 자막을 가져와(Apify) AI가 소비자 핵심 니즈를 많이 나온 순으로 골라요. 메모는 선택이에요 (적으면 같이 분석).",
   stealth: "광고 표시가 없어도 광고가 아닌 영상이라는 보장은 없어요 (2023년 10월 시행 ステマ規制). 영상 설명·고정 댓글의 #PR·提供 표기도 확인해 주세요.",
   notReviewed: "소비자 표현은 약기법 검토 전이에요. 효능을 단정하는 말은 광고에 그대로 쓸 수 없을 수 있어요.",
@@ -39,7 +35,6 @@ const TEXT = {
 const STATUS_MARK: Record<AutocompleteStatus, string> = { new: "＋", kept: "–", gone: "✕" };
 const MIN_VIDEOS = 2;
 const MAX_VIDEOS = 10;
-const KIND_ORDER: SnsPatternKind[] = ["expression", "opening", "reason"];
 
 // ── 2-A ─────────────────────────────────────────
 
@@ -121,46 +116,6 @@ function AutocompleteBlock({ search, onOpen }: { search: SearchSnap[]; onOpen: (
 
 type VideoDraft = { key: string; url: string; memo: string };
 type RunState = { status: "idle" } | { status: "running" } | { status: "done"; result: SnsTrendResult } | { status: "error"; message: string };
-
-/** 결과 카드에 쓰는 공통 모양 (샘플 결과와 AI 분석 결과를 같이 그린다) */
-type PatternCard = { id: string; kind: SnsPatternKind; label_ja: string | null; label_ko: string; hits: number; open: () => void };
-
-function PatternCards({ cards, total }: { cards: PatternCard[]; total: number }) {
-  return (
-    <div className="grid gap-3 md:grid-cols-3">
-      {KIND_ORDER.map((kind) => {
-        const list = cards.filter((p) => p.kind === kind);
-        return (
-          <div key={kind} className="rounded-lg border p-3">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">{SNS_PATTERN_KIND_LABEL[kind]}</p>
-            {list.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{kind === "expression" ? "공통 표현이 없어요" : "공통 패턴이 없어요"}</p>
-            ) : (
-              <ul className="space-y-2">
-                {list.map((p) => (
-                  <li key={p.id}>
-                    <button type="button" className="w-full rounded-md p-1 text-left text-sm hover:bg-muted" onClick={p.open}>
-                      {p.label_ja && (
-                        <span lang="ja" className="block font-medium">
-                          「{p.label_ja}」
-                        </span>
-                      )}
-                      <span className={p.label_ja ? "block text-xs text-muted-foreground" : "block font-medium"}>{p.label_ko}</span>
-                      <span className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                        {total}개 영상 중 {p.hits}개
-                        {kind === "expression" && <Badge variant="outline">… 약기법 검토 전</Badge>}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 const compact = new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 });
 const count = (n: number | null) => (n === null ? "—" : compact.format(n));
@@ -269,37 +224,51 @@ function SnsTrendView({ result, onOpen }: { result: SnsTrendResult; onOpen: (c: 
   );
 }
 
+/** 영상 목록 CSV(category · url · memo) → 카테고리별 분석 목록 (브라우저에서만 읽고 저장하지 않는다) */
+function parseVideoCsv(text: string): Record<string, VideoDraft[]> {
+  const { data } = Papa.parse<Record<string, string>>(text.replace(/^﻿/, ""), { header: true, skipEmptyLines: true });
+  const pick = (r: Record<string, string>, keys: string[]) => (keys.map((k) => r[k]).find((v) => v !== undefined) ?? "").trim();
+  const out: Record<string, VideoDraft[]> = {};
+  data.forEach((r, i) => {
+    const category = pick(r, ["category", "카테고리"]);
+    const url = pick(r, ["url", "링크", "URL"]);
+    if (!category || !url) return;
+    const list = (out[category] ??= []);
+    if (list.length < MAX_VIDEOS) list.push({ key: `csv-${i}`, url, memo: pick(r, ["memo", "메모"]) });
+  });
+  return out;
+}
+
 function SnsBlock({
-  notes,
-  patterns,
-  imported,
+  latest,
+  onAnalyzed,
   category,
   onOpen,
 }: {
-  notes: SnsVideoNote[];
-  patterns: SnsPattern[];
-  /** 이 PC의 영상 목록 (실제 링크). 있으면 샘플 대신 이것으로 시작한다 */
-  imported: { category: string; url: string; memo: string }[];
+  /** 이 카테고리의 마지막 저장 분석 (DB, 샘플 모드는 mock). 없으면 null */
+  latest: SnsTrendResult | null;
+  /** 새 분석 결과 (분석 시작 · 결과 JSON 올리기) → 원페이지 한 벌에 더한다 (요약도 같이 바뀐다) */
+  onAnalyzed: (result: SnsTrendResult) => void;
   category: string;
   onOpen: (c: PanelContent) => void;
 }) {
-  const categoryNotes = notes.filter((n) => n.category === category);
-  const realVideos = imported.filter((v) => v.category === category);
-  const usingReal = realVideos.length > 0;
-  // 카테고리별 편집 목록 (로컬 상태, 저장되지 않음)
+  // 카테고리별 편집 목록 (화면 상태, 저장되지 않음). 처음에는 마지막 분석의 영상으로 채운다
   const [drafts, setDrafts] = useState<Record<string, VideoDraft[]>>({});
   const [editing, setEditing] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [runs, setRuns] = useState<Record<string, RunState>>({});
-  const videos =
-    drafts[category] ??
-    (usingReal ? realVideos.map((v, i) => ({ key: `real-${i}`, url: v.url, memo: v.memo })) : categoryNotes.map((n) => ({ key: n.id, url: n.url, memo: n.note_ja })));
+  const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const csvInput = useRef<HTMLInputElement>(null);
+  const jsonInput = useRef<HTMLInputElement>(null);
+  const videos = drafts[category] ?? (latest?.videos ?? []).map((v) => ({ key: `last-${v.index}`, url: v.url, memo: "" }));
   const setVideos = (next: VideoDraft[]) => setDrafts((d) => ({ ...d, [category]: next }));
   const run = runs[category] ?? { status: "idle" };
   // 분석에 넣을 영상: TikTok 링크로 읽히는 것만 (메모는 선택)
   const linked = videos.filter((v) => parseTikTokLink(v.url.trim()));
+  const shown = run.status === "done" ? run.result : latest;
 
   async function analyze() {
+    setNotice(null);
     setRuns((r) => ({ ...r, [category]: { status: "running" } }));
     try {
       const res = await fetch("/api/market/sns-trends", {
@@ -312,35 +281,35 @@ function SnsBlock({
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string" ? body.error : `오류 (${res.status})`;
         return setRuns((r) => ({ ...r, [category]: { status: "error", message } }));
       }
-      setRuns((r) => ({ ...r, [category]: { status: "done", result: SnsTrendResult.parse(body) } }));
+      const result = SnsTrendResult.parse(body);
+      onAnalyzed(result);
+      setRuns((r) => ({ ...r, [category]: { status: "done", result } }));
     } catch (e) {
       setRuns((r) => ({ ...r, [category]: { status: "error", message: e instanceof Error ? e.message : "요청 실패" } }));
     }
   }
 
-  // 분석 전 샘플 영상이면 고정 샘플 결과를 보여준다 (실제 영상은 [분석 시작] 전까지 비워 둔다)
-  let sampleCards: PatternCard[] | null = null;
-  if (run.status !== "done" && !usingReal) {
-    const found = commonPatterns(patterns, categoryNotes, category);
-    sampleCards = found.map((p) => ({
-      id: p.id,
-      kind: p.kind,
-      label_ja: p.label_ja,
-      label_ko: p.label_ko,
-      hits: p.hits.length,
-      open: () =>
-        onOpen({
-          kind: "quotes",
-          title: `${SNS_PATTERN_KIND_LABEL[p.kind]} · ${p.label_ja ?? p.label_ko}`,
-          description: `${categoryNotes.length}개 영상 중 ${p.hits.length}개`,
-          quotes: p.hits.flatMap((id) => {
-            const n = categoryNotes.find((x) => x.id === id);
-            return n ? [{ ja: n.note_ja, ko: n.note_ko, note: `${SNS_PLATFORM_LABEL[n.platform]} · ${n.title_ja}${n.has_ad_label ? " · 광고 표시 있음" : ""}` }] : [];
-          }),
-          link: p.related_href ? { href: p.related_href, label: "일본 리뷰 불만과 비교 (소구점 찾기)" } : undefined,
-          footnote: p.kind === "expression" ? TEXT.notReviewed : TEXT.snsBasis,
-        }),
-    }));
+  async function loadCsv(file: File | undefined) {
+    if (!file) return;
+    const byCategory = parseVideoCsv(await file.text());
+    const names = Object.keys(byCategory);
+    if (names.length === 0) return setNotice({ tone: "error", text: "읽을 줄이 없어요. 열 이름(category · url · memo)을 확인해 주세요." });
+    setDrafts((d) => ({ ...d, ...byCategory }));
+    setNotice({ tone: "ok", text: `${names.map((c) => `${c} ${byCategory[c].length}개`).join(" · ")} 불러옴 · [분석 시작]을 누르면 분석해요` });
+  }
+
+  async function loadJson(file: File | undefined) {
+    if (!file) return;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await file.text());
+    } catch {
+      return setNotice({ tone: "error", text: "JSON 파일을 읽지 못했어요" });
+    }
+    const r = await saveSnsAnalysisJson(raw);
+    if (!r.ok) return setNotice({ tone: "error", text: r.message });
+    onAnalyzed(r.result);
+    setNotice({ tone: r.result.saved ? "ok" : "error", text: r.result.saved ? `${r.result.category} 분석 결과를 저장했어요` : `화면에만 반영했어요 (${r.result.save_error})` });
   }
 
   return (
@@ -352,10 +321,20 @@ function SnsBlock({
             <span className="block">{TEXT.memoWhy}</span>
             <span className="block">{TEXT.snsRealBasis}</span>
             <span className="block">순위 = 그 니즈를 언급한 영상 수 → 조회수 합. 니즈·키워드를 누르면 근거 문구와 영상이 열려요.</span>
+            <span className="block">{TEXT.videoCsv}</span>
+            <span className="block">{TEXT.resultJson}</span>
             <span className="block">{TEXT.stealth}</span>
           </HelpTip>
         </CardTitle>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <input ref={csvInput} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => loadCsv(e.target.files?.[0]).finally(() => (e.target.value = ""))} />
+          <input ref={jsonInput} type="file" accept=".json,application/json" className="hidden" onChange={(e) => loadJson(e.target.files?.[0]).finally(() => (e.target.value = ""))} />
+          <Button size="sm" variant="ghost" onClick={() => csvInput.current?.click()}>
+            영상 목록 CSV
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => jsonInput.current?.click()}>
+            결과 JSON 올리기
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             영상 링크 ({linked.length})
           </Button>
@@ -370,21 +349,28 @@ function SnsBlock({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {notice && <p className={`text-sm ${notice.tone === "error" ? "text-risk-high" : "text-muted-foreground"}`}>{notice.text}</p>}
         {run.status === "error" && <p className="text-sm text-risk-high">⚠ {run.message}</p>}
-        {run.status === "done" ? (
-          <SnsTrendView result={run.result} onOpen={onOpen} />
-        ) : sampleCards ? (
+        {shown ? (
           <>
-            <PatternCards cards={sampleCards} total={categoryNotes.length} />
-            <p className="text-xs text-muted-foreground">샘플 결과예요 · 실제 영상은 [영상 링크]에 넣고 [분석 시작]</p>
+            <SnsTrendView result={shown} onOpen={onOpen} />
+            <p className="text-xs text-muted-foreground">
+              {run.status === "done"
+                ? run.result.saved
+                  ? "방금 분석한 결과 · 팀 DB에 저장됨"
+                  : `방금 분석한 결과 · 저장 안 됨 (${run.result.save_error ?? "이유 모름"})`
+                : `마지막 저장 분석 ${formatDate(shown.analyzed_at)} · 새로 보려면 [분석 시작]`}
+            </p>
           </>
         ) : (
           <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-            TikTok 영상 {linked.length}개 준비됨 · [분석 시작]을 누르면 소비자 핵심 니즈를 많이 나온 순으로 보여 줘요 (1분 안팎)
+            {linked.length > 0
+              ? `TikTok 영상 ${linked.length}개 준비됨 · [분석 시작]을 누르면 소비자 핵심 니즈를 많이 나온 순으로 보여 줘요 (1분 안팎)`
+              : "아직 분석이 없어요 · [영상 링크]에 TikTok 링크를 넣거나 [영상 목록 CSV]로 불러온 뒤 [분석 시작]"}
           </p>
         )}
       </CardContent>
-      <EvidenceSheet open={editing} onOpenChange={setEditing} title="영상 링크" description={`일본 뷰티 TikTok 영상 링크 ${MIN_VIDEOS}~${MAX_VIDEOS}개 · 메모는 선택 · 저장되지 않음`}>
+      <EvidenceSheet open={editing} onOpenChange={setEditing} title="영상 링크" description={`일본 뷰티 TikTok 영상 링크 ${MIN_VIDEOS}~${MAX_VIDEOS}개 · 메모는 선택 · 분석하면 링크·메모가 결과와 함께 저장돼요`}>
         <p className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">{TEXT.stealth}</p>
         <p className="text-xs text-muted-foreground">{TEXT.memoWhy}</p>
         <ul className="space-y-3">
@@ -444,23 +430,21 @@ function SnsBlock({
   );
 }
 
-/** PART 2. 소비자 트렌드: 검색 자동완성 변화 · SNS 공통 패턴 · 성분 검색 관심도 */
+/** PART 2. 소비자 트렌드: 검색 자동완성 변화 · SNS 핵심 니즈 · 성분 검색 관심도 */
 export function DemandPart({
   search,
   onSearchCollected,
-  snsNotes,
-  snsPatterns,
-  snsImported,
+  snsLatest,
+  onSnsAnalyzed,
   category,
   onOpen,
 }: {
   search: SearchSnap[];
   /** 지금 수집한 검색 데이터를 원페이지에 올린다 */
   onSearchCollected: (added: SearchSnap[]) => void;
-  snsNotes: SnsVideoNote[];
-  snsPatterns: SnsPattern[];
-  /** 이 PC에 있는 실제 영상 목록 (없으면 빈 배열 → 샘플) */
-  snsImported: { category: string; url: string; memo: string }[];
+  /** 이 카테고리의 마지막 저장 SNS 분석 */
+  snsLatest: SnsTrendResult | null;
+  onSnsAnalyzed: (result: SnsTrendResult) => void;
   category: string;
   onOpen: (c: PanelContent) => void;
 }) {
@@ -473,7 +457,7 @@ export function DemandPart({
         <AutocompleteBlock search={search} onOpen={onOpen} />
         <IngredientInterestCard snaps={search} category={category} />
       </div>
-      <SnsBlock notes={snsNotes} patterns={snsPatterns} imported={snsImported} category={category} onOpen={onOpen} />
+      <SnsBlock latest={snsLatest} onAnalyzed={onSnsAnalyzed} category={category} onOpen={onOpen} />
     </div>
   );
 }

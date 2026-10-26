@@ -4,10 +4,12 @@
 // 상태 바꾸기는 DB 함수(rpc)로만 하고, 권한은 DB(RLS · 함수)가 최종으로 막는다. 여기서는 입력 검증과 알기 쉬운 오류 문구를 맡는다.
 // workspace_id는 화면 입력을 믿지 않고 로그인한 워크스페이스로 채운다 (DB_RULES 4.1).
 import { z } from "zod";
-import { Decision, EvidenceRef, type SubmissionTab } from "@/lib/schemas/submission";
+import { AppealTopic } from "@/lib/schemas/review";
+import { Decision, EvidenceRef, ReviewBody, type SubmissionTab } from "@/lib/schemas/submission";
 import { getAdChecks } from "./index";
-import { buildAdSnapshot, buildReviewSnapshot, type VersionSnapshot } from "./submission-bodies";
+import { buildAdSnapshot, buildAppeals, buildReviewSnapshot, buildTranslations, type VersionSnapshot, withExtras } from "./submission-bodies";
 import { dbError, fail, ownOnSaleProduct, type SubmissionResult, type WriteContext, writeContext } from "./submission-write";
+import { getCurrentUser } from "./workspace";
 
 export type { SubmissionResult } from "./submission-write";
 
@@ -54,25 +56,119 @@ async function insertVersion(ctx: WriteContext, submissionId: string, snapshot: 
       evidence: snapshot.evidence,
       data_as_of: snapshot.data_as_of,
     })
-    .select("id")
+    .select("id, version_no")
     .single();
   if (error) return fail(dbError(error));
-  return { ok: true as const, data: { versionId: String(data.id) } };
+  return { ok: true as const, data: { versionId: String(data.id), versionNo: Number(data.version_no) } };
 }
 
-/** 리뷰 리포트를 시안 새 버전(임시)으로 저장한다 */
-export async function saveReviewDraft(productId: string, input: DraftInput): Promise<SubmissionResult<{ versionId: string }>> {
-  const parsed = DraftInput.safeParse(input);
-  if (!parsed.success) return fail("한 줄 결론은 300자, 메모는 1000자까지예요");
+type ReviewDraftChange = {
+  /** 한 줄 결론 · 메모. 주면 임시 버전에 함께 쓴다 */
+  input?: DraftInput;
+  addTopics?: AppealTopic[];
+  addTranslationIds?: string[];
+  removeTopic?: AppealTopic;
+  removeTranslationId?: string;
+};
+
+/**
+ * 리뷰 분석 시안의 임시 버전을 만들거나 고친다. 요약 탭의 「결재 올리기」와 소구점 · 상세페이지용 리뷰의 「시안에 담기」가 모두 여기로 온다.
+ * - 내 임시 버전이 가장 최근이면 그 버전을 고치고, 아니면 (제출했거나 승인된 버전 뒤에는) 담았던 것을 이어받은 새 임시 버전을 만든다.
+ * - 리포트 숫자는 저장하는 순간의 데이터로 다시 만들고, 담은 소구점 · 후기는 지금도 담을 수 있는지 다시 확인한다.
+ */
+async function upsertReviewDraft(productId: string, change: ReviewDraftChange): Promise<SubmissionResult<{ versionId: string; versionNo: number }>> {
   const ctx = await writeContext();
   if (!ctx.ok) return ctx;
   const target = await ownOnSaleProduct(productId);
   if (!target.ok) return target;
-  const snapshot = await buildReviewSnapshot(productId);
-  if (snapshot.body.analyzed_count === 0) return fail("AI 분석이 끝난 리뷰가 없어요. 먼저 리뷰를 분석해 주세요");
+  const base = await buildReviewSnapshot(productId);
+  if (base.body.analyzed_count === 0) return fail("AI 분석이 끝난 리뷰가 없어요. 먼저 리뷰를 분석해 주세요");
   const submission = await ensureSubmission(ctx, target.product.project_id, productId, "review", `${target.product.name} 리뷰 분석`);
   if (!submission.ok) return submission;
-  return insertVersion(ctx, submission.id, snapshot, parsed.data);
+
+  const { data: latest, error } = await ctx.supabase
+    .from("submission_versions")
+    .select("id, status, author_id, body")
+    .eq("submission_id", submission.id)
+    .is("deleted_at", null)
+    .order("version_no", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return fail(dbError(error));
+  const previous = ReviewBody.safeParse(latest?.body);
+  const keptTopics = (previous.success ? (previous.data.appeals ?? []).map((a) => a.topic) : []).filter((t) => t !== change.removeTopic);
+  const keptTranslationIds = (previous.success ? (previous.data.translations ?? []).map((t) => t.review_translation_id) : []).filter(
+    (id) => id !== change.removeTranslationId,
+  );
+
+  let snapshot: VersionSnapshot<ReviewBody>;
+  try {
+    const [keptAppeals, newAppeals, keptTranslations, newTranslations] = await Promise.all([
+      buildAppeals(productId, keptTopics, false),
+      buildAppeals(productId, change.addTopics ?? [], true),
+      buildTranslations(productId, keptTranslationIds, false),
+      buildTranslations(productId, change.addTranslationIds ?? [], true),
+    ]);
+    const appeals = [...new Map([...keptAppeals, ...newAppeals].map((a) => [a.topic, a])).values()];
+    const translations = [...new Map([...keptTranslations, ...newTranslations].map((t) => [t.review_translation_id, t])).values()];
+    snapshot = withExtras(base, appeals, translations);
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : String(e));
+  }
+
+  const me = await getCurrentUser();
+  if (latest && latest.status === "draft" && me && latest.author_id === me.id) {
+    const patch = {
+      body: snapshot.body,
+      evidence: snapshot.evidence,
+      data_as_of: snapshot.data_as_of,
+      ...(change.input ? { summary: change.input.summary, note: change.input.note || null } : {}),
+    };
+    const { data, error: updateError } = await ctx.supabase
+      .from("submission_versions")
+      .update(patch)
+      .eq("id", String(latest.id))
+      .eq("workspace_id", ctx.workspaceId)
+      .select("id, version_no")
+      .maybeSingle();
+    if (updateError) return fail(dbError(updateError));
+    if (!data) return fail("임시 버전을 고치지 못했어요. 화면을 새로 고쳐 주세요");
+    return { ok: true, data: { versionId: String(data.id), versionNo: Number(data.version_no) } };
+  }
+  return insertVersion(ctx, submission.id, snapshot, change.input ?? { summary: "", note: null });
+}
+
+const TopicList = z.array(AppealTopic).max(AppealTopic.options.length);
+const TranslationIdList = z.array(z.uuid()).max(200);
+
+/** 리뷰 분석 요약을 시안 새 버전(임시)으로 저장한다 (담아 둔 소구점 · 후기를 함께) */
+export async function saveReviewDraft(productId: string, input: DraftInput): Promise<SubmissionResult<{ versionId: string; versionNo: number }>> {
+  const parsed = DraftInput.safeParse(input);
+  if (!parsed.success) return fail("한 줄 결론은 300자, 메모는 1000자까지예요");
+  return upsertReviewDraft(productId, { input: parsed.data });
+}
+
+/** 소구점 · 일본어 후기를 이 제품의 임시 버전에 담는다. 요약 탭에서 한 줄 결론을 쓰고 결재를 올린다 */
+export async function addToReviewDraft(
+  productId: string,
+  picks: { topics?: AppealTopic[]; translationIds?: string[] },
+): Promise<SubmissionResult<{ versionId: string; versionNo: number }>> {
+  const topics = TopicList.safeParse(picks.topics ?? []);
+  const translationIds = TranslationIdList.safeParse(picks.translationIds ?? []);
+  if (!topics.success || !translationIds.success) return fail("담을 항목을 다시 골라 주세요");
+  if (topics.data.length + translationIds.data.length === 0) return fail("담을 항목을 하나 이상 골라 주세요");
+  return upsertReviewDraft(productId, { addTopics: topics.data, addTranslationIds: translationIds.data });
+}
+
+/** 담은 소구점 하나 또는 일본어 후기 하나를 시안에서 뺀다 (제출한 버전은 그대로 두고 새 임시 버전에서 뺀다) */
+export async function removeFromReviewDraft(
+  productId: string,
+  pick: { topic?: AppealTopic; translationId?: string },
+): Promise<SubmissionResult<{ versionId: string; versionNo: number }>> {
+  const topic = pick.topic === undefined ? undefined : AppealTopic.safeParse(pick.topic);
+  const translationId = pick.translationId === undefined ? undefined : z.uuid().safeParse(pick.translationId);
+  if ((topic && !topic.success) || (translationId && !translationId.success)) return fail("뺄 항목을 다시 골라 주세요");
+  return upsertReviewDraft(productId, { removeTopic: topic?.data, removeTranslationId: translationId?.data });
 }
 
 /**
