@@ -5,6 +5,7 @@ import { getMyTabs, getSubmissionReviews, getSubmissionVersions, getSubmissions 
 import { getCurrentUser, isSupabaseConfigured } from "@/lib/data/workspace";
 import type { SaleStatus } from "@/lib/schemas/project";
 import { SUBMISSION_TAB_LABELS, type SubmissionTab } from "@/lib/schemas/submission";
+import type { SubmissionResult } from "@/lib/data/submission-actions";
 import { type SaveDraft, SubmissionPanel, type VersionView } from "./submission-panel";
 
 const TEXT = {
@@ -12,7 +13,7 @@ const TEXT = {
 };
 
 /** 패널에 넘길 데이터 (저장 함수 빼고). 시장 분석처럼 저장 함수를 화면 상태와 묶어야 하는 곳은 이 값으로 SubmissionPanel을 직접 그린다 */
-export type SubmissionPanelData = Omit<Parameters<typeof SubmissionPanel>[0], "saveDraft" | "snapshotNote" | "carryOverLabel" | "className">;
+export type SubmissionPanelData = Omit<Parameters<typeof SubmissionPanel>[0], "saveDraft" | "snapshotNote" | "carryOverLabel" | "loadContents" | "className">;
 
 /** 그 제품 × 탭 칸의 시안 · 버전 · 결재 기록과 내 권한. 판매 중인 자사 제품이 아니면 null */
 export async function loadSubmissionPanel(
@@ -69,6 +70,7 @@ export async function SubmissionSection({
   saveDraft,
   snapshotNote,
   carryOverLabel,
+  loadContents,
   className,
 }: {
   tab: SubmissionTab;
@@ -76,6 +78,7 @@ export async function SubmissionSection({
   saveDraft: SaveDraft;
   snapshotNote: string;
   carryOverLabel?: string;
+  loadContents?: (versionId: string) => Promise<SubmissionResult<{ versionNo: number; summary: string; note: string }>>;
   /** 패널 바깥 여백. 기본은 결과 아래에 붙는 mt-6, 오른쪽 열에 둘 때는 덮어쓴다 */
   className?: string;
 }) {
@@ -85,5 +88,5 @@ export async function SubmissionSection({
   }
   const data = await loadSubmissionPanel(tab, product);
   if (!data) return null;
-  return <SubmissionPanel {...data} saveDraft={saveDraft} snapshotNote={snapshotNote} carryOverLabel={carryOverLabel} className={className} />;
+  return <SubmissionPanel {...data} saveDraft={saveDraft} snapshotNote={snapshotNote} carryOverLabel={carryOverLabel} loadContents={loadContents} className={className} />;
 }

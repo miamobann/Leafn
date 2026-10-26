@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
     "/market": ["./prompts/**/*"],
     // 리뷰 분석: 상세페이지용 리뷰 번역이 광고 검토 AI(prompts/ad-check + knowledge/yakkiho)를 화면의 Server Action에서 부른다
     "/reviews/**": ["./prompts/**/*", "../../knowledge/yakkiho/**/*"],
+    // AI 분석: 통합 분석 프롬프트를 화면의 Server Action에서 읽는다
+    "/ai-analysis": ["./prompts/integrated-analysis.*"],
   },
 };
 

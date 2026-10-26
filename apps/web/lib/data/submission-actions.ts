@@ -73,6 +73,8 @@ type ReviewDraftChange = {
   addTranslationIds?: string[];
   removeTopic?: AppealTopic;
   removeTranslationId?: string;
+  /** 주면 지금 담긴 것 대신 이 구성으로 바꾼다 (이전 버전 불러오기) */
+  replace?: { topics: AppealTopic[]; translationIds: string[] };
 };
 
 /**
@@ -100,10 +102,12 @@ async function upsertReviewDraft(productId: string, change: ReviewDraftChange): 
     .maybeSingle();
   if (error) return fail(dbError(error));
   const previous = ReviewBody.safeParse(latest?.body);
-  const keptTopics = (previous.success ? (previous.data.appeals ?? []).map((a) => a.topic) : []).filter((t) => t !== change.removeTopic);
-  const keptTranslationIds = (previous.success ? (previous.data.translations ?? []).map((t) => t.review_translation_id) : []).filter(
-    (id) => id !== change.removeTranslationId,
+  const keptTopics = (change.replace ? change.replace.topics : previous.success ? (previous.data.appeals ?? []).map((a) => a.topic) : []).filter(
+    (t) => t !== change.removeTopic,
   );
+  const keptTranslationIds = (
+    change.replace ? change.replace.translationIds : previous.success ? (previous.data.translations ?? []).map((t) => t.review_translation_id) : []
+  ).filter((id) => id !== change.removeTranslationId);
 
   let snapshot: VersionSnapshot<ReviewBody>;
   try {
@@ -162,6 +166,46 @@ export async function addToReviewDraft(
   if (!topics.success || !translationIds.success) return fail("담을 항목을 다시 골라 주세요");
   if (topics.data.length + translationIds.data.length === 0) return fail("담을 항목을 하나 이상 골라 주세요");
   return upsertReviewDraft(productId, { addTopics: topics.data, addTranslationIds: translationIds.data });
+}
+
+/**
+ * 이전 버전 불러오기: 그 버전의 한 줄 결론 · 메모 · 담은 소구점 · 일본어 후기를 지금 임시 버전으로 복사한다.
+ * 원래 버전은 그대로 두고, 리포트 숫자는 지금 데이터로 다시 만든다. 지금 담을 수 없게 된 항목(지운 번역 등)은 빠진다
+ */
+export async function loadReviewVersion(productId: string, versionId: string): Promise<SubmissionResult<{ versionNo: number; summary: string; note: string }>> {
+  const ctx = await writeContext();
+  if (!ctx.ok) return ctx;
+  if (!Uuid.safeParse(versionId).success) return fail("버전 번호가 올바르지 않아요");
+  const { data: source, error } = await ctx.supabase
+    .from("submission_versions")
+    .select("summary, note, body, submission_id")
+    .eq("id", versionId)
+    .eq("workspace_id", ctx.workspaceId)
+    .maybeSingle();
+  if (error) return fail(dbError(error));
+  if (!source) return fail("불러올 버전을 찾지 못했어요");
+  // 같은 제품의 리뷰 분석 시안 버전만 불러온다
+  const { data: owner, error: ownerError } = await ctx.supabase
+    .from("tab_submissions")
+    .select("id")
+    .eq("id", String(source.submission_id))
+    .eq("workspace_id", ctx.workspaceId)
+    .eq("product_id", productId)
+    .eq("tab", "review")
+    .maybeSingle();
+  if (ownerError) return fail(dbError(ownerError));
+  if (!owner) return fail("이 제품의 리뷰 분석 시안 버전이 아니에요");
+  const body = ReviewBody.safeParse(source.body);
+  const input = { summary: String(source.summary ?? ""), note: source.note ? String(source.note) : null };
+  const saved = await upsertReviewDraft(productId, {
+    input,
+    replace: {
+      topics: body.success ? (body.data.appeals ?? []).map((a) => a.topic) : [],
+      translationIds: body.success ? (body.data.translations ?? []).map((t) => t.review_translation_id) : [],
+    },
+  });
+  if (!saved.ok) return saved;
+  return { ok: true, data: { versionNo: saved.data.versionNo, summary: input.summary, note: input.note ?? "" } };
 }
 
 /** 담은 소구점 하나 또는 일본어 후기 하나를 시안에서 뺀다 (제출한 버전은 그대로 두고 새 임시 버전에서 뺀다) */

@@ -193,7 +193,8 @@ export function AppSidebar({ activity, role }: { activity: SidebarActivity[]; ro
         animateWidth ? "transition-[width] duration-200 ease-out motion-reduce:transition-none" : ""
       }`}
     >
-      <div className={`flex items-center py-4 ${collapsed ? "justify-center px-2" : "justify-between pr-3 pl-5"}`}>
+      {/* 맨 윗줄은 높이를 64px로 고정한다. 접으면 로고(32px)가 빠져 줄이 낮아지고 아래 메뉴 아이콘이 4px 올라갔다 */}
+      <div className={`flex h-16 shrink-0 items-center ${collapsed ? "justify-center px-2" : "justify-between pr-3 pl-5"}`}>
         {!collapsed && (
           <span className="flex items-end gap-2">
             <Image src="/brand/leaf-and-wordmark.png" alt={TEXT.logoAlt} width={102} height={32} priority />
@@ -213,9 +214,10 @@ export function AppSidebar({ activity, role }: { activity: SidebarActivity[]; ro
         </button>
       </div>
 
+      {/* 화면 높이가 모자라도 메뉴는 줄이지 않는다. 대신 맨 아래 최근 활동 목록이 그 안에서 스크롤한다 (2026-10-26) */}
       {collapsed ? (
         <>
-          <nav id={NAV_ID} className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4">
+          <nav id={NAV_ID} className="flex shrink-0 flex-col gap-1 px-3 pb-4">
             <RailLink item={HOME_ITEM} active={current === HOME_ITEM.href} />
             {NAV_GROUPS.map((group) => (
               <RailLink key={group.label} item={groupLink(group, role)} active={currentGroup === group.label} />
@@ -226,11 +228,13 @@ export function AppSidebar({ activity, role }: { activity: SidebarActivity[]; ro
               ))}
             </div>
           </nav>
-          <RailActivity items={activity} />
+          <div className="mt-auto">
+            <RailActivity items={activity} />
+          </div>
         </>
       ) : (
         <>
-          <nav id={NAV_ID} className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4">
+          <nav id={NAV_ID} className="flex shrink-0 flex-col gap-1 px-3 pb-4">
             <NavLink item={HOME_ITEM} active={current === HOME_ITEM.href} />
             {NAV_GROUPS.map((group) => (
               <NavLink key={group.label} item={groupLink(group, role)} active={currentGroup === group.label} />
@@ -241,12 +245,17 @@ export function AppSidebar({ activity, role }: { activity: SidebarActivity[]; ro
               ))}
             </div>
           </nav>
-          <section aria-labelledby="app-sidebar-activity-title" className="border-t border-border px-3 pt-3 pb-4">
-            <h2 id="app-sidebar-activity-title" className="px-2 pb-1.5 text-xs font-medium text-muted-foreground">
-              {TEXT.activity}
-            </h2>
-            <ActivityList items={activity} />
-          </section>
+          {/* 남는 높이를 차지하되 내용은 맨 아래에 붙인다. 모자라면 제목은 두고 목록만 스크롤한다 */}
+          <div className="flex min-h-0 flex-1 flex-col justify-end">
+            <section aria-labelledby="app-sidebar-activity-title" className="flex min-h-0 flex-col border-t border-border px-3 pt-3 pb-4">
+              <h2 id="app-sidebar-activity-title" className="shrink-0 px-2 pb-1.5 text-xs font-medium text-muted-foreground">
+                {TEXT.activity}
+              </h2>
+              <div className="min-h-0 overflow-y-auto">
+                <ActivityList items={activity} />
+              </div>
+            </section>
+          </div>
         </>
       )}
     </aside>
