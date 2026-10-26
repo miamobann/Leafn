@@ -2,7 +2,7 @@ import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { ViewStateGate } from "@/components/common/view-state";
-import { getAdChecks, getBoardProjects } from "@/lib/data";
+import { getAdChecks } from "@/lib/data";
 import { getPlatformViews, getPromoEventViews, getToday } from "@/lib/data/launch";
 import { CalendarClient } from "./calendar-client";
 
@@ -11,12 +11,11 @@ import { CalendarClient } from "./calendar-client";
 // 행사를 눌러 이름 · 날짜 · 확정 여부와 준비 마감을 고치고 지운다 (2026-10-26).
 // 일정을 고르지 않았을 때 패널에는 홈과 같은 할 일·문구 검토 대기가 보인다 (2026-10-25)
 export default async function CalendarPage() {
-  const [events, platforms, today, pending, projects] = await Promise.all([
+  const [events, platforms, today, pending] = await Promise.all([
     getPromoEventViews(),
     getPlatformViews(),
     getToday(),
     getAdChecks({ status: "pending" }),
-    getBoardProjects(),
   ]);
 
   return (
@@ -33,7 +32,6 @@ export default async function CalendarPage() {
           platformKeys={platforms.map((p) => p.key)}
           today={today}
           pending={pending.map((a) => ({ id: a.id, text: a.input_text, eventId: a.promo_event_id ?? null }))}
-          projects={projects}
         />
       </ViewStateGate>
     </>

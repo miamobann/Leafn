@@ -24,10 +24,11 @@ const SAMPLE = !(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC
 const nextDay = (d: string) => new Date(Date.parse(d) + 86_400_000).toISOString().slice(0, 10);
 const COLOR = { platform_event: "var(--sentiment-positive)", own_campaign: "var(--risk-low)", milestone: "var(--risk-high)" };
 
-// 홈에 넣을 때는 플랫폼 고르기·행사 추가·수정·보기 전환을 빼고 높이를 줄인다. 다 쓰려면 이 화면(전체보기)으로 온다
+// 홈에 넣을 때는 플랫폼 고르기·행사 추가·수정을 빼고 높이를 줄인다. 다 쓰려면 이 화면(전체보기)으로 온다.
+// 홈의 보기 전환은 월·주만 (2026-10-26 홈 새 디자인)
 const VIEW = {
   page: { height: 640, headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listMonth" } },
-  home: { height: 520, headerToolbar: { left: "prev,next today", center: "title", right: "" } },
+  home: { height: 520, headerToolbar: { left: "title", center: "", right: "dayGridMonth,dayGridWeek prev,next" } },
 };
 
 export function PromoCalendar({
@@ -36,16 +37,19 @@ export function PromoCalendar({
   today,
   variant = "page",
   renderIdle,
-  panelWidth,
+  header,
+  panelId,
 }: {
   events: PromoEventView[];
   platformKeys: string[];
   today: string;
   variant?: keyof typeof VIEW;
-  /** 아무 일정도 고르지 않았을 때 오른쪽 패널에 보일 내용 (홈의 다음 행사·할 일). 없으면 안내 문구 */
+  /** 아무 일정도 고르지 않았을 때 오른쪽 패널에 보일 내용 (홈의 할 일). 없으면 안내 문구 */
   renderIdle?: (ctx: { events: PromoEventView[]; select: (eventId: string) => void }) => ReactNode;
-  /** 오른쪽 패널 폭 (CSS 길이). 홈은 위 요약 카드 열과 맞추려고 넘긴다. 없으면 20rem */
-  panelWidth?: string;
+  /** 홈: 캘린더 카드 맨 위 줄 (제목 · 일정 관리 링크) */
+  header?: ReactNode;
+  /** 홈: 할 일 카드의 id (상단 바 알림 버튼이 이 카드로 이동한다) */
+  panelId?: string;
 }) {
   const isPage = variant === "page";
   const [events, setEvents] = useState(initial);
@@ -98,9 +102,8 @@ export function PromoCalendar({
     });
   };
 
-  return (
-    <div className="grid grid-cols-[1fr_20rem] gap-4" style={panelWidth ? { gridTemplateColumns: `minmax(0, 1fr) ${panelWidth}` } : undefined}>
-      <div>
+  const calendar = (
+      <div className="min-w-0">
         <div className="mb-3 flex items-center gap-2 text-sm">
           {isPage && (
             <label className="flex items-center gap-2">
@@ -148,9 +151,11 @@ export function PromoCalendar({
           eventClick={(info) => setSelectedId(info.event.groupId || info.event.id)}
         />
       </div>
+  );
 
-      {/* 홈에서는 바깥 카드 안에 들어가므로 테두리를 왼쪽 선 하나로 줄인다 */}
-      <Card className={isPage ? "h-fit" : "h-fit gap-4 rounded-none border-l bg-transparent py-0 ring-0"}>
+  const panel = (
+      // 홈에서는 캘린더 옆에 따로 선 카드다. 좁은 화면에서는 캘린더 아래로 내려간다
+      <Card id={panelId} className={isPage ? "h-fit" : "min-w-0 flex-[1_1_300px] scroll-mt-8"}>
         {!idle && (
           <CardHeader>
             {selected && renderIdle && (
@@ -253,6 +258,24 @@ export function PromoCalendar({
           )}
         </CardContent>
       </Card>
+  );
+
+  // 홈: 캘린더 카드와 할 일 카드를 나란히 (2026-10-26 홈 새 디자인)
+  if (!isPage) {
+    return (
+      <div className="flex flex-wrap items-stretch gap-5">
+        <Card className="min-w-0 flex-[999_1_600px]">
+          {header && <CardHeader>{header}</CardHeader>}
+          <CardContent>{calendar}</CardContent>
+        </Card>
+        {panel}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-[1fr_20rem] gap-4">
+      {calendar}
+      {panel}
     </div>
   );
 }
