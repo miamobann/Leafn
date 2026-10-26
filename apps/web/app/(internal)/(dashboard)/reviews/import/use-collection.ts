@@ -101,7 +101,8 @@ export function useCollection(project: CollectProject) {
     }
   }
 
-  async function save() {
+  /** onSaved: 새 리뷰가 저장됐을 때만 부른다 (저장 직후 AI 처리를 시작하는 데 쓴다) */
+  async function save(onSaved?: () => void) {
     if (!view || selected.size === 0) return;
     setBusy("save");
     setMessage(null);
@@ -110,6 +111,7 @@ export function useCollection(project: CollectProject) {
       if (res.ok) {
         setSelected(new Set());
         adopt(res.data);
+        if ((res.data.run.savedCount ?? 0) > 0) onSaved?.();
       } else setMessage(res.message);
     } catch {
       setMessage("서버에 연결하지 못했어요. 저장됐는지 새로고침해서 확인해 주세요.");
