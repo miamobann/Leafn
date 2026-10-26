@@ -1,5 +1,4 @@
-// 시장 분석 원페이지 · PART 2 소비자 트렌드의 계산 (AI 없음). 모든 값은 근거 원문(자동완성 문구·영상 메모)과 함께 돌려준다.
-import type { SnsPattern, SnsPatternKind, SnsVideoNote } from "@/lib/schemas/market";
+// 시장 분석 원페이지 · PART 2 소비자 트렌드의 계산 (AI 없음). 모든 값은 근거 원문(자동완성 문구)과 함께 돌려준다. SNS 니즈는 AI 결과라 lib/ai/sns가 만든다.
 import type { SearchSnap } from "@/lib/schemas/search";
 import { CONCERN_SEEDS, classifySuggestion } from "@/lib/external/search-terms";
 import { KEYWORD_DICTIONARY } from "@/lib/external/geo-terms";
@@ -80,23 +79,4 @@ export function concernSuggestions(all: SearchSnap[]) {
     return { seed: seed.trim(), ko, rows: list.toSorted((a, b) => order[a.status] - order[b.status] || (a.latestPos ?? 99) - (b.latestPos ?? 99)) };
   });
   return { latest, prev, groups };
-}
-
-// ── 2-B SNS 공통 패턴 ────────────────────────────
-
-export const SNS_PATTERN_KIND_LABEL: Record<SnsPatternKind, string> = {
-  expression: "소비자 표현",
-  opening: "영상 초반 구성",
-  reason: "유행 이유",
-};
-
-/** 절반 이상의 영상에서 나온 패턴만 남긴다. videos = 지금 등록된 영상 */
-export function commonPatterns(patterns: SnsPattern[], videos: Pick<SnsVideoNote, "id">[], category: string) {
-  const ids = new Set(videos.map((v) => v.id));
-  const half = Math.ceil(videos.length / 2);
-  return patterns
-    .filter((p) => p.category === category)
-    .map((p) => ({ ...p, hits: p.video_ids.filter((id) => ids.has(id)) }))
-    .filter((p) => p.hits.length >= half && p.hits.length > 0)
-    .toSorted((a, b) => b.hits.length - a.hits.length);
 }
