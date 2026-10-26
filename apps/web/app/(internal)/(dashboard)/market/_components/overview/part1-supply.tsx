@@ -142,10 +142,6 @@ export function SupplyPart({
           {[...r.tags.map((t) => APPEAL_TAGS[t.tag]?.ko ?? t.tag), ...(r.badges ?? [])].join(", ") || "—"}
         </TableCell>
         <TableCell className={WIDE_ONLY}>{r.promo_type ? PROMO_HOOK_LABEL[r.promo_type] : "—"}</TableCell>
-        <TableCell className="text-right">
-          {r.rating != null ? r.rating.toFixed(1) : "—"}
-          <span className="block text-xs text-muted-foreground">{r.review_count !== null ? `${r.review_count.toLocaleString("ko-KR")}건` : "리뷰 수 없음"}</span>
-        </TableCell>
       </TableRow>
     );
   };
@@ -234,7 +230,6 @@ export function SupplyPart({
                 <TableHead className={WIDE_ONLY}>핵심 성분</TableHead>
                 <TableHead className={WIDE_ONLY}>소구 태그·배지</TableHead>
                 <TableHead className={WIDE_ONLY}>프로모션</TableHead>
-                <TableHead className="text-right">평점·리뷰</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>{top.map(rankRow)}</TableBody>

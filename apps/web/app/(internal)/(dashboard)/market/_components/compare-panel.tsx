@@ -157,7 +157,6 @@ export function ComparePanel({
   const compSale = saleOf(competitor);
   const groups = ingredientGroups(own, competitor);
   const sameUnit = own.volume_ml != null && competitor.volume_ml != null;
-  const list = (items: string[]) => (items.length > 0 ? items.map(ingredientKo).join(", ") : "—");
 
   const rows: { label: ReactNode; own: ReactNode; competitor: ReactNode }[] = [
     {
@@ -222,28 +221,8 @@ export function ComparePanel({
     },
     {
       label: "주요 성분",
-      own: (
-        <Value
-          main={
-            <span className="block space-y-1">
-              <span className="block">공통: {list(groups.common)}</span>
-              <span className="block">자사에만: {list(groups.ownOnly)}</span>
-            </span>
-          }
-          sub={`사전에 없는 성분(미분류) ${groups.unclassified.own}개`}
-        />
-      ),
-      competitor: (
-        <Value
-          main={
-            <span className="block space-y-1">
-              <span className="block">공통: {list(groups.common)}</span>
-              <span className="block">경쟁에만: {list(groups.competitorOnly)}</span>
-            </span>
-          }
-          sub={`사전에 없는 성분(미분류) ${groups.unclassified.competitor}개`}
-        />
-      ),
+      own: <IngredientLines lines={[["공통", groups.common], ["자사에만", groups.ownOnly]]} />,
+      competitor: <IngredientLines lines={[["공통", groups.common], ["경쟁에만", groups.competitorOnly]]} />,
     },
     {
       label: "전성분",
@@ -337,6 +316,21 @@ export function ComparePanel({
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+/** 성분 묶음: 비어 있는 묶음은 줄을 빼고, 다 비면 — */
+function IngredientLines({ lines }: { lines: [string, string[]][] }) {
+  const shown = lines.filter(([, items]) => items.length > 0);
+  if (shown.length === 0) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className="block space-y-1">
+      {shown.map(([label, items]) => (
+        <span key={label} className="block">
+          {label}: {items.map(ingredientKo).join(", ")}
+        </span>
+      ))}
+    </span>
   );
 }
 

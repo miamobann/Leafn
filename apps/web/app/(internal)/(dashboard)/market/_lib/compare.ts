@@ -1,7 +1,7 @@
 // 경쟁제품 1:1 비교의 계산 (AI 없음, 화면에서 계산하고 저장하지 않는다).
 // 정보 비교만 한다: 높낮이(▲▼)는 값의 크고 작음만 뜻하고, 좋다·나쁘다로 해석하지 않는다
 import { pricePerMl, readListing, readOwnSpec, type Product } from "@/lib/schemas/product";
-import { COMMON_INGREDIENTS, INGREDIENT_MATCH } from "./market";
+import { INGREDIENT_MATCH } from "./market";
 
 // ── 주소 ?compare= ─────────────────────
 
@@ -124,28 +124,15 @@ export type IngredientGroups = {
   common: string[];
   ownOnly: string[];
   competitorOnly: string[];
-  /** 사전에 없는 성분 수 (물·BG 같은 흔한 기제는 빼고) */
-  unclassified: { own: number; competitor: number };
 };
 
 /** 성분 사전으로 이름을 맞춘 뒤 공통 / 자사에만 / 경쟁에만으로 나눈다 */
 export function ingredientGroups(own: Product, comp: Product): IngredientGroups {
-  const sets = [own, comp].map((p) => {
-    const names = new Set<string>();
-    let unknown = 0;
-    for (const ing of p.ingredients) {
-      const c = canonicalOf(ing);
-      if (c) names.add(c);
-      else if (!COMMON_INGREDIENTS.has(ing)) unknown += 1;
-    }
-    return { names, unknown };
-  });
-  const [o, c] = sets;
+  const [o, c] = [own, comp].map((p) => new Set(p.ingredients.map(canonicalOf).filter((x): x is string => x !== null)));
   return {
-    common: [...o.names].filter((n) => c.names.has(n)),
-    ownOnly: [...o.names].filter((n) => !c.names.has(n)),
-    competitorOnly: [...c.names].filter((n) => !o.names.has(n)),
-    unclassified: { own: o.unknown, competitor: c.unknown },
+    common: [...o].filter((n) => c.has(n)),
+    ownOnly: [...o].filter((n) => !c.has(n)),
+    competitorOnly: [...c].filter((n) => !o.has(n)),
   };
 }
 

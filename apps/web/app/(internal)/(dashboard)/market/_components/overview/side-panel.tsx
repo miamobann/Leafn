@@ -82,9 +82,6 @@ function ProductSummary({ row, own, selected, onToggleCompare }: { row: Overview
           {row.extra_volume_ml ? <span className="block text-xs text-muted-foreground">+ 같은 제품 {row.extra_volume_ml}ml</span> : null}
         </Fact>
         <Fact label="ml당 가격 (정가)">{row.ppm !== null ? `${row.ppm}円` : "—"}</Fact>
-        <Fact label="평점 · 리뷰">
-          {row.rating != null ? `${row.rating.toFixed(1)} / ${row.rating_scale ?? 5}` : "—"} · {row.review_count !== null ? `${row.review_count.toLocaleString("ko-KR")}건` : "리뷰 수 없음"}
-        </Fact>
         <Fact label="프로모션">
           {row.promo_type ? (
             <>
