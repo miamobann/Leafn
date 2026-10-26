@@ -25,6 +25,7 @@ import {
   SelectField,
   SummaryBar,
 } from "./import-parts";
+import { useReportMaking } from "./use-report-making";
 
 const STEPS = [
   ["파일 올리기", "어느 제품의 어디 리뷰인지 확인하고 CSV를 올려요"],
@@ -66,6 +67,7 @@ export function OwnReviewImport({
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const making = useReportMaking();
 
   const product = products.find((p) => p.id === productId);
   const originLabel = ORIGINS.find((o) => o.id === origin)?.label ?? "";
@@ -120,6 +122,7 @@ export function OwnReviewImport({
         setProgress({ done: Math.min(i + SAVE_CHUNK, rows.length), total: rows.length });
       }
       setResult(total);
+      if (total.inserted > 0) void making.start(product.id); // 저장은 끝났다. 새 리뷰가 있으면 제품명 정리·분석·번역을 이어서 한다
     } catch {
       setMessage("서버에 연결하지 못했어요. 다시 저장하면 이미 저장된 리뷰는 건너뛰어요.");
     } finally {
@@ -152,7 +155,7 @@ export function OwnReviewImport({
           {dup ? (
             <p className="text-sm text-muted-foreground">이 파일의 리뷰는 전에 모두 저장해 두었어요. 새로 넣은 리뷰가 없어서 리포트는 그대로예요.</p>
           ) : (
-            <MakingReport />
+            <MakingReport making={making.state} onRetry={making.retry} reportHref={`/reviews/${productId}`} />
           )}
           <NextSteps>
             <Link href={`/reviews/${productId}`} className={cn(moveLinkClass, "text-[15px]")}>

@@ -1,5 +1,6 @@
 // 시장 분석 원페이지(/market)의 계산. 모든 숫자는 근거 제품 목록과 함께 돌려줘서 화면에서 눌러 확인할 수 있게 한다.
 import type { Product } from "@/lib/schemas/product";
+import type { PlatformId } from "@/lib/platforms";
 import type { PromoEvent } from "@/lib/schemas/promo";
 import type { PromoHookType, RankingItem, TrendSnapshot } from "@/lib/schemas/trend";
 import { APPEAL_TAGS, type MarketPlatform } from "@/lib/market-config";
@@ -270,5 +271,41 @@ export function priceMap(top: OverviewRow[], products: Product[], category: stri
     domainY: all.length > 0 ? pad(Math.min(...all.map((p) => p.ppm)), Math.max(...all.map((p) => p.ppm))) : null,
     /** 용량 정보가 없어 찍지 못한 제품 */
     unplaced: top.filter((r) => r.ppm === null || !r.volume_ml),
+  };
+}
+
+// ── 플랫폼 분석에서 고른 랭킹 제품 → 경쟁제품 탭 ─────────────────────
+
+/** 랭킹 줄을 고르는 키 (DB에 등록되지 않은 실데이터 랭킹 제품도 고를 수 있게 브랜드 + 상품명) */
+export function rankingKey(r: Pick<RankingItem, "brand" | "name">): string {
+  return productKey(r.brand, r.name);
+}
+
+/**
+ * 고른 랭킹 줄을 경쟁제품 탭의 제품 모양으로 (저장하지 않음, id는 「rank:」로 시작).
+ * 성분은 상품명·설명에서 찾은 사전 표기만 있고 全成分은 없다. 핵심 성분은 수집 CSV 값을 특징에 둔다
+ */
+export function rankingRowToProduct(r: OverviewRow, platform: PlatformId, category: string, capturedAt: string): Product {
+  return {
+    id: `rank:${rankingKey(r)}`,
+    workspace_id: "local",
+    created_at: capturedAt,
+    kind: "competitor",
+    brand: r.brand,
+    name: r.name,
+    platform,
+    url: r.url ?? null,
+    price_jpy: r.price_jpy,
+    volume_ml: r.volume_ml ?? null,
+    ingredients: r.ingredients.map((x) => x.matched),
+    features: [r.key_ingredients_ko ? `핵심 성분: ${r.key_ingredients_ko}` : null, r.promo_text ?? null].filter((x): x is string => Boolean(x)),
+    image_path: null,
+    source_raw: { rank: r.rank, csv_import: { sale_price_jpy: r.sale_price_jpy ?? null, coupon_price_jpy: r.coupon_price_jpy ?? null } },
+    price_kind: "regular",
+    category,
+    project_id: null,
+    sale_status: null,
+    skin_line: null,
+    title_ai: null,
   };
 }

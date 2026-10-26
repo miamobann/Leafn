@@ -5,100 +5,131 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { platformLabel } from "@/lib/platforms";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTableTemplate } from "@/components/templates";
 import { formatJpy } from "@/lib/format";
-import { pricePerMl, readListing, type Product } from "@/lib/schemas/product";
-import { COMMON_INGREDIENTS, hasIngredient, INGREDIENT_MATCH } from "@/app/(internal)/(dashboard)/market/_lib/market";
-import { HorizontalBarChart } from "@/app/(internal)/(dashboard)/market/_components/charts";
+import { pricePerMl, type Product } from "@/lib/schemas/product";
+import { hasIngredient, INGREDIENT_MATCH } from "@/app/(internal)/(dashboard)/market/_lib/market";
+import { resolveComparePair, saleOf } from "@/app/(internal)/(dashboard)/market/_lib/compare";
+import { ComparePanel } from "@/app/(internal)/(dashboard)/market/_components/compare-panel";
 import { RegisterPanel } from "@/app/(internal)/(dashboard)/market/_components/register-panel";
 import { ToggleGroup } from "@/app/(internal)/(dashboard)/market/_components/toggle-group";
 
+// 평점·리뷰 수는 Qoo10 랭킹·CSV에서 가져오지 못해 정렬·표에서 뺐다 (2026-10-26)
 const SORTS = {
   perMl: "ml당 가격 낮은 순",
   price: "税込 가격 낮은 순",
-  rating: "평점 높은 순",
-  reviews: "리뷰 수 많은 순",
 } as const;
 type SortKey = keyof typeof SORTS;
-const MAX_COMPARE = 4;
-// 비교 칸 수별 Tailwind 클래스 (인라인 style 대신)
-const COMPARE_COLS: Record<number, string> = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-4" };
 
 function sortValue(p: Product, key: SortKey): number {
-  const l = readListing(p);
   if (key === "perMl") return pricePerMl(p) ?? Infinity;
-  if (key === "price") return p.price_jpy ?? Infinity;
-  if (key === "rating") return l?.rating != null ? -(l.rating / l.rating_scale) : Infinity;
-  return -(l?.review_count ?? 0);
+  return p.price_jpy ?? Infinity;
 }
 
 function keyIngredients(p: Product): string[] {
   return Object.keys(INGREDIENT_MATCH).filter((ing) => hasIngredient(p, ing));
 }
 
-function Rating({ p }: { p: Product }) {
-  const l = readListing(p);
-  if (!l || l.rating == null) return <span className="text-muted-foreground">—</span>;
-  return (
-    <span>
-      {l.rating.toFixed(1)} <span className="text-xs text-muted-foreground">/ {l.rating_scale}</span>
-      <span className="block text-xs text-muted-foreground">{l.review_count.toLocaleString("ko-KR")}건</span>
-    </span>
-  );
-}
-
 function Price({ p }: { p: Product }) {
-  const l = readListing(p);
+  const sale = saleOf(p);
   return (
     <span>
       {formatJpy(p.price_jpy)}
-      {l?.sale_price_jpy != null && (
+      {sale && (
         <span className="block text-xs text-muted-foreground">
-          {l.sale_label ?? "행사가"} {formatJpy(l.sale_price_jpy)}
+          {sale.label} {formatJpy(sale.price)}
         </span>
       )}
     </span>
   );
 }
 
-export function CompetitorsView({ products, initialSelected = [] }: { products: Product[]; initialSelected?: string[] }) {
+/**
+ * 경쟁제품 탭: 제품 목록 + 자사 1개 · 경쟁 1개 1:1 비교 (2026-10-26, 예전 4개 나란히 비교를 대신함).
+ * compareIds = 주소의 ?compare= 값. 바꾸면 onCompareChange로 주소를 고친다 (공유하면 같은 비교가 열린다)
+ */
+export function CompetitorsView({
+  products,
+  initialSelected = [],
+  compareIds = [],
+  onCompareChange,
+}: {
+  products: Product[];
+  initialSelected?: string[];
+  compareIds?: string[];
+  onCompareChange?: (ids: string[] | null) => void;
+}) {
   const [added, setAdded] = useState<Product[]>([]);
   const all = [...products, ...added];
   const categories = ["전체", ...new Set(all.map((p) => p.category ?? "미분류"))];
   const [category, setCategory] = useState("전체");
   const [sort, setSort] = useState<SortKey>("perMl");
-  const [selected, setSelected] = useState<string[]>(initialSelected.slice(0, MAX_COMPARE));
+  // 체크한 제품 (「선택한 것만 남기기」용)
+  const [selected, setSelected] = useState<string[]>(initialSelected);
   const [registering, setRegistering] = useState(false);
+  // 목록에서 뺀 제품 (화면에서만 숨김, DB는 그대로). 비교할 것만 남겨 두고 보기 위해
+  const [hidden, setHidden] = useState<string[]>([]);
 
   // 자사 행을 맨 위에 고정하고, 그 안에서 정렬
   const rows = all
+    .filter((p) => !hidden.includes(p.id))
     .filter((p) => category === "전체" || (p.category ?? "미분류") === category)
     .toSorted((a, b) => (a.kind === b.kind ? sortValue(a, sort) - sortValue(b, sort) : a.kind === "own" ? -1 : 1));
-  const compared = selected.map((id) => all.find((p) => p.id === id)).filter((p): p is Product => p !== undefined);
-  const ownIngredientNames = new Set(all.filter((p) => p.kind === "own").flatMap((p) => p.ingredients));
+  const ownProducts = all.filter((p) => p.kind === "own");
+  const competitorProducts = all.filter((p) => p.kind === "competitor");
+  // [이 제품과 비교]에 쓰는 자사 제품. 비교 중이면 그 자사 제품, 아니면 고른 값(기본 첫 자사 제품)
+  const [ownPick, setOwnPick] = useState<string>(ownProducts[0]?.id ?? "");
+  const pair = compareIds.length > 0 ? resolveComparePair(compareIds, all) : null;
+  const compareWith = (ownId: string | null, competitorId: string | null) => onCompareChange?.([ownId, competitorId].filter((x): x is string => Boolean(x)));
+
+  function hide(ids: string[]) {
+    setHidden((h) => [...new Set([...h, ...ids])]);
+    setSelected((s) => s.filter((id) => !ids.includes(id)));
+  }
 
   function toggle(id: string) {
-    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length < MAX_COMPARE ? [...s, id] : s));
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
   return (
     <div className="space-y-6">
       {registering && (
         <RegisterPanel
-          nextIndex={added.length + 1}
+          ownProducts={products.filter((p) => p.kind === "own")}
           onClose={() => setRegistering(false)}
-          onAdd={(p) => {
-            setAdded((a) => [...a, p]);
+          onAddLocal={(list) => {
+            setAdded((a) => [...a, ...list]);
             setCategory("전체");
-            setRegistering(false);
           }}
+        />
+      )}
+
+      {pair && (
+        <ComparePanel
+          pair={pair}
+          ownProducts={ownProducts}
+          competitorProducts={competitorProducts}
+          onChange={(ownId, competitorId) => {
+            if (ownId) setOwnPick(ownId);
+            compareWith(ownId, competitorId);
+          }}
+          onClose={() => onCompareChange?.(null)}
         />
       )}
 
       <DataTableTemplate
         filters={
           <>
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              자사 제품
+              <select className="h-7 rounded-lg border border-input bg-background px-2 text-sm text-foreground" value={pair?.own?.id ?? ownPick} onChange={(e) => setOwnPick(e.target.value)}>
+                {ownProducts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <ToggleGroup label="카테고리" options={categories} value={category} onChange={setCategory} />
             <label className="ml-2 flex items-center gap-1 text-xs text-muted-foreground">
               정렬
@@ -111,15 +142,23 @@ export function CompetitorsView({ products, initialSelected = [] }: { products: 
               </select>
             </label>
             <span className="ml-auto text-xs text-muted-foreground">
-              {selected.length}개 선택 · {selected.length < 2 ? "2~4개를 고르면 아래에 나란히 비교" : `최대 ${MAX_COMPARE}개`}
+              {selected.length}개 선택 · 경쟁 제품의 [이 제품과 비교]로 1:1 비교
             </span>
+            <Button size="sm" variant="outline" disabled={selected.length === 0} onClick={() => hide(rows.filter((p) => !selected.includes(p.id)).map((p) => p.id))}>
+              선택한 것만 남기기
+            </Button>
+            {hidden.length > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setHidden([])}>
+                뺀 {hidden.length}개 다시 보기
+              </Button>
+            )}
             <Button size="sm" onClick={() => setRegistering(true)} disabled={registering}>
               + 경쟁제품 등록
             </Button>
           </>
         }
         columns={[
-          { key: "pick", label: "비교" },
+          { key: "pick", label: "선택" },
           { key: "name", label: "제품" },
           { key: "platform", label: "판매 플랫폼" },
           { key: "price", label: "税込 가격", align: "right" },
@@ -127,11 +166,14 @@ export function CompetitorsView({ products, initialSelected = [] }: { products: 
           { key: "perMl", label: "ml당", align: "right" },
           { key: "ingredients", label: "주요 성분" },
           { key: "features", label: "특징" },
-          { key: "rating", label: "평점 · 리뷰", align: "right" },
+          { key: "compare", label: "" },
+          { key: "remove", label: "" },
         ]}
         rows={rows.map((p) => {
           const checked = selected.includes(p.id);
-          const isLocal = p.id.startsWith("local-");
+          // 상세 페이지가 없는 제품: 샘플 모드에서 올린 것(local-), 플랫폼 분석 랭킹에서 가져온 것(rank:)
+          const fromRanking = p.id.startsWith("rank:");
+          const isLocal = p.id.startsWith("local-") || fromRanking;
           return {
             id: p.id,
             cells: {
@@ -140,9 +182,8 @@ export function CompetitorsView({ products, initialSelected = [] }: { products: 
                   type="checkbox"
                   className="size-4 accent-primary"
                   checked={checked}
-                  disabled={!checked && selected.length >= MAX_COMPARE}
                   onChange={() => toggle(p.id)}
-                  aria-label={`${p.brand} ${p.name} 비교에 넣기`}
+                  aria-label={`${p.brand} ${p.name} 선택`}
                 />
               ),
               name: (
@@ -158,7 +199,7 @@ export function CompetitorsView({ products, initialSelected = [] }: { products: 
                         {p.brand} <span lang="ja">{p.name}</span>
                       </Link>
                     )}
-                    {isLocal && <Badge variant="outline">저장 안 됨</Badge>}
+                    {fromRanking ? <Badge variant="outline">랭킹에서</Badge> : isLocal && <Badge variant="outline">저장 안 됨</Badge>}
                   </span>
                   <span lang="ja" className="text-xs text-muted-foreground">
                     {p.category ?? "미분류"}
@@ -175,66 +216,29 @@ export function CompetitorsView({ products, initialSelected = [] }: { products: 
                 </span>
               ),
               features: <span className="text-xs">{p.features.join(", ")}</span>,
-              rating: <Rating p={p} />,
+              compare:
+                p.kind === "competitor" ? (
+                  <Button
+                    size="sm"
+                    variant={pair?.competitor?.id === p.id ? "secondary" : "outline"}
+                    disabled={ownProducts.length === 0}
+                    onClick={() => compareWith(pair?.own?.id ?? ownPick, p.id)}
+                  >
+                    이 제품과 비교
+                  </Button>
+                ) : null,
+              remove: (
+                <Button size="sm" variant="ghost" onClick={() => hide([p.id])} aria-label={`${p.brand} ${p.name} 목록에서 빼기`}>
+                  빼기
+                </Button>
+              ),
             },
           };
         })}
       />
       <p className="text-xs text-muted-foreground">
-        자사 행은 위에 고정 · ml당 가격은 정가 기준으로 화면에서 계산 · 행사가는 따로 표시 · 평점 척도는 플랫폼마다 달라요 (@cosme 7점은 확인 필요)
+        자사 행은 위에 고정 · ml당 가격은 평시가 기준으로 화면에서 계산 · 행사가는 따로 표시 · [빼기]는 이 화면에서만 숨겨요 (저장된 제품은 그대로)
       </p>
-
-      {compared.length >= 2 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>나란히 비교 · {compared.length}개</CardTitle>
-            <Button size="sm" variant="outline" onClick={() => setSelected([])}>
-              선택 해제
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="mb-1 text-xs text-muted-foreground">ml당 가격 (税込 정가 ÷ 용량) · 진한 막대 = 자사</p>
-              <HorizontalBarChart
-                items={compared
-                  .filter((p) => pricePerMl(p) != null)
-                  .map((p) => ({ id: p.id, label: `${p.brand} ${p.name}`, value: pricePerMl(p) ?? 0, highlight: p.kind === "own" }))}
-                unit="円"
-                labelWidth={200}
-              />
-            </div>
-            <div className={`grid gap-3 ${COMPARE_COLS[compared.length] ?? "grid-cols-4"}`}>
-              {compared.map((p) => {
-                const shared = p.kind === "own" ? null : p.ingredients.filter((x) => ownIngredientNames.has(x) && !COMMON_INGREDIENTS.has(x));
-                return (
-                  <div key={p.id} className={`space-y-2 rounded-lg border p-3 text-sm ${p.kind === "own" ? "border-primary" : ""}`}>
-                    <Badge variant={p.kind === "own" ? "default" : "outline"}>{p.kind === "own" ? "자사" : "경쟁"}</Badge>
-                    <p className="font-medium">
-                      {p.brand} <span lang="ja">{p.name}</span>
-                    </p>
-                    <dl className="space-y-1">
-                      {[
-                        ["판매 플랫폼", platformLabel(p.platform)],
-                        ["税込 가격", <Price key="p" p={p} />],
-                        ["용량 · ml당", `${p.volume_ml ?? "—"}ml · ${pricePerMl(p) != null ? `¥${pricePerMl(p)}` : "—"}`],
-                        ["주요 성분", <span key="i" lang="ja">{keyIngredients(p).join("、") || "—"}</span>],
-                        ["특징", p.features.join(", ") || "—"],
-                        ["평점 · 리뷰", <Rating key="r" p={p} />],
-                        ...(shared ? [["자사와 겹치는 성분", <span key="s" lang="ja">{shared.join("、") || "없음"}</span>] as const] : []),
-                      ].map(([label, value]) => (
-                        <div key={label as string}>
-                          <dt className="text-xs text-muted-foreground">{label}</dt>
-                          <dd>{value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

@@ -120,12 +120,26 @@ function daysBetween(from: string, to: string) {
 /** 결재 대기가 이 날 수를 넘으면 강조한다 (설계 8장 보완 4) */
 export const STALE_REVIEW_DAYS = 2;
 
+/**
+ * 시안 버전을 만든 원본 탭 화면 (#submission은 그 화면의 시안 패널).
+ * 리뷰 = 그 제품의 리뷰 리포트, 광고 = 버전에 담긴 첫 검토 건, 시장 분석 = 시장 개요 (시장 탭 시안은 5단계)
+ */
+export function sourceHref(submission: TabSubmission, version: SubmissionVersion): string {
+  if (submission.tab === "review" && submission.product_id) return `/reviews/${submission.product_id}#submission`;
+  const ad = submission.tab === "ad" ? version.evidence.find((e) => e.kind === "ad_check") : undefined;
+  if (ad) return `/ad-check/${ad.id}#submission`;
+  return "/market";
+}
+
 export type InboxRow = {
   version: SubmissionVersion;
   submission: TabSubmission;
   productName: string;
   authorName: string;
   waitingDays: number;
+  sourceHref: string;
+  /** 같은 시안의 바로 앞 버전 내용 (결재함에서 바로 미리보기할 때 달라진 곳 표시) */
+  previousBody: Record<string, unknown> | null;
 };
 
 export type DecisionRow = {
@@ -136,7 +150,7 @@ export type DecisionRow = {
   reviewerName: string;
 };
 
-/** 결재함: 결재 대기 버전(오래 기다린 것부터)과 최근 결재 기록 */
+/** 결재함(팀장만): 결재 대기 버전(오래 기다린 것부터)과 최근 결재 기록 */
 export async function getApprovalInbox(opts: { recentLimit?: number } = {}): Promise<{ pending: InboxRow[]; recent: DecisionRow[] }> {
   const [submissions, versions, reviews, label, today] = await Promise.all([
     getSubmissions(),
@@ -150,12 +164,17 @@ export async function getApprovalInbox(opts: { recentLimit?: number } = {}): Pro
   const pending = versions.flatMap((v) => {
     const submission = submissionOf.get(v.submission_id);
     if (v.status !== "submitted" || !submission) return [];
+    const previous = versions
+      .filter((p) => p.submission_id === v.submission_id && p.version_no < v.version_no)
+      .toSorted((a, b) => b.version_no - a.version_no)[0];
     return [{
       version: v,
       submission,
       productName: label.product(submission.product_id),
       authorName: label.member(v.author_id),
       waitingDays: daysBetween((v.submitted_at ?? v.created_at).slice(0, 10), today),
+      sourceHref: sourceHref(submission, v),
+      previousBody: previous?.body ?? null,
     }];
   });
   const recent = reviews.slice(0, opts.recentLimit ?? 20).flatMap((review) => {
@@ -165,6 +184,47 @@ export async function getApprovalInbox(opts: { recentLimit?: number } = {}): Pro
     return [{ review, version, submission, productName: label.product(submission.product_id), reviewerName: label.member(review.reviewer_id) }];
   });
   return { pending: pending.toSorted((a, b) => b.waitingDays - a.waitingDays), recent };
+}
+
+export type MyVersionRow = {
+  version: SubmissionVersion;
+  submission: TabSubmission;
+  productName: string;
+  sourceHref: string;
+  /** 그 버전의 가장 최근 결재 (없으면 아직 결재 전) */
+  decision: SubmissionReview | null;
+  reviewerName: string | null;
+};
+
+/**
+ * 내 시안: 내가 만든 버전 전체와 팀장 검토 상황, 최근 것부터 (팀원이 결재함 대신 보는 화면).
+ * 샘플 모드는 로그인 사용자가 없어 샘플 버전 전체를 보여 준다
+ */
+export async function getMySubmissions(): Promise<MyVersionRow[]> {
+  const [submissions, versions, reviews, label, me] = await Promise.all([
+    getSubmissions(),
+    getAllVersions(),
+    getSubmissionReviews(),
+    names(),
+    getCurrentUser(),
+  ]);
+  const submissionOf = new Map(submissions.map((s) => [s.id, s]));
+  return versions
+    .filter((v) => !me || v.author_id === me.id)
+    .flatMap((version) => {
+      const submission = submissionOf.get(version.submission_id);
+      if (!submission) return [];
+      const decision = reviews.find((r) => r.version_id === version.id) ?? null;
+      return [{
+        version,
+        submission,
+        productName: label.product(submission.product_id),
+        sourceHref: sourceHref(submission, version),
+        decision,
+        reviewerName: decision ? label.member(decision.reviewer_id) : null,
+      }];
+    })
+    .toSorted((a, b) => (b.version.submitted_at ?? b.version.created_at).localeCompare(a.version.submitted_at ?? a.version.created_at));
 }
 
 /** 버전 미리보기: 버전 · 시안 · 같은 시안의 다른 버전 · 바로 앞 버전 · 결재 기록 */

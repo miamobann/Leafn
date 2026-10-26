@@ -73,6 +73,7 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
                 title: (
                   // 목록 제목은 한국어로 통일 (검토 이력과 같다). 마우스를 올리면 일본어 제목
                   <span className="block max-w-80 truncate font-medium underline-offset-4 [a:hover_&]:underline" title={g.title.title_ja}>
+                    {g.parent_id && <span className="mr-1 rounded border px-1 text-xs font-normal">수정본</span>}
                     {g.title.title_ko}
                   </span>
                 ),
@@ -82,7 +83,8 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
                   </span>
                 ),
                 channel: <span className="whitespace-nowrap">{CHANNEL_LABEL[g.channel] ?? g.channel}</span>,
-                action: action ? <ActionBadge action={action} /> : "—",
+                // 수정본의 검사 기록은 고치기 전 문구의 판정이라 배지 대신 반영 사실만 적는다 (고친 줄은 재검토 통과만 받는다)
+                action: g.parent_id ? <span className="whitespace-nowrap text-xs text-muted-foreground">대체 표현 반영</span> : action ? <ActionBadge action={action} /> : "—",
                 author: memberName(g.created_by),
                 date: formatDate(g.created_at),
                 delete: <DeleteButton endpoint={`/api/content-guide/${g.id}`} confirmMessage="이 가이드를 삭제할까요? 지운 결과물은 되돌릴 수 없습니다. (약기법 검사 기록은 남아요)" />,

@@ -30,6 +30,9 @@ export const ContentGuideInput = z.object({
   keywords: z.object({ search: z.array(z.string()), ingredients: z.array(z.string()), trending: z.array(z.string()).optional() }),
   /** 후기 블록에 쓸 실제 한국어 리뷰 원문 (리뷰 분석 데이터에서 고른 것). 없으면 빈 배열 → 후기를 지어내지 않는다 */
   review_quotes: z.array(z.string().min(1)).max(4),
+  /** 리뷰 분석 탭에서 번역 → 약기법 검토 → 팀장 승인을 거친 일본어 후기 (프롬프트 v4). 있으면 review_quotes 는 비운다.
+   *  translation_id = review_translations.id → 저장된 input 에 남아 "이 인용은 어느 승인본"을 따라갈 수 있다. 예전에 저장한 입력에는 없다 */
+  approved_quotes: z.array(z.object({ text_ja: z.string().min(1), translation_id: z.string().min(1) })).max(4).optional(),
   evidence: z.array(z.string()),
   promo: z.string().nullable(),
   channel: ContentChannel,
@@ -82,5 +85,10 @@ export const ContentGuideRow = WorkspaceRow.merge(AiMeta).extend({
   body: GuideBodyResult,
   lint_hits: z.array(z.object({ key: z.string(), reason: z.string(), text: z.string() })),
   ad_check_id: Id.nullable(),
+  // 20261026180000_content_guides_revision_memos.sql. 원격 DB에 적용되기 전 행에는 칸이 없어서 optional 도 둔다
+  /** 수정본이면 원본 가이드 id (새 검토에서 고친 문구를 「가이드에 반영」) */
+  parent_id: Id.nullable().optional(),
+  /** 블록별 메모 { 블록 key: 메모 } */
+  memos: z.record(z.string(), z.string()).nullable().optional(),
 });
 export type ContentGuideRow = z.infer<typeof ContentGuideRow>;

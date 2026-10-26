@@ -100,12 +100,18 @@ export function SurveyResultsView({
   const rate = (r: (typeof reactions)[number]) => (r.reacted === null || !r.shown ? -1 : r.reacted / r.shown);
   const topReaction = reactions.filter((r) => r.reacted !== null && r.shown > 0).toSorted((a, b) => rate(b) - rate(a))[0];
   const share = (n: number) => pct(n, summary.total);
+  // 응답이 오늘보다 뒤 날짜면 숍 오픈 후를 가정한 예시 데이터다 (진출 전 시연)
+  const isExample = Boolean(summary.period && summary.period.from > new Date().toISOString().slice(0, 10));
   // 클릭 · 알림 숫자가 없으면(DB 모드) "—"
   const countOr = (n: number | undefined, unit: string) => (n === undefined ? "—" : `${n}${unit}`);
 
   const stats = [
     { label: "총 응답", value: `${summary.total}건`, sub: `18세 이상 · 동의한 응답 · 18세 미만 ${summary.under18_count}명 별도` },
-    { label: "최근 7일", value: `${summary.recent_7d}건`, sub: "" },
+    {
+      label: "민감 경향",
+      value: `${summary.sensitive_count}명 · ${share(summary.sensitive_count)}`,
+      sub: "새 제품을 써 보고 자극을 느낀 적이 있는 응답자 (피부타입과 별개)",
+    },
     { label: "가장 많은 피부타입", value: topType ? SKIN[topType.skin_type].ko : "—", sub: topType ? `${topType.count}건 · ${share(topType.count)}` : "" },
   ];
 
@@ -120,6 +126,11 @@ export function SurveyResultsView({
 
   return (
     <div className="space-y-6">
+      {isExample && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          예시 데이터: Qoo10 숍 오픈({summary.period?.from})부터 {summary.period?.to}까지 쌓인 응답이라고 가정했어요.
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div role="tablist" className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1">
           {TABS.map((t) => (
@@ -185,7 +196,7 @@ export function SurveyResultsView({
             </CardHeader>
             {/* 칸마다 큰 숫자(1위) 하나 + 막대. 1위만 진하게 칠한다 */}
             <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <Tile title="피부타입" note={`민감 경향 ${summary.sensitive_count}명 · ${share(summary.sensitive_count)}`}>
+              <Tile title="피부타입" note="한 사람당 하나">
                 {topType && <Hero value={share(topType.count)} label={SKIN[topType.skin_type].ko} />}
                 <HBars items={bySkin.map((s) => ({ label: SKIN[s.skin_type].ko, value: s.count }))} total={summary.total} unit="명" />
               </Tile>
@@ -315,6 +326,55 @@ export function SurveyResultsView({
 
       {tab === "skin" && (
         <div className="grid gap-4 lg:grid-cols-2">
+          {/* 이 탭의 결론: 어떤 피부타입에 어떤 고민이 몰리는지 (다음 제품 판단) */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-1.5">
+                피부타입별 고민 TOP 3
+                <HelpTip>
+                  각 피부타입 응답자 중 그 고민을 고른 사람의 비율이에요. 어떤 피부타입에 어떤 고민이 몰리는지 보고 다음 제품을 정하는 데
+                  써요.
+                </HelpTip>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>피부타입</TableHead>
+                    <TableHead className="text-right">응답</TableHead>
+                    <TableHead>1위</TableHead>
+                    <TableHead>2위</TableHead>
+                    <TableHead>3위</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {concernsByType.map((row) => (
+                    <TableRow key={row.skin_type}>
+                      <TableCell className="py-2.5 font-semibold">{SKIN[row.skin_type].ko}</TableCell>
+                      <TableCell className="py-2.5 text-right">{row.count}명</TableCell>
+                      {[0, 1, 2].map((i) => (
+                        <TableCell key={i} className="py-2.5">
+                          {row.top[i] ? (
+                            <span className="inline-flex items-baseline gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[13px]">
+                              {CONCERN_KO[row.top[i].key] ?? row.top[i].key} <b className="font-semibold">{pct(row.top[i].count, row.count)}</b>
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {summary.concern_other.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => openAll(true)}>
+                  &apos;기타&apos; 직접 입력 {summary.concern_other.length}건 보기 →
+                </Button>
+              )}
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-1.5">
@@ -388,54 +448,6 @@ export function SurveyResultsView({
                   ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                피부타입별 고민 TOP 3
-                <HelpTip>
-                  각 피부타입 응답자 중 그 고민을 고른 사람의 비율이에요. 어떤 피부타입에 어떤 고민이 몰리는지 보고 다음 제품을 정하는 데
-                  써요.
-                </HelpTip>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>피부타입</TableHead>
-                    <TableHead className="text-right">응답</TableHead>
-                    <TableHead>1위</TableHead>
-                    <TableHead>2위</TableHead>
-                    <TableHead>3위</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {concernsByType.map((row) => (
-                    <TableRow key={row.skin_type}>
-                      <TableCell className="py-2.5 font-semibold">{SKIN[row.skin_type].ko}</TableCell>
-                      <TableCell className="py-2.5 text-right">{row.count}명</TableCell>
-                      {[0, 1, 2].map((i) => (
-                        <TableCell key={i} className="py-2.5">
-                          {row.top[i] ? (
-                            <span className="inline-flex items-baseline gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[13px]">
-                              {CONCERN_KO[row.top[i].key] ?? row.top[i].key} <b className="font-semibold">{pct(row.top[i].count, row.count)}</b>
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {summary.concern_other.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => openAll(true)}>
-                  &apos;기타&apos; 직접 입력 {summary.concern_other.length}건 보기 →
-                </Button>
-              )}
             </CardContent>
           </Card>
         </div>

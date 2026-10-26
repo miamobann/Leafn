@@ -1,17 +1,9 @@
-import { PageHeader } from "@/components/layout/page-header";
-import { getProducts } from "@/lib/data";
-import { CompetitorsView } from "@/app/(internal)/(dashboard)/market/_components/competitors-view";
+import { redirect } from "next/navigation";
 
-// ?compare=id1,id2 로 들어오면 그 제품들을 처음부터 골라 둔다 (시장 분석 원페이지의 [선택 제품 비교])
+// 경쟁제품 비교는 시장 분석의 「경쟁제품」 탭으로 옮겼다 (2026-10-26). 예전 주소(홈 링크 등)는 그 탭으로 보낸다.
+// ?compare=자사ID,경쟁ID 는 그대로 넘겨 같은 1:1 비교가 열린다. 제품 상세(/market/competitors/[productId])는 그대로 쓴다
 export default async function MarketCompetitorsPage({ searchParams }: { searchParams: Promise<{ compare?: string }> }) {
-  const [products, { compare }] = await Promise.all([getProducts(), searchParams]);
-  const ids = new Set(products.map((p) => p.id));
-  const initialSelected = (compare ?? "").split(",").filter((id) => ids.has(id));
-
-  return (
-    <>
-      <PageHeader title="경쟁제품 비교" description="등록된 자사·경쟁 제품의 가격·용량·성분·특징" featureId="C" />
-      <CompetitorsView products={products} initialSelected={initialSelected} />
-    </>
-  );
+  const { compare } = await searchParams;
+  const ids = (compare ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  redirect(ids.length > 0 ? `/market?compare=${ids.map(encodeURIComponent).join(",")}#competitors` : "/market#competitors");
 }

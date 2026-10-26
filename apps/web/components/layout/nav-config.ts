@@ -21,7 +21,11 @@ export type NavItem = {
   icon?: LucideIcon;
   /** 주소가 이 메뉴 아래에 있지 않아도 이 메뉴를 켤 화면 (예: 검토 상세는 검토 이력) */
   alsoActive?: RegExp;
+  /** 팀장(owner)에게만 보이는 메뉴 (결재함). 주소를 막는 것은 화면과 DB가 따로 한다 */
+  ownerOnly?: boolean;
 };
+
+export type NavRole = "owner" | "member";
 
 export type NavGroup = {
   label: string;
@@ -38,8 +42,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "시장 분석",
     icon: ChartLine,
     items: [
+      // 경쟁제품 비교는 시장 분석 안의 「경쟁제품」 탭으로 옮겼다 (2026-10-26). /market/competitors는 그 탭으로 보낸다
       { label: "시장 개요", href: "/market", featureId: "B" },
-      { label: "경쟁제품 비교", href: "/market/competitors", featureId: "C" },
     ],
   },
   {
@@ -48,6 +52,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "리뷰 리포트", href: "/reviews", featureId: "E" },
       { label: "소구점 찾기", href: "/reviews/compare", featureId: "E" },
+      // 화면은 제품마다(/reviews/<제품>/translate) 있어서 탭 주소는 안내용 입구(가장 리뷰 많은 자사 제품으로 보낸다)
+      { label: "상세페이지용 리뷰", href: "/reviews/translate", featureId: "F", alsoActive: /^\/reviews\/[^/]+\/translate$/ },
     ],
   },
   {
@@ -64,11 +70,13 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // 세 탭의 승인본을 모으는 공통 층 (docs/team-approval-ai-analysis.md 7장 3·4단계). /approvals/<버전 ID> · /ai-analysis/<분석 ID>는 주소 앞부분이 같아 자동으로 켜진다
+    // 세 탭의 승인본을 모으는 공통 층 (docs/team-approval-ai-analysis.md 7장 3·4단계). /approvals/<버전 ID> · /ai-analysis/<분석 ID>는 주소 앞부분이 같아 자동으로 켜진다.
+    // 결재함은 팀장만 본다. 팀원은 「내 시안」에서 자기가 올린 시안의 팀장 검토 상황을 본다 (2026-10-26 총괄 결정)
     label: "결재 · AI 분석",
     icon: ClipboardCheck,
     items: [
-      { label: "결재함", href: "/approvals", featureId: "M" },
+      { label: "결재함", href: "/approvals", featureId: "M", ownerOnly: true },
+      { label: "내 시안", href: "/approvals/mine", featureId: "M" },
       { label: "AI 분석", href: "/ai-analysis", featureId: "N" },
     ],
   },
@@ -100,6 +108,11 @@ export function activeHref(pathname: string): string | undefined {
   return ALL_ITEMS.filter((item) => matches(pathname, item))
     .map((item) => item.href)
     .sort((a, b) => b.length - a.length)[0];
+}
+
+/** 그 역할에게 보이는 그룹 메뉴 */
+export function visibleItems(group: NavGroup, role: NavRole): NavItem[] {
+  return group.items.filter((item) => role === "owner" || !item.ownerOnly);
 }
 
 export function groupOf(href: string | undefined): NavGroup | undefined {
