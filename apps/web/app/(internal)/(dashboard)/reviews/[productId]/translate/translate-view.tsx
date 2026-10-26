@@ -207,9 +207,9 @@ export function TranslateView({
     router.refresh();
   };
   // 대체 표현 적용 · 승인 · 승인 취소: 한 번에 한 건만 (다시 번역 + 약기법 검토가 돌아서 몇 초 걸린다)
-  const [busy, setBusy] = useState<{ id: string; label: string } | null>(null);
-  const run = async (id: string, label: string, job: () => Promise<{ ok: true; text: string } | { ok: false; message: string }>) => {
-    setBusy({ id, label });
+  const [busy, setBusy] = useState<{ id: string; label: string; step: 3 | 4 } | null>(null);
+  const run = async (id: string, label: string, step: 3 | 4, job: () => Promise<{ ok: true; text: string } | { ok: false; message: string }>) => {
+    setBusy({ id, label, step });
     setNotice(null);
     const res = await job();
     setBusy(null);
@@ -217,23 +217,35 @@ export function TranslateView({
     router.refresh();
   };
   const applyFix = (t: TranslatedRow, finding: string, suggestionJa: string) =>
-    run(t.id, "고쳐서 다시 번역하고 약기법 검토하는 중…", async () => {
+    run(t.id, "고쳐서 다시 번역하고 약기법 검토하는 중…", 3, async () => {
       const res = await applySuggestion(t.id, finding, suggestionJa);
       if (!res.ok) return res;
       return { ok: true, text: res.data.mustFix ? "대체 표현을 적용해 다시 검토했어요. 아직 고쳐야 할 표현이 남아 있어요." : "대체 표현을 적용했고 약기법 검토를 다시 마쳤어요. 이제 시안에 담을 수 있어요." };
     });
   const addPicked = () =>
-    run("add", "시안에 담는 중…", async () => {
+    run("add", "시안에 담는 중…", 4, async () => {
       const res = await addToReviewDraft(product.id, { translationIds: addable.map((r) => r.id) });
       if (!res.ok) return res;
       right.clear();
       return { ok: true, text: `${addable.length}건을 시안 v${res.data.versionNo}에 담았어요. 요약 탭에서 한 줄 결론을 쓰고 결재를 올려 주세요.` };
     });
   const removeOne = (t: TranslatedRow) =>
-    run(t.id, "시안에서 빼는 중…", async () => {
+    run(t.id, "시안에서 빼는 중…", 4, async () => {
       const res = await removeFromReviewDraft(product.id, { translationId: t.id });
       return res.ok ? { ok: true, text: `시안 v${res.data.versionNo}에서 뺐어요.` } : res;
     });
+  // 지금 단계: 돌고 있는 작업이 먼저, 쉬는 중이면 왼쪽에서 고르는 중 → 고쳐야 함이 남음 → 담을 번역이 남음 순서로 본다
+  const currentStep = working
+    ? 2
+    : busy
+      ? busy.step
+      : left.picked.size > 0
+        ? 1
+        : counts.fix > 0
+          ? 3
+          : rows.some((r) => r.status === "ready" && !r.drafted)
+            ? 4
+            : 1;
   const changeLeft = (fn: () => void) => {
     fn();
     setPickPage(1);
@@ -249,12 +261,19 @@ export function TranslateView({
       </header>
 
       <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {STEPS.map(([title, sub]) => (
-          <li key={title} className="rounded-lg border bg-card px-4 py-2.5 text-sm">
-            <b>{title}</b>
-            <span className="block text-xs text-muted-foreground">{sub}</span>
-          </li>
-        ))}
+        {STEPS.map(([title, sub], i) => {
+          const current = i + 1 === currentStep;
+          return (
+            <li
+              key={title}
+              aria-current={current ? "step" : undefined}
+              className={`rounded-lg border px-4 py-2.5 text-sm transition-colors ${current ? "border-primary bg-primary text-primary-foreground" : "bg-card"}`}
+            >
+              <b>{title}</b>
+              <span className={`block text-xs ${current ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{sub}</span>
+            </li>
+          );
+        })}
       </ol>
 
       <div className="grid items-start gap-5 lg:grid-cols-2">
@@ -388,7 +407,7 @@ export function TranslateView({
           {draft.count > 0 && (
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               시안 v{draft.versionNo}에 일본어 후기 {draft.count}건이 담겨 있어요. 요약 탭에서 한 줄 결론을 쓰고 결재를 올리면 팀장이 한 번에 승인해요.
-              <Link href="/reviews/summary" className="font-medium underline-offset-4 hover:underline">
+              <Link href={`/reviews/summary?product=${product.id}`} className="font-medium underline-offset-4 hover:underline">
                 요약으로 가기 →
               </Link>
             </p>
