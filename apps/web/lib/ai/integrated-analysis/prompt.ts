@@ -1,6 +1,7 @@
 // 통합 AI 분석 프롬프트 조립 (docs/team-approval-ai-analysis.md 10장). 원문은 prompts/integrated-analysis.v<N>.md 에만 있다 (CLAUDE.md 7장).
 import { loadPrompt } from "@/lib/ai/prompts";
 import type { SubmissionTab } from "@/lib/schemas/submission";
+import { MIN_REVIEW_SAMPLE } from "./config";
 
 /** #분석 관점의 한 줄 = 결과 섹션 하나. 관점을 더하거나 빼도 화면 코드는 그대로다 */
 export type Perspective = { key: string; name: string };
@@ -58,11 +59,36 @@ function compact(value: unknown): unknown {
   return value;
 }
 
-/** 프롬프트 #입력 형식대로: 제품 한 줄 + 승인본 한 줄씩 (JSON) */
-export function buildUserMessage(input: IntegratedInput): string {
+/** 프롬프트 #입력 형식의 facts. 날짜 차이 · 표본 수 · 미해결 광고 위험은 AI에게 맡기지 않고 코드가 센다 */
+export type IntegratedFacts = {
+  approved_tabs: SubmissionTab[];
+  data_gap_days: number | null;
+  review_sample_small: boolean | null;
+  ad_unresolved_high: number | null;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function computeFacts(versions: IntegratedInputVersion[]): IntegratedFacts {
+  const times = versions.flatMap((v) => (v.data_as_of ? [Date.parse(v.data_as_of)] : [])).filter((t) => !Number.isNaN(t));
+  const review = versions.find((v) => v.tab === "review");
+  const ad = versions.find((v) => v.tab === "ad");
+  const analyzed = review?.body.analyzed_count;
+  const items = Array.isArray(ad?.body.items) ? (ad.body.items as { overall_risk?: unknown; final_text?: unknown }[]) : [];
+  return {
+    approved_tabs: [...new Set(versions.map((v) => v.tab))],
+    data_gap_days: times.length > 1 ? Math.round((Math.max(...times) - Math.min(...times)) / DAY_MS) : null,
+    review_sample_small: review ? typeof analyzed !== "number" || analyzed < MIN_REVIEW_SAMPLE : null,
+    ad_unresolved_high: ad ? items.filter((i) => i.overall_risk === "high" && !(typeof i.final_text === "string" && i.final_text.trim())).length : null,
+  };
+}
+
+/** 프롬프트 #입력 형식대로: 제품 한 줄 + facts 한 줄 + 승인본 한 줄씩 (JSON) */
+export function buildUserMessage(input: IntegratedInput, facts: IntegratedFacts = computeFacts(input.versions)): string {
   return [
     "#입력",
     `product: ${JSON.stringify(input.product)}`,
+    `facts: ${JSON.stringify(facts)}`,
     "versions:",
     ...input.versions.map(
       (v) =>

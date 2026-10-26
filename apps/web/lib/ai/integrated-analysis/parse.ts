@@ -1,8 +1,9 @@
 // 통합 AI 분석 응답을 검증하고 저장할 모양으로 다듬는다 (순수 함수 · 호출 없음, docs/team-approval-ai-analysis.md 10장).
 // 응답의 ref(예: review@v2)는 입력 버전 ID로 바꾼다. 입력에 없는 ref를 인용한 문장은 버리지 않고 "근거 확인 필요"로 표시한다 (8장 보완 8).
 // 모양이 틀리면 예외를 던지고, 호출하는 쪽(run.ts)이 1회 재시도한다 (CLAUDE.md 7장 1번).
+// 종합 판단(verdict)이 프롬프트 규칙을 어기면 버리지 않고 코드가 fix_first로 낮춘 뒤 "근거 확인 필요"로 표시한다.
 import { AiAnalysisOutput, type AiAnalysisPoint, AiAnalysisResult } from "@/lib/schemas/ai-analysis";
-import type { Perspective } from "./prompt";
+import type { IntegratedFacts, Perspective } from "./prompt";
 
 /** AI 응답이 약속한 모양이 아닐 때. message 는 화면에 보여 줘도 안전하다 (모델 출력 원문은 cause 에만 있다) */
 export class IntegratedAnalysisParseError extends Error {
@@ -15,8 +16,19 @@ function stripFence(text: string) {
   return text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
 }
 
-/** refs: ref → 버전 ID */
-export function parseIntegratedAnalysis(text: string, perspectives: Perspective[], refs: Map<string, string>): AiAnalysisResult {
+/** 프롬프트 v2 #판단 단계 4단계: 미해결 광고 위험이 있거나 승인 탭이 2개 미만이면 go를 고르지 않는다 */
+function goIsBlocked(facts: IntegratedFacts | undefined) {
+  if (!facts) return false;
+  return (facts.ad_unresolved_high ?? 0) > 0 || facts.approved_tabs.length < 2;
+}
+
+/** refs: ref → 버전 ID · facts: 입력에 같이 보낸 사실 (verdict 규칙 확인용) */
+export function parseIntegratedAnalysis(
+  text: string,
+  perspectives: Perspective[],
+  refs: Map<string, string>,
+  facts?: IntegratedFacts,
+): AiAnalysisResult {
   let json: unknown;
   try {
     json = JSON.parse(stripFence(text));
@@ -43,16 +55,48 @@ export function parseIntegratedAnalysis(text: string, perspectives: Perspective[
   };
   const points = (list: { text: string; basis: string[] }[]) => list.flatMap((p) => point(p) ?? []);
 
+  const verdictBasis = point({ text: output.verdict.reason || "-", basis: output.verdict.basis });
+  const blocked = output.verdict.level === "go" && goIsBlocked(facts);
+  const counterText = output.counterpoint.text.trim();
+  const counterIds = output.counterpoint.basis.map((ref) => refs.get(ref.trim())).filter((id): id is string => Boolean(id));
+
   return AiAnalysisResult.parse({
     summary: output.summary.trim(),
     // 섹션 제목은 AI가 쓴 값 대신 프롬프트의 관점 이름을 쓴다 (화면 제목이 프롬프트 버전과 맞게)
-    sections: output.sections.map((s, i) => ({ key: s.key, title: perspectives[i].name, points: points(s.points) })),
-    conflicts: points(output.conflicts),
-    data_gaps: output.data_gaps.map((g) => g.trim()).filter(Boolean),
+    sections: output.sections.map((s, i) => ({
+      key: s.key,
+      title: perspectives[i].name,
+      points: s.points.flatMap((p) => {
+        const q = point(p);
+        return q ? [{ ...q, confidence: p.confidence }] : [];
+      }),
+    })),
+    agreements: points(output.agreements),
+    conflicts: output.conflicts.flatMap((c) => {
+      const p = point(c);
+      return p ? [{ ...p, check_first: c.check_first }] : [];
+    }),
+    data_gaps: output.data_gaps.flatMap((g) => (g.text.trim() ? [{ text: g.text.trim(), tab: g.tab }] : [])),
+    verdict: {
+      level: blocked ? "fix_first" : output.verdict.level,
+      reason: output.verdict.reason.trim(),
+      basis: verdictBasis?.basis ?? [],
+      ...((verdictBasis?.needs_check || blocked) && { needs_check: true }),
+      ...(blocked && { adjusted_from: "go" as const }),
+    },
+    // 반대 근거가 없을 때는 basis가 비어도 된다 (프롬프트 v2). 인용한 ref가 입력에 없을 때만 "근거 확인 필요"
+    ...(counterText && {
+      counterpoint: {
+        text: counterText,
+        basis: [...new Set(counterIds)],
+        ...(counterIds.length !== output.counterpoint.basis.length && { needs_check: true }),
+      },
+    }),
     actions: output.actions
       .flatMap((a) => {
         const p = point(a);
-        return p ? [{ ...p, tab: a.tab, priority: Math.max(1, Math.round(a.priority)) }] : [];
+        const done = a.done_when.trim();
+        return p ? [{ ...p, tab: a.tab, priority: Math.max(1, Math.round(a.priority)), ...(done && { done_when: done }) }] : [];
       })
       .toSorted((a, b) => a.priority - b.priority),
   });
