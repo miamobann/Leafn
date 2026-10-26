@@ -81,7 +81,7 @@ export const SnsTrendResult = z.object({
 });
 export type SnsTrendResult = z.infer<typeof SnsTrendResult>;
 
-// ── 저장된 분석 (sns_trend_analyses, supabase/migrations/20261026210000_create_sns_trend_analyses.sql) ─────────────
+// ── 저장된 분석 (sns_trend_analyses, supabase/migrations/20261026220000_create_sns_trend_analyses.sql) ─────────────
 
 /** videos jsonb 한 칸: 입력 메모 + Apify 영상 정보 */
 export const SnsAnalysisVideo = SnsVideoFacts.extend({ memo: z.string().default("") });

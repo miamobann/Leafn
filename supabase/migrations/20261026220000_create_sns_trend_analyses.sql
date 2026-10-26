@@ -2,7 +2,7 @@
 -- 작업: 테이블 추가 (sns_trend_analyses). 분석 한 번 = 한 행. 다시 분석하면 새 행이 쌓이고, 화면은 카테고리마다 최신 행을 읽는다
 -- 근거: docs/DB_RULES.md 3장 템플릿 (workspace_id + 인덱스 + is_member RLS 4개), CLAUDE.md 5장 (AI 결과 행에는 model · prompt_version)
 -- 선행: 20261022082907_base_workspaces.sql (workspaces, profiles, is_member)
--- 파일 이름: Supabase CLI가 이 PC에 없어 손으로 만들었다. 이미 있는 마지막 마이그레이션(20261026200000)보다 뒤 시각으로 정했다
+-- 파일 이름: Supabase CLI가 이 PC에 없어 손으로 만들었다. sub_main의 마지막 마이그레이션(20261026210000_collection_runs_progress)보다 뒤 시각으로 정했다
 --
 -- 모양은 apps/web/lib/schemas/market.ts SnsTrendAnalysisRow:
 --   videos = 입력 링크 · 메모 + Apify로 받은 영상 정보 (SnsAnalysisVideo[])

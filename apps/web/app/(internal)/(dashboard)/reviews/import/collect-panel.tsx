@@ -7,6 +7,7 @@ import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { CollectProject } from "@/lib/data/collection";
+import { STALE_RUNNING_MS } from "@/lib/schemas/collection";
 import { cn } from "@/lib/utils";
 import { Conditions } from "./collect-conditions";
 import { conditionText, METHOD, n, needsSave, STEPS, TEXT } from "./collect-options";
@@ -49,6 +50,10 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
   const waitSec = view ? Math.max(0, Math.floor((c.now - new Date(view.run.createdAt).getTime()) / 1000)) : 0;
   const waitText = waitSec < 60 ? `${waitSec}초` : `${Math.floor(waitSec / 60)}분`;
   const queued = status === "queued";
+  // 수집 중인데 소식이 10분 넘게 없으면 수집기가 꺼진 것이다. 이때는 취소할 수 있다
+  const idleSec = view ? Math.max(0, Math.floor((c.now - new Date(view.run.updatedAt).getTime()) / 1000)) : 0;
+  const stalled = status === "running" && idleSec * 1000 >= STALE_RUNNING_MS;
+  const cancellable = queued || stalled;
 
   const condBar = (action: ReactNode) => (
     <SummaryBar action={action}>
@@ -112,16 +117,16 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
       {view && c.waiting && (
         <>
           {condBar(
-            <Button variant="outline" size="sm" onClick={c.reset} disabled={busy !== null || status === "running"} title={status === "running" ? "읽기 시작한 요청은 끝난 뒤에 정리할 수 있어요" : undefined}>
+            <Button variant="outline" size="sm" onClick={c.reset} disabled={busy !== null || !cancellable} title={!cancellable ? "수집기가 읽는 중이라 끝난 뒤에 정리할 수 있어요" : undefined}>
               {busy === "reset" ? "취소하는 중…" : "요청 취소"}
             </Button>,
           )}
           {c.restored && (
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-status-pending/40 bg-status-pending/5 px-4 py-3 text-sm">
               <p className="min-w-0 flex-1">
-                <b className="font-medium">이전에 보낸 요청이 남아 있어요</b> ({waitText} 전). {queued ? "아직 시작되지 않았어요. 다른 조건으로 하려면 취소하고 새로 정해 주세요." : "이미 읽기 시작해서 끝난 뒤에 정리할 수 있어요."}
+                <b className="font-medium">이전에 보낸 요청이 남아 있어요</b> ({waitText} 전). {queued ? "아직 시작되지 않았어요. 다른 조건으로 하려면 취소하고 새로 정해 주세요." : stalled ? `수집기가 멈춘 것 같아요 (${Math.floor(idleSec / 60)}분째 소식이 없어요). 취소하고 새로 정해 주세요.` : "이미 읽기 시작해서 끝난 뒤에 정리할 수 있어요."}
               </p>
-              {queued && (
+              {cancellable && (
                 <Button size="sm" onClick={c.reset} disabled={busy !== null}>
                   {busy === "reset" ? "취소하는 중…" : "취소하고 새로 정하기"}
                 </Button>
@@ -146,6 +151,17 @@ function CollectPanel({ project, picker }: { project: CollectProject; picker: Re
             ) : (
               <>
                 <h2 className="text-xl font-semibold">{platformLabel}에서 경쟁 제품 리뷰를 읽고 있어요 · {waitText} 경과</h2>
+                {view.run.progress && (
+                  <div className="w-full max-w-md space-y-1.5">
+                    <p className="text-lg font-medium tabular-nums">
+                      제품 {view.run.progress.done} / {view.run.progress.total}개 읽었어요
+                    </p>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={view.run.progress.total} aria-valuenow={view.run.progress.done}>
+                      <div className="h-full rounded-full bg-foreground transition-all" style={{ width: `${view.run.progress.total > 0 ? Math.min(100, Math.round((view.run.progress.done / view.run.progress.total) * 100)) : 0}%` }} />
+                    </div>
+                    {view.run.progress.note && <p className="truncate text-xs text-muted-foreground" lang="ja">방금 마친 제품: {view.run.progress.note}</p>}
+                  </div>
+                )}
                 <p className="text-sm text-muted-foreground">제품 하나에 1분쯤 걸려서 몇 분에서 수십 분이 걸려요. 이 창을 닫아도 계속 진행돼요. 편하게 다른 작업 보다가 돌아와 주세요.</p>
               </>
             )}

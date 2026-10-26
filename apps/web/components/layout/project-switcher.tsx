@@ -52,7 +52,7 @@ export function ProjectSwitcher({ base }: { base: ProjectWithProducts[] }) {
         aria-expanded={open}
         aria-controls={MENU_ID}
         aria-label={`${TEXT.menu}: ${current?.name ?? TEXT.empty}`}
-        className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+        className="flex h-9 items-center gap-2 rounded-full border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
       >
         {current?.name ?? TEXT.empty}
         {current && <span className="font-normal text-muted-foreground">{TEXT.products(current.products.length)}</span>}

@@ -57,7 +57,7 @@
 | --- | --- | --- |
 | `reviews` | product_id → products, source (`cosme` · `rakuten` · `qoo10` · `oliveyoung` · `csv`), external_id, lang (`ko` · `ja`), rating, rating_scale, body, **body_ko** (일본어 리뷰의 한국어 번역), reviewer_attrs `jsonb`, posted_at, raw, collected_at, **excluded_reason** | `unique (workspace_id, source, external_id)`. excluded_reason이 있으면(배송·파손 등 제품 외 불만) 분석·집계에서 뺀다 |
 | `review_analyses` | review_id → reviews (unique), sentiment, keywords `jsonb` [{text, category}], pain_points, repurchase_factors, topics `jsonb`, model, prompt_version | 리뷰 한 건 = 분석 한 행 |
-| `collection_runs` | created_by, platform_id, category, own_product_id, top_n, **stars** `smallint[]`(가져올 별점), max_star, review_limit(별점마다), status (`queued` · `running` · `ready` · `saved` · `failed`), error, started_at·finished_at·saved_at, saved_count | 화면의 "경쟁 제품 불러오기" 요청. 수집기(`--worker`)가 집어 간다 |
+| `collection_runs` | created_by, platform_id, category, own_product_id, top_n, **stars** `smallint[]`(가져올 별점), max_star, review_limit(별점마다), status (`queued` · `running` · `ready` · `saved` · `failed`), error, started_at·finished_at·saved_at, saved_count, **progress_total · progress_done · progress_note** | 화면의 "경쟁 제품 불러오기" 요청. 수집기(`--worker`)가 집어 간다. progress_*는 수집 중 "제품 N / M개" 표시(null이면 숫자 없이 표시)이고, 갱신할 때 updated_at이 바뀌어 멈춘 요청 판정(`fail_stale_runs`)이 updated_at 기준이다 |
 | `collection_run_products` | run_id → collection_runs, rank, external_id, brand, title, url, status, read_count, skipped_known, stop_reason, site_total_count, site_low_count, site_low_count_exact, star_counts `jsonb`, saved_count, product_id | 요청 하나의 랭킹 상품별 진행 |
 | `collection_staged_reviews` | run_product_id → collection_run_products, external_id, lang, rating, body, body_ko, raw, excluded_reason | 저장 전 임시 리뷰. `save_collection_run()`이 products·reviews·product_competitors로 옮긴다 |
 | `collection_run_skipped` | run_id, rank, external_id, title, reason (`set` · `multi_type` · `not_toner`) | 수집에서 뺀 랭킹 상품과 이유 |
@@ -97,7 +97,9 @@
 | `promo_milestones` | promo_event_id, label, due_date, done_at | 행사 하나의 준비 마감들. `(promo_event_id, workspace_id)` 복합 FK. 화면의 "준비 마감"은 가장 이른 미완료 마감이다 (칸 `prep_due_date`는 두지 않음) |
 | `platform_notes` | platform_id, status (`reviewing` · `preparing` · `live`), strengths, audience, fees_note, fees_source_url, fees_checked_at, memo, updated_by | `unique (workspace_id, platform_id)`. **화면 없음** (플랫폼별 강점 화면 제거). 확장용으로 남긴다 |
 
-캘린더의 추가·마감 변경은 아직 DB에 저장하지 않는다 (`lib/data/launch-actions.ts`).
+캘린더의 행사·준비 마감 추가·수정·삭제와 완료 체크는 `lib/data/launch-actions.ts`가 저장한다.
+
+- 시작 데이터: `supabase/seeds/promo_events_demo.sql`(시연용 더미 행사 6건 + 준비 마감 25건, `lib/mock/promo-events.ts`와 같은 내용. 2026-10-26 총괄 결정). 시연 뒤에는 화면에서 고치거나 지운다.
 
 ### 소비자 설문 (`20261023030815_survey.sql`)
 
@@ -216,7 +218,8 @@ create policy "members delete" on products for delete using (is_member(workspace
 | `20261026180000_content_guides_revision_memos.sql` | content_guides.parent_id (수정본) · memos (블록별 메모), set_content_guide_memos() |
 | `20261026190000_owner_only_approval_reads.sql` | 결재함은 팀장만: 팀원은 자기 버전 · 승인본과 그 결재 기록만 읽기, 버전 번호 트리거를 security definer로 |
 | `20261026200000_ad_checks_content_guide.sql` | ad_checks.content_guide_id (만든 가이드에서 온 검토 → 검토 상세에서 「이 가이드에 반영」) |
-| `20261026210000_create_sns_trend_analyses.sql` | sns_trend_analyses (SNS 영상 분석 결과 저장) |
+| `20261026210000_collection_runs_progress.sql` | collection_runs.progress_total · progress_done · progress_note (수집 진행 "제품 N / M개") |
+| `20261026220000_create_sns_trend_analyses.sql` | sns_trend_analyses (SNS 영상 분석 결과 저장) |
 
 새 파일은 `npx supabase migration new <이름>`으로 만들고, 원격 적용은 DB 관리자(Min)가 한다 (DB_RULES 6장).
 
