@@ -22,7 +22,7 @@ export type CompetitorRow = {
   candidates: number;
 };
 
-type Sort = "candidates" | "rank" | "count";
+type Sort = "candidates" | "rank";
 const PAGE_SIZE = 10;
 const selectClass = "h-9 rounded-md border bg-background px-2 text-sm";
 
@@ -47,7 +47,7 @@ export function CompetitorTable({ rows }: { rows: CompetitorRow[] }) {
   const byRank = (a: CompetitorRow, b: CompetitorRow) => (a.rank ?? 999) - (b.rank ?? 999);
   const withReviews = filtered
     .filter((r) => r.count > 0)
-    .toSorted((a, b) => (sort === "candidates" ? b.candidates - a.candidates : sort === "count" ? b.count - a.count : 0) || byRank(a, b));
+    .toSorted((a, b) => (sort === "candidates" ? b.candidates - a.candidates : 0) || byRank(a, b));
   const empty = filtered.filter((r) => r.count === 0).toSorted(byRank);
   const paged = paginate(withReviews, page, PAGE_SIZE);
   const reset = (fn: () => void) => {
@@ -89,7 +89,6 @@ export function CompetitorTable({ rows }: { rows: CompetitorRow[] }) {
           <select className={selectClass} value={sort} onChange={(e) => reset(() => setSort(e.target.value as Sort))}>
             <option value="candidates">소구점 후보 많은 순</option>
             <option value="rank">순위 높은 순</option>
-            <option value="count">리뷰 많은 순</option>
           </select>
         </label>
       </div>
