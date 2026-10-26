@@ -3,7 +3,7 @@ import { EmptyState } from "@/components/common/states";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTableTemplate } from "@/components/templates";
 import { buttonVariants } from "@/components/ui/button";
-import { getAdChecks, getMembers, getProducts } from "@/lib/data";
+import { getAdChecks, getMembers, getProducts, getReviewTranslationCheckIds } from "@/lib/data";
 import { getMyWorkspace } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
 import { ReviewStatus } from "@/lib/schemas/common";
@@ -21,11 +21,14 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
   const parsed = ReviewStatus.safeParse(query.status);
   const status = parsed.success ? parsed.data : undefined;
   const productFilter = typeof query.product === "string" ? query.product : undefined;
-  const [all, members, products, mine] = await Promise.all([getAdChecks(), getMembers(), getProducts(), getMyWorkspace().catch(() => null)]);
+  // 종류: 직접 한 검토 / 리뷰 탭의 상세페이지용 리뷰 번역이 만든 검토 (번역 한 건마다 검토 한 건이 쌓인다)
+  const kindFilter = query.kind === "manual" || query.kind === "review" ? query.kind : undefined;
+  const [all, members, products, mine, reviewCheckIds] = await Promise.all([getAdChecks(), getMembers(), getProducts(), getMyWorkspace().catch(() => null), getReviewTranslationCheckIds()]);
   // 삭제(숨김)는 owner(팀장)만. 팀원 화면에는 버튼을 그리지 않는다
   const isOwner = mine?.role === "owner";
   const checks = all
     .filter((c) => (!status || c.review_status === status) && (!productFilter || c.product_id === productFilter))
+    .filter((c) => !kindFilter || (kindFilter === "review") === reviewCheckIds.has(c.id))
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
   const memberName = (id: string | null) => members.find((m) => m.user_id === id)?.display_name ?? "—";
   const productName = (id: string | undefined) => products.find((p) => p.id === id)?.name ?? "—";
@@ -43,6 +46,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
           filters={[
             { key: "product", label: "제품", options: productOptions },
             { key: "status", label: "검토 상태", options: ReviewStatus.options.map((v) => ({ value: v, label: STATUS_LABEL[v] })) },
+            { key: "kind", label: "종류", options: [{ value: "manual", label: "직접 검토" }, { value: "review", label: "리뷰 번역" }] },
           ]}
         />
       </div>
@@ -53,7 +57,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
           columns={[
             { key: "text", label: "문구" },
             { key: "product", label: "제품" },
-            { key: "usage", label: "사용처" },
+            { key: "usage", label: "용도" },
             { key: "action", label: "판정" },
             { key: "status", label: "상태" },
             { key: "author", label: "작성자" },
@@ -85,7 +89,14 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
                     {productName(c.product_id)}
                   </span>
                 ),
-                usage: <span className="whitespace-nowrap">{c.usage ? USAGE_LABEL[c.usage] : "—"}</span>,
+                // 리뷰 번역 검토는 「리뷰」로 표시한다 (DB 용도는 detail_page 그대로, 마우스를 올리면 설명)
+                usage: reviewCheckIds.has(c.id) ? (
+                  <span className="whitespace-nowrap rounded border px-1.5 text-xs" title="리뷰 분석 탭의 상세페이지용 리뷰 번역 검토">
+                    리뷰
+                  </span>
+                ) : (
+                  <span className="whitespace-nowrap">{c.usage ? USAGE_LABEL[c.usage] : "—"}</span>
+                ),
                 action: c.overall_action ? <ActionBadge action={c.overall_action} /> : "—",
                 status: <ReviewStateBadge status={c.review_status} expertRequested={c.is_expert_review_requested} />,
                 author: memberName(c.created_by ?? null),

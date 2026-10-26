@@ -14,7 +14,7 @@ type AdCheckPageProps = {
 
 export default async function AdCheckPage({ searchParams }: AdCheckPageProps) {
   // 검토 이력의 「재검토」: ?from=<검토 ID> / 만든 가이드의 「이 문구로 새 검토」: ?guide=<가이드 ID>
-  // 원문·제품·사용처를 입력칸에 채운다 (자동으로 판정하지 않는다)
+  // 원문·제품·용도를 입력칸에 채운다 (자동으로 판정하지 않는다)
   const products = await getAdProducts();
   const { from, guide: guideId } = await searchParams;
   const [workspace, mine, source, guide] = await Promise.all([

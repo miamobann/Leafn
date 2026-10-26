@@ -81,7 +81,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
               ),
             },
             { label: "제품", value: product?.name ?? "—" },
-            { label: "사용처", value: check.usage ? USAGE_LABEL[check.usage] : "—" },
+            { label: "용도", value: check.usage ? USAGE_LABEL[check.usage] : "—" },
             { label: "검토자", value: reviewer },
             { label: "검토일", value: check.reviewed_at ? formatDate(check.reviewed_at) : "—" },
             { label: "메모", value: check.reviewer_note ?? "—" },

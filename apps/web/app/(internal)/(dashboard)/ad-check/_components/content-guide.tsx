@@ -890,6 +890,16 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                 ) : (
                   <p className="text-xs text-muted-foreground">리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다</p>
                 )}
+                {material.hasReviews && (
+                  <p className="text-xs text-muted-foreground">
+                    후기 인용:{" "}
+                    {material.approvedQuotes.length > 0
+                      ? `승인된 일본어 후기 ${material.approvedQuotes.length}개 (약기법 검토·팀장 승인을 거쳐 그대로 인용)`
+                      : material.reviewQuotes.length > 0
+                        ? `한국어 리뷰 원문 ${material.reviewQuotes.length}개 (승인된 일본어 후기가 없어요)`
+                        : "없음"}
+                  </p>
+                )}
                 {material.hasReviews && material.droppedAppeals.length > 0 && (
                   <p className="text-xs text-muted-foreground">약기법상 광고에 쓰지 않는 소구점: {material.droppedAppeals.join(", ")} (근거 자료 없이 저자극을 말할 수 없어요)</p>
                 )}

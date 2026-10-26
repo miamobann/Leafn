@@ -1,9 +1,10 @@
 // 콘텐츠 제작 가이드 화면 재료 (서버 전용): 제품 · 리뷰 소구점 · 검색어 · 메가와리 · PDF 작성자.
 // 제작 화면(guide/page.tsx)과 저장된 결과물 화면(guide/history/[guideId])이 같이 쓴다.
-import { pickMegaSale, pickReviewQuotes, safeComplaintLabel, safePraiseLabels } from "@/lib/ai/content-guide/materials";
+import { pickApprovedQuotes, pickMegaSale, pickReviewQuotes, safeComplaintLabel, safePraiseLabels } from "@/lib/ai/content-guide/materials";
 import { pickSearchWords, pickTrendIngredients } from "@/lib/ai/content-guide/market";
 import { getAppealComparison, getPromoEvents, getSearchSnapshots, getWorkspace } from "@/lib/data";
 import { getAdProducts } from "@/lib/data/ad-products";
+import { getApprovedReviewQuotes } from "@/lib/data/approved-quotes";
 import { getToday } from "@/lib/data/launch";
 import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/data/workspace";
 import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
@@ -25,8 +26,10 @@ export type PickedTopics = { productId: string; topics: AppealTopic[] };
 export async function loadGuideContext(picked?: PickedTopics) {
   const products = (await getAdProducts()).filter((p) => p.price_jpy > 0 && p.volume !== "미등록" && p.line !== "미등록");
   // 반영할 재료 (가짜 데이터, 읽기만): 리뷰 분석의 소구점 · 시장 분석의 검색어 순위
-  const [appeals, snapshots, author, events, today] = await Promise.all([
+  const [appeals, approved, snapshots, author, events, today] = await Promise.all([
     Promise.all(products.map((p) => getAppealComparison(p.id))),
+    // 리뷰 탭에서 번역 → 약기법 검토 → 팀장 승인을 거친 일본어 후기 (제품별, 최신순)
+    Promise.all(products.map((p) => getApprovedReviewQuotes(p.id))),
     getSearchSnapshots(),
     getReportAuthor(),
     getPromoEvents(),
@@ -59,8 +62,8 @@ export async function loadGuideContext(picked?: PickedTopics) {
       const ingredients = pickTrendIngredients(snapshots, productKind(p).ja, own);
       // 검색어·요즘 뜨는 말: 피부 라인에 맞는 고민 자동완성에서 (약기법에 걸리는 말·우리 전성분에 없는 성분이 든 말은 뺀다)
       const words = pickSearchWords(snapshots, skinLineOf(p), own);
-      // approvedQuotes: 리뷰 탭의 승인본 읽기 함수(getApprovedReviewQuotes, 해원 PR)가 sub_main에 들어오면 채운다. 승인본은 길이만 거른다 (이미 약기법 검토를 통과)
-      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, droppedAppeals: praise.dropped, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), approvedQuotes: [], keywords: words.search, trending: words.trending, ingredients, megaSale, pickedTopics: pick?.length ?? null }];
+      // 승인된 일본어 후기가 있으면 한국어 리뷰 원문 대신 그대로 인용한다 (프롬프트 v4). 고른 소구점과 관계없이 쓴다 (후기에는 주제 정보가 없다)
+      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, droppedAppeals: praise.dropped, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), approvedQuotes: pickApprovedQuotes(approved[i] ?? []), keywords: words.search, trending: words.trending, ingredients, megaSale, pickedTopics: pick?.length ?? null }];
     }),
   );
   return { products, materials, author, aiEnabled };

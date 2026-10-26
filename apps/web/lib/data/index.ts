@@ -106,6 +106,20 @@ export async function getReviewTranslations(productId: string) {
   return mock.reviewTranslations.filter((t) => reviewIds.has(t.review_id));
 }
 
+/** 리뷰 탭의 상세페이지용 번역이 만든 검토 id (review_translations.ad_check_id). 검토 이력에서 「리뷰」로 구분해 보여 준다 */
+export async function getReviewTranslationCheckIds(): Promise<Set<string>> {
+  if (await dataContext()) {
+    const rows = (await readRows("review_translations").catch(missingTableOnly)) ?? [];
+    return new Set(
+      rows.flatMap((row) => {
+        const parsed = ReviewTranslation.safeParse(row);
+        return parsed.success && parsed.data.ad_check_id ? [parsed.data.ad_check_id] : [];
+      }),
+    );
+  }
+  return new Set(mock.reviewTranslations.flatMap((t) => (t.ad_check_id ? [t.ad_check_id] : [])));
+}
+
 /** 검토 이력 출처: 직접 한 검토(manual, 기본) · 콘텐츠 가이드가 돌린 검사(content_guide) · 둘 다(all) */
 export type AdCheckSourceFilter = AdCheckSource | "all";
 
