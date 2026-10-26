@@ -74,6 +74,11 @@ class SettingsTest(unittest.TestCase):
         path = self._file("SUPABASE_URL=https://a\nSUPABASE_SERVICE_ROLE_KEY=k\nWORKSPACE_ID=file\n")
         self.assertEqual(d.load_settings(path, environ={"WORKSPACE_ID": "env"})["WORKSPACE_ID"], "env")
 
+    def test_environment_values_drop_pasted_newlines(self):
+        path = self._file("")
+        got = d.load_settings(path, environ={"SUPABASE_URL": "https://a.supabase.co/\n", "SUPABASE_SERVICE_ROLE_KEY": " k\n", "WORKSPACE_ID": "w\r\n"})
+        self.assertEqual((got["SUPABASE_URL"], got["SUPABASE_SERVICE_ROLE_KEY"], got["WORKSPACE_ID"]), ("https://a.supabase.co", "k", "w"))
+
     def test_missing_setting_names_what_is_missing_without_values(self):
         path = self._file("SUPABASE_URL=https://a\nSUPABASE_SERVICE_ROLE_KEY=topsecret\n")
         with self.assertRaises(d.DbError) as ctx:

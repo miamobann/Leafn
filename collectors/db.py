@@ -44,8 +44,10 @@ def load_settings(path: Path = ENV_FILE, environ: Mapping[str, str] | None = Non
             key, _, value = line.partition("=")
             values[key.strip()] = value.strip().strip('"').strip("'")
     for key in REQUIRED:
-        if environ.get(key):
-            values[key] = environ[key]
+        # GitHub Secrets에 값을 붙여 넣을 때 딸려 온 줄바꿈·공백은 버린다 (주소에 \n이 남으면 요청이 깨진다)
+        value = (environ.get(key) or "").strip()
+        if value:
+            values[key] = value
     missing = [key for key in REQUIRED if not values.get(key)]
     if missing:
         raise DbError(f"설정이 빠졌어요: {', '.join(missing)} (collectors/.env.local 또는 환경 변수)")
