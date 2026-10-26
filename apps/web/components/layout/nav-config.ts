@@ -48,6 +48,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "리뷰 리포트", href: "/reviews", featureId: "E" },
       { label: "소구점 찾기", href: "/reviews/compare", featureId: "E" },
+      // 화면은 제품마다(/reviews/<제품>/translate) 있어서 탭 주소는 안내용 입구(가장 리뷰 많은 자사 제품으로 보낸다)
+      { label: "상세페이지용 리뷰", href: "/reviews/translate", featureId: "F", alsoActive: /^\/reviews\/[^/]+\/translate$/ },
     ],
   },
   {

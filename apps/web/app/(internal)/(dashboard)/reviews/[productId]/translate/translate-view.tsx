@@ -4,7 +4,7 @@
 // 리뷰가 쌓여도 고르기 쉽게 양쪽 모두 페이지 넘기기와 "이 페이지 전체 선택"을 둔다. 승인된 리뷰만 HTML로 복사된다
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Minus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { deleteTranslations, translateReviews } from "@/lib/data/review-translation-actions";
@@ -12,6 +12,7 @@ import type { ReviewWithAnalysis } from "@/lib/data/reviews";
 import type { AppealTopic } from "@/lib/schemas/review";
 import { BackTitle, paginate, Pager } from "../../_components/parts";
 import { hasTopic, topicLabel, topicStats } from "../../_lib/topics";
+import { readTranslatePicks, writeTranslatePicks } from "../../_lib/translate-picks";
 
 export type TranslatedRow = {
   id: string;
@@ -105,6 +106,17 @@ export function TranslateView({
   const [highOnly, setHighOnly] = useState(true);
   const [pickPage, setPickPage] = useState(1);
   const left = usePicks(initialPicked);
+  // 리포트에서 [상세페이지용으로 담기]로 담아 둔 리뷰를 처음 열 때 미리 체크하고, 이후 체크는 다시 담은 목록으로 남긴다
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    const ids = new Set(reviews.map((r) => r.id));
+    left.setMany(readTranslatePicks(product.id).filter((id) => ids.has(id)), true);
+    setLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 화면을 처음 열 때 한 번만
+  }, []);
+  useEffect(() => {
+    if (loaded) writeTranslatePicks(product.id, [...left.picked]);
+  }, [loaded, left.picked, product.id]);
 
   const router = useRouter();
   // 번역한 리뷰는 서버가 읽어 준 목록(translated)이 기준이다. 지운 것만 화면에서 먼저 뺀다

@@ -9,7 +9,7 @@ import { ImportButton } from "./_components/parts";
 import { CompetitorTable, type CompetitorRow } from "./competitor-table";
 import { average, latestDate, SKIN_LINE_LABEL, topicLabel, topicStats, topThree, verdictOf } from "./_lib/topics";
 
-const CATEGORY_LABEL: Record<string, string> = { 化粧水: "화장수", 美容液: "세럼" };
+const CATEGORY_LABEL: Record<string, string> = { 化粧水: "스킨", 美容液: "에센스" };
 const categoryLabel = (c: string | null) => (c ? (CATEGORY_LABEL[c] ?? c) : "카테고리 없음");
 
 export default async function ReviewsPage() {
