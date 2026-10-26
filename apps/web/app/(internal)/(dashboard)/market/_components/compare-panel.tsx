@@ -121,7 +121,7 @@ export function ComparePanel({
         </select>
       </label>
       <label className="grid gap-1 text-xs text-muted-foreground">
-        경쟁 제품 바꾸기
+        경쟁 제품 바꾸기 (표에서 체크한 제품만)
         <select className={SELECT} value={competitor?.id ?? ""} onChange={(e) => onChange(own?.id ?? null, e.target.value || null)}>
           <option value="">경쟁 제품을 골라 주세요</option>
           {competitorProducts.map((p) => (
