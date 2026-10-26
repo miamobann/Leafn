@@ -1,7 +1,7 @@
 "use client";
 
-// 상세페이지용 리뷰 (참조 F, prototype-plan P5). 고르기 → 번역 + 자동 약기법 검토 → 담당자 승인 → HTML 복사.
-// 리뷰가 쌓여도 고르기 쉽게 양쪽 모두 페이지 넘기기와 "이 페이지 전체 선택"을 둔다. 승인된 리뷰만 HTML로 복사된다
+// 상세페이지용 리뷰 (참조 F, prototype-plan P5). 고르기 → 번역 + 자동 약기법 검토 → 팀장 승인 → 콘텐츠 제작 가이드.
+// 리뷰가 쌓여도 고르기 쉽게 양쪽 모두 페이지 넘기기와 "이 페이지 전체 선택"을 둔다. 승인된 리뷰만 콘텐츠 제작 가이드의 후기 재료가 된다
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -40,7 +40,7 @@ const STEPS = [
   ["1 리뷰 고르기", "강점 리뷰가 위로"],
   ["2 번역 + 자동 약기법 검토", "번역하는 순간 같이 돌아가요"],
   ["3 고치고 팀장 승인", "대체 표현으로 고친 뒤 승인"],
-  ["4 HTML 복사", "승인된 것만"],
+  ["4 콘텐츠 제작 가이드로", "승인된 것만 인용"],
 ] as const;
 const selectClass = "h-9 rounded-md border bg-background px-2 text-sm";
 
@@ -88,11 +88,6 @@ function PageToggle({ ids, picked, setMany, count }: { ids: string[]; picked: Se
   );
 }
 
-function blockHtml(rows: TranslatedRow[]) {
-  const esc = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-  return `<div class="leafn-reviews">\n${rows.map((r) => `  <blockquote lang="ja">${esc(r.textJa)}</blockquote>`).join("\n")}\n</div>`;
-}
-
 export function TranslateView({
   product,
   reviews,
@@ -132,7 +127,6 @@ export function TranslateView({
   const [status, setStatus] = useState<TranslatedRow["status"] | "">("");
   const [donePage, setDonePage] = useState(1);
   const right = usePicks();
-  const [copied, setCopied] = useState<string | null>(null);
   const [working, setWorking] = useState<{ done: number; total: number } | null>(null);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
 
@@ -156,16 +150,6 @@ export function TranslateView({
   for (const r of rows) counts[r.status] += 1;
   const shownRows = status ? rows.filter((r) => r.status === status) : rows;
   const donePaged = paginate(shownRows, donePage, DONE_PAGE);
-  const approvedPicked = rows.filter((r) => right.picked.has(r.id) && r.status === "approved");
-
-  const copyHtml = async () => {
-    try {
-      await navigator.clipboard.writeText(blockHtml(approvedPicked));
-      setCopied(`승인된 ${approvedPicked.length}건을 HTML로 복사했어요`);
-    } catch {
-      setCopied("복사하지 못했어요. 브라우저의 클립보드 권한을 확인해 주세요");
-    }
-  };
   const removePicked = async () => {
     const ids = [...right.picked];
     const res = await deleteTranslations(ids);
@@ -229,7 +213,7 @@ export function TranslateView({
   const approve = (t: TranslatedRow) =>
     run(t.id, "승인하는 중…", async () => {
       const res = await approveTranslation(t.id);
-      return res.ok ? { ok: true, text: "승인했어요. 이제 HTML로 복사할 수 있어요." } : res;
+      return res.ok ? { ok: true, text: "승인했어요. 이제 콘텐츠 제작 가이드에서 인용할 수 있어요." } : res;
     });
   const revoke = (t: TranslatedRow) =>
     run(t.id, "승인을 취소하는 중…", async () => {
@@ -246,7 +230,7 @@ export function TranslateView({
       <header className="space-y-1">
         <BackTitle href={`/reviews/${product.id}`} title={`상세페이지용 리뷰 · ${product.name.replace(/^Leaf& Dew /, "")}`} />
         <p className="pl-8 text-sm text-muted-foreground">
-          국내 리뷰를 골라 일본어로 번역하면 약기법 검토가 자동으로 돌아가요. 담당자가 승인한 리뷰만 상세페이지용 HTML로 복사할 수 있어요.
+          국내 리뷰를 골라 일본어로 번역하면 약기법 검토가 자동으로 돌아가요. 팀장이 승인한 리뷰만 콘텐츠 제작 가이드에서 인용할 수 있어요.
         </p>
       </header>
 
@@ -378,14 +362,14 @@ export function TranslateView({
               <button type="button" disabled={right.picked.size === 0 || working !== null} onClick={removePicked} className={buttonVariants({ variant: "outline", size: "sm" })}>
                 선택 삭제
               </button>
-              <button type="button" disabled={approvedPicked.length === 0} onClick={copyHtml} className={buttonVariants({ variant: "outline", size: "sm" })}>
-                승인된 {approvedPicked.length}건 HTML 복사
-              </button>
             </span>
           </div>
-          {copied && (
-            <p role="status" className="text-sm text-muted-foreground">
-              {copied}
+          {counts.approved > 0 && (
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              승인된 후기 {counts.approved}건이 있어요. 약기법 검토와 팀장 승인을 거친 일본어 후기라 콘텐츠를 만들 때 그대로 인용할 수 있어요.
+              <Link href={`/ad-check/guide?product=${product.id}`} className="font-medium underline-offset-4 hover:underline">
+                콘텐츠 제작 가이드 열기 →
+              </Link>
             </p>
           )}
           <ul className="space-y-1">
@@ -471,7 +455,7 @@ export function TranslateView({
           </ul>
           <Pager page={donePaged.page} pageCount={donePaged.pageCount} onChange={setDonePage} summary={`${shownRows.length}건 중 ${donePaged.from}~${donePaged.to}`} />
           <p className="text-xs text-muted-foreground">
-            고쳐야 할 표현은 「이렇게 고치기」로 바로 바꿔요. 바꾸면 다시 번역하고 약기법 검토가 한 번 더 돌아가요. 승인은 팀장(owner)이 하고, 승인 전인 리뷰는 HTML 복사에서 빠져요. 승인은 광고 검토 이력에도 「내부 검토 완료」로 남아요. 선택 삭제를 해도 약기법 검토 기록은 광고 검토 이력에 남아요. 법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 해요.
+            고쳐야 할 표현은 「이렇게 고치기」로 바로 바꿔요. 바꾸면 다시 번역하고 약기법 검토가 한 번 더 돌아가요. 승인은 팀장(owner)이 하고, 승인 전인 리뷰는 인용할 수 없어요. 승인은 광고 검토 이력에도 「내부 검토 완료」로 남아요. 선택 삭제를 해도 약기법 검토 기록은 광고 검토 이력에 남아요. 법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 해요.
           </p>
         </section>
       </div>
