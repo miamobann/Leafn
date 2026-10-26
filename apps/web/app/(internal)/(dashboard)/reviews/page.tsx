@@ -1,3 +1,4 @@
+import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { getAnalysisStatus } from "@/lib/data/review-analysis-actions";
@@ -33,8 +34,10 @@ export default async function ReviewsPage() {
         weakness: weakness && topicLabel(weakness.topic, "negative"),
         strengths: new Set(stats.filter((s) => verdictOf(s) === "strength").map((s) => s.topic)),
       };
-    })
-    .toSorted((a, b) => b.ko.length - a.ko.length); // 리뷰 없는 제품은 아래로
+    });
+  // 자사 제품 순서(Deep Skin → Core Essence)는 getReviewProductList가 정한다. 출시 전 제품은 오른쪽 한 칸에 이름만
+  const onSale = own.filter((p) => p.saleStatus !== "in_development");
+  const unreleased = own.filter((p) => p.saleStatus === "in_development");
 
   const competitors: CompetitorRow[] = withReviews
     .filter((p) => p.kind === "competitor")
@@ -70,67 +73,75 @@ export default async function ReviewsPage() {
       <section className="mb-8 space-y-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-lg font-semibold">우리 제품</h2>
-          <span className="text-sm text-muted-foreground">국내 리뷰 기준 · {own.length}개</span>
+          <span className="text-sm text-muted-foreground">국내 리뷰 기준 · 판매 중 {onSale.length}개</span>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {own.map((p) => {
-            const status = p.ko.length === 0 ? "리뷰 없음" : p.analyzed ? "분석 완료" : "분석 전";
-            const unreleased = p.saleStatus === "in_development";
-            const head = (
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-base font-semibold">{p.name}</p>
+        <div className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.85fr)]">
+          {onSale.map((p) => (
+            <Link
+              key={p.id}
+              href={p.ko.length === 0 ? `/reviews/import?type=own&product=${p.id}` : `/reviews/${p.id}`}
+              className="group flex flex-col gap-4 rounded-2xl border bg-card p-6 transition-colors hover:border-foreground/30"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-lg font-semibold">{p.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {[p.skinLine && SKIN_LINE_LABEL[p.skinLine], categoryLabel(p.category), unreleased && "개발중"].filter(Boolean).join(" · ")}
+                    {[p.skinLine && SKIN_LINE_LABEL[p.skinLine], categoryLabel(p.category), latestDate(p.ko) && `마지막 수집 ${latestDate(p.ko)?.slice(5)}`]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </p>
                 </div>
-                {!unreleased && (
-                  <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${p.analyzed ? "bg-emerald-50 text-emerald-900" : "bg-muted text-muted-foreground"}`}>
-                    {status}
-                  </span>
-                )}
+                <span className="flex size-9 flex-none items-center justify-center rounded-full border transition-colors group-hover:bg-muted" aria-hidden>
+                  <ArrowUpRight className="size-4" />
+                </span>
               </div>
-            );
-            // 출시 전 제품은 리뷰가 없어 갈 곳이 없다: 링크 없이 안내만 보여 준다
-            if (unreleased) {
-              return (
-                <div key={p.id} className="flex flex-col gap-3 rounded-xl border bg-card p-5 opacity-80">
-                  {head}
-                  <p className="text-sm text-muted-foreground">출시 전 제품이에요</p>
+
+              {p.ko.length === 0 ? (
+                <p className="text-sm text-muted-foreground">아직 리뷰가 없어요. 리뷰 가져오기에서 국내 리뷰를 올려 주세요 →</p>
+              ) : !p.analyzed ? (
+                <p className="text-sm text-muted-foreground">리뷰를 가져왔지만 AI 분석 전이에요. 들어가서 분석해 주세요 →</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-emerald-50/70 px-4 py-3">
+                    <span className="block text-xs font-medium text-emerald-800">강점</span>
+                    <b className="text-base text-foreground">{p.strength ?? "아직 없음"}</b>
+                  </div>
+                  <div className="rounded-xl bg-orange-50 px-4 py-3">
+                    <span className="block text-xs font-medium text-orange-800">약점</span>
+                    <b className="text-base text-foreground">{p.weakness ?? "아직 없음"}</b>
+                  </div>
                 </div>
-              );
-            }
-            return (
-              <Link
-                key={p.id}
-                href={p.ko.length === 0 ? `/reviews/import?type=own&product=${p.id}` : `/reviews/${p.id}`}
-                className="flex flex-col gap-3 rounded-xl border bg-card p-5 transition-colors hover:border-foreground/40"
-              >
-                {head}
-                {p.ko.length === 0 ? (
-                  <>
-                    <p className="text-sm text-muted-foreground">아직 리뷰가 없어요. 출시 전이거나 리뷰를 가져오지 않았어요.</p>
-                    <span className="text-sm font-medium text-foreground/80">리뷰 가져오기 →</span>
-                  </>
-                ) : (
-                  <>
-                    {!p.analyzed && <p className="text-sm text-muted-foreground">리뷰를 가져왔지만 AI 분석 전이에요.</p>}
-                    {p.analyzed && (
-                      <div className="flex flex-wrap gap-2 text-sm font-medium">
-                        <span className="rounded-md border border-sky-200 px-2.5 py-1 text-sky-900">강점 · {p.strength ?? "아직 없음"}</span>
-                        <span className="rounded-md border border-orange-200 px-2.5 py-1 text-orange-900">약점 · {p.weakness ?? "아직 없음"}</span>
-                      </div>
-                    )}
-                    <div className="flex gap-4 border-t pt-2.5 text-sm text-muted-foreground">
-                      <span>리뷰 {p.ko.length}건</span>
-                      <span>평균 ★ {average(p.ko.map((r) => r.rating))}</span>
-                      {latestDate(p.ko) && <span className="ml-auto">수집 {latestDate(p.ko)?.slice(5)}</span>}
-                    </div>
-                  </>
-                )}
-              </Link>
-            );
-          })}
+              )}
+
+              {p.ko.length > 0 && (
+                <div className="mt-auto flex items-baseline gap-6 text-sm text-muted-foreground">
+                  <span>
+                    리뷰 <b className="text-xl font-semibold text-foreground">{p.ko.length}</b>건
+                  </span>
+                  <span>
+                    평균 별점 <b className="text-xl font-semibold text-foreground">★ {average(p.ko.map((r) => r.rating))}</b>
+                  </span>
+                </div>
+              )}
+            </Link>
+          ))}
+
+          {/* 출시 전 제품은 리뷰가 없어 갈 곳이 없다: 한 칸에 이름만 모아 둔다 */}
+          {unreleased.length > 0 && (
+            <div className="flex flex-col gap-3 rounded-2xl bg-emerald-50/60 p-6">
+              <div>
+                <p className="font-semibold text-emerald-900">출시 전 제품 {unreleased.length}종</p>
+                <p className="text-xs text-muted-foreground">판매를 시작하면 리포트가 생겨요</p>
+              </div>
+              <ul className="space-y-2">
+                {unreleased.map((p) => (
+                  <li key={p.id} className="rounded-lg bg-background/80 px-4 py-2.5 text-sm">
+                    {p.name.replace(/^Leaf& Dew /, "")}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </section>
 
