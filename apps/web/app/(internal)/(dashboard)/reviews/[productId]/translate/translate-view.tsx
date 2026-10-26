@@ -5,12 +5,13 @@
 // 결재된 시안에 담긴 후기만 콘텐츠 제작 가이드의 후기 재료가 된다
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Check, Minus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { applySuggestion, deleteTranslations, translateReviews } from "@/lib/data/review-translation-actions";
 import { addToReviewDraft, removeFromReviewDraft } from "@/lib/data/submission-actions";
 import type { ReviewWithAnalysis } from "@/lib/data/reviews";
+import { replaceSentence } from "@/lib/review-fix";
 import type { AppealTopic } from "@/lib/schemas/review";
 import { BackTitle, paginate, Pager } from "../../_components/parts";
 import { hasTopic, topicLabel, topicStats } from "../../_lib/topics";
@@ -228,20 +229,27 @@ export function TranslateView({
   };
   // 대체 표현 적용 · 승인 · 승인 취소: 한 번에 한 건만 (다시 번역 + 약기법 검토가 돌아서 몇 초 걸린다)
   const [busy, setBusy] = useState<{ id: string; label: string; step: 3 | 4 } | null>(null);
+  // 「이렇게 고치기」는 누르는 즉시 고친 한국어 문장을 먼저 보여 주고, 번역 · 재검토가 끝나 새 목록이 오면 바꿔 끼운다
+  const [preview, setPreview] = useState<{ id: string; ko: string } | null>(null);
+  const [, startRefresh] = useTransition();
+  useEffect(() => setPreview(null), [translated]);
   const run = async (id: string, label: string, step: 3 | 4, job: () => Promise<{ ok: true; text: string } | { ok: false; message: string }>) => {
     setBusy({ id, label, step });
     setNotice(null);
     const res = await job();
     setBusy(null);
+    if (!res.ok) setPreview(null);
     setNotice(res.ok ? { text: res.text, error: false } : { text: res.message, error: true });
-    router.refresh();
+    startRefresh(() => router.refresh());
   };
-  const applyFix = (t: TranslatedRow, finding: string, suggestionJa: string) =>
-    run(t.id, "고쳐서 다시 번역하고 약기법 검토하는 중…", 3, async () => {
-      const res = await applySuggestion(t.id, finding, suggestionJa);
+  const applyFix = (t: TranslatedRow, finding: string, suggestion: { ja: string; ko: string }) => {
+    setPreview({ id: t.id, ko: replaceSentence(t.textKo, { text: finding }, suggestion.ko) ?? suggestion.ko });
+    return run(t.id, "일본어로 다시 옮기고 약기법 검토하는 중…", 3, async () => {
+      const res = await applySuggestion(t.id, finding, suggestion.ja);
       if (!res.ok) return res;
       return { ok: true, text: res.data.mustFix ? "대체 표현을 적용해 다시 검토했어요. 아직 고쳐야 할 표현이 남아 있어요." : "대체 표현을 적용했고 약기법 검토를 다시 마쳤어요. 이제 시안에 담을 수 있어요." };
     });
+  };
   const addPicked = () =>
     run("add", "시안에 담는 중…", 4, async () => {
       const res = await addToReviewDraft(product.id, { translationIds: addable.map((r) => r.id) });
@@ -435,17 +443,20 @@ export function TranslateView({
           <ul className="divide-y">
             {donePaged.rows.map((t) => {
               const on = right.picked.has(t.id);
-              const fixing = t.status === "fix" && t.fixes.length > 0;
+              const previewKo = preview?.id === t.id ? preview.ko : null;
+              const fixing = t.status === "fix" && t.fixes.length > 0 && previewKo === null;
               return (
                 <li key={t.id} className={`flex items-start gap-3 px-2 py-3 text-sm ${on ? "bg-muted/40" : ""}`}>
                   <button type="button" role="checkbox" aria-checked={on} aria-label="이 번역 선택" onClick={() => right.toggle(t.id)} className="mt-0.5">
                     <Box state={on ? "on" : "off"} />
                   </button>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <p lang="ja" className="leading-relaxed">
+                    <p lang="ja" className={`leading-relaxed transition-opacity duration-300 ${previewKo !== null ? "animate-pulse opacity-40" : ""}`}>
                       {t.textJa}
                     </p>
-                    {t.textKo.trim() !== t.textJa.trim() && (
+                    {previewKo !== null ? (
+                      <p className="rounded-sm bg-emerald-50 leading-relaxed text-emerald-950 transition-colors duration-500">{previewKo}</p>
+                    ) : t.textKo.trim() !== t.textJa.trim() && (
                       <p className="leading-relaxed text-muted-foreground">{fixing ? <Marked text={t.textKo} marks={t.fixes.map((f) => f.text)} /> : t.textKo}</p>
                     )}
                     {/* 고침 표시와 검토 결과는 한 줄로. 고쳐야 함이면 사유는 아래 상자에만 적는다 */}
@@ -474,7 +485,7 @@ export function TranslateView({
                                   key={s.ja}
                                   type="button"
                                   disabled={busy !== null}
-                                  onClick={() => applyFix(t, f.text, s.ja)}
+                                  onClick={() => applyFix(t, f.text, s)}
                                   className="rounded-md border bg-background px-2.5 py-1.5 text-left text-xs leading-relaxed hover:bg-muted disabled:opacity-50"
                                 >
                                   <span className="mb-0.5 block font-medium text-primary">이렇게 고치기 →</span>
@@ -504,7 +515,11 @@ export function TranslateView({
                       </p>
                     )}
                   </div>
-                  <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${STATUS[kindOf(t)].className}`}>{STATUS[kindOf(t)].label}</span>
+                  {previewKo !== null ? (
+                    <span className="animate-pulse rounded-md bg-muted px-2 py-0.5 text-xs whitespace-nowrap text-muted-foreground">다시 검토 중</span>
+                  ) : (
+                    <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${STATUS[kindOf(t)].className}`}>{STATUS[kindOf(t)].label}</span>
+                  )}
                 </li>
               );
             })}
