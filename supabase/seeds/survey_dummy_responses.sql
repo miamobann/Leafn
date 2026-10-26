@@ -2,8 +2,8 @@
 --
 -- 내용: 대시보드 확인용 가짜 응답 150건 + 18세 미만 참여 수 + 추천 노출 · 클릭 기록
 --   실제 사람의 응답이 아니다. 원본은 apps/web/lib/mock/survey-responses.ts (시드 고정)
---   날짜는 실행한 날을 "오늘"로 맞춰 최근 30일에 고르게 흩어 넣는다 (화면 더미는 2026-11-30을 오늘로 둔다.
---   아직 오지 않은 시각은 실행 시각으로 당김. 그래서 "최근 7일" 수는 화면 더미와 몇 건 다를 수 있다)
+--   날짜는 Qoo10 숍 오픈(2027-01-15)부터 30일(~ 2027-02-13)에 고르게 흩어 넣는다. 화면 더미와 같은 날짜다
+--   (설문은 상세페이지에 링크로 넣는 구매 전 도구라 숍 오픈부터 응답이 쌓인다는 시연용 가정. 실행한 날과 상관없다)
 --
 -- 실행 방법 (DB 관리자)
 --   1. 20261023030815_survey.sql · 20261026160000_survey_concern_other_ko.sql · 20261026170000_survey_reco_events_source.sql 마이그레이션이 적용된 뒤에 실행한다
@@ -23,7 +23,7 @@ select
   w.id as workspace_id,
   'leafn-dummy-' || lower(w.invite_code) as slug,
   gen_random_uuid() as survey_id,
-  (((now() at time zone 'Asia/Tokyo')::date)::timestamp at time zone 'Asia/Tokyo') as today_start
+  ('2027-02-13'::timestamp at time zone 'Asia/Tokyo') as today_start
 from public.workspaces w
 where w.invite_code = upper(btrim('PUT_INVITE_CODE_HERE'));
 
@@ -48,9 +48,9 @@ insert into public.survey_responses (
   score_t_zone_oil, score_cheek_oil, score_dryness, score_sensitivity,
   concerns, concern_other, source, source_other, consent_at, consent_version, locale
 )
-select least(s.today_start + make_interval(mins => v.at_min), now()), s.workspace_id, s.survey_id, v.answers::jsonb, v.age_group, v.skin_type, v.is_sensitive,
+select s.today_start + make_interval(mins => v.at_min), s.workspace_id, s.survey_id, v.answers::jsonb, v.age_group, v.skin_type, v.is_sensitive,
   v.t, v.c, v.d, v.sens, v.concerns, v.concern_other, v.source, v.source_other,
-  least(s.today_start + make_interval(mins => v.consent_min), now()), v.consent_version, 'ja'
+  s.today_start + make_interval(mins => v.consent_min), v.consent_version, 'ja'
 from _seed s, (values
   (-10185, -10187, '{"age":"50plus","after_wash":"all_tight","t_zone":"oily_little","cheek":"rough","pores":"nose","moisturizer":"fine","blotting":"1","new_product":"never","triggers":["none"],"concerns":["dullness"]}', '50plus', 'combo', false, 4, 0, 6, 0, array['dullness']::text[], null, 'instagram', null, 'v0.1'),
   (1354, 1352, '{"age":"50plus","after_wash":"brief_tight","t_zone":"dry","cheek":"rough","pores":"none","moisturizer":"tight_again","blotting":"0","new_product":"this_year","triggers":["mask","sun"],"concerns":["dryness"]}', '50plus', 'dry', true, 0, 0, 6, 4, array['dryness']::text[], null, 'rakuten', null, 'v0.1'),
@@ -227,7 +227,7 @@ from _seed s, (values
 where r.survey_id = s.survey_id and r.concern_other = m.ja;
 
 insert into public.survey_minor_counts (workspace_id, survey_id, count_date, count)
-select s.workspace_id, s.survey_id, (now() at time zone 'Asia/Tokyo')::date - v.days_ago, v.count
+select s.workspace_id, s.survey_id, date '2027-02-13' - v.days_ago, v.count
 from _seed s, (values
   (11, 1),
   (12, 1),
@@ -241,7 +241,7 @@ from _seed s, (values
 ) as v(days_ago, count);
 
 insert into public.survey_reco_events (created_at, workspace_id, survey_id, product_line, event, skin_type)
-select least(s.today_start + make_interval(mins => v.at_min), now()), s.workspace_id, s.survey_id, v.product_line, v.event, v.skin_type
+select s.today_start + make_interval(mins => v.at_min), s.workspace_id, s.survey_id, v.product_line, v.event, v.skin_type
 from _seed s, (values
   (1354, 'moisture-skin', 'shown', 'dry'),
   (-30893, 'moisture-skin', 'shown', 'dry'),

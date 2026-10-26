@@ -6,11 +6,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { summarizeNextBatch } from "@/lib/data/product-title-actions";
-import { analyzeNextBatch, translateNextBatch } from "@/lib/data/review-analysis-actions";
+import { PIPELINE_PHASE_TEXT, type PipelinePhase, runReviewPipeline, summarizeCounts } from "../_lib/review-pipeline";
 
-type Phase = "name" | "analyze" | "translate";
-type Progress = { running: Phase | null; done: number; total: number; message: string | null; failed: boolean };
+type Progress = { running: PipelinePhase | null; done: number; total: number; message: string | null; failed: boolean };
 
 const IDLE: Progress = { running: null, done: 0, total: 0, message: null, failed: false };
 
@@ -20,71 +18,24 @@ export function AnalyzeButton({ productId, pending, untranslated, untitled }: { 
   const [progress, setProgress] = useState<Progress>(IDLE);
 
   async function run() {
-    let named = 0;
-    let analyzed = 0;
-    let excluded = 0;
-    let translated = 0;
-    const stop = (message: string) => {
-      setProgress({ ...IDLE, message, failed: true });
-      router.refresh(); // 여기까지 저장된 결과는 보여 준다
-    };
-
-    if (untitled > 0) {
-      setProgress({ running: "name", done: 0, total: untitled, message: null, failed: false });
-      for (;;) {
-        const res = await summarizeNextBatch(productId);
-        if (!res.ok) return stop(res.message);
-        named += res.data.processed;
-        setProgress((p) => ({ ...p, done: named }));
-        if (res.data.remaining === 0 || res.data.processed === 0) break;
-      }
-    }
-
-    if (pending > 0) {
-      setProgress({ running: "analyze", done: 0, total: pending, message: null, failed: false });
-      for (;;) {
-        const res = await analyzeNextBatch(productId);
-        if (!res.ok) return stop(res.message);
-        analyzed += res.data.processed;
-        excluded += res.data.excluded;
-        setProgress((p) => ({ ...p, done: analyzed }));
-        if (res.data.remaining === 0 || res.data.processed === 0) break;
-      }
-    }
-
-    // 제외된 리뷰는 번역하지 않으므로, 분석 뒤에 남은 건수를 번역 단계에서 다시 센다
-    let translateTotal = 0;
-    for (;;) {
-      const res = await translateNextBatch(productId);
-      if (!res.ok) return stop(res.message);
-      if (res.data.processed === 0) break;
-      translated += res.data.processed;
-      translateTotal = Math.max(translateTotal, translated + res.data.remaining);
-      setProgress({ running: "translate", done: translated, total: translateTotal, message: null, failed: false });
-      if (res.data.remaining === 0) break;
-    }
-
-    const parts = [named > 0 && `${named}개 제품명 정리`, analyzed > 0 && `${analyzed}건 분석`, translated > 0 && `${translated}건 한국어 번역`].filter(Boolean).join(" · ");
-    const note = excluded > 0 ? ` (배송 · 파손 등 제품 외 불만 ${excluded}건은 분석에서 뺐어요)` : "";
-    setProgress({ ...IDLE, message: `${parts || "처리할 것이 없었어요"}${parts ? "을 마쳤어요" : ""}${note}` });
-    router.refresh();
+    const first: PipelinePhase = untitled > 0 ? "name" : pending > 0 ? "analyze" : "translate";
+    setProgress({ ...IDLE, running: first, total: first === "name" ? untitled : first === "analyze" ? pending : untranslated });
+    const res = await runReviewPipeline(productId, (p) => setProgress({ running: p.phase, done: p.done, total: p.total, message: null, failed: false }));
+    if (!res.ok) setProgress({ ...IDLE, message: res.message, failed: true });
+    else setProgress({ ...IDLE, message: summarizeCounts(res.counts) ?? "처리할 것이 없었어요" });
+    router.refresh(); // 여기까지 저장된 결과는 보여 준다
   }
 
   const running = progress.running !== null;
   const needed = pending > 0 || untranslated > 0 || untitled > 0;
   if (!needed && !running && !progress.message) return null;
 
-  const RUNNING_TEXT: Record<Phase, string> = {
-    name: "긴 제품명을 정리하고 있어요…",
-    analyze: "AI가 리뷰를 읽고 있어요…",
-    translate: "일본어 리뷰를 한국어로 옮기고 있어요…",
-  };
   const todo = [
     untitled > 0 && `제품명 정리 전인 경쟁 제품 ${untitled}개`,
     pending > 0 && `AI 분석 전인 리뷰 ${pending}건`,
     untranslated > 0 && `한국어 번역이 없는 일본어 리뷰 ${untranslated}건`,
   ].filter(Boolean);
-  const text = running ? `${RUNNING_TEXT[progress.running!]} ${progress.done} / ${progress.total}${progress.running === "name" ? "개" : "건"}` : (progress.message ?? `${todo.join(", ")}이 있어요.`);
+  const text = running ? `${PIPELINE_PHASE_TEXT[progress.running!]} ${progress.done} / ${progress.total}${progress.running === "name" ? "개" : "건"}` : (progress.message ?? `${todo.join(", ")}이 있어요.`);
   const label = progress.failed ? "이어서 하기" : pending > 0 ? "AI로 분석하기" : untranslated > 0 ? "한국어로 번역하기" : "제품명 정리하기";
 
   return (

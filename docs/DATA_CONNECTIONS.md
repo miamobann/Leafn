@@ -67,7 +67,7 @@
 
 - 읽기는 `lib/data/submissions.ts`, 쓰기는 Server Action(`submission-actions` · `ai-analysis-actions` · `member-tab-actions`)이다. 상태 바꾸기(제출·취소·승인/반려·숨김·팀장 확인)는 DB 함수(rpc)로만 한다.
 - 시안의 내용(`body`)은 화면이 보낸 값을 믿지 않고 저장하는 순간 서버가 다시 만든다 (`lib/data/submission-bodies.ts`). 리뷰는 리포트와 같은 국내(ko) 리뷰, 광고는 숨기지 않은 검토 건만.
-- 결재함은 팀장만 본다 (2026-10-26). 팀원이 `/approvals`를 열면 `/approvals/mine`으로 간다. DB도 팀원에게는 자기 버전 · 승인본과 그 결재 기록만 읽게 한다 (`20261026180000_owner_only_approval_reads.sql`).
+- 결재함은 팀장만 본다 (2026-10-26). 팀원이 `/approvals`를 열면 `/approvals/mine`으로 간다. DB도 팀원에게는 자기 버전 · 승인본과 그 결재 기록만 읽게 한다 (`20261026190000_owner_only_approval_reads.sql`).
 - 광고 검토 건(`ad_checks`)은 판정하면 자동 저장되지만 결재함에는 들어가지 않는다. 검토 상세의 「시안 · 결재」 패널에서 「결재 올리기」를 눌러야 시안이 된다.
 - 광고 검토 시안에는 같은 제품의 근거만 담는다. 시안 결재와 원본 광고 검토 상태는 독립적이며, 결재함에서 둘을 함께 보여 준다.
 - 마이그레이션 적용 전 연결 환경: 목록은 비어 있고, 저장은 "시안 · 결재 테이블이 아직 DB에 적용되지 않았어요"로 실패한다. 샘플 모드는 `lib/mock/submissions.ts`를 보여 주고 저장 버튼은 막는다.

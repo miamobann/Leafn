@@ -56,7 +56,22 @@ export type GuideMaterials = Record<
   string,
   /** keywords = 피부 라인 고민 검색어, trending = 요즘 새로 뜬 검색어(SNS), ingredients = 관심 성분 (모두 약기법·전성분 기준으로 거른 것) */
   /** droppedAppeals = 약기법 때문에 AI에 넘기지 않은 리뷰 소구점 (예: 순함) */
-  { hasReviews: boolean; appeals: string[]; droppedAppeals: string[]; complaints: string[]; candidates: string[]; reviewQuotes: string[]; keywords: string[]; trending: string[]; ingredients: string[]; megaSale: string | null }
+  /** pickedTopics = 리뷰 분석 「소구점 찾기」에서 고른 소구점 수 (주소로 넘어왔을 때만, 아니면 null) */
+  /** approvedQuotes = 리뷰 분석 탭에서 번역·약기법 검토·팀장 승인을 거친 일본어 후기. 있으면 한국어 reviewQuotes 대신 쓴다 */
+  {
+    hasReviews: boolean;
+    appeals: string[];
+    droppedAppeals: string[];
+    complaints: string[];
+    candidates: string[];
+    reviewQuotes: string[];
+    approvedQuotes: { text_ja: string; translation_id: string }[];
+    keywords: string[];
+    trending: string[];
+    ingredients: string[];
+    megaSale: string | null;
+    pickedTopics: number | null;
+  }
 >;
 
 type ContentGuideProps = {
@@ -68,6 +83,8 @@ type ContentGuideProps = {
   /** 서버에 AI 키가 있으면 true → 「제작하기」가 /api/content-guide 를 부른다. 없으면 샘플 */
   aiEnabled: boolean;
   saved?: SavedGuide;
+  /** 처음 열 제품 (리뷰 분석 「소구점 찾기」에서 넘어온 제품). 없으면 첫 제품 */
+  initialProductId?: string;
 };
 
 /** 저장된 결과물(만든 가이드)을 다시 열 때 넘기는 값. 있으면 제작 칸을 숨기고 AI를 다시 부르지 않는다 */
@@ -79,7 +96,13 @@ export type SavedGuide = {
   direction: string;
   draft: GuideDraft;
   warnings: BlockWarnings;
+  /** 저장된 블록별 메모 { 블록 key: 메모 } */
+  memos?: Record<string, string>;
 };
+
+/** 메모를 다 쓰고 잠깐 멈추면 저장한다 */
+const MEMO_SAVE_DELAY_MS = 800;
+const MEMO_STATUS = { saving: "메모 저장 중…", saved: "메모 저장됨", error: "메모를 저장하지 못했어요 (DB 적용 전이면 저장되지 않아요)" } as const;
 
 type Fill = (text: string) => string;
 
@@ -138,6 +161,7 @@ function BodyPager({
   memos,
   onMemo,
   memoWhere,
+  memoStatus,
 }: {
   blocks: GuideBlock[];
   fill: Fill;
@@ -146,6 +170,8 @@ function BodyPager({
   onMemo: (blockKey: string, text: string) => void;
   /** 이 블록의 메모가 PDF 어디에 나오는지 */
   memoWhere: (blockKey: string) => string;
+  /** 메모 저장 상태 안내 (DB에 저장된 가이드만) */
+  memoStatus: string | null;
 }) {
   const [index, setIndex] = useState(0);
   const at = Math.min(index, blocks.length - 1);
@@ -216,7 +242,7 @@ function BodyPager({
           placeholder="이 블록에 대한 검토 의견을 적어 주세요"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          PDF에서는 <span className="font-medium text-foreground">{memoWhere(b.key)}</span>에 적혀요 · 아직 저장되지 않아 새로고침하거나 다시 제작하면 사라져요.
+          PDF에서는 <span className="font-medium text-foreground">{memoWhere(b.key)}</span>에 적혀요.{memoStatus ? ` · ${memoStatus}` : ""}
         </p>
       </div>
     </div>
@@ -593,8 +619,8 @@ const CHANNEL_RULES: Partial<Record<GuideChannel, string[]>> = {
   ],
 };
 
-export function ContentGuide({ products, drafts, materials, author, aiEnabled, saved }: ContentGuideProps) {
-  const [productId, setProductId] = useState(saved?.productId ?? products[0].id);
+export function ContentGuide({ products, drafts, materials, author, aiEnabled, saved, initialProductId }: ContentGuideProps) {
+  const [productId, setProductId] = useState(saved?.productId ?? initialProductId ?? products[0].id);
   const [channel, setChannel] = useState<GuideChannel>(saved?.channel ?? "qoo10_detail");
   const [postType, setPostType] = useState<PostType>(saved?.postType ?? "general");
   const [slideCount, setSlideCount] = useState(saved?.slideCount ?? IG_MAX_SLIDES);
@@ -603,8 +629,12 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   const [generatedKey, setGeneratedKey] = useState<string | null>(savedKey);
   const [pickedId, setPickedId] = useState<string | null>(saved?.draft.id ?? null);
   const [loading, setLoading] = useState<"titles" | "body" | null>(null);
-  /** "제목 id:블록 key" → 메모 (화면에만 둔다) */
-  const [memos, setMemos] = useState<Record<string, string>>({});
+  /** "제목 id:블록 key" → 메모. 저장된 가이드(savedIds)의 메모는 DB에도 저장한다 (content_guides.memos) */
+  const [memos, setMemos] = useState<Record<string, string>>(
+    saved?.memos ? Object.fromEntries(Object.entries(saved.memos).map(([k, v]) => [`${saved.draft.id}:${k}`, v])) : {},
+  );
+  const [memoState, setMemoState] = useState<keyof typeof MEMO_STATUS | null>(null);
+  const memoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   /** 강조할 방향 (선택, 50자). 제작할 때 방향 참고로 함께 보낸다 */
   const [direction, setDirection] = useState(saved?.direction ?? "");
   /** 제작할 때 실제로 반영한 방향 (제작 뒤에 칸을 고쳐도 결과·PDF는 이 값) */
@@ -622,10 +652,33 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   /** 제목(draft) id → 저장된 가이드 id. 「이 문구로 새 검토」·「만든 가이드에서 보기」에 쓴다 (저장된 결과물은 그 id 그대로) */
   const [savedIds, setSavedIds] = useState<Record<string, string>>(saved ? { [saved.draft.id]: saved.draft.id } : {});
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+      clearTimeout(memoTimer.current);
+    },
+    [],
+  );
+
+  /** 메모 한 칸을 고치면 화면에 바로 반영하고, 저장된 가이드면 잠깐 뒤에 그 가이드의 메모 전체를 저장한다 */
+  function changeMemo(draftId: string, blockKey: string, text: string) {
+    const next = { ...memos, [`${draftId}:${blockKey}`]: text };
+    setMemos(next);
+    const guideId = savedIds[draftId];
+    if (!guideId) return;
+    clearTimeout(memoTimer.current);
+    setMemoState("saving");
+    memoTimer.current = setTimeout(() => {
+      const prefix = `${draftId}:`;
+      const mine = Object.fromEntries(Object.entries(next).filter(([k]) => k.startsWith(prefix)).map(([k, v]) => [k.slice(prefix.length), v]));
+      fetch(`/api/content-guide/${guideId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ memos: mine }) })
+        .then((res) => setMemoState(res.ok ? "saved" : "error"))
+        .catch(() => setMemoState("error"));
+    }, MEMO_SAVE_DELAY_MS);
+  }
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], droppedAppeals: [], complaints: [], candidates: [], reviewQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], droppedAppeals: [], complaints: [], candidates: [], reviewQuotes: [], approvedQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null, pickedTopics: null };
   const hasPostType = channel === "instagram" || channel === "x";
   // 가장 추천을 맨 앞에 둔다
   const list = (aiEnabled || saved ? aiDrafts : drafts)
@@ -673,7 +726,9 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
       appeals: { praised: material.appeals, competitor_complaints: material.complaints, candidates: material.candidates },
       // 요즘 뜨는 말은 SNS(인스타·X)만
       keywords: { search: material.keywords, ingredients: material.ingredients, trending: hasPostType ? material.trending : [] },
-      review_quotes: material.hasReviews ? material.reviewQuotes : [],
+      // 후기: 승인된 일본어 후기가 있으면 그것만 (그대로 인용), 없으면 한국어 리뷰 원문 (프롬프트 v4)
+      review_quotes: material.hasReviews && material.approvedQuotes.length === 0 ? material.reviewQuotes : [],
+      approved_quotes: material.hasReviews ? material.approvedQuotes : [],
       evidence: [],
       promo: postType === "mega_sale" && hasPostType ? material.megaSale : null,
       channel,
@@ -822,7 +877,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
               <section className="space-y-1 rounded-md bg-muted p-3">
                 <p className="flex items-center gap-2 font-medium">
                   <span className="rounded border bg-background px-1.5 text-xs">리뷰 분석 탭</span>
-                  리뷰 소구점
+                  {material.pickedTopics === null ? "리뷰 소구점" : `선택한 소구점 ${material.pickedTopics}개`}
                 </p>
                 {material.hasReviews ? (
                   <ul className="flex flex-wrap gap-1">
@@ -1026,8 +1081,9 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                   blocks={blocks}
                   fill={fill}
                   memos={Object.fromEntries(blocks.map((b) => [b.key, memos[`${current.id}:${b.key}`] ?? ""]))}
-                  onMemo={(blockKey, text) => setMemos((m) => ({ ...m, [`${current.id}:${blockKey}`]: text }))}
+                  onMemo={(blockKey, text) => changeMemo(current.id, blockKey, text)}
                   memoWhere={(blockKey) => memoLocation(channel, blocks, blockKey)}
+                  memoStatus={savedIds[current.id] ? (memoState ? MEMO_STATUS[memoState] : "메모는 자동 저장돼요") : "메모는 가이드가 저장된 뒤부터 저장돼요"}
                 />
 
                 {channel === "qoo10_detail" && <GalleryGuide gallery={current.gallery} />}

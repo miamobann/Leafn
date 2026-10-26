@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Minus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import { deleteTranslations, translateReviews } from "@/lib/data/review-translation-actions";
+import { applySuggestion, approveTranslation, deleteTranslations, revokeApproval, translateReviews } from "@/lib/data/review-translation-actions";
 import type { ReviewWithAnalysis } from "@/lib/data/reviews";
 import type { AppealTopic } from "@/lib/schemas/review";
 import { BackTitle, paginate, Pager } from "../../_components/parts";
@@ -22,6 +22,10 @@ export type TranslatedRow = {
   status: "approved" | "pending" | "fix";
   note: string;
   checkId: string | null;
+  /** 대체 표현을 적용해 고친 문장이면 true */
+  edited: boolean;
+  /** 약기법 검토가 짚은 표현과 대체 표현 (일본어 + 한국어 뜻) */
+  fixes: { text: string; reason: string; serious: boolean; suggestions: { ja: string; ko: string; pass: boolean }[] }[];
 };
 
 const PICK_PAGE = 8;
@@ -35,7 +39,7 @@ const STATUS = {
 const STEPS = [
   ["1 리뷰 고르기", "강점 리뷰가 위로"],
   ["2 번역 + 자동 약기법 검토", "번역하는 순간 같이 돌아가요"],
-  ["3 담당자 승인", "위험 표현은 고친 뒤 승인"],
+  ["3 고치고 팀장 승인", "대체 표현으로 고친 뒤 승인"],
   ["4 HTML 복사", "승인된 것만"],
 ] as const;
 const selectClass = "h-9 rounded-md border bg-background px-2 text-sm";
@@ -94,11 +98,14 @@ export function TranslateView({
   reviews,
   translated,
   initialPicked,
+  isOwner,
 }: {
   product: { id: string; name: string };
   reviews: ReviewWithAnalysis[];
   translated: TranslatedRow[];
   initialPicked: string[];
+  /** 팀장(워크스페이스 owner)만 승인·승인 취소 버튼이 보인다. 서버도 같은 확인을 한다 */
+  isOwner: boolean;
 }) {
   const stats = topicStats(reviews).filter((s) => s.pos.length > 0).toSorted((a, b) => b.pos.length - a.pos.length);
   const [topic, setTopic] = useState<AppealTopic | "">("");
@@ -203,6 +210,32 @@ export function TranslateView({
     });
     router.refresh();
   };
+  // 대체 표현 적용 · 승인 · 승인 취소: 한 번에 한 건만 (다시 번역 + 약기법 검토가 돌아서 몇 초 걸린다)
+  const [busy, setBusy] = useState<{ id: string; label: string } | null>(null);
+  const run = async (id: string, label: string, job: () => Promise<{ ok: true; text: string } | { ok: false; message: string }>) => {
+    setBusy({ id, label });
+    setNotice(null);
+    const res = await job();
+    setBusy(null);
+    setNotice(res.ok ? { text: res.text, error: false } : { text: res.message, error: true });
+    router.refresh();
+  };
+  const applyFix = (t: TranslatedRow, finding: string, suggestionJa: string) =>
+    run(t.id, "고쳐서 다시 번역하고 약기법 검토하는 중…", async () => {
+      const res = await applySuggestion(t.id, finding, suggestionJa);
+      if (!res.ok) return res;
+      return { ok: true, text: res.data.mustFix ? "대체 표현을 적용해 다시 검토했어요. 아직 고쳐야 할 표현이 남아 있어요." : "대체 표현을 적용했고 약기법 검토를 다시 마쳤어요. 팀장 승인을 기다려요." };
+    });
+  const approve = (t: TranslatedRow) =>
+    run(t.id, "승인하는 중…", async () => {
+      const res = await approveTranslation(t.id);
+      return res.ok ? { ok: true, text: "승인했어요. 이제 HTML로 복사할 수 있어요." } : res;
+    });
+  const revoke = (t: TranslatedRow) =>
+    run(t.id, "승인을 취소하는 중…", async () => {
+      const res = await revokeApproval(t.id);
+      return res.ok ? { ok: true, text: "승인을 취소했어요. 다시 고칠 수 있어요." } : res;
+    });
   const changeLeft = (fn: () => void) => {
     fn();
     setPickPage(1);
@@ -365,7 +398,10 @@ export function TranslateView({
                   </button>
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <p lang="ja">{t.textJa}</p>
-                    <p className="text-muted-foreground">{t.textKo}</p>
+                    <p className="text-muted-foreground">
+                      {t.textKo}
+                      {t.edited && <span className="ml-1.5 rounded bg-stone-100 px-1.5 py-0.5 text-xs">고침</span>}
+                    </p>
                     {t.note &&
                       (t.checkId ? (
                         <Link href={`/ad-check/${t.checkId}`} className={`block text-xs hover:underline ${t.status === "fix" ? "text-orange-800" : "text-muted-foreground"}`}>
@@ -374,6 +410,58 @@ export function TranslateView({
                       ) : (
                         <p className="text-xs text-muted-foreground">{t.note}</p>
                       ))}
+                    {t.status !== "approved" && t.fixes.length > 0 && (
+                      <ul className="mt-1.5 space-y-2 rounded-md border bg-muted/30 p-2.5">
+                        {t.fixes.map((f) => (
+                          <li key={f.text} className="space-y-1">
+                            <p className="text-xs">
+                              <b className={f.serious ? "text-orange-800" : ""}>「{f.text}」</b> <span className="text-muted-foreground">{f.reason}</span>
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {f.suggestions.map((s) => (
+                                <button
+                                  key={s.ja}
+                                  type="button"
+                                  disabled={busy !== null}
+                                  onClick={() => applyFix(t, f.text, s.ja)}
+                                  className="rounded-md border bg-background px-2 py-1 text-left text-xs hover:bg-muted disabled:opacity-50"
+                                >
+                                  <span className="font-medium">이렇게 고치기</span> · {s.ko}
+                                  <span lang="ja" className="block text-muted-foreground">
+                                    {s.ja}
+                                  </span>
+                                  {!s.pass && <span className="block text-amber-800">이 안도 다시 손볼 부분이 있어요</span>}
+                                </button>
+                              ))}
+                              {f.suggestions.length === 0 && <span className="text-xs text-muted-foreground">대체 표현이 없어요. 광고 검토 화면에서 직접 고쳐 주세요.</span>}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {busy?.id === t.id && (
+                      <p role="status" className="text-xs text-muted-foreground">
+                        {busy.label}
+                      </p>
+                    )}
+                    {t.status === "pending" && (
+                      <p className="pt-0.5">
+                        {isOwner ? (
+                          <button type="button" disabled={busy !== null} onClick={() => approve(t)} className={buttonVariants({ size: "sm" })}>
+                            승인
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">팀장이 승인해요</span>
+                        )}
+                      </p>
+                    )}
+                    {t.status === "approved" && isOwner && (
+                      <p className="pt-0.5">
+                        <button type="button" disabled={busy !== null} onClick={() => revoke(t)} className="text-xs text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50">
+                          승인 취소
+                        </button>
+                      </p>
+                    )}
                   </div>
                   <span className={`rounded-md px-2 py-0.5 text-xs whitespace-nowrap ${STATUS[t.status].className}`}>{STATUS[t.status].label}</span>
                 </li>
@@ -383,7 +471,7 @@ export function TranslateView({
           </ul>
           <Pager page={donePaged.page} pageCount={donePaged.pageCount} onChange={setDonePage} summary={`${shownRows.length}건 중 ${donePaged.from}~${donePaged.to}`} />
           <p className="text-xs text-muted-foreground">
-            승인은 각 줄의 「약기법 검토 →」 링크로 들어가 광고 검토 화면에서 담당자(owner)가 「내부 검토 완료」로 바꿔요. 승인 전인 리뷰는 HTML 복사에서 빠져요. 선택 삭제를 해도 약기법 검토 기록은 광고 검토 이력에 남아요. 법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 해요.
+            고쳐야 할 표현은 「이렇게 고치기」로 바로 바꿔요. 바꾸면 다시 번역하고 약기법 검토가 한 번 더 돌아가요. 승인은 팀장(owner)이 하고, 승인 전인 리뷰는 HTML 복사에서 빠져요. 승인은 광고 검토 이력에도 「내부 검토 완료」로 남아요. 선택 삭제를 해도 약기법 검토 기록은 광고 검토 이력에 남아요. 법률 자문이 아닌 검토 보조 결과이며 최종 판단은 담당자·전문가가 해요.
           </p>
         </section>
       </div>
