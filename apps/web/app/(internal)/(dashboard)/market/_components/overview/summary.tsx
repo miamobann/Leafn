@@ -1,6 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { SubmissionPanel } from "@/components/common/submission-panel";
+import type { SubmissionPanelData } from "@/components/common/submission-section";
+import { saveMarketDraft } from "@/lib/data/submission-actions";
+import type { MarketPlatform } from "@/lib/market-config";
 import { EmptyState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,8 +13,8 @@ import type { Product } from "@/lib/schemas/product";
 import type { SnsTrendResult } from "@/lib/schemas/market";
 import type { SearchSnap } from "@/lib/schemas/search";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
-import { glance, keyPoints, weekCore, type MarketTab } from "@/app/(internal)/(dashboard)/market/_lib/summary";
-import { MiniDonut, NeedPips, PriceCompare, StackBar, Waffle } from "./glance-charts";
+import { glance, keyPoints, priceGapLabel, weekCore, type MarketTab } from "@/app/(internal)/(dashboard)/market/_lib/summary";
+import { MiniDonut, NeedPips, PriceCompare, RankBars, Waffle } from "./glance-charts";
 
 /**
  * 요약 탭 (2026-10-26, 소비자 설문 요약과 같은 모양): 이번 주 핵심 3칸 → 이번 분석으로 알 수 있는 것 → 한눈에 보기.
@@ -28,6 +32,8 @@ export function SummaryPart({
   platformLabel,
   week,
   sns,
+  platform,
+  submissionPanels,
 }: {
   series: TrendSnapshot[];
   products: Product[];
@@ -40,10 +46,21 @@ export function SummaryPart({
   week: string | null;
   /** 이 카테고리의 마지막 저장 SNS 분석 (없으면 null) */
   sns: SnsTrendResult | null;
+  /** 시안을 저장할 때 서버에 넘기는 고른 플랫폼 */
+  platform: MarketPlatform;
+  /** 판매 중인 자사 제품별 시안 패널 데이터 */
+  submissionPanels: Record<string, SubmissionPanelData>;
 }) {
+  // 시안을 올릴 제품: 판매 중인 자사 제품 (같은 카테고리를 먼저). 시안은 제품 × 시장 분석 칸에 쌓인다
+  const saleProducts = products
+    .filter((p) => p.kind === "own" && p.sale_status === "on_sale" && submissionPanels[p.id])
+    .toSorted((a, b) => Number(b.category === category) - Number(a.category === category));
+  const [ownPick, setOwnPick] = useState<string | null>(null);
+  const ownProductId = ownPick && saleProducts.some((p) => p.id === ownPick) ? ownPick : (saleProducts[0]?.id ?? null);
+  const panel = ownProductId ? submissionPanels[ownProductId] : undefined;
   const core = weekCore({ series, products, category, search, sns });
   const points = keyPoints({ series, products, category, search, geo, geoIsSample, sns });
-  const g = glance({ series, products, category, search });
+  const g = glance({ series, products, category, search, geo });
   if (core.length === 0 && points.length === 0 && g.rankingCount === 0) return <EmptyState message="이 플랫폼·카테고리의 데이터가 없어요" />;
   const link = (tab: MarketTab) => (
     <a href={`#${tab}`} className="text-xs whitespace-nowrap text-muted-foreground underline underline-offset-4 hover:text-foreground">
@@ -109,7 +126,7 @@ export function SummaryPart({
           <Tile title="ml당 가격" note="정가 기준" footer={link("supply")}>
             {g.price ? (
               <>
-                <Hero value={g.price.own ? `${g.price.own.ppm}円` : `${g.price.median}円`} label={g.price.own ? (g.price.own.ppm > g.price.median ? `중앙값보다 ${Math.round((g.price.own.ppm / g.price.median - 1) * 100)}% 비쌈` : g.price.own.ppm < g.price.median ? `중앙값보다 ${Math.round((1 - g.price.own.ppm / g.price.median) * 100)}% 쌈` : "중앙값과 같음") : "순위권 중앙값"} />
+                <Hero value={g.price.own ? `${g.price.own.ppm}円` : `${g.price.median}円`} label={priceGapLabel(g.price)} />
                 <PriceCompare {...g.price} />
               </>
             ) : (
@@ -117,21 +134,16 @@ export function SummaryPart({
             )}
           </Tile>
 
-          <Tile title="할인·행사 구성" note={g.discount ? `순위권 ${g.discount.total}개` : undefined} footer={link("supply")}>
-            {g.discount ? (
+          <Tile title="AI 검색 키워드" note={g.geoKeywords ? `AI 답변 ${g.geoKeywords.answers}개 중 언급` : undefined} footer={link("action")}>
+            {g.geoKeywords && g.geoKeywords.rows.length > 0 ? (
               <>
-                <Hero value={`${g.discount.coupon + g.discount.discountOnly}/${g.discount.total}`} label="할인·행사 중" />
-                <StackBar
-                  total={g.discount.total}
-                  segments={[
-                    { label: "행사 쿠폰", value: g.discount.coupon, className: "bg-primary", note: g.discount.couponRate !== null ? `정가 −${g.discount.couponRate}%` : undefined },
-                    { label: "표시 할인만", value: g.discount.discountOnly, className: "bg-neutral-400 dark:bg-neutral-500" },
-                    { label: "정가 그대로", value: g.discount.plain, className: "bg-muted ring-1 ring-inset ring-border" },
-                  ]}
-                />
+                <Hero value={`${g.geoKeywords.rows[0].count}회`} label={g.geoKeywords.rows[0].keyword} lang="ja" />
+                <RankBars rows={g.geoKeywords.rows.map((r) => ({ label: r.keyword, sub: r.ko, count: r.count }))} unit="회" />
               </>
+            ) : g.geoKeywords ? (
+              <Empty>AI 답변 {g.geoKeywords.answers}개에서 2회 이상 언급된 키워드가 아직 없어요</Empty>
             ) : (
-              <Empty>랭킹 데이터가 없어요</Empty>
+              <Empty>아직 측정 전이에요 · 위 [데이터 업데이트]</Empty>
             )}
           </Tile>
 
@@ -190,6 +202,31 @@ export function SummaryPart({
 
         </CardContent>
       </Card>
+
+      {/* 시안 · 결재: 위 요약(이번 주 핵심 · 알 수 있는 것 · 한눈에 보기)을 그대로 고정해 올린다 */}
+      {panel && ownProductId ? (
+        <div>
+          {saleProducts.length > 1 && (
+            <label className="-mb-3 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+              시안 제품
+              <select className="h-8 rounded-lg border border-input bg-background px-2 text-sm text-foreground" value={ownProductId} onChange={(e) => setOwnPick(e.target.value)}>
+                {saleProducts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <SubmissionPanel
+            {...panel}
+            saveDraft={(input) => saveMarketDraft(ownProductId, { category, platform }, { summary: input.summary, note: input.note })}
+            snapshotNote={`위 요약 탭 내용(${platformLabel} ${category} · ${week ?? "기준 주 없음"})을 그대로 저장해요. 제출하면 고칠 수 없어요.`}
+          />
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">판매 중인 자사 제품이 있어야 시안을 올릴 수 있어요.</p>
+      )}
     </div>
   );
 }
