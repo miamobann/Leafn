@@ -23,7 +23,8 @@ export async function getAdProducts(): Promise<LabProduct[]> {
   if (!(await dataContext())) return sortForPicker(PRODUCTS);
   return sortForPicker((await getProducts({ kind: "own" })).filter((p) => p.ingredients.length > 0).map((p) => ({
     id: p.id, name_ko: p.name, name_ja: p.name,
-    line: p.category ? (LINE_KO[p.category] ?? p.category) : "미등록", launch_status: p.sale_status === "on_sale" ? "live" : "developing",
+    line: p.category ? (LINE_KO[p.category] ?? p.category) : "미등록",
+    skin_line: p.skin_line, launch_status: p.sale_status === "on_sale" ? "live" : "developing",
     product_category: null, volume: p.volume_ml === null ? "미등록" : `${p.volume_ml}ml`,
     price_jpy: p.price_jpy ?? 0, container: "미등록",
     ingredients: p.ingredients.filter((name) => !EXCLUDED_INGREDIENTS.test(name)).map((name) => ({ ko: name, inci: name, ja: name })),

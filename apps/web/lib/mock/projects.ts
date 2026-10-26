@@ -129,7 +129,8 @@ export const projectStages = parseAll(
       stage: "appeal",
       status: "in_progress",
       start_date: "2026-10-14",
-      due_date: "2026-10-31",
+      // 「지남」 표시 예시: 샘플 오늘(10-21)보다 하루 앞선 마감
+      due_date: "2026-10-20",
       owner_id: "u-3",
       next_step: "국내 리뷰 가져오기",
       log: [{ date: "2026-10-20", text: "국내 리뷰 CSV 준비 중" }],

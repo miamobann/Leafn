@@ -60,8 +60,10 @@ const SCENES_PER_PAGE = 6;
 // 보고서를 감싼 요소는 남기되 높이·스크롤 제한을 풀어 여러 쪽으로 이어지게 한다.
 // 글꼴은 앱과 같은 Noto Sans KR(보고서용 고딕), 없으면 맑은 고딕 · 일본어는 Noto Sans JP → Yu Gothic.
 const PRINT_CSS = `
-@page { size: A4 landscape; margin: 10mm; }
+@page { size: A4 landscape; margin: 0; }
 @media print {
+  /* 쪽 여백을 0으로 두면 브라우저가 머리글·바닥글(주소·날짜)을 찍지 않는다. 여백은 각 쪽 안쪽에 둔다 */
+  .guide-report > section { height: 210mm !important; padding: 10mm; box-sizing: border-box; }
   body *:not(:has(.guide-report)):not(.guide-report):not(.guide-report *) { display: none !important; }
   *:has(.guide-report) { display: block !important; position: static !important; overflow: visible !important; height: auto !important; min-height: 0 !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; }
   .guide-report { font-family: var(--font-noto-kr), "Noto Sans KR", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }

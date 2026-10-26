@@ -8,7 +8,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ReviewWithAnalysis } from "@/lib/data/reviews";
 import { formatDate } from "@/lib/format";
-import { stars } from "../_lib/topics";
+import { profileLabel, stars } from "../_lib/topics";
 
 /** 이동하는 링크는 진한 회색 글자 + →, 밑줄은 마우스를 올렸을 때만 (목업 링크 규칙) */
 export const linkClass = "text-sm font-medium text-foreground/80 underline-offset-4 hover:text-foreground hover:underline";
@@ -126,8 +126,38 @@ export function EvidencePanel({
   );
 }
 
+/**
+ * 리뷰 본문. 한국어 번역(body_ko)이 있으면 번역을 보여 주고 "원문 보기"를 누르면 원문을 펼친다.
+ * 번역이 아직 없는 일본어 리뷰는 원문을 보여 주고 "번역 전"이라고 알려 준다 (리뷰 화면의 "AI로 분석하기"가 번역도 채운다).
+ */
+export function ReviewText({ review }: { review: Pick<ReviewWithAnalysis, "body" | "body_ko" | "lang"> }) {
+  const [showOriginal, setShowOriginal] = useState(false);
+  const langName = review.lang === "ja" ? "일본어" : "";
+  if (!review.body_ko) {
+    return (
+      <p lang={review.lang}>
+        {review.body}
+        {review.lang === "ja" && <span className="ml-1.5 text-xs text-muted-foreground">(번역 전)</span>}
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-1">
+      <p>{review.body_ko}</p>
+      <button type="button" aria-expanded={showOriginal} onClick={() => setShowOriginal((v) => !v)} className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+        {showOriginal ? `${langName} 원문 접기`.trim() : `${langName} 원문 보기`.trim()}
+      </button>
+      {showOriginal && (
+        <p lang={review.lang} className="rounded-md bg-muted/50 px-2.5 py-1.5 text-muted-foreground">
+          {review.body}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ReviewCard({ review, sub, children }: { review: ReviewWithAnalysis; sub?: string; children?: React.ReactNode }) {
-  const who = [review.reviewer_attrs?.age_group, review.reviewer_attrs?.skin_type].filter(Boolean).join(" · ");
+  const who = [profileLabel(review.reviewer_attrs?.age_group), profileLabel(review.reviewer_attrs?.skin_type)].filter(Boolean).join(" · ");
   return (
     <article className="space-y-1.5 rounded-lg border p-3 text-sm">
       <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
@@ -136,8 +166,7 @@ export function ReviewCard({ review, sub, children }: { review: ReviewWithAnalys
         {who && <span>{who}</span>}
         <span>{formatDate(review.posted_at)}</span>
       </div>
-      <p lang={review.lang}>{review.body}</p>
-      {review.body_ko && <p className="text-muted-foreground">{review.body_ko}</p>}
+      <ReviewText review={review} />
       {children}
     </article>
   );

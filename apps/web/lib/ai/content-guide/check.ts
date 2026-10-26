@@ -10,6 +10,9 @@ import type { z } from "zod";
 
 const USAGE: Record<ContentChannel, z.infer<typeof AdUsage>> = { qoo10_detail: "detail_page", instagram: "sns", x: "sns", banner: "banner" };
 
+/** 해시태그 판정 줄의 키 (본문 블록 키와 겹치지 않게) */
+export const HASHTAG_KEY = "hashtags";
+
 /** text = 판정에 보낸 한 줄 (ad_check_lines.original 로 저장) */
 export type BlockCheck = { key: string; text: string; line: JudgedLine };
 export type BodyCheck = { blocks: BlockCheck[]; adUsage: z.infer<typeof AdUsage>; usage: AiUsage; model: string | null; promptVersion: string | null };
@@ -22,6 +25,9 @@ export async function checkBody(channel: ContentChannel, product: AdCheckProduct
     const text = b.options[0]?.text_ja.trim() ?? "";
     return text && !b.needs_evidence ? [{ key: b.key, text: text.replace(/\n+/g, " / ") }] : [];
   });
+  // 해시태그도 광고 표시라 같은 판정을 거친다 (트렌드 검색어가 들어가는 곳, 2026-10-25). 판정 키는 HASHTAG_KEY
+  const tags = [...body.hashtags.brand, ...body.hashtags.ingredient, ...body.hashtags.trend].map((t) => t.trim()).filter(Boolean);
+  if (tags.length) targets.push({ key: HASHTAG_KEY, text: tags.join(" ") });
   const usage: AiUsage = { input: 0, cached: 0, output: 0 };
   const blocks: BlockCheck[] = [];
   let model: string | null = null;

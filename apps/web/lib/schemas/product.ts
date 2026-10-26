@@ -3,6 +3,22 @@ import { PlatformId } from "../platforms";
 import { Id, Timestamp, WorkspaceRow } from "./common";
 import { SaleStatus, SkinLine } from "./project";
 
+/**
+ * AI가 긴 제품명(주로 Qoo10 일본어 제목)을 정리한 결과. 원문은 Product.name에 그대로 있다.
+ * 값은 모두 제목에 적힌 것만 쓰고, 제목에 없으면 null이다 (prompts/product-title.v1.md)
+ */
+export const ProductTitleAi = z.object({
+  brand_ko: z.string().nullable(),
+  name_short_ja: z.string(),
+  name_ko: z.string(),
+  volume: z.string().nullable(),
+  key_ingredient_ja: z.string().nullable(),
+  key_ingredient_ko: z.string().nullable(),
+  model: z.string(),
+  prompt_version: z.string(),
+});
+export type ProductTitleAi = z.infer<typeof ProductTitleAi>;
+
 export const Product = WorkspaceRow.extend({
   kind: z.enum(["own", "competitor"]),
   brand: z.string(),
@@ -23,6 +39,8 @@ export const Product = WorkspaceRow.extend({
   project_id: Id.nullable().default(null),
   sale_status: SaleStatus.nullable().default(null),
   skin_line: SkinLine.nullable().default(null),
+  // 정리 전이거나 모양이 틀리면 null → 화면은 원문 제품명을 보여 준다 (이 칸 때문에 제품 전체가 읽히지 않는 일이 없게 .catch)
+  title_ai: ProductTitleAi.nullable().catch(null),
 });
 export type Product = z.infer<typeof Product>;
 

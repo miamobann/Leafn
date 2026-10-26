@@ -9,17 +9,22 @@ import interactionPlugin from "@fullcalendar/interaction";
 import koLocale from "@fullcalendar/core/locales/ko";
 import type { EventInput } from "@fullcalendar/core";
 import { StatusBadge } from "@/components/common/badges";
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { PromoEventView } from "@/lib/data/launch";
+import type { MilestoneView, PromoEventView } from "@/lib/data/launch";
 import { setMilestoneDone } from "@/lib/data/launch-actions";
 import { dDay } from "@/lib/format";
+import { PLATFORMS, platformLabel } from "@/lib/platforms";
+import { EventEditor, MilestoneEditor, NewMilestoneForm } from "./event-editor";
 import { NewEventForm } from "./new-event-form";
 
+// Supabase를 연결하지 않은 샘플 모드에서는 고친 내용이 화면에만 남는다
+const SAMPLE = !(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 const nextDay = (d: string) => new Date(Date.parse(d) + 86_400_000).toISOString().slice(0, 10);
 const COLOR = { platform_event: "var(--sentiment-positive)", own_campaign: "var(--risk-low)", milestone: "var(--risk-high)" };
 
-// 홈에 넣을 때는 플랫폼 고르기·행사 추가·보기 전환을 빼고 높이를 줄인다. 다 쓰려면 이 화면(전체보기)으로 온다
+// 홈에 넣을 때는 플랫폼 고르기·행사 추가·수정·보기 전환을 빼고 높이를 줄인다. 다 쓰려면 이 화면(전체보기)으로 온다
 const VIEW = {
   page: { height: 640, headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listMonth" } },
   home: { height: 520, headerToolbar: { left: "prev,next today", center: "title", right: "" } },
@@ -47,9 +52,12 @@ export function PromoCalendar({
   const [platform, setPlatform] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("event"));
   const [adding, setAdding] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   const selected = events.find((e) => e.id === selectedId) ?? null;
+  // 플랫폼 메모가 없는 플랫폼의 행사도 고를 수 있게 행사 쪽 플랫폼을 합친다
+  const filterKeys = [...new Set([...platformKeys, ...events.flatMap((e) => (e.platformKey ? [e.platformKey] : []))])];
   const idle = !selected && renderIdle ? renderIdle({ events, select: setSelectedId }) : null;
   // 문구 관련 버튼은 광고 검토로 간다: 이 행사의 검토가 있으면 그 상세, 없으면 새 검토
   const adCheckHref = selected?.adCheck ? `/ad-check/${selected.adCheck.id}` : "/ad-check";
@@ -57,7 +65,7 @@ export function PromoCalendar({
   const calendarEvents = useMemo<EventInput[]>(
     () =>
       events.filter((e) => !platform || e.platformKey === platform).flatMap((e) => [
-        { id: e.id, title: `${e.platformName} · ${e.title}`, start: e.startDate, end: nextDay(e.endDate), allDay: true, color: COLOR[e.kind] },
+        { id: e.id, title: `${e.isConfirmed ? "" : "예상 · "}${e.platformName} · ${e.title}`, start: e.startDate, end: nextDay(e.endDate), allDay: true, color: COLOR[e.kind] },
         ...e.milestones.map((m) => ({
           id: m.id,
           groupId: e.id,
@@ -71,13 +79,22 @@ export function PromoCalendar({
     [events, platform],
   );
 
-  // 체크는 화면에 먼저 반영하고 저장을 뒤따라 부른다
+  const patchEvent = (eventId: string, patch: Partial<PromoEventView>) =>
+    setEvents((prev) => prev.map((e) => (e.id === eventId ? { ...e, ...patch } : e)).toSorted((a, b) => a.startDate.localeCompare(b.startDate)));
+  const setMilestones = (eventId: string, change: (list: MilestoneView[]) => MilestoneView[]) =>
+    setEvents((prev) => prev.map((e) => (e.id === eventId ? { ...e, milestones: change(e.milestones).toSorted((a, b) => a.dueDate.localeCompare(b.dueDate)) } : e)));
+  const patchMilestone = (eventId: string, milestoneId: string, patch: Partial<MilestoneView>) =>
+    setMilestones(eventId, (list) => list.map((m) => (m.id === milestoneId ? { ...m, ...patch } : m)));
+
+  // 체크는 화면에 먼저 반영하고 저장을 뒤따라 부른다. 저장하지 못하면 되돌린다
   const toggleMilestone = (eventId: string, milestoneId: string, done: boolean) => {
-    setEvents((prev) =>
-      prev.map((e) => (e.id !== eventId ? e : { ...e, milestones: e.milestones.map((m) => (m.id === milestoneId ? { ...m, done } : m)) })),
-    );
+    patchMilestone(eventId, milestoneId, { done });
+    setToggleError(null);
     startTransition(async () => {
-      await setMilestoneDone(milestoneId, done);
+      const result = await setMilestoneDone(milestoneId, done);
+      if (result.ok) return;
+      patchMilestone(eventId, milestoneId, { done: !done });
+      setToggleError(result.message);
     });
   };
 
@@ -90,9 +107,9 @@ export function PromoCalendar({
               플랫폼
               <select className="rounded-md border bg-background px-2 py-1" value={platform} onChange={(e) => setPlatform(e.target.value)}>
                 <option value="">전체</option>
-                {platformKeys.map((k) => (
+                {filterKeys.map((k) => (
                   <option key={k} value={k}>
-                    {k}
+                    {platformLabel(k)}
                   </option>
                 ))}
               </select>
@@ -111,7 +128,7 @@ export function PromoCalendar({
         </div>
         {isPage && adding && (
           <NewEventForm
-            platformKeys={platformKeys}
+            platformKeys={SAMPLE ? platformKeys : PLATFORMS.map((p) => p.id)}
             onCreated={(e) => {
               setEvents((prev) => [...prev, e].toSorted((a, b) => a.startDate.localeCompare(b.startDate)));
               setSelectedId(e.id);
@@ -147,33 +164,76 @@ export function PromoCalendar({
         <CardContent className="space-y-3 text-sm">
           {selected ? (
             <>
-              <p className="text-muted-foreground">
+              <p className="flex items-center gap-2 text-muted-foreground">
                 {selected.platformKey ? `${selected.platformName} · ` : ""}
                 {selected.kind === "own_campaign" ? "자사 캠페인" : "플랫폼 행사"}
+                {/* 플랫폼 공지 전, 지난 행사 패턴으로 넣은 날짜 */}
+                {!selected.isConfirmed && <Badge variant="outline">예상</Badge>}
               </p>
               <p>
                 {selected.startDate} ~ {selected.endDate} ({dDay(selected.startDate)})
               </p>
+              {isPage ? (
+                <EventEditor
+                  key={selected.id}
+                  event={selected}
+                  onChange={(patch) => patchEvent(selected.id, patch)}
+                  onDeleted={() => {
+                    setEvents((prev) => prev.filter((e) => e.id !== selected.id));
+                    setSelectedId(null);
+                  }}
+                />
+              ) : (
+                <Link href={`/calendar?event=${selected.id}`} className={buttonVariants({ variant: "outline", size: "xs" })}>
+                  수정 · 삭제는 일정 관리에서 →
+                </Link>
+              )}
               <div>
                 <p className="mb-1 font-medium">준비 마감</p>
                 <ul className="space-y-1">
-                  {selected.milestones.map((m) => (
-                    <li key={m.id} className="flex items-center gap-2">
-                      <label className="flex flex-1 items-center gap-2">
-                        <input type="checkbox" checked={m.done} onChange={(e) => toggleMilestone(selected.id, m.id, e.target.checked)} />
-                        <span className={m.done ? "text-muted-foreground line-through" : ""}>
-                          {m.label} · {m.dueDate} ({dDay(m.dueDate)})
-                        </span>
-                      </label>
-                      {/* 쿠폰 설정·물류 입고 같은 마감은 갈 화면이 없어 체크만 한다 */}
-                      {m.label.includes("문구") && (
-                        <Link href={adCheckHref} className={`${buttonVariants({ variant: "outline", size: "xs" })} shrink-0`}>
-                          광고 검토로 →
-                        </Link>
-                      )}
-                    </li>
-                  ))}
+                  {selected.milestones.map((m) => {
+                    const row = (
+                      <>
+                        <label className="flex flex-1 items-center gap-2">
+                          <input type="checkbox" checked={m.done} onChange={(e) => toggleMilestone(selected.id, m.id, e.target.checked)} />
+                          <span className={m.done ? "text-muted-foreground line-through" : ""}>
+                            {m.label} · {m.dueDate} ({dDay(m.dueDate)})
+                          </span>
+                        </label>
+                        {/* 쿠폰 설정·물류 입고 같은 마감은 갈 화면이 없어 체크만 한다 */}
+                        {m.label.includes("문구") && (
+                          <Link href={adCheckHref} className={`${buttonVariants({ variant: "outline", size: "xs" })} shrink-0`}>
+                            광고 검토로 →
+                          </Link>
+                        )}
+                      </>
+                    );
+                    return isPage ? (
+                      <MilestoneEditor
+                        key={m.id}
+                        milestone={m}
+                        onChange={(patch) => patchMilestone(selected.id, m.id, patch)}
+                        onDeleted={() => setMilestones(selected.id, (list) => list.filter((x) => x.id !== m.id))}
+                      >
+                        {row}
+                      </MilestoneEditor>
+                    ) : (
+                      <li key={m.id} className="flex items-center gap-2">
+                        {row}
+                      </li>
+                    );
+                  })}
                 </ul>
+                {toggleError && (
+                  <p role="alert" className="mt-1 text-xs text-destructive">
+                    {toggleError}
+                  </p>
+                )}
+                {isPage && (
+                  <div className="mt-2">
+                    <NewMilestoneForm key={selected.id} eventId={selected.id} onAdded={(m) => setMilestones(selected.id, (list) => [...list, m])} />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">행사용 문구</span>
@@ -186,7 +246,7 @@ export function PromoCalendar({
                   {selected.adCheck ? "검토 상세 →" : "새 검토 만들기 →"}
                 </Link>
               </div>
-              <p className="text-xs text-muted-foreground">체크와 추가는 샘플이라 새로고침하면 사라져요 (DB 연결 전)</p>
+              {SAMPLE && <p className="text-xs text-muted-foreground">샘플 모드라 체크 · 추가 · 수정은 새로고침하면 사라져요</p>}
             </>
           ) : (
             (idle ?? <p className="text-muted-foreground">행사 막대나 ▲ 마감을 누르면 준비 상황이 여기 보여요.</p>)

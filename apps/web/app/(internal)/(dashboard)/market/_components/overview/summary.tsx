@@ -30,7 +30,7 @@ export function SummaryPart({
   if (points.length === 0) return <EmptyState message="이 플랫폼·카테고리의 데이터가 없어요" />;
 
   return (
-    <div className="space-y-3">
+    <div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {points.map((p) => (
           <article key={p.id} className="flex flex-col rounded-lg border bg-card p-4">
@@ -43,14 +43,12 @@ export function SummaryPart({
               <span className="mr-1 text-xs font-medium text-muted-foreground">할 일</span>
               {p.action}
             </p>
-            <p className="mt-2 text-xs text-muted-foreground">{p.detail}</p>
             <a href={`#${p.tab}`} className="mt-auto block pt-3 text-xs underline underline-offset-4">
               {tabLabel[p.tab]} 탭 열기 →
             </a>
           </article>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">할 일은 계산 결과로 만든 제안이에요. 최종 판단은 담당자가 해요.</p>
     </div>
   );
 }
