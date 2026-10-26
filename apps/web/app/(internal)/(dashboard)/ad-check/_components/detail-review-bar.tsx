@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReviewStatus } from "@/lib/schemas/common";
 import { updateAdCheckReview } from "../_lib/request";
-import { approveWarningOf, ReviewBar } from "./review-bar";
+import { ReviewBar } from "./review-bar";
 
 type DetailReviewBarProps = {
   checkId: string;
@@ -12,8 +12,6 @@ type DetailReviewBarProps = {
   initialStatus: ReviewStatus;
   initialExpertRequested: boolean;
   canApprove: boolean;
-  /** 최종 문구에서 대체 표현 없이 남은 「고쳐야 함」 줄 수 (서버가 계산) */
-  mustFixLeft?: number;
 };
 
 export function DetailReviewBar({
@@ -23,9 +21,9 @@ export function DetailReviewBar({
   initialStatus,
   initialExpertRequested,
   canApprove,
-  mustFixLeft = 0,
 }: DetailReviewBarProps) {
-  const [status, setStatus] = useState<ReviewStatus>(initialStatus);
+  // 상태는 예전에 정한 것을 보여 주기만 한다 (승인 · 반려는 결재함)
+  const status = initialStatus;
   const [expertRequested, setExpertRequested] = useState(initialExpertRequested);
   const [note, setNote] = useState(initialNote);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -52,7 +50,7 @@ export function DetailReviewBar({
   return (
     <ReviewBar
       finalText={initialFinalText}
-      approveWarning={approveWarningOf({ mustFixLeft, expertRequested })}
+      showFinalText={false}
       note={note}
       onNoteChange={setNote}
       status={status}
@@ -60,16 +58,11 @@ export function DetailReviewBar({
       canApprove={canApprove}
       saveState={saveState}
       saveError={saveError}
-      onStatusChange={(nextStatus) => {
-        setStatus(nextStatus);
-        void persist(nextStatus, expertRequested, note);
-      }}
       onExpertToggle={() => {
         const nextExpert = !expertRequested;
         setExpertRequested(nextExpert);
         void persist(status, nextExpert, note);
       }}
-      onReset={() => { setStatus("pending"); setExpertRequested(false); void persist("pending", false, note); }}
       onSaveNote={() => void persist(status, expertRequested, note)}
     />
   );

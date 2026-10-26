@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { AdFinding, AdLineResult } from "@/lib/schemas/ad-check";
 import type { GuideReflectState } from "../_lib/guide-to-review";
-import { LineResultCard } from "./line-result-card";
+import { ResultLines } from "./result-lines";
 
 type ReviseFailure = { message: string; link?: { href: string; label: string } };
 
@@ -107,25 +107,22 @@ export function GuideReflect({
   const ready = state.kind === "ready";
   return (
     <div className="space-y-4">
-      {lines.map((line) => (
-        <LineResultCard
-          key={line.line_index}
-          line={line}
-          findings={findings.filter((f) => f.line_index === line.line_index)}
-          selectedSuggestion={selected[line.line_index] ?? null}
-          onSelect={
-            ready
-              ? (s) =>
-                  setSelected((prev) => {
-                    const next = { ...prev };
-                    if (s === null) delete next[line.line_index];
-                    else next[line.line_index] = s;
-                    return next;
-                  })
-              : undefined
-          }
-        />
-      ))}
+      <ResultLines
+        lines={lines}
+        findings={findings}
+        selected={selected}
+        onSelect={
+          ready
+            ? (lineIndex, s) =>
+                setSelected((prev) => {
+                  const next = { ...prev };
+                  if (s === null) delete next[lineIndex];
+                  else next[lineIndex] = s;
+                  return next;
+                })
+            : undefined
+        }
+      />
       {state.kind === "reflected" && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
           <span>이 검토로 이미 가이드를 고쳤어요.</span>
@@ -147,7 +144,10 @@ export function GuideReflect({
           </span>
         </div>
       )}
-      {ready && (
+      {ready && !lines.some((l) => l.action !== "ok") && (
+        <p className="rounded-lg border p-3 text-sm">다시 판정해 보니 고칠 곳이 없어요. 반영할 것 없이 가이드를 이대로 써도 돼요.</p>
+      )}
+      {ready && lines.some((l) => l.action !== "ok") && (
         <GuideRevisePanel
           mustFixLeft={lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length}
           checkLeft={lines.filter((l) => (l.action === "should_fix" || l.action === "expert") && !selected[l.line_index]).length}

@@ -598,7 +598,7 @@ function CopyOptions({ props }: { props: ContentGuideReportProps }) {
       <p className="font-bold">카피 안</p>
       <ul className="space-y-1">
         {copy?.options.map((o, i) => (
-          <li key={o.text_ja}>
+          <li key={i}>
             <span lang="ja" className="font-medium">
               {i === 0 ? "추천" : "다른 안"} · {props.fill(o.text_ja)}
             </span>

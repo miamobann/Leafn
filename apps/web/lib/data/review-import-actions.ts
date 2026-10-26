@@ -4,6 +4,7 @@
 // 파일은 브라우저가 읽고(Papa Parse), 여기에는 열을 맞춘 행만 묶음(최대 500줄)으로 온다.
 // 같은 리뷰는 (workspace_id, source, external_id)로 한 번만 들어간다: 이미 있으면 건너뛰고 건너뛴 수를 돌려준다.
 import { createHash } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { ReviewImportInput, type ReviewImportRow } from "@/lib/schemas/review";
 import { createClient } from "@/lib/supabase/server";
 import { getMyWorkspace, isSupabaseConfigured } from "./workspace";
@@ -82,5 +83,7 @@ export async function saveReviewsFromCsv(raw: ReviewImportInput): Promise<Action
     .upsert([...records.values()], { onConflict: "workspace_id,source,external_id", ignoreDuplicates: true })
     .select("id");
   if (error) return fail(`리뷰를 저장하지 못했어요: ${error.message}`);
+  // 저장한 리뷰가 리뷰 리포트에 바로 보이게 화면 캐시를 비운다 (새로고침 없이)
+  if (data.length > 0) revalidatePath("/", "layout");
   return { ok: true, data: { inserted: data.length, skipped: input.rows.length - data.length } };
 }

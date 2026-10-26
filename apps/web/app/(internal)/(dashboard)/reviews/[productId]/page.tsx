@@ -41,7 +41,7 @@ export default async function ReviewReportPage({ params }: { params: Promise<{ p
       {/* 결재는 요약 탭에서 한다: 소구점 · 일본어 후기를 담은 뒤 한 줄 결론을 쓰고 올린다 */}
       {owned?.sale_status === "on_sale" && (
         <div className="mb-4 flex justify-end">
-          <Link href="/reviews/summary" className={buttonVariants({ variant: "outline", size: "sm" })}>
+          <Link href={`/reviews/summary?product=${productId}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
             요약에서 결재 올리기 →
           </Link>
         </div>

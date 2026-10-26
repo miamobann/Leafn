@@ -32,7 +32,7 @@ export default async function ContentGuidePage({ searchParams }: ContentGuidePag
         featureId="A"
       />
       <AdDisclaimer />
-      <p className="mt-2 text-xs text-muted-foreground">게시 전에는 새 검토로 다시 확인하세요</p>
+      <p className="mt-2 text-xs text-muted-foreground">걸린 문구는 「걸린 문구 검토」로 고친 뒤 결재에 올려요</p>
       {productParam && !known && products.length > 0 && (
         <p className="mt-3 rounded-lg border p-3 text-sm">
           고른 제품은 전성분·가격·용량이 아직 등록되지 않아 가이드를 만들 수 없어요. 첫 번째 제품으로 열었어요 (고른 소구점은 반영하지 않았어요).

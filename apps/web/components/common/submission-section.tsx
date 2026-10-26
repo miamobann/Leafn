@@ -17,12 +17,15 @@ export async function SubmissionSection({
   saveDraft,
   snapshotNote,
   carryOverLabel,
+  className,
 }: {
   tab: SubmissionTab;
   product: { id: string; kind: "own" | "competitor"; project_id: string | null; sale_status: SaleStatus | null };
   saveDraft: SaveDraft;
   snapshotNote: string;
   carryOverLabel?: string;
+  /** 패널 바깥 여백. 기본은 결과 아래에 붙는 mt-6, 오른쪽 열에 둘 때는 덮어쓴다 */
+  className?: string;
 }) {
   if (product.kind !== "own") return null;
   if (!product.project_id || product.sale_status !== "on_sale") {
@@ -73,6 +76,7 @@ export async function SubmissionSection({
       saveDraft={saveDraft}
       snapshotNote={snapshotNote}
       carryOverLabel={carryOverLabel}
+      className={className}
     />
   );
 }

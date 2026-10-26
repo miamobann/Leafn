@@ -8,16 +8,15 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/common/states
 import { ViewStateGate } from "@/components/common/view-state";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AdCheck, AdUsage } from "@/lib/schemas/ad-check";
+import type { AdCheck, AdLineResult, AdUsage } from "@/lib/schemas/ad-check";
 import type { ReviewStatus } from "@/lib/schemas/common";
 import { countLines } from "../_lib/lines";
 import type { LabProduct } from "../_lib/products";
 import { requestAdCheck, updateAdCheckReview, type AiMeta } from "../_lib/request";
-import { CopyButton } from "./copy-button";
 import { GuideRevisePanel, useGuideRevise } from "./guide-reflect";
-import { LineResultCard } from "./line-result-card";
+import { ResultLines } from "./result-lines";
 import { ResultSummary } from "./result-summary";
-import { approveWarningOf, ReviewBar } from "./review-bar";
+import { ReviewBar } from "./review-bar";
 import { ReviewForm } from "./review-form";
 
 const COPY = {
@@ -139,16 +138,8 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
     return (
       <div className="space-y-4">
         {submittedText !== text && <p className="text-sm text-muted-foreground">{COPY.stale}</p>}
-        <ResultSummary check={check} />
-        {lines.map((line) => (
-          <LineResultCard
-            key={line.line_index}
-            line={line}
-            findings={check.findings.filter((f) => f.line_index === line.line_index)}
-            selectedSuggestion={selected[line.line_index] ?? null}
-            onSelect={(s) => selectSuggestion(line.line_index, s)}
-          />
-        ))}
+        <ResultSummary check={check} next={<NextStep lines={lines} selected={selected} fromGuide={Boolean(guideId)} persisted={persisted} />} />
+        <ResultLines lines={lines} findings={check.findings} selected={selected} onSelect={selectSuggestion} />
         {aiMeta && (
           <div className="space-y-0.5">
             <AiResultMeta model={check.model} promptVersion={check.prompt_version} createdAt={check.created_at} />
@@ -205,22 +196,16 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
           canApprove={canApprove && persisted}
           saveState={saveState}
           saveError={saveError}
-          onStatusChange={(nextStatus) => {
-            setStatus(nextStatus);
-            void persistReview(nextStatus, expertRequested, note, finalText);
-          }}
           onExpertToggle={() => {
             const nextExpert = !expertRequested;
             setExpertRequested(nextExpert);
             void persistReview(status, nextExpert, note, finalText);
           }}
-          onReset={() => { setStatus("pending"); setExpertRequested(false); void persistReview("pending", false, note, finalText); }}
           onSaveNote={() => void persistReview(status, expertRequested, note, finalText)}
-          approveWarning={approveWarningOf({ mustFixLeft: lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length, expertRequested })}
         />
       )}
       {/* 만든 가이드에서 넘어왔으면: 고친 문구를 가이드 수정본으로 되돌린다 (약기법 우선: 「고쳐야 함」 줄은 대체 표현을 골라야 반영) */}
-      {check && !busy && persisted && guideId && (
+      {check && !busy && persisted && guideId && lines.some((l) => l.action !== "ok") && (
         <GuideRevisePanel
           stale={submittedText !== text}
           mustFixLeft={lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length}
@@ -230,22 +215,34 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
           onRevise={() => check && void revise(check.id, selected)}
         />
       )}
-      {/* 다음 단계: 저장된 검토만 상세·전문가 자료로 넘길 수 있다 */}
-      {check && !busy && persisted && (
+      {/* 다음 단계 줄은 문구만 검토할 때만: 콘텐츠에서 온 검토는 「가이드에 반영」이 콘텐츠 가이드로 데려가고, 최종 문구 복사는 검토 메모의 아이콘으로 (2026-10-27) */}
+      {check && !busy && persisted && !guideId && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>다음 단계 · 팀장 결재가 필요하면 검토 상세에서 시안으로 올려요. 최종 문구를 복사하거나 검토 이력에서 다시 볼 수도 있어요.</span>
-          <span className="flex flex-wrap gap-2">
-            {/* 이 화면의 검토 건은 자동 저장만 된다. 팀장 결재함에는 상세 화면의 「시안 · 결재」 패널에서 올린 시안만 들어간다 */}
-            <Link href={`/ad-check/${check.id}#submission`} className={buttonVariants({ size: "sm" })}>
-              시안으로 결재 올리기 →
-            </Link>
-            <CopyButton text={finalText} label="최종 문구 복사" />
-            <Link href="/ad-check/history" className={buttonVariants({ variant: "outline", size: "sm" })}>
-              검토 이력에서 보기
-            </Link>
-          </span>
+          <span>다음 단계 · 검토 기록에 저장됐어요. 최종 문구는 검토 메모에서 복사할 수 있어요.</span>
+          <Link href="/ad-check/history" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            검토 기록에서 보기
+          </Link>
         </div>
       )}
     </ViewStateGate>
+  );
+}
+
+/** 결론 칸의 「다음 할 일」: 대체 표현 고르기 → (가이드에서 왔으면) 가이드에 반영 · 결재 올리기 */
+function NextStep({ lines, selected, fromGuide, persisted }: { lines: AdLineResult[]; selected: Record<number, string>; fromGuide: boolean; persisted: boolean }) {
+  const toFix = lines.filter((l) => l.action !== "ok");
+  const picked = toFix.filter((l) => selected[l.line_index]).length;
+  const mustFixLeft = lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length;
+  // 다시 판정해 고칠 곳이 없으면 반영할 것도 없다 (가이드는 그대로 쓰면 된다)
+  const steps =
+    toFix.length === 0
+      ? [fromGuide ? "고칠 곳 없음 · 가이드는 이대로 써도 돼요" : "고칠 곳 없음", fromGuide ? "콘텐츠 가이드에서 결재 올리기" : persisted ? "검토 기록에 저장됨" : null].filter(Boolean)
+      : [`① 대체 표현 고르기 (${picked}/${toFix.length})`, fromGuide ? "② 아래 「가이드에 반영」" : null, fromGuide ? "③ 콘텐츠 가이드에서 결재 올리기" : persisted ? "② 검토 메모에서 최종 문구 복사 · 검토 기록에 저장됨" : null].filter(Boolean);
+  return (
+    <p className="text-sm">
+      <span className="font-medium">다음 할 일 · </span>
+      {steps.join(" → ")}
+      {mustFixLeft > 0 && <span className="text-risk-high"> · 「고쳐야 함」 {mustFixLeft}줄이 남았어요</span>}
+    </p>
   );
 }

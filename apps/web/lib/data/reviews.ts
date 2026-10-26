@@ -4,6 +4,7 @@ import type { ProductTitleAi } from "@/lib/schemas/product";
 import type { SaleStatus, SkinLine } from "@/lib/schemas/project";
 import type { Review, ReviewAnalysis, ReviewInsight } from "@/lib/schemas/review";
 import { getAppealComparison, getProduct, getProducts, getReviewReport, getReviews } from "./index";
+import { ownProductOrder } from "@/lib/own-products";
 
 export type ReviewProductView = {
   id: string;
@@ -56,7 +57,8 @@ export async function getReviewProductList(): Promise<ReviewProductView[]> {
       saleStatus: p.sale_status,
       titleAi: p.title_ai,
     }))
-    .toSorted((a, b) => Number(b.kind === "own") - Number(a.kind === "own"));
+    // 자사 제품이 먼저, 자사끼리는 OWN_PRODUCTS 순서 (Deep Skin → Core Essence)
+    .toSorted((a, b) => Number(b.kind === "own") - Number(a.kind === "own") || (a.kind === "own" && b.kind === "own" ? ownProductOrder(a.name) - ownProductOrder(b.name) : 0));
 }
 
 export async function getReviewProductById(id: string) {

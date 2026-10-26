@@ -1,130 +1,170 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/common/states";
 import { PageHeader } from "@/components/layout/page-header";
-import { DataTableTemplate } from "@/components/templates";
 import { buttonVariants } from "@/components/ui/button";
-import { getAdChecks, getContentGuides, getMembers, getProducts, getReviewTranslationCheckIds } from "@/lib/data";
+import { getMembers, getProducts } from "@/lib/data";
 import { getMyWorkspace } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
-import { ReviewStatus } from "@/lib/schemas/common";
-import { ActionBadge, ReviewStateBadge, STATUS_LABEL, USAGE_LABEL } from "../_components/ad-badges";
+import { ActionBadge, USAGE_LABEL } from "../_components/ad-badges";
 import { DeleteButton } from "../_components/delete-button";
 import { HistoryFilters } from "../_components/history-filters";
+import { GUIDE_CHANNELS } from "../_lib/content-guide-samples";
 import { koLines } from "../_lib/ko-lines";
+import { CONTENT_STATUS, loadRecords, type ContentRecord, type PhraseRecord } from "../_lib/records";
+
+// 「검토 기록」 (2026-10-27 TAB 3 흐름 개편): 「만든 가이드」 + 「검토 이력」을 합쳤다.
+// 콘텐츠 가이드가 먼저 — 한 줄에 최신 버전 하나. 그 가이드의 문구 검토 · 자동 검사 · 이전 버전은 콘텐츠 가이드 상세 아래 「이 가이드의 검토」에서 본다.
+// 콘텐츠 가이드에서 오지 않은 검토는 아래 「문구 검토」. 리뷰 번역 검토는 리뷰 분석 탭에서 다루므로 여기에는 없다.
+
+const CHANNEL_LABEL = Object.fromEntries(GUIDE_CHANNELS.map((c) => [c.id, c.label]));
+const KIND = ["content", "phrase"] as const;
+/** 목록에 보이는 제목 글자 수 */
+const TITLE_MAX = 36;
+/** 단어 중간에서 끊기지 않게 마지막 띄어쓰기에서 자른다 */
+function shortTitle(t: string) {
+  if (t.length <= TITLE_MAX) return t;
+  const cut = t.slice(0, TITLE_MAX);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > TITLE_MAX * 0.6 ? cut.slice(0, space) : cut).replace(/[\s/·,]+$/, "")}…`;
+}
 
 type HistoryPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function AdCheckHistoryPage({ searchParams }: HistoryPageProps) {
+export default async function RecordsPage({ searchParams }: HistoryPageProps) {
   const query = await searchParams;
-  const parsed = ReviewStatus.safeParse(query.status);
-  const status = parsed.success ? parsed.data : undefined;
   const productFilter = typeof query.product === "string" ? query.product : undefined;
-  // 종류: 직접 한 검토 / 리뷰 탭의 상세페이지용 리뷰 번역이 만든 검토 (번역 한 건마다 검토 한 건이 쌓인다)
-  const kindFilter = query.kind === "manual" || query.kind === "review" ? query.kind : undefined;
-  const [all, members, products, mine, reviewCheckIds, guides] = await Promise.all([getAdChecks(), getMembers(), getProducts(), getMyWorkspace().catch(() => null), getReviewTranslationCheckIds(), getContentGuides()]);
-  // 만든 가이드에서 온 검토가 이미 가이드에 반영됐는지 (그 검토로 만든 수정본이 있으면 반영됨)
-  const reflectedCheckIds = new Set(guides.flatMap((g) => (g.parent_id && g.ad_check_id ? [g.ad_check_id] : [])));
-  // 삭제(숨김)는 owner(팀장)만. 팀원 화면에는 버튼을 그리지 않는다
+  const kind = KIND.find((k) => k === query.type);
+  const [{ contents, phrases }, members, products, mine] = await Promise.all([loadRecords(), getMembers(), getProducts(), getMyWorkspace().catch(() => null)]);
+  // 삭제는 owner(팀장)만. 콘텐츠 가이드는 모든 버전을 지우고 묶인 문구 검토는 숨긴다 (약기법 기록은 남음)
   const isOwner = mine?.role === "owner";
-  const checks = all
-    .filter((c) => (!status || c.review_status === status) && (!productFilter || c.product_id === productFilter))
-    .filter((c) => !kindFilter || (kindFilter === "review") === reviewCheckIds.has(c.id))
-    .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
-  const memberName = (id: string | null) => members.find((m) => m.user_id === id)?.display_name ?? "—";
-  const productName = (id: string | undefined) => products.find((p) => p.id === id)?.name ?? "—";
-  // 검토 내역이 있는 제품만 고를 수 있게 한다
-  const productOptions = products
-    .filter((p) => all.some((c) => c.product_id === p.id) || p.id === productFilter)
-    .map((p) => ({ value: p.id, label: p.name }));
+  const memberName = (id: string | null | undefined) => members.find((m) => m.user_id === id)?.display_name ?? null;
+  const productName = (id: string | null | undefined) => products.find((p) => p.id === id)?.name ?? "—";
+
+  const shownContents = kind === "phrase" ? [] : contents.filter((c) => !productFilter || c.latest.product_id === productFilter);
+  const shownPhrases = kind === "content" ? [] : phrases.filter((p) => !productFilter || p.check.product_id === productFilter);
+  const productIds = new Set([...contents.map((c) => c.latest.product_id), ...phrases.map((p) => p.check.product_id)]);
+  const productOptions = products.filter((p) => productIds.has(p.id) || p.id === productFilter).map((p) => ({ value: p.id, label: p.name }));
 
   return (
     <>
-      <PageHeader title="검토 이력" description="원문, 수정 제안, 담당자 검토 결과" featureId="A" />
-      {/* 결과가 없을 때도 필터를 남겨 다른 조건으로 바꿀 수 있게, 필터는 표 템플릿 밖에 둔다 */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <PageHeader title="검토 기록" description="만든 콘텐츠 가이드와 문구 검토를 한곳에서 봐요. 콘텐츠 가이드를 열어 걸린 문구를 고치고 결재에 올려요" featureId="A" />
+        <span className="flex flex-wrap gap-2">
+          <Link href="/ad-check/guide" className={buttonVariants()}>
+            콘텐츠 가이드 만들기 +
+          </Link>
+          <Link href="/ad-check" className={`${buttonVariants({ variant: "outline" })} border-foreground/40!`}>
+            문구 검토 +
+          </Link>
+        </span>
+      </div>
+      <p className="mb-4 text-xs text-muted-foreground">① 콘텐츠 가이드 만들기 → ② 걸린 문구 검토 → ③ 가이드에 반영 → ④ 콘텐츠 가이드 결재 올리기</p>
       <div className="mb-4">
         <HistoryFilters
           filters={[
             { key: "product", label: "제품", options: productOptions },
-            { key: "status", label: "검토 상태", options: ReviewStatus.options.map((v) => ({ value: v, label: STATUS_LABEL[v] })) },
-            { key: "kind", label: "종류", options: [{ value: "manual", label: "직접 검토" }, { value: "review", label: "리뷰 번역" }] },
+            { key: "type", label: "종류", options: [{ value: "content", label: "콘텐츠 가이드" }, { value: "phrase", label: "문구" }] },
           ]}
         />
       </div>
-      {checks.length === 0 ? (
-        <EmptyState message="조건에 맞는 검토 이력이 없습니다" action="필터를 바꾸거나 「전체」를 골라 보세요" />
+      {shownContents.length === 0 && shownPhrases.length === 0 ? (
+        <EmptyState message="조건에 맞는 기록이 없습니다" action="「콘텐츠 가이드 만들기 +」로 시작하거나 필터를 바꿔 보세요" />
       ) : (
-        <DataTableTemplate
-          columns={[
-            { key: "text", label: "문구" },
-            { key: "product", label: "제품" },
-            { key: "usage", label: "용도" },
-            { key: "action", label: "판정" },
-            { key: "status", label: "상태" },
-            { key: "author", label: "작성자" },
-            { key: "reviewer", label: "검토자" },
-            { key: "date", label: "요청일" },
-            { key: "detail", label: "" },
-            ...(isOwner ? [{ key: "delete", label: "" }] : []),
-          ]}
-          rows={checks.map((c) => {
-            // 목록 문구는 한국어로 통일한다 (줄마다 일본어 줄은 번역, 번역이 없으면 원문에 「일본어」 표시). 마우스를 올리면 첫 줄 원문
-            const [first, ...rest] = koLines(c);
-            return {
-              id: c.id,
-              href: `/ad-check/${c.id}`, // 문구를 누르면 상세(두괄식 결과), 고쳐서 다시 판정은 맨 끝 「재검토」
-              cells: {
-                text: (
-                  // 긴 문구는 한 줄로 자르고 전체는 title로 보여준다
-                  <span title={first?.original} className="flex max-w-80 items-center gap-1">
-                    {first?.untranslated && <span className="shrink-0 rounded border px-1 text-[0.65rem] text-muted-foreground">일본어</span>}
-                    {/* 표 템플릿의 링크 밑줄이 잘린 글자(truncate)까지 내려오지 않아서, 링크에 커서를 올리면 여기서 밑줄을 긋는다 */}
-                    <span lang={first?.untranslated ? "ja" : "ko"} className="truncate font-medium underline-offset-4 [a:hover_&]:underline">
-                      {first?.text ?? ""}
-                    </span>
-                    {rest.length > 0 && <span className="shrink-0 text-muted-foreground">외 {rest.length}줄</span>}
-                    {c.content_guide_id &&
-                      (reflectedCheckIds.has(c.id) ? (
-                        <span className="shrink-0 rounded border px-1 text-[0.65rem] text-muted-foreground" title="만든 가이드에서 온 검토 · 가이드에 반영했어요">
-                          가이드 · 반영됨
-                        </span>
-                      ) : (
-                        <span className="shrink-0 rounded border border-primary/50 px-1 text-[0.65rem] text-primary" title="만든 가이드에서 온 검토 · 상세에서 대체 표현을 골라 「가이드에 반영」할 수 있어요">
-                          가이드 · 반영 전
-                        </span>
-                      ))}
-                  </span>
-                ),
-                product: (
-                  <span className="block max-w-44 truncate" title={productName(c.product_id)}>
-                    {productName(c.product_id)}
-                  </span>
-                ),
-                // 리뷰 번역 검토는 「리뷰」로 표시한다 (DB 용도는 detail_page 그대로, 마우스를 올리면 설명)
-                usage: reviewCheckIds.has(c.id) ? (
-                  <span className="whitespace-nowrap rounded border px-1.5 text-xs" title="리뷰 분석 탭의 상세페이지용 리뷰 번역 검토">
-                    리뷰
-                  </span>
-                ) : (
-                  <span className="whitespace-nowrap">{c.usage ? USAGE_LABEL[c.usage] : "—"}</span>
-                ),
-                action: c.overall_action ? <ActionBadge action={c.overall_action} /> : "—",
-                status: <ReviewStateBadge status={c.review_status} expertRequested={c.is_expert_review_requested} />,
-                author: memberName(c.created_by ?? null),
-                reviewer: memberName(c.reviewer_id),
-                date: formatDate(c.created_at),
-                detail: (
-                  <Link href={`/ad-check?from=${c.id}`} className={`${buttonVariants({ variant: "outline", size: "sm" })} border-foreground/40!`}>
-                    재검토
-                  </Link>
-                ),
-                delete: <DeleteButton endpoint={`/api/ad-check/${c.id}`} confirmMessage="이 검토를 목록에서 삭제할까요? 기록은 증거용으로 DB에 남습니다." />,
-              },
-            };
-          })}
-        />
+        <div className="space-y-2">
+          {shownContents.map((c) => (
+            <ContentRow key={c.latest.id} record={c} productName={productName(c.latest.product_id)} author={memberName(c.latest.created_by)} isOwner={isOwner} />
+          ))}
+          {shownPhrases.length > 0 && (
+            <>
+              {kind !== "phrase" && shownContents.length > 0 && <h2 className="pt-3 text-sm font-semibold text-muted-foreground">문구 검토</h2>}
+              {shownPhrases.map((p) => (
+                <PhraseRow key={p.check.id} record={p} productName={productName(p.check.product_id)} author={memberName(p.check.created_by)} isOwner={isOwner} />
+              ))}
+            </>
+          )}
+        </div>
       )}
     </>
   );
 }
+
+/** 둘째 줄: 제품 · 채널(용도) · 작성자 · 날짜 */
+function Meta({ parts }: { parts: (string | null)[] }) {
+  return <p className="truncate text-xs text-muted-foreground">{parts.filter(Boolean).join(" · ")}</p>;
+}
+
+function ContentRow({ record, productName, author, isOwner }: { record: ContentRecord; productName: string; author: string | null; isOwner: boolean }) {
+  const { latest, versions, status, phrases } = record;
+  const st = CONTENT_STATUS[status];
+  // 고칠 곳은 없지만 「수정 권장」이 남았으면 상태 옆에 점만 찍는다 (마우스를 올리면 설명)
+  const advisory = status !== "needs_fix" && record.action === "should_fix";
+  return (
+    <article className="flex items-center gap-3 rounded-lg border p-3 text-sm">
+      <Link href={`/ad-check/guide/history/${latest.id}`} className="min-w-0 flex-1 space-y-0.5">
+        <p className="flex items-center gap-2">
+          {/* 목록 제목은 앞 TITLE_MAX 글자만 보이고 「…」로 줄인다 (화면이 넓어도 줄 길이를 맞춘다). 마우스를 올리면 한국어 제목 전체 */}
+          <span className="min-w-0 truncate font-medium underline-offset-4 hover:underline" title={record.title.ko}>
+            {shortTitle(record.title.ko)}
+          </span>
+          {versions.length > 1 && <span className="shrink-0 text-xs text-muted-foreground">v{versions.length}</span>}
+        </p>
+        <Meta parts={[productName, CHANNEL_LABEL[latest.channel] ?? latest.channel, author, formatDate(latest.created_at)]} />
+      </Link>
+      {/* 이 콘텐츠 가이드에서 나온 문구 검토 바로 가기: 가장 최근 것 하나 (처음 것부터 v1, v2 … 로 센 번호). 이전 검토는 콘텐츠 가이드 상세의 「이 가이드의 검토」 */}
+      {phrases.length > 0 && (
+        <span className="flex shrink-0 items-center gap-1">
+          {phrases
+            .toReversed()
+            .map((p, i) => ({ ...p, no: i + 1 }))
+            .slice(-1)
+            .map(({ check, reflected, no }) => (
+              <Link
+                key={check.id}
+                href={`/ad-check/${check.id}`}
+                title={`문구 검토 v${no} · ${reflected ? "가이드에 반영됨" : "반영 전"}`}
+                className={`rounded border px-1.5 py-0.5 text-xs underline-offset-4 hover:underline ${reflected ? "text-muted-foreground" : "border-primary/50 text-primary"}`}
+              >
+                문구 v{no}
+              </Link>
+            ))}
+        </span>
+      )}
+      <span className={`shrink-0 whitespace-nowrap rounded border px-1.5 py-0.5 text-xs ${st.tone}`} title={advisory ? `${st.hint} · 「수정 권장」 표현이 남아 있어요` : st.hint}>
+        {st.label}
+        {advisory && <span className="ml-1 text-risk-medium">•</span>}
+      </span>
+      {isOwner && (
+        <DeleteButton
+          endpoint={`/api/content-guide/${latest.id}?all=1`}
+          confirmMessage={`이 콘텐츠 가이드${versions.length > 1 ? `(v1~v${versions.length})` : ""}${record.phrases.length ? `와 문구 검토 ${record.phrases.length}건` : ""}을 목록에서 지울까요? 지운 콘텐츠 가이드는 되돌릴 수 없어요. (약기법 검사 기록은 남아요)`}
+        />
+      )}
+    </article>
+  );
+}
+
+function PhraseRow({ record, productName, author, isOwner }: { record: PhraseRecord; productName: string; author: string | null; isOwner: boolean }) {
+  const { check } = record;
+  // 목록 문구는 한국어로 통일 (일본어 줄은 번역, 번역이 없으면 원문에 「일본어」 표시). 마우스를 올리면 첫 줄 원문
+  const [first, ...rest] = koLines(check);
+  return (
+    <article className="flex items-center gap-3 rounded-lg border p-3 text-sm">
+      <Link href={`/ad-check/${check.id}`} className="min-w-0 flex-1 space-y-0.5" title={first?.original}>
+        <p className="flex items-center gap-1">
+          {first?.untranslated && <span className="shrink-0 rounded border px-1 text-[0.65rem] text-muted-foreground">일본어</span>}
+          <span lang={first?.untranslated ? "ja" : "ko"} className="truncate font-medium underline-offset-4 hover:underline">
+            {first?.text ?? ""}
+          </span>
+          {rest.length > 0 && <span className="shrink-0 text-xs text-muted-foreground">외 {rest.length}줄</span>}
+        </p>
+        <Meta parts={[productName, check.usage ? USAGE_LABEL[check.usage] : null, author, formatDate(check.created_at)]} />
+      </Link>
+      {check.overall_action && <ActionBadge action={check.overall_action} />}
+      {/* 재검토는 검토 상세의 「이 내용으로 재검토」에서 (목록은 열기 · 삭제만, 2026-10-27) */}
+      {isOwner && <DeleteButton endpoint={`/api/ad-check/${check.id}`} confirmMessage="이 검토를 목록에서 삭제할까요? 기록은 증거용으로 DB에 남습니다." />}
+    </article>
+  );
+}
+
