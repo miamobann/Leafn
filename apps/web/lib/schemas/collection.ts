@@ -28,9 +28,13 @@ export const CollectionRunStatus = z.enum(["queued", "running", "ready", "saved"
 export type CollectionRunStatus = z.infer<typeof CollectionRunStatus>;
 
 // 시각은 문자열 그대로 둔다 (DB가 돌려주는 마이크로초 표기를 그대로 받으려고)
+/** 수집 중(running)인데 이만큼 소식이 없으면 수집기가 꺼진 것으로 보고 화면에서 취소할 수 있게 한다. 수집기는 제품 하나(약 1분)마다 소식을 남긴다 */
+export const STALE_RUNNING_MS = 10 * 60 * 1000;
+
 export const CollectionRunRow = z.object({
   id: Id,
   created_at: z.string(),
+  updated_at: z.string(),
   platform_id: z.string(),
   category: z.string(),
   own_product_id: Id.nullable(),
@@ -41,6 +45,10 @@ export const CollectionRunRow = z.object({
   error: z.string().nullable(),
   finished_at: z.string().nullable(),
   saved_count: z.number().nullable(),
+  // 진행 표시 (마이그레이션 20261026210000). 수집기가 아직 쓰지 않았으면 null
+  progress_total: z.number().nullable(),
+  progress_done: z.number().nullable(),
+  progress_note: z.string().nullable(),
 });
 export type CollectionRunRow = z.infer<typeof CollectionRunRow>;
 

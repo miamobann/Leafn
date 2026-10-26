@@ -64,7 +64,11 @@ export type CollectionView = {
     /** 별점마다 새로 가져올 건수 */
     reviewLimit: number;
     createdAt: string;
+    /** 마지막 소식 시각. 수집 중인데 한참 바뀌지 않으면 수집기가 멈춘 것이다 (STALE_RUNNING_MS) */
+    updatedAt: string;
     savedCount: number | null;
+    /** 수집 중 진행 (제품 단위). 수집기가 아직 적지 않았으면 null → 화면은 숫자 없이 "읽고 있어요"만 보여 준다 */
+    progress: { done: number; total: number; note: string | null } | null;
   };
   rows: CollectionRowView[];
   /** 비교 대상이 아니라 수집기가 자동으로 뺀 제품 (리뷰는 읽지 않았다). 순위순 */
@@ -73,7 +77,8 @@ export type CollectionView = {
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
-export const RUN_COLUMNS = "id, created_at, platform_id, category, own_product_id, top_n, stars, review_limit, status, error, finished_at, saved_count";
+export const RUN_COLUMNS =
+  "id, created_at, updated_at, platform_id, category, own_product_id, top_n, stars, review_limit, status, error, finished_at, saved_count, progress_total, progress_done, progress_note";
 const PRODUCT_COLUMNS = "id, rank, external_id, brand, title, is_set, status, site_total_count, site_low_count, site_low_count_exact, star_counts, error, saved_count";
 
 type Counted = PromiseLike<{ count: number | null; error: { message: string } | null }>;
@@ -170,7 +175,9 @@ export async function buildCollectionView(supabase: Supabase, runRaw: unknown): 
       stars: run.stars.toSorted((a, b) => a - b),
       reviewLimit: run.review_limit,
       createdAt: run.created_at,
+      updatedAt: run.updated_at,
       savedCount: run.saved_count,
+      progress: run.progress_total === null ? null : { done: run.progress_done ?? 0, total: run.progress_total, note: run.progress_note },
     },
     rows: products.map((p) => ({
       id: p.id,
