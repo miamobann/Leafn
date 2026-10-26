@@ -81,7 +81,8 @@
   --accent-foreground: #1e2b22;
   --destructive: #742f25;
   --border: #e8ede7;
-  --input: #d3e0d1;
+  /* 입력 칸·체크박스 테두리. 바탕 대비 3:1 이상(WCAG 1.4.11)이라 칸 경계가 보인다 (디자인 전환 3단계) */
+  --input: #7d8f82;
   --ring: #5e8f68;
   --chart-1: #d3e0d1;
   --chart-2: #6f8475;
