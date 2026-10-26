@@ -84,6 +84,7 @@
 | --- | --- | --- |
 | `trend_snapshots` | source (`rakuten_ranking` · `qoo10_ranking`), category, captured_at, data `jsonb` | 팀 데이터 (초안의 "공용" 안은 쓰지 않았다). 데모는 `qoo10_ranking` |
 | `search_snapshots` | engine (`google_autocomplete` · `google_trends`), seed, gl, hl, captured_at, suggestions `jsonb` [{value, position, relevance}] | SerpApi 결과 |
+| `sns_trend_analyses` | created_by, category, videos `jsonb` (입력 링크·메모 + Apify 영상 정보), result `jsonb` (니즈·키워드·버린 수·analyzed_at), model, prompt_version | TikTok 영상 분석 한 번 = 한 행. 화면은 카테고리마다 최신 행 (2026-10-26) |
 | `geo_snapshots` | engine (`chatgpt` · `claude` · `gemini` · `perplexity`), model, prompt_version, category, query, query_concern, run_index, answer, brands_mentioned `text[]`, brand_mentions·citations·keywords `jsonb`, captured_at | AI 검색 응답 측정 |
 
 ### 캘린더 (`20261023030000_launch.sql`, 2026-10-23 확정)
@@ -149,7 +150,7 @@ workspaces ─┬─ workspace_members ──┬─ profiles (= auth.users)
             ├─ promo_events ──┬─ promo_milestones
             │                 └─ ad_checks · content_guides (promo_event_id)
             ├─ platform_notes
-            ├─ trend_snapshots · search_snapshots · geo_snapshots
+            ├─ trend_snapshots · search_snapshots · geo_snapshots · sns_trend_analyses
             ├─ surveys ──┬─ survey_responses
             │            ├─ survey_minor_counts
             │            └─ survey_reco_events
@@ -218,6 +219,7 @@ create policy "members delete" on products for delete using (is_member(workspace
 | `20261026190000_owner_only_approval_reads.sql` | 결재함은 팀장만: 팀원은 자기 버전 · 승인본과 그 결재 기록만 읽기, 버전 번호 트리거를 security definer로 |
 | `20261026200000_ad_checks_content_guide.sql` | ad_checks.content_guide_id (만든 가이드에서 온 검토 → 검토 상세에서 「이 가이드에 반영」) |
 | `20261026210000_collection_runs_progress.sql` | collection_runs.progress_total · progress_done · progress_note (수집 진행 "제품 N / M개") |
+| `20261026220000_create_sns_trend_analyses.sql` | sns_trend_analyses (SNS 영상 분석 결과 저장) |
 
 새 파일은 `npx supabase migration new <이름>`으로 만들고, 원격 적용은 DB 관리자(Min)가 한다 (DB_RULES 6장).
 

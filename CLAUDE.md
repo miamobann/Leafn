@@ -256,7 +256,7 @@
 | 수집 | `collection_runs`, `collection_run_products`, `collection_staged_reviews`, `collection_run_skipped` | 화면에서 낸 수집 요청과 수집기의 진행·임시 결과 | E |
 | 광고 검토 | `ad_checks`, `ad_check_lines`, `content_guides` | 판정 한 건, 줄별 판정, 콘텐츠 제작 가이드 결과물 | A |
 | | `review_translations` | 상세페이지용 리뷰의 일본어 번역과 그 번역을 통과시킨 약기법 검토(`ad_check_id`) | F |
-| 시장 | `trend_snapshots`, `search_snapshots`, `geo_snapshots` | 랭킹(Qoo10·라쿠텐), 검색 자동완성·Trends, AI 검색 응답 | B, GEO |
+| 시장 | `trend_snapshots`, `search_snapshots`, `geo_snapshots`, `sns_trend_analyses` | 랭킹(Qoo10·라쿠텐, 화면에서 CSV 업로드), 검색 자동완성·Trends, AI 검색 응답, SNS 영상 분석 결과 | B, GEO |
 | 캘린더 | `promo_events`, `promo_milestones`, `platform_notes` | 행사·캠페인, 준비 마감, 플랫폼 메모(화면 없음) | I, H |
 | 설문 | `surveys`, `survey_responses`, `survey_minor_counts`, `survey_reco_events` | 설문 정의, 응답, 미성년 참여 수, 추천 노출·클릭 | G |
 | 시안·결재 | `member_tabs` | 멤버별 담당 탭 (owner는 모든 탭, `has_tab()`) | M |
@@ -282,10 +282,10 @@
 | `PATCH /api/ad-check/[checkId]` | 담당자 승인·반려 저장 (owner만, RLS와 서버 양쪽에서 확인) | - |
 | `POST /api/content-guide` | 콘텐츠 제작 가이드(제목·본문) 생성 + 금지 표현 검사(`lint_hits`) → `content_guides` 저장 | 정밀·대량 |
 | `POST /api/geo/run` | AI 검색 응답 측정 → `geo_snapshots` | 측정 엔진은 `GEO_MODEL_*`, 키워드 추출은 대량 |
-| `POST /api/market/sns-trends` | TikTok 영상 링크 → Apify로 캡션·해시태그·발화 자막 → 소비자 핵심 니즈 순위 (저장하지 않음) | 대량 |
+| `POST /api/market/sns-trends` | TikTok 영상 링크 → Apify로 캡션·해시태그·발화 자막 → 소비자 핵심 니즈 순위 → `sns_trend_analyses` (테이블 적용 전이면 저장 안 함) | 대량 |
 | `POST /api/trends/autocomplete`, `POST /api/trends/search-interest` | SerpApi Google 자동완성·Trends (키는 서버에만) → `search_snapshots` | - |
 
-**Server Action (`lib/data/*-actions.ts`)**: 리뷰 CSV 저장(`review-import-actions`), 리뷰 묶음 분석·번역(`review-analysis-actions`), 수집 요청(`collection-actions`), 캘린더 행사·준비 마감 추가·수정·삭제·완료 체크(`launch-actions`), 프로젝트·제품 관리(`projects`), 시안 저장·제출·결재·AI 분석 팀장 확인(`submission-actions`), 통합 AI 분석 실행(`ai-analysis-actions`), 설정의 담당 탭(`member-tab-actions`).
+**Server Action (`lib/data/*-actions.ts`)**: 리뷰 CSV 저장(`review-import-actions`), 리뷰 묶음 분석·번역(`review-analysis-actions`), 수집 요청(`collection-actions`), 캘린더 행사·준비 마감 추가·수정·삭제·완료 체크(`launch-actions`), 프로젝트·제품 관리(`projects`), 시안 저장·제출·결재·AI 분석 팀장 확인(`submission-actions`), 통합 AI 분석 실행(`ai-analysis-actions`), 설정의 담당 탭(`member-tab-actions`), Qoo10 랭킹 CSV 저장(`ranking-import-actions`), 경쟁제품 CSV 등록(`competitor-import-actions`), SNS 분석 결과 JSON 저장(`sns-analysis-actions`).
 
 **아직 없는 것:** 상품 정보 추출(`/api/products/extract`), 공개 설문 제출 저장, 리뷰 번역 저장(F). 결재·AI 분석은 Route Handler 없이 Server Action과 DB 함수(rpc: `submit_version`·`decide_version` 등)로 한다.
 

@@ -19,7 +19,7 @@
 | ad_checks, ad_check_lines, content_guides | 약기법 광고 검토 판정 자동 저장·이력 조회·담당자 승인(`owner` 전용), 콘텐츠 제작 가이드 자동 저장·자료실 연동 |
 | product_competitors | 소구점 비교의 실제 자사-경쟁제품 연결 |
 | reviews, review_analyses | 리뷰 목록·리포트·소구점. 제외 리뷰 제거, 실제 분석 연결. AI 묶음 분석과 일본어 → 한국어 번역(`reviews.body_ko`)을 화면에서 실행·저장 (#76) |
-| trend_snapshots, search_snapshots, geo_snapshots | 시장 화면 초기 조회·새로고침 시 저장된 결과 표시 |
+| trend_snapshots, search_snapshots, geo_snapshots, sns_trend_analyses | 시장 화면 초기 조회·새로고침 시 저장된 결과 표시. 랭킹은 화면의 [랭킹 CSV 올리기], SNS는 [분석 시작]·[결과 JSON 올리기]로 저장 (서버는 PC 파일을 읽지 않는다, 2026-10-26) |
 | platform_notes | 화면 없음 (진출 실행 탭 제거, 2026-10-24). 테이블은 확장용으로 남김 |
 | promo_events, promo_milestones | 홈 캘린더·`/calendar` 전체보기·콘텐츠 제작 재료 조회. `/calendar`에서 행사·준비 마감 추가·수정·삭제, 홈과 `/calendar`에서 완료 체크 저장(`done_at`) (2026-10-26) |
 | surveys, survey_responses | 설문 집계의 문항·피부타입·연령·고민·최근 응답 |
