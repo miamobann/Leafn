@@ -46,7 +46,7 @@ export default async function RecordsPage({ searchParams }: HistoryPageProps) {
           <Link href="/ad-check/guide" className={buttonVariants()}>
             콘텐츠 가이드 만들기 +
           </Link>
-          <Link href="/ad-check" className={buttonVariants({ variant: "outline" })}>
+          <Link href="/ad-check" className={`${buttonVariants({ variant: "outline" })} border-foreground/40!`}>
             문구 검토 +
           </Link>
         </span>
@@ -87,19 +87,41 @@ function Meta({ parts }: { parts: (string | null)[] }) {
 }
 
 function ContentRow({ record, productName, author, isOwner }: { record: ContentRecord; productName: string; author: string | null; isOwner: boolean }) {
-  const { latest, versions, status } = record;
+  const { latest, versions, status, phrases } = record;
   const st = CONTENT_STATUS[status];
   // 고칠 곳은 없지만 「수정 권장」이 남았으면 상태 옆에 점만 찍는다 (마우스를 올리면 설명)
   const advisory = status !== "needs_fix" && record.action === "should_fix";
   return (
     <article className="flex items-center gap-3 rounded-lg border p-3 text-sm">
-      <Link href={`/ad-check/guide/history/${latest.id}`} className="min-w-0 flex-1 space-y-0.5" title={record.title.ja}>
+      <Link href={`/ad-check/guide/history/${latest.id}`} className="min-w-0 flex-1 space-y-0.5">
         <p className="flex items-center gap-2">
-          <span className="truncate font-medium underline-offset-4 hover:underline">{record.title.ko}</span>
+          {/* 길면 줄 끝을 「…」로 자른다. 마우스를 올리면 한국어 제목 전체 */}
+          <span className="min-w-0 truncate font-medium underline-offset-4 hover:underline" title={record.title.ko}>
+            {record.title.ko}
+          </span>
           {versions.length > 1 && <span className="shrink-0 text-xs text-muted-foreground">v{versions.length}</span>}
         </p>
         <Meta parts={[productName, CHANNEL_LABEL[latest.channel] ?? latest.channel, author, formatDate(latest.created_at)]} />
       </Link>
+      {/* 이 콘텐츠 가이드에서 나온 문구 검토 바로 가기 (처음 것부터 문구 v1, v2 …). 많으면 최근 3개만 */}
+      {phrases.length > 0 && (
+        <span className="flex shrink-0 items-center gap-1">
+          {phrases
+            .toReversed()
+            .map((p, i) => ({ ...p, no: i + 1 }))
+            .slice(-3)
+            .map(({ check, reflected, no }) => (
+              <Link
+                key={check.id}
+                href={`/ad-check/${check.id}`}
+                title={`문구 검토 v${no} · ${reflected ? "가이드에 반영됨" : "반영 전"}`}
+                className={`rounded border px-1.5 py-0.5 text-xs underline-offset-4 hover:underline ${reflected ? "text-muted-foreground" : "border-primary/50 text-primary"}`}
+              >
+                문구 v{no}
+              </Link>
+            ))}
+        </span>
+      )}
       <span className={`shrink-0 whitespace-nowrap rounded border px-1.5 py-0.5 text-xs ${st.tone}`} title={advisory ? `${st.hint} · 「수정 권장」 표현이 남아 있어요` : st.hint}>
         {st.label}
         {advisory && <span className="ml-1 text-risk-medium">•</span>}
