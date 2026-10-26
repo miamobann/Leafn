@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { PromoEventView } from "@/lib/data/launch";
 import { createPromoEvent } from "@/lib/data/launch-actions";
+import { platformLabel } from "@/lib/platforms";
 import { PromoEventInput } from "@/lib/schemas/promo";
 
 export function NewEventForm({ platformKeys, onCreated }: { platformKeys: string[]; onCreated: (e: PromoEventView) => void }) {
@@ -20,6 +21,8 @@ export function NewEventForm({ platformKeys, onCreated }: { platformKeys: string
       title: text("title"),
       start_date: text("start_date"),
       end_date: text("end_date"),
+      // 자사 캠페인은 팀이 날짜를 정하므로 늘 확정. 플랫폼 행사는 공지를 확인했을 때만 체크
+      is_confirmed: !platform || form.get("is_confirmed") === "on",
       milestones: text("due_label") && text("due_date") ? [{ label: text("due_label"), due_date: text("due_date") }] : [],
     });
     if (!parsed.success) {
@@ -27,7 +30,11 @@ export function NewEventForm({ platformKeys, onCreated }: { platformKeys: string
       return;
     }
     setError(null);
-    startTransition(async () => onCreated(await createPromoEvent(parsed.data)));
+    startTransition(async () => {
+      const result = await createPromoEvent(parsed.data);
+      if (result.ok) onCreated(result.data);
+      else setError(result.message);
+    });
   };
 
   return (
@@ -37,7 +44,7 @@ export function NewEventForm({ platformKeys, onCreated }: { platformKeys: string
         <option value="">자사 캠페인 (플랫폼 없음)</option>
         {platformKeys.map((k) => (
           <option key={k} value={k}>
-            {k}
+            {platformLabel(k)}
           </option>
         ))}
       </select>
@@ -47,7 +54,10 @@ export function NewEventForm({ platformKeys, onCreated }: { platformKeys: string
       <label className="flex items-center gap-2">
         종료 <Input type="date" name="end_date" />
       </label>
-      <span />
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" name="is_confirmed" />
+        확정 일정 (플랫폼 공지 확인)
+      </label>
       <Input name="due_label" placeholder="첫 준비 마감 (예: 참가 신청)" aria-label="준비 마감 이름" />
       <Input type="date" name="due_date" aria-label="준비 마감 날짜" />
       <Button type="submit" size="sm" disabled={pending}>

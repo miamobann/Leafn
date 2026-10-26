@@ -6,9 +6,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { Scores, SkinType, SurveyProductLine, SurveyQuestion } from "@/lib/schemas/survey";
+import type { Scores, SkinType, SurveyProductLine, SurveyQuestion, SurveySource } from "@/lib/schemas/survey";
 import { calcScores, isUnder18, judge, maxScores } from "@/lib/survey/judge";
 import { clearSession, parseSession, readSessionRaw, subscribeSession } from "../_lib/session";
 import { trackReco } from "../_lib/submit";
@@ -107,24 +106,13 @@ const COPY = {
   ingredients: "保湿成分：",
   status: { on_sale: "発売中", in_development: "開発中" },
   buy: "購入する",
-  notifyOpen: "発売のお知らせを受け取る",
-  notifyMinor: "18歳未満の方はお申し込みいただけません",
-  notifyDone: (via: string) => `発売のお知らせを申し込みました（${via}）`,
+  notifyOpen: "発売のお知らせについて",
   noReco: "この肌タイプのおすすめ製品は準備中です。",
   sensitiveUse: "はじめて使うときは、腕の内側で試してからお使いください。",
   notify: {
-    title: (name: string) => `「${name}」発売のお知らせ`,
-    method: "お知らせの受け取り方法",
-    email: "メール",
-    line: "LINE",
-    emailLabel: "メールアドレス",
-    lineNote:
-      "LINEはIDの入力は不要です。ボタンを押すとLeaf&公式アカウントの友だち追加画面が開き、追加が完了するとお知らせの対象として登録されます。",
-    consent: "[必須] 新商品の発売案内など、Leaf&からのお知らせ（メール／LINE）の受信に同意します",
-    separate: "連絡先は診断の回答とは別に保管し、診断結果とはひも付けません。配信はいつでも停止できます。",
+    title: (name: string) => `「${name}」の発売予定`,
+    note: "現在、発売のお知らせの申し込みは受け付けていません。受付を始める際は、このページでご案内します。",
     close: "閉じる",
-    submitEmail: "申し込む",
-    submitLine: "LINEで友だち追加して申し込む",
   },
   disclaimer: "本診断は、肌タイプに合わせたスキンケアの参考情報を提供するものであり、医師による診断や治療行為に代わるものではありません。",
   savedAdult: "※ 回答内容は個人を特定しない統計情報として安全に保管されます。",
@@ -135,18 +123,12 @@ const COPY = {
 };
 
 type Tab = keyof typeof COPY.tabs;
-type Via = "email" | "line";
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]; lines: SurveyProductLine[] }) {
   // 서버 렌더에는 세션이 없으므로 undefined(불러오는 중)로 두고, 브라우저에서 읽는다
   const raw = useSyncExternalStore(subscribeSession, readSessionRaw, () => undefined);
   const [tab, setTab] = useState<Tab>("reco");
   const [notifyLine, setNotifyLine] = useState<string | null>(null);
-  const [via, setVia] = useState<Via>("email");
-  const [email, setEmail] = useState("");
-  const [notifyAgree, setNotifyAgree] = useState(false);
-  const [done, setDone] = useState<Record<string, Via>>({});
 
   if (raw === undefined) return null;
   const session = parseSession(raw);
@@ -166,6 +148,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
   const { skinType, isSensitive } = judge(scores);
   const type = TYPES[skinType];
   const under18 = isUnder18(questions, session.answers);
+  const source = session.source;
   const recos = lines.filter((l) => l.for_types.includes(skinType));
   const tips = isSensitive ? [...type.tips, ...COPY.sensitiveTips] : type.tips;
 
@@ -178,20 +161,10 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
     .join("、");
 
   const openLine = lines.find((l) => l.id === notifyLine);
-  const canSubmit = notifyAgree && (via === "line" || EMAIL_PATTERN.test(email.trim()));
 
   function openNotify(lineId: string) {
-    trackReco({ event: "notify_open", lineId, skinType, under18 });
+    trackReco({ event: "notify_open", lineId, skinType, source, under18 });
     setNotifyLine(lineId);
-    setEmail("");
-    setNotifyAgree(false);
-  }
-
-  function submitNotify() {
-    if (!notifyLine || !canSubmit) return;
-    // 실제로는 설문 응답과 다른 표(출시 알림 신청)에 저장한다. 표 추가는 팀 합의 후
-    setDone((prev) => ({ ...prev, [notifyLine]: via }));
-    setNotifyLine(null);
   }
 
   function retry() {
@@ -237,7 +210,7 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
           <Card>
             <CardContent className="space-y-4">
               <h2 className="font-semibold">{COPY.recoTitle}</h2>
-              <TrackShown lineIds={recos.map((l) => l.id)} skinType={skinType} under18={under18} />
+              <TrackShown lineIds={recos.map((l) => l.id)} skinType={skinType} source={source} under18={under18} />
               <Image
                 src={POSTERS[POSTER_FOR[skinType]].src}
                 alt={POSTERS[POSTER_FOR[skinType]].alt}
@@ -287,21 +260,13 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
                   {line.status === "on_sale" && SHOP_PATH[line.id] && (
                     <Link
                       href={SHOP_PATH[line.id]}
-                      onClick={() => trackReco({ event: "buy_click", lineId: line.id, skinType, under18 })}
+                      onClick={() => trackReco({ event: "buy_click", lineId: line.id, skinType, source, under18 })}
                       className={cn(buttonVariants(), "h-11 w-full")}
                     >
                       {COPY.buy}
                     </Link>
                   )}
-                  {line.status === "in_development" && done[line.id] && (
-                    <p className="rounded-md bg-muted px-3 py-2 text-sm">
-                      {COPY.notifyDone(done[line.id] === "line" ? COPY.notify.line : COPY.notify.email)}
-                    </p>
-                  )}
-                  {line.status === "in_development" && !done[line.id] && under18 && (
-                    <p className="text-xs text-muted-foreground">{COPY.notifyMinor}</p>
-                  )}
-                  {line.status === "in_development" && !done[line.id] && !under18 && (
+                  {line.status === "in_development" && (
                     <Button variant="outline" onClick={() => openNotify(line.id)} className="h-11 w-full">
                       {COPY.notifyOpen}
                     </Button>
@@ -311,55 +276,10 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
               {openLine && (
                 <div className="space-y-3 rounded-lg bg-muted p-4">
                   <p className="text-sm font-semibold">{COPY.notify.title(openLine.short_ja ?? openLine.name_ja)}</p>
-                  <p className="text-xs font-medium">{COPY.notify.method}</p>
-                  <div className="flex gap-2">
-                    {(["email", "line"] as Via[]).map((v) => (
-                      <Button
-                        key={v}
-                        variant={via === v ? "default" : "outline"}
-                        aria-pressed={via === v}
-                        onClick={() => setVia(v)}
-                        className="h-11 flex-1"
-                      >
-                        {COPY.notify[v]}
-                      </Button>
-                    ))}
-                  </div>
-                  {via === "email" ? (
-                    <div className="space-y-1.5">
-                      <label htmlFor="notify-email" className="text-xs font-medium">
-                        {COPY.notify.emailLabel}
-                      </label>
-                      <Input
-                        id="notify-email"
-                        type="email"
-                        value={email}
-                        placeholder="example@mail.com"
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="h-11 bg-background"
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-xs leading-relaxed">{COPY.notify.lineNote}</p>
-                  )}
-                  <label className="flex cursor-pointer items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={notifyAgree}
-                      onChange={(e) => setNotifyAgree(e.target.checked)}
-                      className="mt-0.5 size-5 shrink-0"
-                    />
-                    {COPY.notify.consent}
-                  </label>
-                  <p className="text-xs leading-relaxed text-muted-foreground">{COPY.notify.separate}</p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setNotifyLine(null)} className="h-11 flex-1 bg-background">
-                      {COPY.notify.close}
-                    </Button>
-                    <Button onClick={submitNotify} disabled={!canSubmit} className="h-11 flex-[2]">
-                      {via === "line" ? COPY.notify.submitLine : COPY.notify.submitEmail}
-                    </Button>
-                  </div>
+                  <p className="text-sm leading-relaxed">{COPY.notify.note}</p>
+                  <Button variant="outline" onClick={() => setNotifyLine(null)} className="h-11 w-full bg-background">
+                    {COPY.notify.close}
+                  </Button>
                 </div>
               )}
               {isSensitive && recos.length > 0 && <p className="text-xs text-muted-foreground">{COPY.sensitiveUse}</p>}
@@ -453,10 +373,20 @@ export function SurveyResult({ questions, lines }: { questions: SurveyQuestion[]
 }
 
 /** 결과 화면에 추천이 보였을 때 한 번 기록한다 */
-function TrackShown({ lineIds, skinType, under18 }: { lineIds: string[]; skinType: SkinType; under18: boolean }) {
+function TrackShown({
+  lineIds,
+  skinType,
+  source,
+  under18,
+}: {
+  lineIds: string[];
+  skinType: SkinType;
+  source: SurveySource | null;
+  under18: boolean;
+}) {
   const key = lineIds.join(",");
   useEffect(() => {
-    for (const lineId of key.split(",").filter(Boolean)) trackReco({ event: "shown", lineId, skinType, under18 });
-  }, [key, skinType, under18]);
+    for (const lineId of key.split(",").filter(Boolean)) trackReco({ event: "shown", lineId, skinType, source, under18 });
+  }, [key, skinType, source, under18]);
   return null;
 }

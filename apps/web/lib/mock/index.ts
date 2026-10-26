@@ -5,6 +5,7 @@ import { platforms } from "./platforms";
 import { products } from "./products";
 import { boardProjects, projectStages, projects } from "./projects";
 import { searchSnapshots } from "./search";
+import { aiAnalyses, memberTabs, submissionReviews, submissionVersions, tabSubmissions } from "./submissions";
 import { snsPatterns, snsVideoNotes } from "./sns-notes";
 import { promoEvents } from "./promo-events";
 import { reviewAnalyses } from "./review-analyses";
@@ -16,6 +17,7 @@ import { survey, surveyMinorCounts, surveyResponses, surveySummary } from "./sur
 import { trendSnapshots } from "./trends";
 import { members, workspace } from "./workspace";
 import { StageKey } from "@/lib/schemas/project";
+import { type EvidenceRef, VERSION_BODY_BY_TAB } from "@/lib/schemas/submission";
 
 // 교차 참조 검사: 가리키는 ID가 모두 존재해야 한다. 실패하면 빌드가 멈춘다.
 function checkRefs() {
@@ -93,14 +95,58 @@ function checkRefs() {
     expect(r.survey_id === survey.id, `surveyResponses ${r.id}.survey_id`);
     for (const c of r.concerns) expect(concernValues.has(c), `surveyResponses ${r.id}.concerns ${c}`);
   }
-  for (const r of surveySummary.recent) {
-    expect(ageValues.has(r.age_group), `surveySummary.recent ${r.at}.age_group`);
-    for (const c of r.concerns) expect(concernValues.has(c), `surveySummary.recent ${r.at}.concerns ${c}`);
+  for (const r of surveySummary.responses) {
+    expect(ageValues.has(r.age_group), `surveySummary.responses ${r.at}.age_group`);
+    for (const c of r.concerns) expect(concernValues.has(c), `surveySummary.responses ${r.at}.concerns ${c}`);
   }
 
   // 제품이 가리키는 프로젝트(제품군)가 있어야 한다
   const projectIds = ids(projects);
   for (const p of products) if (p.project_id) expect(projectIds.has(p.project_id), `products ${p.id}.project_id`);
+
+  // 탭별 시안 · 버전 · 결재 · AI 분석: 판매 중 자사 제품만, 승인본은 그 시안의 승인 버전, 근거는 실제 행 (docs/team-approval-ai-analysis.md)
+  const submissionById = new Map(tabSubmissions.map((s) => [s.id, s]));
+  const versionById = new Map(submissionVersions.map((v) => [v.id, v]));
+  const evidenceIds: Record<EvidenceRef["kind"], Set<string>> = {
+    review: reviewIds,
+    product: productIds,
+    ad_check: adCheckIds,
+    trend_snapshot: ids(trendSnapshots),
+  };
+  for (const t of memberTabs) expect(userIds.has(t.user_id), `memberTabs ${t.id}.user_id`);
+  for (const s of tabSubmissions) {
+    expect(projectIds.has(s.project_id), `tabSubmissions ${s.id}.project_id`);
+    if (s.owner_id) expect(userIds.has(s.owner_id), `tabSubmissions ${s.id}.owner_id`);
+    if (s.product_id) {
+      const product = products.find((p) => p.id === s.product_id);
+      expect(product?.project_id === s.project_id && product.sale_status === "on_sale", `tabSubmissions ${s.id}.product_id 판매 중 제품 아님`);
+    } else expect(s.tab === "market", `tabSubmissions ${s.id} 프로젝트 전체 시안은 시장 분석만`);
+    if (s.approved_version_id) {
+      const approved = versionById.get(s.approved_version_id);
+      expect(approved?.submission_id === s.id && approved.status === "approved", `tabSubmissions ${s.id}.approved_version_id`);
+    }
+  }
+  for (const v of submissionVersions) {
+    const s = submissionById.get(v.submission_id);
+    expect(Boolean(s), `submissionVersions ${v.id}.submission_id`);
+    if (v.author_id) expect(userIds.has(v.author_id), `submissionVersions ${v.id}.author_id`);
+    if (s) expect(VERSION_BODY_BY_TAB[s.tab].safeParse(v.body).success, `submissionVersions ${v.id}.body가 ${s.tab} 모양이 아님`);
+    for (const e of v.evidence) {
+      expect(evidenceIds[e.kind].has(e.id), `submissionVersions ${v.id} 근거 ${e.kind} ${e.id}`);
+      if (s?.tab === "ad" && e.kind === "ad_check")
+        expect(adChecks.find((a) => a.id === e.id)?.product_id === s.product_id, `submissionVersions ${v.id} 근거 ${e.id}의 제품이 시안과 다름`);
+    }
+  }
+  for (const r of submissionReviews) {
+    expect(versionById.get(r.version_id)?.status === r.decision, `submissionReviews ${r.id} 버전 상태가 결정과 다름`);
+    if (r.reviewer_id) expect(userIds.has(r.reviewer_id), `submissionReviews ${r.id}.reviewer_id`);
+  }
+  for (const a of aiAnalyses) {
+    expect(projectIds.has(a.project_id), `aiAnalyses ${a.id}.project_id`);
+    if (a.product_id) expect(productIds.has(a.product_id), `aiAnalyses ${a.id}.product_id`);
+    if (a.created_by) expect(userIds.has(a.created_by), `aiAnalyses ${a.id}.created_by`);
+    for (const vid of a.input_version_ids) expect(versionById.get(vid)?.status === "approved", `aiAnalyses ${a.id} 입력 ${vid} 승인본 아님`);
+  }
 
   if (errors.length > 0) {
     throw new Error(`교차 참조 검사 실패:\n${errors.join("\n")}`);
@@ -135,4 +181,9 @@ export const mock = {
   projects,
   boardProjects,
   projectStages,
+  memberTabs,
+  tabSubmissions,
+  submissionVersions,
+  submissionReviews,
+  aiAnalyses,
 };

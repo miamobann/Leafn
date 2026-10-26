@@ -1,5 +1,6 @@
 import { buildAppealComparison, reviewProductRank } from "./appeal";
 import type { Lang } from "@/lib/schemas/common";
+import type { ProductTitleAi } from "@/lib/schemas/product";
 import type { SaleStatus, SkinLine } from "@/lib/schemas/project";
 import type { Review, ReviewAnalysis, ReviewInsight } from "@/lib/schemas/review";
 import { getAppealComparison, getProduct, getProducts, getReviewReport, getReviews } from "./index";
@@ -19,6 +20,8 @@ export type ReviewProductView = {
   /** 자사 제품의 피부 라인 · 판매 상태. 경쟁 제품은 null */
   skinLine: SkinLine | null;
   saleStatus: SaleStatus | null;
+  /** AI가 정리한 제품명. 정리 전이면 null (화면은 원문 name을 보여 준다) */
+  titleAi: ProductTitleAi | null;
 };
 export type ReviewWithAnalysis = Review & { analysis: ReviewAnalysis | null };
 export type ReviewReportView = {
@@ -51,6 +54,7 @@ export async function getReviewProductList(): Promise<ReviewProductView[]> {
       rank: reviewProductRank(p.source_raw),
       skinLine: p.skin_line,
       saleStatus: p.sale_status,
+      titleAi: p.title_ai,
     }))
     .toSorted((a, b) => Number(b.kind === "own") - Number(a.kind === "own"));
 }
@@ -71,7 +75,7 @@ export async function getReviewReportOf(productId: string): Promise<ReviewReport
 }
 
 export type AppealOwnView = { id: string; brand: string; name: string; category: string | null };
-export type AppealCompetitorView = { id: string; brand: string; name: string; rank: number };
+export type AppealCompetitorView = { id: string; brand: string; name: string; rank: number; title_ai: ProductTitleAi | null };
 export type AppealComparisonView = ReturnType<typeof buildAppealComparison<AppealOwnView, AppealCompetitorView, ReviewWithAnalysis>>;
 
 export async function getAppealComparisonOf(ownProductId: string): Promise<AppealComparisonView | null> {

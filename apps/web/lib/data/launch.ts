@@ -37,6 +37,10 @@ export type PromoEventView = {
   milestones: MilestoneView[];
   /** 이 행사용 광고 문구 검토 (TAB 3). 없으면 null */
   adCheck: { id: string; status: ReviewStatus } | null;
+  /** false = 플랫폼 공지 전 예상 일정 */
+  isConfirmed: boolean;
+  /** 이 행사를 가리키는 광고 검토 수 (콘텐츠 가이드 검사 포함). 행사를 지우면 연결만 끊긴다 */
+  linkedAdChecks: number;
 };
 
 export async function getPlatformViews(): Promise<PlatformView[]> {
@@ -63,7 +67,7 @@ export async function getPlatformView(id: string): Promise<PlatformView | null> 
 export async function getPromoEventViews(opts: { platformKey?: string } = {}): Promise<PromoEventView[]> {
   const rows = await readRows("promo_milestones");
   const deadlines = rows ? z.array(z.object({ id: z.string(), promo_event_id: z.string(), label: z.string(), due_date: z.string(), done_at: z.string().nullable() })).parse(rows) : null;
-  const checks = await getAdChecks();
+  const [checks, allChecks] = await Promise.all([getAdChecks(), getAdChecks({ source: "all" })]);
   return (await getPromoEvents())
     .filter((e) => !opts.platformKey || e.platform === opts.platformKey)
     .toSorted((a, b) => a.start_date.localeCompare(b.start_date))
@@ -80,6 +84,9 @@ export async function getPromoEventViews(opts: { platformKey?: string } = {}): P
         endDate: e.end_date,
         milestones: deadlines ? deadlines.filter((m) => m.promo_event_id === e.id).map((m) => ({ id: m.id, label: m.label, dueDate: m.due_date, done: m.done_at !== null })) : milestones.map((m, i) => ({ id: `${e.id}-m${i}`, label: m.label, dueDate: m.due_date, done: false })),
         adCheck: check ? { id: check.id, status: check.review_status } : null,
+        // 확정 여부가 비어 있으면 팀이 날짜를 정하는 자사 캠페인만 확정으로 본다
+        isConfirmed: e.is_confirmed ?? e.kind === "own_campaign",
+        linkedAdChecks: allChecks.filter((c) => c.promo_event_id === e.id).length,
       };
     });
 }

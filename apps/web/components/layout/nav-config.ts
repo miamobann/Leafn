@@ -1,6 +1,7 @@
 // 사이드바와 탭 위 버튼 줄 내비게이션의 단일 출처 (docs/prototype-plan.md 3.2)
 import {
   ChartLine,
+  ClipboardCheck,
   ClipboardList,
   Folder,
   House,
@@ -60,6 +61,15 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "새 검토", href: "/ad-check", featureId: "A" },
       // /ad-check/<검토 ID> 상세는 저장된 검토라 이력에 속한다 (안내 화면 /ad-check/guide는 제외)
       { label: "검토 이력", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/(?!history$|guide$)[^/]+$/ },
+    ],
+  },
+  {
+    // 세 탭의 승인본을 모으는 공통 층 (docs/team-approval-ai-analysis.md 7장 3·4단계). /approvals/<버전 ID> · /ai-analysis/<분석 ID>는 주소 앞부분이 같아 자동으로 켜진다
+    label: "결재 · AI 분석",
+    icon: ClipboardCheck,
+    items: [
+      { label: "결재함", href: "/approvals", featureId: "M" },
+      { label: "AI 분석", href: "/ai-analysis", featureId: "N" },
     ],
   },
   {

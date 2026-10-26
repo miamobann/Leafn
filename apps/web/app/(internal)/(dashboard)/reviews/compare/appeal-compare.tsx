@@ -9,6 +9,7 @@ import { Check, ChevronRight, Info } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import type { AppealComparisonView } from "@/lib/data/reviews";
 import { euroOf } from "@/lib/korean";
+import { titleParts } from "@/lib/product-title";
 import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
 import { EvidencePanel, linkClass, paginate, Pager, ReviewCard } from "../_components/parts";
 import { distribution, share } from "../_lib/topics";
@@ -315,11 +316,13 @@ export function AppealCompare({
                 return (
                   <Link key={p.id} href={`/reviews/${p.id}`} className="flex h-14 items-center gap-3 border-b px-1 text-sm hover:bg-muted/40">
                     <span className="w-9 text-right text-muted-foreground tabular-nums">{p.rank}위</span>
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-0 flex-1" title={titleParts(p).full}>
                       <span lang="ja" className="block truncate font-medium">
-                        {p.brand} {p.name}
+                        {titleParts(p).main}
                       </span>
-                      <span className="text-xs text-muted-foreground">리뷰 {p.lowReviewCount}건</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {titleParts(p).caption ? `${titleParts(p).caption} · ` : ""}리뷰 {p.lowReviewCount}건
+                      </span>
                     </span>
                     {focus && hits > 0 && (
                       <span className="rounded-md border border-orange-200 px-1.5 text-xs text-orange-900">
@@ -357,8 +360,8 @@ export function AppealCompare({
                 {showEmpty && (
                   <ul className="space-y-1 border-t px-4 py-3 text-sm text-muted-foreground">
                     {notImported.map((p) => (
-                      <li key={p.id} lang="ja">
-                        {p.rank}위 · {p.brand} {p.name}
+                      <li key={p.id} lang="ja" title={titleParts(p).full}>
+                        {p.rank}위 · {titleParts(p).main}
                       </li>
                     ))}
                   </ul>

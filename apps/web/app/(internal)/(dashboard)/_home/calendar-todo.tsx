@@ -18,7 +18,7 @@ const TEXT = {
   history: "검토 이력 →",
   copyTag: "문구",
   copyDue: "행사 문구",
-  tag: { board: "현황판", event: "행사", blocked: "막힘" },
+  tag: { board: "현황판", event: "행사", blocked: "멈춤" },
 };
 
 // 할 일 목록에 넣을 마감의 범위와, 그중 눈에 띄게 할 범위 (오늘부터 며칠)

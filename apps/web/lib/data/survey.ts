@@ -4,7 +4,12 @@ import { SkinSurveyResponse, SurveySummary, Survey } from "@/lib/schemas/survey"
 import { readRows } from "./db";
 
 const Minor = z.object({ count: z.number().int().nonnegative() });
-const Event = z.object({ product_line: z.string(), event: z.enum(["shown", "buy_click", "notify_open"]) });
+const Event = z.object({
+  product_line: z.string(),
+  event: z.enum(["shown", "buy_click", "notify_open"]),
+  // 20261026170000 마이그레이션 이전 DB에는 칸이 없다
+  source: z.string().nullable().optional(),
+});
 
 export async function readSurveySummary() {
   const rows = await readRows("survey_responses");
@@ -20,17 +25,20 @@ export async function readSurveySummary() {
   };
   const dates = responses.map((r) => r.created_at).sort();
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  const hasSource = events.some((e) => e.source);
   return SurveySummary.parse({
     total: responses.length,
     recent_7d: responses.filter((r) => r.created_at >= weekAgo).length,
     under18_count: minors.reduce((sum, r) => sum + r.count, 0),
     sensitive_count: responses.filter((r) => r.is_sensitive).length,
-    // 채널별 구매 클릭 · 출시 알림은 survey_reco_events에 유입 경로가 없어 비워 둔다 (화면에는 "—")
+    // 채널별 구매 클릭 · 출시 예정 화면 열기 횟수는 경로가 기록된 추천 이벤트로 센다.
     by_source: counts((r) => r.source ?? "other").map(([source, count]) => {
       const types = new Map<string, number>();
       for (const r of responses) if ((r.source ?? "other") === source) types.set(r.skin_type, (types.get(r.skin_type) ?? 0) + 1);
       const [top_skin_type, top_skin_count] = [...types].sort((a, b) => b[1] - a[1])[0];
-      return { source, count, top_skin_type, top_skin_count };
+      if (!hasSource) return { source, count, top_skin_type, top_skin_count };
+      const of = (event: string) => events.filter((e) => e.source === source && e.event === event).length;
+      return { source, count, top_skin_type, top_skin_count, clicks: of("buy_click"), notify: of("notify_open") };
     }),
     period: dates.length ? { from: dates[0].slice(0, 10), to: dates[dates.length - 1].slice(0, 10) } : undefined,
     by_age: counts((r) => r.age_group).map(([age_group, count]) => ({ age_group, count })),
@@ -41,15 +49,17 @@ export async function readSurveySummary() {
         for (const concern of new Set(r.concerns)) concerns[concern] = (concerns[concern] ?? 0) + 1;
       return { age_group, counts: concerns };
     }),
-    concern_other: responses.filter((r) => r.concern_other).map((r) => ({ text_ja: r.concern_other, text_ko: "", date: r.created_at.slice(0, 10) })),
+    concern_other: responses.filter((r) => r.concern_other).map((r) => ({ text_ja: r.concern_other, text_ko: r.concern_other_ko ?? "", date: r.created_at.slice(0, 10) })),
     product_lines: [...new Set(events.map((r) => r.product_line))].map((line_id) => ({
       line_id, shown: events.filter((r) => r.product_line === line_id && r.event === "shown").length,
       clicks: events.filter((r) => r.product_line === line_id && r.event === "buy_click").length,
-      // notify_open은 신청 완료가 아니므로 알림 신청 수로 집계하지 않는다.
+      // 신청 완료나 사람 수가 아닌 화면 열기 이벤트 횟수
+      notify_open: events.filter((r) => r.product_line === line_id && r.event === "notify_open").length,
     })),
-    recent: responses.sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10).map((r) => ({
+    responses: responses.sort((a, b) => b.created_at.localeCompare(a.created_at)).map((r) => ({
       at: r.created_at, age_group: r.age_group, skin_type: r.skin_type, is_sensitive: r.is_sensitive,
-      concerns: r.concerns, source: r.source, consent_version: r.consent_version,
+      concerns: r.concerns, concern_other: r.concern_other, concern_other_ko: r.concern_other_ko ?? null,
+      source: r.source, consent_version: r.consent_version,
     })),
   });
 }
