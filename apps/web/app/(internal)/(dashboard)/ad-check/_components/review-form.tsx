@@ -83,7 +83,7 @@ export function ReviewForm(props: ReviewFormProps) {
 
       <div>
         <label htmlFor="ad-usage" className={LABEL}>
-          사용처
+          용도
         </label>
         <select id="ad-usage" className={SELECT} value={usage} onChange={(e) => props.onUsageChange(AdUsage.parse(e.target.value))}>
           {AdUsage.options.map((u) => (

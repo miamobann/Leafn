@@ -71,6 +71,8 @@ export const AdCheck = WorkspaceRow.merge(AiMeta).extend({
   reviewer_id: Id.nullable(),
   // DB ad_checks.created_by (검토를 올린 사람). 샘플 데이터에는 없다
   created_by: Id.nullable().optional(),
+  // DB ad_checks.content_guide_id: 만든 가이드에서 넘어온 검토면 그 가이드 (「이 가이드에 반영」)
+  content_guide_id: Id.nullable().optional(),
   review_status: ReviewStatus,
   reviewer_note: z.string().nullable(),
   // 제안: 8장 2·3·4·17·18번
@@ -118,6 +120,8 @@ export const AdCheckRow = WorkspaceRow.merge(AiMeta).extend({
   is_expert_review_requested: z.boolean(),
   // 화면의 삭제 = 숨김. null이 아니면 목록에서 뺀다
   deleted_at: Timestamp.nullable(),
+  // 20261026200000_ad_checks_content_guide.sql. 원격 DB 적용 전 행에는 칸이 없어서 optional 도 둔다
+  content_guide_id: Id.nullable().optional(),
 });
 export type AdCheckRow = z.infer<typeof AdCheckRow>;
 

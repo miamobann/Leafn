@@ -21,6 +21,19 @@ export function pickReviewQuotes(topics: TopicLike[], max = MAX_REVIEW_QUOTES): 
   return picked;
 }
 
+/** 승인된 일본어 후기 (리뷰 탭에서 번역 → 약기법 검토 → 팀장 승인). 이미 약기법을 통과해 위험어 필터는 걸지 않고 길이만 본다.
+ *  말풍선 한 줄에 들어가는 길이만 (5~120자), 같은 문장은 한 번, 최신순 최대 4개 */
+export function pickApprovedQuotes(quotes: { textJa: string; reviewTranslationId: string }[], max = MAX_REVIEW_QUOTES): { text_ja: string; translation_id: string }[] {
+  const picked: { text_ja: string; translation_id: string }[] = [];
+  for (const q of quotes) {
+    const text = q.textJa.trim();
+    if (text.length < 5 || text.length > 120 || picked.some((p) => p.text_ja === text)) continue;
+    picked.push({ text_ja: text, translation_id: q.reviewTranslationId });
+    if (picked.length >= max) break;
+  }
+  return picked;
+}
+
 type PromoLike = { platform: string; title: string; start_date: string; end_date: string; kind?: string };
 
 /** 오늘 이후(또는 진행 중) 가장 가까운 Qoo10 메가와리 일정을 프롬프트 [행사] 글로. 없으면 null → AI는 날짜를 쓰지 않는다 */

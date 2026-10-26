@@ -71,7 +71,7 @@ export function CalendarTodo({
   const owner = useOwnerFilter();
   const until = addDays(today, TODO_WINDOW_DAYS);
   const soon = addDays(today, SOON_DAYS);
-  const inWindow = (date: string) => date >= today && date <= until;
+  const inWindow = (date: string) => date <= until;
 
   const next = events.filter((e) => e.startDate >= today).toSorted((a, b) => a.startDate.localeCompare(b.startDate))[0];
   const boardDue = board.filter((d) => inWindow(d.dueDate));

@@ -27,6 +27,37 @@ export const PHOTO_DONTS = [
   "다른 회사 제품·로고·캐릭터, 허락받지 않은 인물 사진",
 ];
 
+/** 블록별 기본 촬영 지시: AI가 사진 칸을 비웠을 때(예전에 만든 가이드 포함) 채운다. 글만 있는 블록도 어떤 그래픽으로 만들지 적는다.
+ *  상세페이지는 예전 촬영 가이드(컷 리스트 15컷)와 같은 내용이다 */
+const SHOT_DEFAULTS: Partial<Record<GuideChannel, Record<string, string>>> = {
+  qoo10_detail: {
+    hook: "계절 배경 + 제품 단독 컷 (단색 배경, 45° 조명, 바닥 그림자)",
+    concern: "건조한 피부결 클로즈업 (당김·각질 느낌, 질환처럼 보이지 않게)",
+    routine: "스킨·에센스를 STEP 1 → 2 순서로 나란히 놓은 컷 (화살표 그래픽)",
+    hero: "제품 단독 정면 컷 (제품 컬러 배경, 드롭 섀도우)",
+    points: "3포인트 원형 아이콘 인포그래픽",
+    ingredient: "성분 원료 2×2 타일 (원료 실사 또는 일러스트, 성분명 라벨)",
+    texture: "제형 접사: 물방울 매크로 컷 또는 손등에 펴 바른 컷",
+    howto: "모델 사용 컷: 손바닥으로 얼굴에 펴 바르는 장면 (편안한 표정)",
+    review: "리뷰 말풍선 그래픽 (ID 마스킹, 별점은 실제 수치일 때만)",
+    lineup: "스킨·에센스 단체 컷 + 제품별 한 줄 설명 표",
+    info: "상품 정보 표 그래픽 (흰 배경, 용량·전성분·제조판매원을 표로, 작은 글씨도 읽히게)",
+  },
+  instagram: { slide: "4:5 세로 컷 (제품 · 제형 · 피부 중 이 장의 문구에 맞는 컷, 배경·조명은 다른 장과 통일)" },
+  x: { image: "제품 단독 컷 16:9 (단색 배경, 글자 자리는 비우기)" },
+  banner: { copy: "가로형 배경 + 제품 단독 컷 (카피 자리 비우기)" },
+};
+
+/** 사진 칸이 빈 블록에 기본 촬영 지시를 채운다 (근거 자료 칸은 사진이 아니라 그대로) */
+export function withShotDefaults(blocks: GuideBlock[], channel: GuideChannel): GuideBlock[] {
+  const defaults = SHOT_DEFAULTS[channel] ?? {};
+  return blocks.map((b) => {
+    if (b.image || b.needs_evidence) return b;
+    const image = defaults[b.key] ?? (b.key.startsWith("slide") ? defaults.slide : undefined);
+    return image ? { ...b, image } : b;
+  });
+}
+
 export type CutRow = { no: number; use: string; ratio: string; image: string };
 
 /** 결과물의 사진 칸 설명을 모아 컷 리스트를 만든다 (갤러리 → 본문 순서) */

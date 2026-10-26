@@ -8,6 +8,7 @@ import { z } from "zod";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
 import { AdCheckParseError, judgeLines } from "@/lib/ai/ad-check/judge";
+import { judgeReviews, logParseFailure } from "@/lib/ai/ad-check/judge-batch";
 import { toAdCheck } from "@/lib/ai/ad-check/to-ad-check";
 import { replaceSentence } from "@/lib/review-fix";
 import { AdFinding } from "@/lib/schemas/ad-check";
@@ -17,10 +18,10 @@ import { getAdProducts } from "./ad-products";
 import { getCurrentUser, getMyWorkspace, isSupabaseConfigured } from "./workspace";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
-export type TranslateResult = { translated: number; mustFix: number };
+export type TranslateResult = { translated: number; mustFix: number; skipped: number };
 
-/** 한 번에 판정하는 리뷰 수 (광고 검토 AI는 한 요청에 20줄까지, 시간을 줄이려고 10줄). 화면의 묶음 크기와 같은 값 */
-const TRANSLATE_BATCH = 10;
+/** 한 번에 판정하는 리뷰 수 (광고 검토 AI는 한 요청에 20줄까지, 긴 리뷰가 섞여도 형식이 깨지지 않게 5줄). 화면의 묶음 크기와 같은 값 */
+const TRANSLATE_BATCH = 5;
 /** 한 건에 AI로 보내는 글자 수 상한 */
 const MAX_REVIEW_CHARS = 500;
 
@@ -93,7 +94,7 @@ async function saveCheck(
   return { ok: true, checkId: check.id };
 }
 
-/** 선택한 국내 리뷰(최대 10건)를 일본어로 번역하고 약기법 검토를 돌려 저장한다. 같은 리뷰를 다시 번역하면 번역과 검토를 새것으로 바꾼다 */
+/** 선택한 국내 리뷰(최대 5건)를 일본어로 번역하고 약기법 검토를 돌려 저장한다. 같은 리뷰를 다시 번역하면 번역과 검토를 새것으로 바꾼다 */
 export async function translateReviews(productId: string, reviewIds: string[]): Promise<ActionResult<TranslateResult>> {
   const input = z.object({ productId: z.uuid(), reviewIds: z.array(z.uuid()).min(1).max(TRANSLATE_BATCH) }).safeParse({ productId, reviewIds: [...new Set(reviewIds)] });
   if (!input.success) return fail(`한 번에 1~${TRANSLATE_BATCH}건까지 번역할 수 있어요.`);
@@ -117,21 +118,28 @@ export async function translateReviews(productId: string, reviewIds: string[]): 
 
   let judged;
   try {
-    judged = await judgeLines({
-      product: { name: product.name_ko, product_category: product.product_category, ingredients: product.ingredients.map((i) => `${i.ko} (${i.ja})`) },
-      usage: "detail_page",
-      lines: chosen.map((c) => c.text),
-    });
+    judged = await judgeReviews(
+      {
+        product: { name: product.name_ko, product_category: product.product_category, ingredients: product.ingredients.map((i) => `${i.ko} (${i.ja})`) },
+        usage: "detail_page",
+        lines: chosen.map((c) => c.text),
+      },
+      chosen.map((c) => c.id),
+    );
   } catch (e) {
     return fail(messageOf(e));
   }
 
   let translated = 0;
   let mustFix = 0;
+  let skipped = 0;
   for (const [i, review] of chosen.entries()) {
     const line = judged.lines[i];
-    const textJa = line.translated_text?.trim();
-    if (!textJa) continue; // 번역이 비어 있으면 저장하지 않는다 (화면은 "번역함" 표시가 없는 채로 남는다)
+    const textJa = line?.translated_text?.trim();
+    if (!line || !textJa) {
+      skipped += 1; // 판정이 없거나 번역이 비어 있으면 저장하지 않는다 (화면은 "번역함" 표시가 없는 채로 남는다)
+      continue;
+    }
 
     const saved = await saveCheck(supabase, mine, { productId: input.data.productId, product, text: review.text, line, model: judged.model, promptVersion: judged.promptVersion });
     if (!saved.ok) return fail(`${saved.message}. ${translated}건은 저장됐어요.`);
@@ -146,7 +154,7 @@ export async function translateReviews(productId: string, reviewIds: string[]): 
   }
 
   if (translated === 0) return fail("AI가 번역을 돌려주지 않았어요. 다시 시도해 주세요.");
-  return { ok: true, data: { translated, mustFix } };
+  return { ok: true, data: { translated, mustFix, skipped } };
 }
 
 /** 번역한 리뷰를 목록에서 지운다. 약기법 검토 기록(ad_checks)은 증거라서 남긴다 */
@@ -209,6 +217,7 @@ export async function applySuggestion(translationId: string, findingText: string
       lines: [fixed],
     });
   } catch (e) {
+    if (e instanceof AdCheckParseError) logParseFailure("applySuggestion", [translationId], e);
     return fail(messageOf(e));
   }
   const line = judged.lines[0];
