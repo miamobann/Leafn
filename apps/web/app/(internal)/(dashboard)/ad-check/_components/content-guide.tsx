@@ -907,12 +907,15 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                 ) : (
                   <p className="text-xs text-muted-foreground">리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다</p>
                 )}
-                {/* 승인된 일본어 후기가 없으면 리뷰 분석의 상세페이지용 리뷰(번역 → 약기법 검토 → 팀장 승인)로 보낸다 */}
-                {material.hasReviews && material.approvedQuotes.length === 0 && (
-                  <Link href={`/reviews/${product.id}/translate`} className="inline-block text-xs text-primary underline-offset-4 hover:underline">
-                    상세페이지용 리뷰 만들기 →
-                  </Link>
-                )}
+                {/* 승인된 일본어 후기가 있으면 그대로 인용한다고 알리고, 없으면 리뷰 분석의 상세페이지용 리뷰(번역 → 약기법 검토 → 팀장 승인)로 보낸다 */}
+                {material.hasReviews &&
+                  (material.approvedQuotes.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">승인된 후기 {material.approvedQuotes.length}개 인용</p>
+                  ) : (
+                    <Link href={`/reviews/${product.id}/translate`} className="inline-block text-xs text-primary underline-offset-4 hover:underline">
+                      상세페이지용 리뷰 만들기 →
+                    </Link>
+                  ))}
               </section>
               <section className="space-y-1 rounded-md bg-muted p-3">
                 <p className="flex items-center gap-2 font-medium">
