@@ -1,7 +1,7 @@
 import type { z } from "zod";
 
 /** 렌더링 중 현재 시각을 읽지 않도록 프로토타입의 "오늘"을 고정한다 */
-export const PROTOTYPE_TODAY = "2026-10-21";
+export const PROTOTYPE_TODAY = "2026-10-26";
 
 export const WORKSPACE_ID = "ws-1";
 
