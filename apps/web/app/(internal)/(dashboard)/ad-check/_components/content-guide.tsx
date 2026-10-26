@@ -793,7 +793,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
         (json.lintHits as { key: string; text: string; reason: string }[]) ?? [],
         (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? [],
       );
-      setSaveNotice(json.checkSaved === false ? "결과물은 「기록」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
+      setSaveNotice(json.checkSaved === false ? "결과물은 「검토 기록」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
       setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
       setWarnings((w) => ({ ...w, [id]: blockWarnings }));
       if (typeof json.id === "string") {
@@ -1176,7 +1176,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
             <span className="flex flex-wrap gap-2">
               {!saved && (
                 <Link href={`/ad-check/guide/history/${savedIds[current.id]}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-                  기록에서 보기
+                  검토 기록에서 보기
                 </Link>
               )}
               {flagged > 0 ? (

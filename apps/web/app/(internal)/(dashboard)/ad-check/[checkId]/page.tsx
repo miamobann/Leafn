@@ -50,8 +50,8 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
   const nextStep = isGuideCheck
     ? "콘텐츠 가이드 자동 검사라 보기만 해요. 고치려면 만든 가이드에서 「이 문구로 새 검토」를 해요."
     : [
-        fromGuide && reflectState?.kind === "ready" ? "① 대체 표현 고르기 → ② 「가이드에 반영」 → ③ 콘텐츠에서 결재 올리기" : null,
-        fromGuide && reflectState?.kind === "reflected" ? "가이드에 반영됨 → 콘텐츠에서 결재 올리기" : null,
+        fromGuide && reflectState?.kind === "ready" ? "① 대체 표현 고르기 → ② 「가이드에 반영」 → ③ 콘텐츠 가이드에서 결재 올리기" : null,
+        fromGuide && reflectState?.kind === "reflected" ? "가이드에 반영됨 → 콘텐츠 가이드에서 결재 올리기" : null,
         fromGuide && reflectState?.kind === "stale" ? "최신 수정본에서 다시 검토" : null,
         canSubmit ? "아래 「시안 · 결재」에서 결재 올리기" : null,
       ]
@@ -79,10 +79,10 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
       {fromGuide && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
           <span>
-            콘텐츠 「{guideTitle}」에서 온 검토예요.{reflectState?.kind === "ready" ? " 아래에서 대체 표현을 고르고 「가이드에 반영」을 누르면 가이드가 고쳐져요." : ""}
+            콘텐츠 가이드 「{guideTitle}」에서 온 검토예요.{reflectState?.kind === "ready" ? " 아래에서 대체 표현을 고르고 「가이드에 반영」을 누르면 가이드가 고쳐져요." : ""}
           </span>
           <Link href={`/ad-check/guide/history/${fromGuide.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-            콘텐츠로 돌아가기
+            콘텐츠 가이드로 돌아가기
           </Link>
         </div>
       )}
@@ -150,7 +150,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
             tab="ad"
             product={product}
             saveDraft={saveAdDraft.bind(null, product.id, check.id)}
-            snapshotNote="이 검토 건의 판정과 최종 문구를 시안에 담아요. 팀장이 결재함에서 승인 · 반려해요."
+            snapshotNote=""
             carryOverLabel="직전 버전에 담긴 다른 문구도 함께 담기"
           />
         )}

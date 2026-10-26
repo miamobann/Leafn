@@ -60,9 +60,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "광고 검토",
     icon: ShieldCheck,
     items: [
-      // 기록이 먼저 (2026-10-27 TAB 3): 만든 콘텐츠와 그 문구 검토를 한 목록에서 보고 이어서 한다 → 콘텐츠 만들기 → 문구만 검토. 그룹 줄을 누르면 첫 메뉴(기록)로 간다
-      // 콘텐츠 상세(/ad-check/guide/history/<ID>) · 검토 상세(/ad-check/<ID>)도 기록에 속한다 (만들기 화면 /ad-check/guide 와 새 검토 /ad-check 는 제외)
-      { label: "기록", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/((?!history$|guide$)[^/]+|guide\/history(\/.*)?)$/ },
+      // 검토 기록이 먼저 (2026-10-27 TAB 3): 만든 콘텐츠와 그 문구 검토를 한 목록에서 보고 이어서 한다 → 콘텐츠 만들기 → 문구만 검토. 그룹 줄을 누르면 첫 메뉴(검토 기록)로 간다
+      // 콘텐츠 가이드 상세(/ad-check/guide/history/<ID>) · 검토 상세(/ad-check/<ID>)도 검토 기록에 속한다 (만들기 화면 /ad-check/guide 와 새 검토 /ad-check 는 제외)
+      { label: "검토 기록", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/((?!history$|guide$)[^/]+|guide\/history(\/.*)?)$/ },
       { label: "콘텐츠 제작 가이드", href: "/ad-check/guide", featureId: "A" },
       { label: "새 검토", href: "/ad-check", featureId: "A" },
     ],

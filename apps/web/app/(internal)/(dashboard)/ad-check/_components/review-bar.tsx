@@ -90,7 +90,6 @@ export function ReviewBar({
             ? 전문가 확인 요청
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">승인 · 반려는 결재함에서 해요. 아래 「시안 · 결재」에서 결재를 올려 주세요 (팀장 결재는 법적 승인이 아니에요).</p>
       </CardContent>
     </Card>
   );

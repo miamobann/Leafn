@@ -1,5 +1,5 @@
-// 「기록」 탭 재료 (서버 전용, 2026-10-27 TAB 3 흐름 개편): 만든 콘텐츠가 위, 그 콘텐츠에서 나온 문구 검토는 그 아래에 묶는다.
-// 콘텐츠에서 오지 않은 검토(문구만 검토 · 리뷰 번역 검토)는 「문구만」 행으로 같은 목록에 둔다.
+// 「검토 기록」 탭 재료 (서버 전용, 2026-10-27 TAB 3 흐름 개편): 만든 콘텐츠가 위, 그 콘텐츠에서 나온 문구 검토는 그 아래에 묶는다.
+// 콘텐츠 가이드에서 오지 않은 검토는 「문구 검토」 줄로 같은 목록에 둔다. 리뷰 번역 검토는 리뷰 분석 탭(상세페이지용 리뷰)에서 다루므로 빼고 돌려준다.
 // 결재는 콘텐츠 단위로 올린다 (결재 연동 전까지 「게시 가능」은 예전 검토 결재 · 내부 검토 완료로 계산).
 import { getAdChecks, getContentGuideChecks, getContentGuides, getReviewTranslationCheckIds } from "@/lib/data";
 import { getAdProducts } from "@/lib/data/ad-products";
@@ -18,8 +18,8 @@ export function worstAction(actions: AdAction[]): AdAction | null {
 
 export type ContentStatus = "needs_fix" | "before_approval" | "approved";
 export const CONTENT_STATUS: Record<ContentStatus, { label: string; tone: string; hint: string }> = {
-  needs_fix: { label: "고칠 곳 있음", tone: "border-risk-high/40 text-risk-high", hint: "「고쳐야 함」이나 「전문가 확인」이 남았어요. 걸린 문구를 새 검토로 고쳐 반영해 주세요" },
-  before_approval: { label: "결재 전", tone: "text-muted-foreground", hint: "고칠 곳이 없으면 콘텐츠를 결재에 올려요 (콘텐츠 결재 연동 준비 중)" },
+  needs_fix: { label: "수정 필요", tone: "border-risk-high/40 text-risk-high", hint: "「고쳐야 함」이나 「전문가 확인」이 남았어요. 걸린 문구를 새 검토로 고쳐 가이드에 반영해 주세요" },
+  before_approval: { label: "결재 전", tone: "text-muted-foreground", hint: "고칠 곳이 없어요. 콘텐츠 가이드를 결재에 올려요 (결재 연동 준비 중)" },
   approved: { label: "게시 가능", tone: "border-risk-low/50 text-risk-low", hint: "팀장이 결재에서 승인했어요 (법적 승인은 아니에요)" },
 };
 
@@ -38,7 +38,7 @@ export type ContentRecord = {
   autoChecks: { version: number; checkId: string }[];
   updatedAt: string;
 };
-export type PhraseRecord = { check: AdCheck; kind: "manual" | "review" };
+export type PhraseRecord = { check: AdCheck };
 
 export async function loadRecords(): Promise<{ contents: ContentRecord[]; phrases: PhraseRecord[] }> {
   const [guides, manual, autoChecks, reviewCheckIds, adProducts, submissions] = await Promise.all([
@@ -112,9 +112,12 @@ export async function loadRecords(): Promise<{ contents: ContentRecord[]; phrase
     };
   });
 
-  const phrases: PhraseRecord[] = manual
-    .filter((c) => !sourceOf.get(c.id))
-    .map((check) => ({ check, kind: reviewCheckIds.has(check.id) ? ("review" as const) : ("manual" as const) }));
+  const phrases: PhraseRecord[] = manual.filter((c) => !sourceOf.get(c.id) && !reviewCheckIds.has(c.id)).map((check) => ({ check }));
 
   return { contents: contents.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt)), phrases: phrases.toSorted((a, b) => b.check.created_at.localeCompare(a.check.created_at)) };
+}
+
+/** 콘텐츠 가이드(어느 버전이든) 하나가 속한 묶음 */
+export async function loadContentRecord(guideId: string): Promise<ContentRecord | undefined> {
+  return (await loadRecords()).contents.find((c) => c.versions.some((v) => v.id === guideId));
 }
