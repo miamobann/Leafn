@@ -49,7 +49,8 @@ const TEXT = {
   rejectedReason: (no: number) => `v${no} 반려 사유`,
   submit: "제출",
   submitNeedsSummary: "한 줄 결론을 적어야 제출할 수 있어요",
-  edit: "고치기",
+  edit: "결론 · 메모 고치기",
+  editHint: (no: number) => `임시 저장된 v${no}의 한 줄 결론과 메모를 고쳐요. 담은 소구점 · 후기는 그대로예요. 다 쓰면 저장한 뒤 「제출」을 눌러 주세요.`,
   editSave: "저장",
   cancel: "취소",
   hide: "삭제",
@@ -251,19 +252,21 @@ export function SubmissionPanel({
 
                 {editing?.id === v.id ? (
                   <div className="mt-2 space-y-2">
-                    <Textarea
-                      value={editing.summary}
-                      maxLength={300}
-                      rows={2}
-                      aria-label={TEXT.summary}
-                      onChange={(e) => setEditing({ ...editing, summary: e.target.value })}
-                    />
-                    <Input
-                      value={editing.note}
-                      maxLength={1000}
-                      aria-label={TEXT.note}
-                      onChange={(e) => setEditing({ ...editing, note: e.target.value })}
-                    />
+                    <p className="text-xs text-muted-foreground">{TEXT.editHint(v.version_no)}</p>
+                    <label className="block space-y-1 text-sm">
+                      <span className="font-medium">{TEXT.summary}</span>
+                      <Textarea
+                        value={editing.summary}
+                        maxLength={300}
+                        rows={2}
+                        placeholder={TEXT.summaryPlaceholder}
+                        onChange={(e) => setEditing({ ...editing, summary: e.target.value })}
+                      />
+                    </label>
+                    <label className="block space-y-1 text-sm">
+                      <span className="font-medium">{TEXT.note}</span>
+                      <Input value={editing.note} maxLength={1000} onChange={(e) => setEditing({ ...editing, note: e.target.value })} />
+                    </label>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
