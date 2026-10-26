@@ -36,6 +36,7 @@ import { type ContentGuideInput, GuideBodyResult, type GuideTitle, GuideTitlesRe
 import { buildCutList, PHOTO_DONTS, PHOTO_RULES } from "../_lib/photo-guide";
 import { type BlockWarnings, buildWarnings } from "../_lib/guide-warnings";
 import { makeFill, productKind, pickHashtags, visibleBlocks } from "../_lib/guide-report";
+import type { MegaSale } from "@/lib/ai/content-guide/materials";
 import { ContentGuideReport, memoLocation, type ReportAuthor } from "./content-guide-report";
 
 const LABEL = "mb-1 block text-sm font-medium";
@@ -68,7 +69,8 @@ export type GuideMaterials = Record<
     keywords: string[];
     trending: string[];
     ingredients: string[];
-    megaSale: string | null;
+    /** 프로모션 캘린더의 다가오는 Qoo10 메가와리 (최대 2개, 화면에서 하나를 고른다) */
+    megaSales: MegaSale[];
   }
 >;
 
@@ -202,7 +204,7 @@ function BodyPager({
         {b.options
           .filter((o) => o.text_ja)
           .map((o, j) => (
-            <div key={o.text_ja} className={`mt-2 ${j === 0 ? "" : "border-t pt-2"}`}>
+            <div key={j} className={`mt-2 ${j === 0 ? "" : "border-t pt-2"}`}>
               <p className="mb-1">{j === 0 ? <span className={RECOMMENDED}>가장 추천</span> : <span className="text-xs text-muted-foreground">다른 안</span>}</p>
               <p className="whitespace-pre-line" lang="ja">
                 {fill(o.text_ja)}
@@ -633,6 +635,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   );
   const [memoState, setMemoState] = useState<keyof typeof MEMO_STATUS | null>(null);
   const memoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  /** 고른 메가와리 일정 id ("" = 행사 넣지 않기). 안 골랐으면 가장 가까운 일정 */
+  const [megaSaleId, setMegaSaleId] = useState<string | null>(null);
   /** 제품 id → 담당자가 고른 리뷰 소구점 (안 골랐으면 리뷰 분석에서 넘어온 것, 그것도 없으면 전체) */
   const [chosenAppeals, setChosenAppeals] = useState<Record<string, string[]>>({});
   /** 강조할 방향 (선택, 50자). 제작할 때 방향 참고로 함께 보낸다 */
@@ -680,12 +684,15 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   }
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], pickedAppeals: null, complaints: [], candidates: [], reviewQuotes: [], approvedQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], pickedAppeals: null, complaints: [], candidates: [], reviewQuotes: [], approvedQuotes: [], keywords: [], trending: [], ingredients: [], megaSales: [] };
   // 이번 제작에 쓸 소구점: 후보도 고른 것 안에서만 넘긴다
   const appeals = chosenAppeals[product.id] ?? material.pickedAppeals ?? material.appeals;
   const toggleAppeal = (label: string) =>
     setChosenAppeals((m) => ({ ...m, [product.id]: appeals.includes(label) ? appeals.filter((a) => a !== label) : material.appeals.filter((a) => a === label || appeals.includes(a)) }));
   const hasPostType = channel === "instagram" || channel === "x";
+  const megaSale = megaSaleId === "" ? null : (material.megaSales.find((m) => m.id === megaSaleId) ?? material.megaSales[0] ?? null);
+  // 행사는 인스타 · X 의 「메가와리」 게시물에만 넣는다
+  const usesPromo = hasPostType && postType === "mega_sale";
   // 가장 추천을 맨 앞에 둔다
   const list = (aiEnabled || saved ? aiDrafts : drafts)
     .filter((d) => d.channel === channel && (!hasPostType || d.post_type === postType))
@@ -700,9 +707,9 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   // 개발 중 제품은 상세페이지를 아직 만들지 않는다
   const detailBlocked = channel === "qoo10_detail" && product.launch_status === "developing";
 
-  // 해시태그: 인스타그램은 시장 분석 검색어 상위 태그를 고민·트렌드에 덧붙인다 (X는 1~3개라 덧붙이지 않는다)
+  // 해시태그: 인스타그램은 시장 분석 검색어 상위 태그를 고민·트렌드에 덧붙인다 (X는 1~3개라 덧붙이지 않는다). AI 결과는 서버가 붙이고 판정까지 거쳐 저장한 그대로
   const { groups, keywordTags, list: hashtags } = current
-    ? pickHashtags(current.hashtags, channel, material.keywords)
+    ? pickHashtags(current.hashtags, channel, material.keywords, aiEnabled || Boolean(saved))
     : { groups: { brand: [], ingredient: [], trend: [] } as Hashtags, keywordTags: [] as string[], list: [] as string[] };
   const category = kind.ja;
 
@@ -736,7 +743,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
       review_quotes: material.hasReviews && material.approvedQuotes.length === 0 ? material.reviewQuotes : [],
       approved_quotes: material.hasReviews ? material.approvedQuotes : [],
       evidence: [],
-      promo: postType === "mega_sale" && hasPostType ? material.megaSale : null,
+      promo: usesPromo ? (megaSale?.promo ?? null) : null,
       channel,
       post_type: hasPostType ? postType : "general",
       season: null,
@@ -763,7 +770,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
     if (!aiEnabled) return wait("titles", () => setGeneratedKey(key));
     setLoading("titles");
     try {
-      const json = await postAi({ step: "titles", product_id: product.id, input: aiInput() });
+      const json = await postAi({ step: "titles", product_id: product.id, input: aiInput(), promo_event_id: usesPromo ? megaSale?.id : undefined });
       const titles = GuideTitlesResult.parse({ titles: json.titles }).titles;
       const made = titles.map((t, i) => ({ id: `ai-${Date.now()}-${i}`, title: t }));
       setAiTitles(Object.fromEntries(made.map((m) => [m.id, m.title])));
@@ -787,13 +794,13 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
     setAiError(null);
     setLoading("body");
     try {
-      const json = await postAi({ step: "body", product_id: product.id, input: aiInput(), picked: aiTitles[id] });
+      const json = await postAi({ step: "body", product_id: product.id, input: aiInput(), picked: aiTitles[id], promo_event_id: usesPromo ? megaSale?.id : undefined });
       const body = GuideBodyResult.parse(json.body);
       const blockWarnings = buildWarnings(
         (json.lintHits as { key: string; text: string; reason: string }[]) ?? [],
         (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? [],
       );
-      setSaveNotice(json.checkSaved === false ? "결과물은 「만든 가이드」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
+      setSaveNotice(json.checkSaved === false ? "결과물은 「검토 기록」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
       setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
       setWarnings((w) => ({ ...w, [id]: blockWarnings }));
       if (typeof json.id === "string") {
@@ -907,12 +914,15 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                 ) : (
                   <p className="text-xs text-muted-foreground">리뷰 없음 (개발 중 제품). 상세페이지의 리뷰 블록은 뺍니다</p>
                 )}
-                {/* 승인된 일본어 후기가 없으면 리뷰 분석의 상세페이지용 리뷰(번역 → 약기법 검토 → 팀장 승인)로 보낸다 */}
-                {material.hasReviews && material.approvedQuotes.length === 0 && (
-                  <Link href={`/reviews/${product.id}/translate`} className="inline-block text-xs text-primary underline-offset-4 hover:underline">
-                    상세페이지용 리뷰 만들기 →
-                  </Link>
-                )}
+                {/* 승인된 일본어 후기가 있으면 그대로 인용한다고 알리고, 없으면 리뷰 분석의 상세페이지용 리뷰(번역 → 약기법 검토 → 팀장 승인)로 보낸다 */}
+                {material.hasReviews &&
+                  (material.approvedQuotes.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">승인된 후기 {material.approvedQuotes.length}개 인용</p>
+                  ) : (
+                    <Link href={`/reviews/${product.id}/translate`} className="inline-block text-xs text-primary underline-offset-4 hover:underline">
+                      상세페이지용 리뷰 만들기 →
+                    </Link>
+                  ))}
               </section>
               <section className="space-y-1 rounded-md bg-muted p-3">
                 <p className="flex items-center gap-2 font-medium">
@@ -955,6 +965,38 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                   <p className="text-xs text-muted-foreground">겹치는 성분 없음 (성분 검색 관심도에 없는 카테고리이거나 전성분에 해당 성분이 없어요)</p>
                 )}
               </section>
+              {/* 프로모션 캘린더 (홈 · /calendar). 인스타 · X 일 때만 (메가와리 게시물에 들어간다). 「예상」 일정은 문구에 「開催予定」 (materials.ts pickMegaSales) */}
+              {hasPostType && (
+              <section className="space-y-1 rounded-md bg-muted p-3 md:col-span-2">
+                <p className="flex items-center gap-2 font-medium">
+                  <span className="rounded border bg-background px-1.5 text-xs">프로모션 캘린더</span>
+                  행사
+                  <span className="text-xs font-normal text-muted-foreground">게시물 종류가 「메가와리」일 때 들어가요</span>
+                </p>
+                {material.megaSales.length ? (
+                  <ul className="flex flex-wrap gap-1">
+                    {[...material.megaSales.map((m) => ({ id: m.id, label: `Qoo10 메가와리 ${m.start_date.slice(5).replace("-", "/")}~${m.end_date.slice(5).replace("-", "/")}${m.confirmed ? "" : " (예상)"}` })), { id: "", label: "행사 넣지 않기" }].map((o) => {
+                      const on = o.id === "" ? megaSale === null : megaSale?.id === o.id;
+                      return (
+                        <li key={o.id || "none"}>
+                          <button
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => setMegaSaleId(o.id)}
+                            className={`rounded-full border px-2 py-0.5 text-xs ${on ? "border-primary bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                          >
+                            {o.label}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">다가오는 Qoo10 메가와리 일정이 캘린더에 없어요. 메가와리 게시물이면 날짜 없이 써요.</p>
+                )}
+                {megaSale && !megaSale.confirmed && <p className="text-xs text-muted-foreground">예상 일정은 문구에 「開催予定」과 「※日程は変更になる場合があります」로 들어가요. 일정이 확정되면 캘린더에서 고친 뒤 다시 만들어 주세요.</p>}
+              </section>
+              )}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">각 탭이 만들어 둔 결과를 읽어 와요.</p>
           </details>
@@ -1094,7 +1136,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                         )),
                       )}
                     </ul>
-                    <p className="text-xs text-muted-foreground">「새 검토」에서 문구를 고쳐 다시 판정할 수 있어요.</p>
+                    <p className="text-xs text-muted-foreground">「걸린 문구 검토」에서 문구를 고쳐 다시 판정할 수 있어요.</p>
                   </section>
                 )}
                 <BodyPager
@@ -1160,22 +1202,36 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
         </>
       )}
 
-      {/* 다음 단계: 만든 가이드를 바로 검토로 넘긴다 (탭을 직접 고르지 않아도 흐름이 이어지게) */}
-      {current && loading === null && savedIds[current.id] && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>다음 단계 · 게시 전에 이 문구를 새 검토로 한 번 더 판정하세요.</span>
-          <span className="flex flex-wrap gap-2">
-            {!saved && (
-              <Link href={`/ad-check/guide/history/${savedIds[current.id]}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-                만든 가이드에서 보기
-              </Link>
-            )}
-            <Link href={`/ad-check?guide=${savedIds[current.id]}`} className={buttonVariants({ size: "sm" })}>
-              이 문구로 새 검토 →
-            </Link>
-          </span>
-        </div>
-      )}
+      {/* 다음 단계: 걸린 문구가 있으면 그 줄만 새 검토로, 없으면 이대로 결재 (2026-10-27). 해시태그는 새 검토로 고칠 수 없어 세지 않는다 */}
+      {current && loading === null && savedIds[current.id] && (() => {
+        const flagged = Object.keys(warnings[current.id] ?? {}).filter((k) => k !== "hashtags").length;
+        return (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+            <span>
+              {flagged > 0
+                ? `다음 단계 · 걸린 문구 ${flagged}줄을 문구 검토로 고쳐 주세요. 고친 문구는 「가이드에 반영」으로 이 가이드에 돌아와요.`
+                : "다음 단계 · 자동 검사에서 걸린 문구가 없어요. 이대로 써도 돼요."}
+            </span>
+            <span className="flex flex-wrap gap-2">
+              {!saved && (
+                <Link href={`/ad-check/guide/history/${savedIds[current.id]}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                  검토 기록에서 보기
+                </Link>
+              )}
+              {flagged > 0 ? (
+                <Link href={`/ad-check?guide=${savedIds[current.id]}`} className={buttonVariants({ size: "sm" })}>
+                  걸린 문구 검토 →
+                </Link>
+              ) : (
+                // 가이드 결재 올리기는 결재 쪽 연동을 기다린다 (버튼 자리만 둔다)
+                <Button type="button" size="sm" disabled title="가이드 결재 올리기는 결재 연동 뒤에 열려요">
+                  결재 올리기 (준비 중)
+                </Button>
+              )}
+            </span>
+          </div>
+        );
+      })()}
 
       <div className="flex items-center justify-end gap-2">
         <span className="text-xs text-muted-foreground">

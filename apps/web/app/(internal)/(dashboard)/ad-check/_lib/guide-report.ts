@@ -30,9 +30,19 @@ export function makeFill(product: LabProduct) {
     fillProduct(text, product.name_ko, product.ingredients, { kind_ja: kind.ja, kind_ko: kind.ko, volume: product.volume, product_ja: product.name_ja });
 }
 
+/** AI가 같은 블록 이름을 두 번 낼 때가 있다 (예: X 의 image 두 개). 화면 · 메모 · PDF 가 블록 이름으로 칸을 구분하므로 두 번째부터 「-2」 「-3」을 붙인다 */
+function uniqueKeys(blocks: GuideBlock[]): GuideBlock[] {
+  const seen = new Map<string, number>();
+  return blocks.map((b) => {
+    const n = (seen.get(b.key) ?? 0) + 1;
+    seen.set(b.key, n);
+    return n === 1 ? b : { ...b, key: `${b.key}-${n}` };
+  });
+}
+
 export function visibleBlocks(blocks: GuideBlock[], channel: GuideChannel, slideCount: number, hasReviews: boolean) {
   // AI가 비운 사진 칸은 블록별 기본 촬영 지시로 채운다 (미리보기 · PDF · 촬영 가이드가 같이 쓴다)
-  return withShotDefaults(blocks, channel).filter(
+  return withShotDefaults(uniqueKeys(blocks), channel).filter(
     (b) =>
       // 리뷰가 없는 제품(개발 중)은 리뷰 블록을 뺀다
       (!b.needs_reviews || hasReviews) &&
@@ -41,16 +51,24 @@ export function visibleBlocks(blocks: GuideBlock[], channel: GuideChannel, slide
   );
 }
 
-/** 해시태그: 인스타그램은 5개(브랜드 1 + 성분·제형 1 + 고민·트렌드 2 + 검색어 1), X는 결과 그대로 */
-export function pickHashtags(hashtags: Hashtags, channel: GuideChannel, keywords: string[]) {
-  const keywordTags = channel === "instagram" ? keywords.slice(0, KEYWORD_TAGS).map(keywordToHashtag) : [];
-  const groups: Hashtags =
-    channel === "instagram"
-      ? {
-          brand: hashtags.brand.slice(0, 2),
-          ingredient: hashtags.ingredient.slice(0, 1),
-          trend: [...new Set([...hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 3 - KEYWORD_TAGS), ...keywordTags])],
-        }
-      : hashtags;
-  return { groups, keywordTags, list: [...groups.brand, ...groups.ingredient, ...groups.trend] };
+/** 해시태그를 채널 기준으로 맞춘다: 인스타그램은 5개(브랜드 1 + 성분·제형 1 + 고민·트렌드 2 + 검색어 1), X는 결과 그대로.
+ *  AI 제작 결과는 서버가 저장 전에 한 번 맞추고, 검색어 태그까지 약기법 판정을 거친다 (2026-10-27) */
+export function finalizeHashtags(hashtags: Hashtags, channel: GuideChannel, keywords: string[]): Hashtags {
+  if (channel !== "instagram") return hashtags;
+  const keywordTags = keywords.slice(0, KEYWORD_TAGS).map(keywordToHashtag);
+  return {
+    brand: hashtags.brand.slice(0, 2),
+    ingredient: hashtags.ingredient.slice(0, 1),
+    trend: [...new Set([...hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 3 - KEYWORD_TAGS), ...keywordTags])],
+  };
+}
+
+/** 화면 · PDF 에 보여 줄 해시태그. final = 서버가 이미 맞춰 저장한 결과 (AI 제작 · 저장된 가이드)라 그대로 쓴다.
+ *  샘플만 지금 검색어로 태그를 붙인다. keywordTags = 목록에 실제로 들어간 검색어 태그 */
+export function pickHashtags(hashtags: Hashtags, channel: GuideChannel, keywords: string[], final = false) {
+  const groups = final ? hashtags : finalizeHashtags(hashtags, channel, keywords);
+  // 같은 태그가 두 그룹에 들어오면 한 번만 (화면 목록의 key 가 겹치지 않게)
+  const list = [...new Set([...groups.brand, ...groups.ingredient, ...groups.trend])];
+  const keywordTags = channel === "instagram" ? keywords.slice(0, KEYWORD_TAGS).map(keywordToHashtag).filter((t) => list.includes(t)) : [];
+  return { groups, keywordTags, list };
 }
