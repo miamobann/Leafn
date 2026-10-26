@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { formatDate } from "@/lib/format";
-import { activeHref, FOOTER_ITEMS, groupOf, HOME_ITEM, NAV_GROUPS, type NavGroup, type NavItem } from "./nav-config";
+import { activeHref, FOOTER_ITEMS, groupOf, HOME_ITEM, NAV_GROUPS, type NavGroup, type NavItem, type NavRole, visibleItems } from "./nav-config";
 
 const TEXT = {
   collapse: "사이드바 접기",
@@ -38,9 +38,9 @@ function save(key: string, value: unknown) {
 
 export type SidebarActivity = { id: string; actor_name: string; action: string; created_at: string };
 
-/** 그룹 줄은 그 탭의 첫 메뉴로 가는 링크다. 하위 메뉴는 탭 위 버튼 줄(section-tabs.tsx)에 나온다 */
-function groupLink(group: NavGroup): NavItem {
-  return { label: group.label, href: group.items[0].href, icon: group.icon };
+/** 그룹 줄은 그 탭의 (그 역할에게 보이는) 첫 메뉴로 가는 링크다. 하위 메뉴는 탭 위 버튼 줄(section-tabs.tsx)에 나온다 */
+function groupLink(group: NavGroup, role: NavRole): NavItem {
+  return { label: group.label, href: visibleItems(group, role)[0].href, icon: group.icon };
 }
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
@@ -159,7 +159,7 @@ function RailActivity({ items }: { items: SidebarActivity[] }) {
   );
 }
 
-export function AppSidebar({ activity }: { activity: SidebarActivity[] }) {
+export function AppSidebar({ activity, role }: { activity: SidebarActivity[]; role: NavRole }) {
   const current = activeHref(usePathname());
   const currentGroup = groupOf(current)?.label;
   const [collapsed, setCollapsed] = useState(false);
@@ -206,7 +206,7 @@ export function AppSidebar({ activity }: { activity: SidebarActivity[] }) {
           <nav id={NAV_ID} className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-4">
             <RailLink item={HOME_ITEM} active={current === HOME_ITEM.href} />
             {NAV_GROUPS.map((group) => (
-              <RailLink key={group.label} item={groupLink(group)} active={currentGroup === group.label} />
+              <RailLink key={group.label} item={groupLink(group, role)} active={currentGroup === group.label} />
             ))}
             <div className="mt-3 border-t border-border pt-3">
               {FOOTER_ITEMS.map((item) => (
@@ -221,7 +221,7 @@ export function AppSidebar({ activity }: { activity: SidebarActivity[] }) {
           <nav id={NAV_ID} className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-4">
             <NavLink item={HOME_ITEM} active={current === HOME_ITEM.href} />
             {NAV_GROUPS.map((group) => (
-              <NavLink key={group.label} item={groupLink(group)} active={currentGroup === group.label} />
+              <NavLink key={group.label} item={groupLink(group, role)} active={currentGroup === group.label} />
             ))}
             <div className="mt-3 border-t border-border pt-3">
               {FOOTER_ITEMS.map((item) => (

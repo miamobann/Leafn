@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SubmissionSection } from "@/components/common/submission-section";
+import { buttonVariants } from "@/components/ui/button";
 import { getProduct } from "@/lib/data";
 import { getAnalysisStatus } from "@/lib/data/review-analysis-actions";
 import { saveReviewDraft } from "@/lib/data/submission-actions";
@@ -38,6 +40,14 @@ export default async function ReviewReportPage({ params }: { params: Promise<{ p
   return (
     <>
       <AnalyzeButton productId={productId} pending={status.pending} untranslated={status.untranslated} untitled={status.untitled} />
+      {/* 리포트가 길어서, 맨 아래 「시안 · 결재」 패널로 바로 가는 입구를 위에 둔다 */}
+      {owned?.sale_status === "on_sale" && (
+        <div className="mb-4 flex justify-end">
+          <Link href="#submission" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            이 리포트를 시안으로 결재 올리기 ↓
+          </Link>
+        </div>
+      )}
       <ReportView
         product={{ ...product, platformLabel: platformLabel(product.platform) }}
         reviews={reviews}

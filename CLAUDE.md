@@ -86,7 +86,7 @@
 | 참조 | H | 플랫폼별 강점 정리 | - | 참조 | 화면 없앰 (2026-10-24). `platform_notes` 테이블만 남음 |
 | 참조 | I | 메가와리/프로모션 캘린더 | 홈 | 참조 | 홈에 포함 (`/calendar`는 홈의 「일정 관리 →」). 행사·준비 마감 추가·수정·삭제와 완료 체크를 저장 (팀원 누구나, 2026-10-26). 고치기는 `/calendar`에서, 홈은 체크만 |
 | 다음 | L | 제품 × 탭 진행 표 (판매 중 제품 × 시장 분석·리뷰 분석·광고 검토·AI 분석) | 프로젝트 | 핵심 | 구현, 원격 DB 적용 대기. `/projects` 진행 표 (홈 현황판은 바꾸지 않기로 함, 2026-10-26 결정) |
-| 다음 | M | 탭별 시안 제출 · 버전 · 팀장 결재 | 각 탭 + 결재함 | 핵심 | 구현, 원격 DB 적용 대기. 리뷰 리포트 · 광고 검토 상세의 시안 패널, `/approvals`, 설정의 담당 탭 (`docs/team-approval-ai-analysis.md`) |
+| 다음 | M | 탭별 시안 제출 · 버전 · 팀장 결재 | 각 탭 + 결재함 | 핵심 | 구현, 원격 DB 적용 대기. 리뷰 리포트 · 광고 검토 상세의 시안 패널(「결재 올리기」), `/approvals` 결재함(팀장만), `/approvals/mine` 내 시안(팀원), 설정의 담당 탭 (`docs/team-approval-ai-analysis.md`) |
 | 다음 | N | AI 분석 (탭별 승인본을 모아 통합 분석, 팀 공유) | AI 분석 | 핵심 | 구현, 원격 DB 적용 대기. `/ai-analysis`, 프롬프트 `integrated-analysis.v1` (설계는 7장) |
 
 - **데모 범위 (2026-10-24·25 결정, 총괄):** Qoo10 데이터만 쓴다. L·M·N은 설계 문서 7장의 1~4단계까지 만든다.
@@ -204,7 +204,7 @@
 │  │  │  ├─ (auth)/              # login/, signup/, onboarding/
 │  │  │  └─ (dashboard)/         # 로그인 필요: (홈 page.tsx + _home/), projects/, market/, reviews/, ad-check/,
 │  │  │                          #   calendar/(홈 캘린더 전체보기), survey-results/, library/, settings/
-│  │  │                          #   approvals/(결재함·버전 미리보기), ai-analysis/
+│  │  │                          #   approvals/(결재함(팀장만)·mine(내 시안)·버전 미리보기), ai-analysis/
 │  │  ├─ (public)/               # 공개용 root layout (<html lang="ja">)
 │  │  │  └─ survey/              # (G) 피부타입 설문, 로그인 불필요. shop/ 은 시연용 Qoo10 상세페이지
 │  │  └─ api/                    # Route Handler (6장)

@@ -216,8 +216,12 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
       {/* 다음 단계: 저장된 검토만 상세·전문가 자료로 넘길 수 있다 */}
       {check && !busy && persisted && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>다음 단계 · 최종 문구를 복사해 전달하거나, 검토 이력에서 다시 볼 수 있어요.</span>
+          <span>다음 단계 · 팀장 결재가 필요하면 검토 상세에서 시안으로 올려요. 최종 문구를 복사하거나 검토 이력에서 다시 볼 수도 있어요.</span>
           <span className="flex flex-wrap gap-2">
+            {/* 이 화면의 검토 건은 자동 저장만 된다. 팀장 결재함에는 상세 화면의 「시안 · 결재」 패널에서 올린 시안만 들어간다 */}
+            <Link href={`/ad-check/${check.id}#submission`} className={buttonVariants({ size: "sm" })}>
+              시안으로 결재 올리기 →
+            </Link>
             <CopyButton text={finalText} label="최종 문구 복사" />
             <Link href="/ad-check/history" className={buttonVariants({ variant: "outline", size: "sm" })}>
               검토 이력에서 보기
