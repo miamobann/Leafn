@@ -5,13 +5,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import type { ReviewProductView, ReviewWithAnalysis } from "@/lib/data/reviews";
 import { euroOf, yoOf } from "@/lib/korean";
 import { titleParts } from "@/lib/product-title";
 import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
-import { BackTitle, Chip, EvidencePanel, linkClass, Meter, ReviewCard, SortChips, sortReviews } from "../_components/parts";
+import { useTranslatePicks } from "../_lib/translate-picks";
+import { BackTitle, Chip, EvidencePanel, linkClass, Meter, ReviewCard, SegmentTabs, SortChips, sortReviews } from "../_components/parts";
 import {
   average,
   distribution,
@@ -36,6 +37,7 @@ type Selected = { topic: AppealTopic; polarity: Polarity | "all" } | null;
 
 const SOURCE_LABEL: Record<string, string> = { oliveyoung: "올리브영", qoo10: "Qoo10", rakuten: "라쿠텐", cosme: "@cosme", csv: "CSV" };
 const EVIDENCE_PREVIEW = 3;
+const RAW_PREVIEW = 10;
 
 export function ReportView({
   product,
@@ -61,6 +63,7 @@ export function ReportView({
   const [selected, setSelected] = useState<Selected>(first ?? null);
   const [sort, setSort] = useState<"recent" | "rating">("recent");
   const [picks, setPicks] = useState(0);
+  const translatePicks = useTranslatePicks(product.id);
 
   const sources = [...new Set(reviews.map((r) => SOURCE_LABEL[r.source] ?? r.source))].join(" · ");
   const meta = [
@@ -75,7 +78,6 @@ export function ReportView({
   const selectedStat = selected && stats.find((s) => s.topic === selected.topic);
   const evidenceOf = (polarity: Polarity) => (selectedStat ? sortReviews(polarity === "positive" ? selectedStat.pos : selectedStat.neg, sort) : []);
   const shownPolarities: Polarity[] = !selected ? [] : selected.polarity === "all" ? ["positive", "negative"] : [selected.polarity];
-  const evidenceCount = shownPolarities.reduce((n, p) => n + evidenceOf(p).length, 0);
   const listHref = (topic: AppealTopic, polarity: Polarity) => `/reviews/${product.id}/list?topic=${topic}&polarity=${polarity}`;
   const pick = (topic: AppealTopic, polarity: Polarity | "all") => {
     setSelected({ topic, polarity });
@@ -371,23 +373,35 @@ export function ReportView({
               </>
             )}
 
-            <section className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-5 py-4">
-              <span className="text-sm text-muted-foreground">다음으로</span>
-              {isOwn ? (
-                <>
-                  <Link href={`/reviews/compare?own=${product.id}`} className={buttonVariants()}>
-                    이 제품으로 소구점 찾기
-                  </Link>
-                  <Link href={`/reviews/${product.id}/translate`} className={buttonVariants({ variant: "outline" })}>
-                    상세페이지용 리뷰 만들기
-                  </Link>
-                </>
-              ) : (
-                <Link href={`/reviews/${product.id}/list`} className={buttonVariants({ variant: "outline" })}>
-                  리뷰 원문 목록
+            {isOwn ? (
+              <section className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-5 py-4">
+                <span className="text-sm text-muted-foreground">다음으로</span>
+                <Link href={`/reviews/compare?own=${product.id}`} className={buttonVariants()}>
+                  이 제품으로 소구점 찾기
                 </Link>
-              )}
-            </section>
+                <Link href={`/reviews/${product.id}/translate`} className={buttonVariants({ variant: "outline" })}>
+                  상세페이지용 리뷰 만들기{translatePicks.picks.length > 0 && ` · 담은 리뷰 ${translatePicks.picks.length}건`}
+                </Link>
+              </section>
+            ) : (
+              // 원문은 페이지를 옮기지 않고 여기서 잠깐 확인한다. 처음에는 접어 두고, 펼치면 최근 RAW_PREVIEW건
+              <details className="group rounded-xl border bg-card px-5 py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
+                  리뷰 원문 보기 ({reviews.length}건)
+                  <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+                </summary>
+                <div className="mt-3 space-y-2.5">
+                  {sortReviews(reviews, "recent")
+                    .slice(0, RAW_PREVIEW)
+                    .map((r) => (
+                      <ReviewCard key={r.id} review={r} />
+                    ))}
+                  <Link href={`/reviews/${product.id}/list`} className={linkClass}>
+                    전체 목록에서 보기 →
+                  </Link>
+                </div>
+              </details>
+            )}
             <p className="text-xs text-muted-foreground">
               AI가 분류한 결과예요. 판단 전에 근거 원문으로 확인하세요.
               {!isOwn && " 경쟁 제품의 불만을 광고에 직접 쓰면 비방이 될 수 있어요. 우리 제품의 장점으로만 표현하세요."}
@@ -399,14 +413,25 @@ export function ReportView({
               open={Boolean(selected && selectedStat)}
               picks={picks}
               onClose={() => setSelected(null)}
-              title={
-                !selected
-                  ? ""
-                  : selected.polarity === "all"
-                    ? `${APPEAL_TOPICS[selected.topic].name} · 칭찬 ${evidenceOf("positive").length}건 · 불만 ${evidenceOf("negative").length}건`
-                    : `${topicLabel(selected.topic, selected.polarity)} · ${evidenceCount}건`
-              }
+              title={selected ? APPEAL_TOPICS[selected.topic].name : ""}
             >
+              {selected && selectedStat && (
+                <>
+                  {/* 같은 주제의 칭찬과 불만을 오간다. 자사는 칭찬, 경쟁은 불만이 먼저 */}
+                  <SegmentTabs
+                    items={((tabs) => (isOwn ? tabs : [tabs[1], tabs[0], tabs[2]]))([
+                      ["positive", `칭찬 ${selectedStat.pos.length}`],
+                      ["negative", `불만 ${selectedStat.neg.length}`],
+                      ["all", `함께 ${selectedStat.pos.length + selectedStat.neg.length}`],
+                    ] as const)}
+                    value={selected.polarity}
+                    onChange={(polarity) => setSelected({ topic: selected.topic, polarity })}
+                  />
+                  {selected.polarity !== "all" && (
+                    <p className="text-xs text-muted-foreground">AI가 ‘{topicLabel(selected.topic, selected.polarity)}’(으)로 분류한 리뷰예요.</p>
+                  )}
+                </>
+              )}
               <SortChips value={sort} onChange={setSort} />
               {selected &&
                 shownPolarities.map((polarity) => {
@@ -420,12 +445,18 @@ export function ReportView({
                       )}
                       {evidence.length === 0 && <p className="text-sm text-muted-foreground">해당하는 리뷰가 없어요</p>}
                       {evidence.slice(0, EVIDENCE_PREVIEW).map((r) => (
-                        <ReviewCard key={r.id} review={r}>
-                          {isOwn && (
-                            <Link href={`/reviews/${product.id}/translate?pick=${r.id}`} className="text-xs font-medium text-foreground/80 hover:underline">
-                              + 상세페이지용으로 담기
-                            </Link>
-                          )}
+                        <ReviewCard key={r.id} review={r} highlight={{ topic: selected.topic, polarity }}>
+                          {/* 담기만 하고 화면은 그대로 둔다. 담은 리뷰는 아래 [상세페이지용 리뷰 만들기]에서 미리 체크돼 있다 */}
+                          {isOwn &&
+                            (translatePicks.picks.includes(r.id) ? (
+                              <button type="button" onClick={() => translatePicks.toggle(r.id)} className="text-xs font-medium text-status-approved hover:underline">
+                                ✓ 담았어요 · 빼기
+                              </button>
+                            ) : (
+                              <button type="button" onClick={() => translatePicks.toggle(r.id)} className="text-xs font-medium text-foreground/80 hover:underline">
+                                + 상세페이지용으로 담기
+                              </button>
+                            ))}
                         </ReviewCard>
                       ))}
                       {evidence.length > 0 && (

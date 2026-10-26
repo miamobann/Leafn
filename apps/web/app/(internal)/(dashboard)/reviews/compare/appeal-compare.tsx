@@ -11,7 +11,7 @@ import type { AppealComparisonView } from "@/lib/data/reviews";
 import { euroOf } from "@/lib/korean";
 import { titleParts } from "@/lib/product-title";
 import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
-import { EvidencePanel, linkClass, paginate, Pager, ReviewCard } from "../_components/parts";
+import { EvidencePanel, linkClass, paginate, Pager, ReviewCard, SegmentTabs } from "../_components/parts";
 import { distribution, share } from "../_lib/topics";
 
 export type AppealComparison = AppealComparisonView;
@@ -375,34 +375,30 @@ export function AppealCompare({
           <EvidencePanel open={Boolean(panelRow)} picks={1} onClose={() => setPanel(null)} title={panelRow ? APPEAL_TOPICS[panelRow.topic].name : ""}>
             {panelRow && (
               <>
-                <div role="tablist" className="flex gap-1.5">
-                  {(
+                <SegmentTabs
+                  items={
                     [
                       ["complaints", `경쟁 제품 불만 ${panelRow.complaints.length}`],
                       ["praises", `자사 칭찬 ${panelRow.praises.length}`],
                     ] as const
-                  ).map(([key, label]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      role="tab"
-                      aria-selected={panel.tab === key}
-                      onClick={() => {
-                        setPanel({ topic: panelRow.topic, tab: key });
-                        setShown(EVIDENCE_STEP);
-                      }}
-                      className={`rounded-full border px-3 py-1 text-xs ${panel.tab === key ? "border-foreground font-medium" : "text-muted-foreground hover:bg-muted"}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                  }
+                  value={panel.tab}
+                  onChange={(key) => {
+                    setPanel({ topic: panelRow.topic, tab: key });
+                    setShown(EVIDENCE_STEP);
+                  }}
+                />
                 <p className="text-xs text-muted-foreground">
                   AI가 ‘{panel.tab === "complaints" ? negLabel(panelRow) : posLabel(panelRow)}’
                   {euroOf(panel.tab === "complaints" ? negLabel(panelRow) : posLabel(panelRow))} 분류한 리뷰예요. 숫자가 맞는지 확인할 때 열어 보세요.
                 </p>
                 {panelReviews.slice(0, shown).map((r) => (
-                  <ReviewCard key={r.id} review={r} sub={panel.tab === "complaints" ? productName(r.product_id) : undefined} />
+                  <ReviewCard
+                    key={r.id}
+                    review={r}
+                    sub={panel.tab === "complaints" ? productName(r.product_id) : undefined}
+                    highlight={{ topic: panelRow.topic, polarity: panel.tab === "complaints" ? "negative" : "positive" }}
+                  />
                 ))}
                 {panelReviews.length === 0 && <p className="text-sm text-muted-foreground">해당 리뷰가 없어요</p>}
                 {panel.tab === "complaints" && panelReviews.length > shown && (

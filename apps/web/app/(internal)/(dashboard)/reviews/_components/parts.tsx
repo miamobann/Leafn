@@ -7,6 +7,7 @@ import { ChevronLeft, X } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ReviewWithAnalysis } from "@/lib/data/reviews";
+import { APPEAL_TOPICS, type AppealTopic } from "@/lib/schemas/review";
 import { formatDate } from "@/lib/format";
 import { profileLabel, stars } from "../_lib/topics";
 
@@ -126,37 +127,127 @@ export function EvidencePanel({
   );
 }
 
+/** 형광 표시할 말: 이 리뷰의 AI 키워드 중 고른 주제와 같은 분류인 것 + 주제 라벨. 키워드는 원문 그대로 뽑게 되어 있다 (prompts/review-analysis.v1.md) */
+export type ReviewHighlight = { topic: AppealTopic; polarity: "positive" | "negative" };
+
+/**
+ * 주제별로 리뷰에 자주 나오는 말. AI 키워드가 없거나(가짜 데이터 · 분석 전) 키워드가 짧을 때도 근거 부분이 보이게 한다.
+ * 화면 표시용 힌트일 뿐 분류에는 쓰지 않는다. 늘릴 때는 짧고 확실한 말만 넣는다 (애매하면 엉뚱한 곳이 칠해진다)
+ */
+const CUES: Record<AppealTopic, Record<ReviewHighlight["polarity"], string[]>> = {
+  texture: {
+    positive: ["산뜻", "흡수", "가볍", "끈적이지 않", "さっぱり", "なじ", "軽い", "べたつかない"],
+    negative: ["끈적", "무거", "밀려", "べたつ", "ベタベタ", "重い", "よれ"],
+  },
+  lasting_moisture: {
+    positive: ["촉촉", "보습", "유지", "당김이 없", "오래가", "오래 가", "속건조", "수분", "편안", "しっとり", "保湿", "うるおい", "潤い", "続く"],
+    negative: ["건조", "당겨", "당김", "땅기", "지속력이 아쉬", "날아가", "乾燥", "物足りない", "つっぱ"],
+  },
+  irritation: {
+    positive: ["순하", "순해", "자극 없", "자극이 없", "低刺激", "しみない", "刺激がな"],
+    negative: ["자극", "따가", "트러블", "붉어", "刺激", "ヒリヒリ", "赤み", "しみる"],
+  },
+  scent: {
+    positive: ["향이 좋", "은은", "무향", "향도 거의 없", "いい香り", "無香料"],
+    negative: ["향이 강", "향이 진", "향료", "냄새", "香りが強", "匂い"],
+  },
+  value: {
+    positive: ["가성비", "가격이 적당", "저렴", "양이 많", "コスパ", "手頃", "安い", "量が多"],
+    negative: ["비싸", "가격 부담", "용량이 작", "금방 써", "高い", "容量が少", "値段"],
+  },
+  container: {
+    positive: ["펌프", "용기가 편", "ポンプ"],
+    negative: ["새요", "샜", "뚜껑", "漏れ", "蓋"],
+  },
+};
+
+function highlightTerms(review: ReviewWithAnalysis, h: ReviewHighlight) {
+  const topic = APPEAL_TOPICS[h.topic];
+  const keywords = review.analysis?.keywords.filter((k) => k.category === topic.category).map((k) => k.text) ?? [];
+  return [...keywords, topic[h.polarity].ko, topic[h.polarity].ja, ...CUES[h.topic][h.polarity]];
+}
+
+/**
+ * 본문에서 찾은 말을 <mark>로 감싼다. 긴 말부터 찾고, 겹치면 먼저 찾은 것만 남긴다. 못 찾은 말은 그냥 넘어간다.
+ * 한국어는 찾은 말 뒤에 붙은 글자까지 한 어절로 칠한다 (촉촉 → 촉촉함이)
+ */
+function Marked({ text, terms, polarity }: { text: string; terms: string[]; polarity: ReviewHighlight["polarity"] }) {
+  const ranges: { start: number; end: number }[] = [];
+  for (const term of [...new Set(terms.map((t) => t.trim()).filter(Boolean))].sort((a, b) => b.length - a.length)) {
+    for (let at = text.indexOf(term); at >= 0; at = text.indexOf(term, at + term.length)) {
+      let end = at + term.length;
+      while (end < text.length && /[가-힣]/.test(text[end])) end += 1;
+      if (!ranges.some((r) => at < r.end && end > r.start)) ranges.push({ start: at, end });
+    }
+  }
+  if (ranges.length === 0) return <>{text}</>;
+  const tone = polarity === "positive" ? "bg-sentiment-positive/15 text-sentiment-positive" : "bg-sentiment-negative/15 text-sentiment-negative";
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  for (const r of ranges.sort((a, b) => a.start - b.start)) {
+    if (r.start > cursor) parts.push(text.slice(cursor, r.start));
+    parts.push(
+      <mark key={r.start} className={`rounded-sm px-0.5 ${tone}`}>
+        {text.slice(r.start, r.end)}
+      </mark>,
+    );
+    cursor = r.end;
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts}</>;
+}
+
 /**
  * 리뷰 본문. 한국어 번역(body_ko)이 있으면 번역을 보여 주고 "원문 보기"를 누르면 원문을 펼친다.
  * 번역이 아직 없는 일본어 리뷰는 원문을 보여 주고 "번역 전"이라고 알려 준다 (리뷰 화면의 "AI로 분석하기"가 번역도 채운다).
  */
-export function ReviewText({ review }: { review: Pick<ReviewWithAnalysis, "body" | "body_ko" | "lang"> }) {
+export function ReviewText({
+  review,
+  marks,
+}: {
+  review: Pick<ReviewWithAnalysis, "body" | "body_ko" | "lang">;
+  /** 주면 보이는 본문 속 해당 말을 형광 표시한다 */
+  marks?: { terms: string[]; polarity: ReviewHighlight["polarity"] };
+}) {
+  const show = (text: string) => (marks ? <Marked text={text} terms={marks.terms} polarity={marks.polarity} /> : text);
   const [showOriginal, setShowOriginal] = useState(false);
   const langName = review.lang === "ja" ? "일본어" : "";
   if (!review.body_ko) {
     return (
       <p lang={review.lang}>
-        {review.body}
+        {show(review.body)}
         {review.lang === "ja" && <span className="ml-1.5 text-xs text-muted-foreground">(번역 전)</span>}
       </p>
     );
   }
   return (
     <div className="space-y-1">
-      <p>{review.body_ko}</p>
+      <p>{show(review.body_ko)}</p>
       <button type="button" aria-expanded={showOriginal} onClick={() => setShowOriginal((v) => !v)} className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
         {showOriginal ? `${langName} 원문 접기`.trim() : `${langName} 원문 보기`.trim()}
       </button>
       {showOriginal && (
         <p lang={review.lang} className="rounded-md bg-muted/50 px-2.5 py-1.5 text-muted-foreground">
-          {review.body}
+          {show(review.body)}
         </p>
       )}
     </div>
   );
 }
 
-export function ReviewCard({ review, sub, children }: { review: ReviewWithAnalysis; sub?: string; children?: React.ReactNode }) {
+export function ReviewCard({
+  review,
+  sub,
+  highlight,
+  children,
+}: {
+  review: ReviewWithAnalysis;
+  sub?: string;
+  /** 근거 패널에서 고른 주제. 주면 본문 속 해당 키워드를 형광 표시한다 */
+  highlight?: ReviewHighlight;
+  children?: React.ReactNode;
+}) {
+  const terms = highlight ? highlightTerms(review, highlight) : [];
   const who = [profileLabel(review.reviewer_attrs?.age_group), profileLabel(review.reviewer_attrs?.skin_type)].filter(Boolean).join(" · ");
   return (
     <article className="space-y-1.5 rounded-lg border p-3 text-sm">
@@ -166,9 +257,29 @@ export function ReviewCard({ review, sub, children }: { review: ReviewWithAnalys
         {who && <span>{who}</span>}
         <span>{formatDate(review.posted_at)}</span>
       </div>
-      <ReviewText review={review} />
+      <ReviewText review={review} marks={highlight ? { terms, polarity: highlight.polarity } : undefined} />
       {children}
     </article>
+  );
+}
+
+/** 근거 패널 위쪽 두 칸 전환 (회색 바탕에 고른 칸만 흰색). 칭찬 ↔ 불만처럼 같은 주제의 두 묶음을 오갈 때 쓴다 */
+export function SegmentTabs<K extends string>({ items, value, onChange }: { items: readonly (readonly [K, string])[]; value: K; onChange: (key: K) => void }) {
+  return (
+    <div role="tablist" className="grid gap-1 rounded-lg bg-muted p-1" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+      {items.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={value === key}
+          onClick={() => onChange(key)}
+          className={`rounded-md px-3 py-1.5 text-sm ${value === key ? "bg-background font-semibold shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/layout/page-header";
 import { getProjectsWithProducts } from "@/lib/data";
+import { ProgressGrid } from "./progress-grid";
 import { ProjectManager } from "./project-manager";
 
 type ProjectsPageProps = {
@@ -14,6 +15,10 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     <>
       <PageHeader title="프로젝트·제품 관리" description="프로젝트(제품군)를 만들고, 그 안에 우리 제품을 추가해요" />
       <ProjectManager base={lines} startWithNewProject={params.new === "project"} />
+      {/* 제품 × 탭 진행 표 (docs/team-approval-ai-analysis.md 7장 3단계) */}
+      {lines.map((line) => (
+        <ProgressGrid key={line.id} projectId={line.id} projectName={line.name} />
+      ))}
     </>
   );
 }

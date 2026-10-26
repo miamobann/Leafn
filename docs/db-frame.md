@@ -25,7 +25,7 @@
 | 고정 값 목록 | Postgres enum 대신 `text` + `check (... in (...))` |
 | 이름 | 테이블은 복수형 snake_case, FK는 `<단수>_id` |
 
-## 2. 테이블 (26개)
+## 2. 테이블 (31개)
 
 ### 기반 (`20261022082907_base_workspaces.sql`)
 
@@ -109,11 +109,25 @@
 
 공개 설문 제출은 아직 보내지 않는다 (`app/(public)/survey/_lib/submit.ts`). 집계 화면은 DB를 읽는다.
 
+### 탭별 시안 · 팀장 결재 · AI 분석 (`20261025115007_team_approval.sql` 및 후속 무결성 마이그레이션)
+
+설계와 결정의 이유는 [team-approval-ai-analysis.md](team-approval-ai-analysis.md). Zod는 `lib/schemas/submission.ts`, `lib/schemas/ai-analysis.ts`.
+
+| 테이블 | 핵심 칸 | 비고 |
+| --- | --- | --- |
+| `member_tabs` | user_id, tab (`market` · `review` · `ad`), granted_by | 멤버별 담당 탭. `(workspace_id, user_id)` → workspace_members 복합 FK라 팀에서 나가면 같이 지워진다. 주고 거두기는 owner만. owner는 행이 없어도 모든 탭 담당 (`has_tab()`) |
+| `tab_submissions` | project_id, product_id (비우면 프로젝트 전체, 시장 분석만), tab, title, owner_id, approved_version_id → submission_versions, status (`draft` · `in_review` · `approved` · `rejected`), deleted_at | 시안 = 제품 × 탭 한 칸. 같은 칸에 숨기지 않은 시안은 하나 (`nulls not distinct` 부분 unique). 판매 중 제품만 (insert 트리거). status는 함수가 버전 상태로 다시 계산한다 |
+| `submission_versions` | submission_id, version_no, author_id, summary(한 줄 결론), body `jsonb`(탭별 스냅샷), evidence `jsonb` [{kind, id}], data_as_of, note, status (`draft` · `submitted` · `approved` · `rejected` · `withdrawn`), submitted_at, deleted_at | 번호는 insert 트리거가 매긴다. 광고 근거는 같은 팀·제품만 허용한다. 제출 후 내용 수정 불가, 승인본·AI 입력 버전은 숨김 불가 |
+| `submission_reviews` | version_id, reviewer_id, decision (`approved` · `rejected`), reason(반려면 필수), is_self_review, decided_at | 결재 기록. `decide_version()`으로만 쓰고 지우지 않는다 |
+| `ai_analyses` | project_id, product_id, title, input_version_ids `uuid[]`, result `jsonb`, summary, model, prompt_version, created_by, lead_checked_by, lead_checked_at, deleted_at | 입력은 같은 팀·프로젝트·제품의 승인된 버전만. 결과 저장은 인증된 서버 작업의 service role만, 멤버는 읽기만. 팀장 확인 전이면 화면에 라벨 |
+
+- 시안이 있는 프로젝트·제품은 지우지 못한다 (복합 FK, on delete 기본값). 결재 기록을 지키기 위해서다.
+- 상태 바꾸기는 함수로만 한다: `submit_version()`, `withdraw_version()`, `decide_version()`, `hide_version()`, `hide_submission()`, `check_ai_analysis()`, `hide_ai_analysis()`. 시안 결재는 원본 `ad_checks`의 약기법 검토 상태를 바꾸지 않는다.
+
 ## 3. 아직 없는 테이블
 
 | 테이블 | 상태 |
 | --- | --- |
-| `member_tabs`, `tab_submissions`, `submission_versions`, `submission_reviews`, `ai_analyses` | 탭별 시안·팀장 결재·AI 분석. **설계 확정, 미구현** ([team-approval-ai-analysis.md](team-approval-ai-analysis.md) 5장). 1단계 PR에서 만들고 이 문서에 옮긴다 |
 | `platforms` | slug 기준표. 만들면 `platform_id` 칸들에 FK를 새 마이그레이션으로 추가한다 (칸 이름은 그대로) |
 | `activity_log` | 홈 활동 기록. 지금은 실제 모드에서 표시하지 않는다 |
 | `review_insights` | 만들지 않기로 함 (계산값) |
@@ -121,7 +135,8 @@
 ## 4. 관계 요약
 
 ```
-workspaces ─┬─ workspace_members ── profiles (= auth.users)
+workspaces ─┬─ workspace_members ──┬─ profiles (= auth.users)
+            │                      └─ member_tabs
             ├─ projects ── products (project_id, 자사)
             ├─ products ──┬─ product_competitors (자사 ↔ 경쟁)
             │             ├─ reviews ── review_analyses
@@ -133,12 +148,12 @@ workspaces ─┬─ workspace_members ── profiles (= auth.users)
             │                 └─ ad_checks · content_guides (promo_event_id)
             ├─ platform_notes
             ├─ trend_snapshots · search_snapshots · geo_snapshots
-            └─ surveys ──┬─ survey_responses
-                         ├─ survey_minor_counts
-                         └─ survey_reco_events
-
-(다음) projects/products ── tab_submissions ── submission_versions ── submission_reviews
-                              └── ai_analyses (input_version_ids)
+            ├─ surveys ──┬─ survey_responses
+            │            ├─ survey_minor_counts
+            │            └─ survey_reco_events
+            └─ projects · products ──┬─ tab_submissions ── submission_versions ── submission_reviews
+                                     │                     (evidence → reviews · products · ad_checks · trend_snapshots)
+                                     └─ ai_analyses (input_version_ids → submission_versions)
 ```
 
 ## 5. RLS 패턴
@@ -162,8 +177,12 @@ create policy "members delete" on products for delete using (is_member(workspace
 - `content_guides`: update·delete는 `is_owner`, 작성자 = 로그인 사용자 (restrictive 정책)
 - `surveys`: 열린 설문은 누구나 읽기. `survey_responses`·`survey_reco_events`는 anon insert(열린 설문일 때)만, 읽기는 멤버
 - 수집기(Python)는 service role 키로 RLS를 우회해 쓴다. 대신 `workspace_id`를 코드에서 꼭 넣는다
-
-(다음) 결재 공통 층은 `has_tab(ws, tab)`(담당 탭인지, owner는 항상 true)을 더한다.
+- 결재 공통 층은 `has_tab(ws, tab)`(담당 탭인지, owner는 항상 true)을 더한다. 모두 멤버가 읽고, 쓰기는 이렇게 좁힌다:
+  - `member_tabs`: insert·delete는 owner
+  - `tab_submissions`: insert는 담당 탭에서 본인 이름으로. update·delete 정책 없음 (함수로만)
+  - `submission_versions`: insert는 담당 탭의 숨기지 않은 시안에 본인 이름으로, update는 임시 버전만 작성자(담당 탭일 때)나 owner. delete 정책 없음
+  - `submission_reviews`: 쓰기 정책 없음 (`decide_version()`으로만)
+  - `ai_analyses`: 멤버는 읽기만. insert는 서버의 service role로만, 팀장 확인·숨김은 함수로만
 
 ## 6. 마이그레이션 파일 (적용 순서)
 
@@ -186,6 +205,9 @@ create policy "members delete" on products for delete using (is_member(workspace
 | `20261024104911_projects_products.sql` | projects, products에 project_id · sale_status · skin_line |
 | `20261024130000_create_ad_checks.sql` | ad_checks, ad_check_lines, content_guides |
 | `20261024172221_harden_ad_review_writes.sql` | 광고 검토 쓰기 권한을 owner로, 작성자 기본값 |
+| `20261025115007_team_approval.sql` | member_tabs, tab_submissions, submission_versions, submission_reviews, ai_analyses, `has_tab()`, 상태 바꾸기 함수 |
+| `20261026102012_ad_submission_integrity.sql` | 광고 시안 근거의 제품 일치 검사, 결재와 원본 광고 검토 상태 분리 |
+| `20261026102117_ai_analysis_trusted_writes.sql` | AI 결과 직접 insert 차단, 승인본의 프로젝트·제품 일치 검사 |
 | `20261026140000_create_review_translations.sql` | review_translations (상세페이지용 리뷰 번역) |
 | `20261026150000_products_add_title_ai.sql` | products.title_ai (AI가 정리한 제품명) |
 | `20261026160000_survey_concern_other_ko.sql` | survey_responses.concern_other_ko ('기타' 고민의 한국어 번역) |

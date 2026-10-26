@@ -1,6 +1,5 @@
 "use client";
 
-import { HelpTip } from "@/components/common/help-tip";
 import { EmptyState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import type { GeoSnap } from "@/lib/schemas/geo";
@@ -37,7 +36,6 @@ export function SummaryPart({
           <article key={p.id} className="flex flex-col rounded-lg border bg-card p-4">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-muted-foreground">{p.label}</span>
-              <HelpTip label="근거 숫자 보기">{p.detail}</HelpTip>
               {p.sample && <Badge variant="outline">샘플</Badge>}
             </div>
             <p className="mt-1 text-sm font-semibold leading-snug">{p.headline}</p>
