@@ -3,7 +3,7 @@
 // 결재는 콘텐츠 가이드 단위로 올린다. 「결재 승인」은 최신 버전이 콘텐츠 가이드 결재로 승인됐을 때만이고, 예전 승인(검토 한 건의 결재 · 내부 검토 완료)은 세지 않는다 (2026-10-27, 결재 연결 2026-10-26 A안).
 import { getAdChecks, getContentGuideChecks, getContentGuides, getReviewTranslationCheckIds } from "@/lib/data";
 import { getAdProducts } from "@/lib/data/ad-products";
-import { getApprovedGuideIds } from "@/lib/data/submissions";
+import { getApprovedGuideIds, getGuideVersionStates } from "@/lib/data/submissions";
 import type { AdAction, AdCheck } from "@/lib/schemas/ad-check";
 import type { ContentGuideRow } from "@/lib/schemas/content-guide";
 import { makeFill } from "./guide-report";
@@ -15,11 +15,13 @@ export function worstAction(actions: AdAction[]): AdAction | null {
   return actions.reduce<AdAction | null>((worst, a) => (worst === null || ACTION_WEIGHT[a] > ACTION_WEIGHT[worst] ? a : worst), null);
 }
 
-export type ContentStatus = "needs_fix" | "before_approval" | "approved";
+export type ContentStatus = "needs_fix" | "before_approval" | "in_review" | "approved" | "rejected";
 export const CONTENT_STATUS: Record<ContentStatus, { label: string; tone: string; hint: string }> = {
   needs_fix: { label: "수정 필요", tone: "border-risk-high/40 text-risk-high", hint: "「고쳐야 함」이나 「전문가 확인」이 남았어요. 걸린 문구를 문구 검토로 고쳐 가이드에 반영해 주세요" },
   before_approval: { label: "결재 전", tone: "text-muted-foreground", hint: "고칠 곳이 없어요. 콘텐츠 가이드 상세 아래에서 결재에 올려요" },
+  in_review: { label: "결재 대기", tone: "border-status-pending/50 text-status-pending", hint: "팀장 결재함에 올라가 있어요" },
   approved: { label: "결재 승인", tone: "border-risk-low/50 text-risk-low", hint: "팀장이 결재함에서 이 콘텐츠 가이드를 승인했어요 (법적 승인은 아니에요)" },
+  rejected: { label: "반려", tone: "border-risk-high/40 text-risk-high", hint: "팀장이 반려했어요. 콘텐츠 가이드 상세 아래 결재 칸에서 사유를 보고 고쳐 다시 올려요" },
 };
 
 export type PhraseCheck = { check: AdCheck; /** 이 검토로 콘텐츠를 고쳤는지 */ reflected: boolean };
@@ -40,13 +42,14 @@ export type ContentRecord = {
 export type PhraseRecord = { check: AdCheck };
 
 export async function loadRecords(): Promise<{ contents: ContentRecord[]; phrases: PhraseRecord[] }> {
-  const [guides, manual, autoChecks, reviewCheckIds, adProducts, approvedGuideIds] = await Promise.all([
+  const [guides, manual, autoChecks, reviewCheckIds, adProducts, approvedGuideIds, guideStates] = await Promise.all([
     getContentGuides(),
     getAdChecks(),
     getAdChecks({ source: "content_guide" }),
     getReviewTranslationCheckIds(),
     getAdProducts(),
     getApprovedGuideIds(),
+    getGuideVersionStates(),
   ]);
   const checksOf = await getContentGuideChecks(guides);
   const fillFor = (productId: string | null) => {
@@ -85,7 +88,16 @@ export async function loadRecords(): Promise<{ contents: ContentRecord[]; phrase
       : (autoChecks.find((c) => c.id === latest.ad_check_id)?.overall_action ?? null);
     // 「결재 승인」(approved)은 최신 버전이 콘텐츠 가이드 결재로 승인됐을 때. 수정본을 새로 만들면 다시 「결재 전」이다
     const status: ContentStatus =
-      action === "must_fix" || action === "expert" ? "needs_fix" : approvedGuideIds.has(latest.id) ? "approved" : "before_approval";
+      action === "must_fix" || action === "expert"
+        ? "needs_fix"
+        : approvedGuideIds.has(latest.id)
+          ? "approved"
+          : // 승인 전: 가장 최근에 올린 시안 버전이 결재 대기면 「결재 대기」, 반려면 「반려」 (임시 · 제출 취소는 「결재 전」)
+            guideStates.get(latest.id) === "submitted"
+            ? "in_review"
+            : guideStates.get(latest.id) === "rejected"
+              ? "rejected"
+              : "before_approval";
     const fill = fillFor(latest.product_id) ?? ((t: string) => t);
     return {
       latest,
