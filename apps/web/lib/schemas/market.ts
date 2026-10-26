@@ -1,48 +1,8 @@
 import { z } from "zod";
-import { AiMeta, Timestamp, WorkspaceRow } from "./common";
+import { Id, Timestamp, WorkspaceRow } from "./common";
 
-// 시장 분석 원페이지 · 수요 2-B SNS 공통 패턴 (2026-10-24 팀 결정: 새 데이터 소스 도입)
-// 기존 스키마 파일에 맞는 자리가 없는 새 개체라 파일을 따로 둔다. DB 테이블은 아직 만들지 않는다 (mock만)
-
-export const SnsPlatform = z.enum(["tiktok", "youtube", "instagram"]);
-export type SnsPlatform = z.infer<typeof SnsPlatform>;
-export const SNS_PLATFORM_LABEL: Record<SnsPlatform, string> = { tiktok: "TikTok", youtube: "YouTube", instagram: "Instagram" };
-
-/** 마케터가 등록한 일본 뷰티 영상 1개와 메모 (핵심 발화·댓글) */
-export const SnsVideoNote = WorkspaceRow.extend({
-  category: z.string(),
-  platform: SnsPlatform,
-  url: z.string().url(),
-  /** 영상 제목 원문 */
-  title_ja: z.string(),
-  /** 핵심 발화·댓글 메모 원문 */
-  note_ja: z.string(),
-  note_ko: z.string(),
-  /** 영상에 광고 표시(PR·提供 등)가 있었는지. 없다고 비광고 영상이라는 보장은 없다 (ステマ規制) */
-  has_ad_label: z.boolean(),
-  /** 누가 넣은 값인지 (지금은 마케터 입력만) */
-  source: z.enum(["marketer_input"]),
-});
-export type SnsVideoNote = z.infer<typeof SnsVideoNote>;
-
-/** expression = 소비자 표현, opening = 영상 초반 구성, reason = 유행 이유 */
-export const SnsPatternKind = z.enum(["expression", "opening", "reason"]);
-export type SnsPatternKind = z.infer<typeof SnsPatternKind>;
-
-/** 여러 영상 메모에서 공통으로 나온 패턴 (AI가 묶는다고 가정한 샘플 결과) */
-export const SnsPattern = WorkspaceRow.extend({
-  category: z.string(),
-  kind: SnsPatternKind,
-  /** 소비자 표현은 일본어 원문, 나머지는 null */
-  label_ja: z.string().nullable(),
-  label_ko: z.string(),
-  /** 이 패턴이 나온 영상 (SnsVideoNote.id) */
-  video_ids: z.array(z.string()).min(1),
-  /** 유행 이유의 근거로 이어지는 화면 (예: 일본 리뷰 불만 비교) */
-  related_href: z.string().nullable(),
-  analyzed_at: Timestamp,
-}).extend(AiMeta.shape);
-export type SnsPattern = z.infer<typeof SnsPattern>;
+// 시장 분석 · 소비자 트렌드 2-B SNS 핵심 니즈 (2026-10-24 팀 결정: 새 데이터 소스 도입)
+// 2026-10-26: 마케터 메모·공통 패턴 샘플(SnsVideoNote · SnsPattern)을 없애고, 분석 결과를 sns_trend_analyses에 저장한다 (서버 데이터 연동 작업 지침서 2번)
 
 // ── SNS 영상 분석 (POST /api/market/sns-trends) ─────────────
 // 2026-10-25: 마케터 메모 대신 영상 링크만 넣으면 Apify가 캡션·해시태그·발화 자막을 가져오고, AI가 핵심 키워드·트렌드를 뽑는다
@@ -92,7 +52,7 @@ export type SnsTrendAiOutput = z.infer<typeof SnsTrendAiOutput>;
 
 const SnsNeedKeyword = z.object({ keyword_ja: z.string(), keyword_ko: z.string(), videos: z.array(z.number().int().positive()).min(1) });
 
-/** 분석 결과 (대조를 통과한 것만, 많이 나온 순). 저장하지 않고 화면에 바로 보여준다 */
+/** 분석 결과 (대조를 통과한 것만, 많이 나온 순). 서버가 sns_trend_analyses에 저장하고 화면에 바로 보여 준다 */
 export const SnsTrendResult = z.object({
   category: z.string(),
   videos: z.array(SnsVideoFacts),
@@ -115,5 +75,44 @@ export const SnsTrendResult = z.object({
   model: z.string(),
   prompt_version: z.string(),
   analyzed_at: Timestamp,
+  /** 저장 결과 (API 응답에만). 테이블 적용 전이면 saved = false */
+  saved: z.boolean().optional(),
+  save_error: z.string().nullable().optional(),
 });
 export type SnsTrendResult = z.infer<typeof SnsTrendResult>;
+
+// ── 저장된 분석 (sns_trend_analyses, supabase/migrations/20261026220000_create_sns_trend_analyses.sql) ─────────────
+
+/** videos jsonb 한 칸: 입력 메모 + Apify 영상 정보 */
+export const SnsAnalysisVideo = SnsVideoFacts.extend({ memo: z.string().default("") });
+export type SnsAnalysisVideo = z.infer<typeof SnsAnalysisVideo>;
+
+/** result jsonb: AI 결과 중 대조를 통과한 것 */
+export const SnsAnalysisResult = SnsTrendResult.pick({ needs: true, keywords: true, dropped: true, analyzed_at: true });
+export type SnsAnalysisResult = z.infer<typeof SnsAnalysisResult>;
+
+export const SnsTrendAnalysisRow = WorkspaceRow.extend({
+  created_by: Id.nullable(),
+  category: z.string(),
+  videos: z.array(SnsAnalysisVideo),
+  result: SnsAnalysisResult,
+  model: z.string(),
+  prompt_version: z.string(),
+});
+export type SnsTrendAnalysisRow = z.infer<typeof SnsTrendAnalysisRow>;
+
+/** 저장된 행 → 화면이 그리는 모양 (분석 시각은 결과 안의 analyzed_at) */
+export function analysisToResult(row: SnsTrendAnalysisRow): SnsTrendResult {
+  return {
+    category: row.category,
+    // 메모는 결과 화면에 쓰지 않아 뺀다 (videos 칸에는 남아 있다)
+    videos: row.videos.map((v) => SnsVideoFacts.parse(v)),
+    ...row.result,
+    model: row.model,
+    prompt_version: row.prompt_version,
+    saved: true,
+  };
+}
+
+/** 결과 JSON 올리기 입력 (PC에서 따로 돌린 분석 결과. 모양은 SnsTrendResult와 같다) */
+export const SnsResultUpload = SnsTrendResult.omit({ saved: true, save_error: true });

@@ -7,10 +7,12 @@ export function SummaryCards({ items }: { items: TabSummary[] }) {
   return (
     <section aria-label="탭별 요약" className="grid grid-cols-2 grid-rows-2 gap-3">
       {items.map((item) => (
+        // data-slot="card"·ring-1: 공통 카드(components/ui/card.tsx)와 같은 테두리, leaf 테마에서는 같은 그림자 (globals.css)
         <Link
           key={item.href}
           href={item.href}
-          className="flex min-w-0 flex-col justify-center rounded-xl border bg-card px-4 py-2.5 text-card-foreground hover:bg-muted/50"
+          data-slot="card"
+          className="flex min-w-0 flex-col justify-center rounded-xl bg-card px-4 py-2.5 text-card-foreground ring-1 ring-foreground/10 hover:bg-muted/50"
         >
           <span className="flex justify-between gap-2 text-xs text-muted-foreground">
             <span className="truncate">

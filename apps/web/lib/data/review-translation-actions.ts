@@ -2,7 +2,8 @@
 
 // 상세페이지용 리뷰 번역 (Server Action). 국내 리뷰를 일본어로 번역하고 약기법 검토를 함께 한다.
 // 번역기를 따로 두지 않고 광고 검토 AI(judgeLines, 정밀 등급)가 낸 일본어 번역(translated_text)과 위험 판정을 그대로 쓴다.
-// 리뷰마다 ad_checks 1건(source = manual · 용도 = 상세페이지, 승인은 광고 검토 화면에서 owner가)과 review_translations 1건을 저장한다.
+// 리뷰마다 ad_checks 1건(source = manual · 용도 = 상세페이지)과 review_translations 1건을 저장한다.
+// 승인은 문구마다 하지 않는다. 고친 문구를 시안에 담아(submission-actions addToReviewDraft) 팀장이 시안 단위로 결재한다.
 // 로그인한 사용자의 세션으로 읽고 쓰므로 RLS가 워크스페이스를 가른다 (service role 키는 쓰지 않는다).
 import { z } from "zod";
 import { AiCallError } from "@/lib/ai/client";
@@ -15,7 +16,7 @@ import { AdFinding } from "@/lib/schemas/ad-check";
 import type { JudgedLine } from "@/lib/schemas/ad-check-ai";
 import { createClient } from "@/lib/supabase/server";
 import { getAdProducts } from "./ad-products";
-import { getCurrentUser, getMyWorkspace, isSupabaseConfigured } from "./workspace";
+import { getMyWorkspace, isSupabaseConfigured } from "./workspace";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
 export type TranslateResult = { translated: number; mustFix: number; skipped: number };
@@ -196,7 +197,6 @@ export async function applySuggestion(translationId: string, findingText: string
   const supabase = await createClient();
   const loaded = await loadTranslation(supabase, input.data.translationId);
   if (!loaded) return fail("번역을 찾지 못했어요. 목록을 새로 고친 뒤 다시 해 주세요.");
-  if (loaded.translation.status === "approved" || loaded.check.review_status === "approved") return fail("승인된 번역은 고칠 수 없어요. 팀장이 승인을 취소한 뒤 고쳐 주세요.");
 
   const finding = loaded.findings?.find((f) => f.text === input.data.findingText);
   const suggestion = finding?.suggestion_rechecks?.find((r) => r.text === input.data.suggestionText && r.text_ko);
@@ -229,55 +229,4 @@ export async function applySuggestion(translationId: string, findingText: string
   const updated = await supabase.from("review_translations").update({ ad_check_id: saved.checkId, text_ja: textJa, status: "draft" }).eq("id", input.data.translationId);
   if (updated.error) return fail(`번역을 저장하지 못했어요: ${updated.error.message}`);
   return { ok: true, data: { mustFix: line.action === "must_fix" } };
-}
-
-/** 번역을 승인한다 (팀장 = 워크스페이스 owner만). 고쳐야 할 표현이 남아 있으면 승인할 수 없다. 승인하면 광고 검토 이력에서도 「내부 검토 완료」가 된다 */
-export async function approveTranslation(translationId: string): Promise<ActionResult<{ approved: true }>> {
-  if (!z.uuid().safeParse(translationId).success) return fail("승인할 번역을 다시 골라 주세요.");
-  if (!isSupabaseConfigured()) return fail("Supabase가 연결되어 있지 않아 승인할 수 없어요.");
-  const [user, mine] = await Promise.all([getCurrentUser(), getMyWorkspace()]);
-  if (!user || !mine) return fail("로그인이 필요해요.");
-  if (mine.role !== "owner") return fail("승인은 팀장(워크스페이스 관리자)만 할 수 있어요.");
-
-  const supabase = await createClient();
-  const loaded = await loadTranslation(supabase, translationId);
-  if (!loaded) return fail("번역을 찾지 못했어요. 목록을 새로 고친 뒤 다시 해 주세요.");
-  if (!loaded.findings) return fail("약기법 검토 기록을 읽지 못했어요. 광고 검토 화면에서 확인해 주세요.");
-  if (loaded.findings.some((f) => f.risk === "high" || f.action === "must_fix")) return fail("고쳐야 할 표현이 남아 있어요. 대체 표현을 적용해 다시 검토한 뒤 승인해 주세요.");
-
-  const checked = await supabase
-    .from("ad_checks")
-    .update({ review_status: "approved", reviewer_id: user.id, reviewed_at: new Date().toISOString(), final_text: loaded.translation.text_ja })
-    .eq("id", loaded.check.id)
-    .eq("workspace_id", mine.workspace.id)
-    .select("id")
-    .maybeSingle();
-  if (checked.error || !checked.data) return fail("승인을 저장하지 못했어요.");
-  const updated = await supabase.from("review_translations").update({ status: "approved" }).eq("id", translationId);
-  if (updated.error) return fail(`승인을 저장하지 못했어요: ${updated.error.message}`);
-  return { ok: true, data: { approved: true } };
-}
-
-/** 승인을 취소해 다시 검토 대기로 돌린다 (팀장만). 승인된 번역을 고치려면 먼저 취소한다 */
-export async function revokeApproval(translationId: string): Promise<ActionResult<{ revoked: true }>> {
-  if (!z.uuid().safeParse(translationId).success) return fail("번역을 다시 골라 주세요.");
-  if (!isSupabaseConfigured()) return fail("Supabase가 연결되어 있지 않아요.");
-  const mine = await getMyWorkspace();
-  if (!mine) return fail("로그인이 필요해요.");
-  if (mine.role !== "owner") return fail("승인 취소는 팀장(워크스페이스 관리자)만 할 수 있어요.");
-
-  const supabase = await createClient();
-  const loaded = await loadTranslation(supabase, translationId);
-  if (!loaded) return fail("번역을 찾지 못했어요. 목록을 새로 고친 뒤 다시 해 주세요.");
-  const checked = await supabase
-    .from("ad_checks")
-    .update({ review_status: "pending", reviewer_id: null, reviewed_at: null })
-    .eq("id", loaded.check.id)
-    .eq("workspace_id", mine.workspace.id)
-    .select("id")
-    .maybeSingle();
-  if (checked.error || !checked.data) return fail("승인 취소를 저장하지 못했어요.");
-  const updated = await supabase.from("review_translations").update({ status: "draft" }).eq("id", translationId);
-  if (updated.error) return fail(`승인 취소를 저장하지 못했어요: ${updated.error.message}`);
-  return { ok: true, data: { revoked: true } };
 }

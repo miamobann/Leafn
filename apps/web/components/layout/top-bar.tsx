@@ -16,7 +16,7 @@ export async function TopBar() {
         </span>
         <ProjectSwitcher base={lines} />
       </nav>
-      <span className="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">
+      <span className="shrink-0 rounded-full bg-accent px-3 py-1 text-xs text-accent-foreground">
         {isSupabaseConfigured() ? "실제 팀 데이터 · 미연결 기능 별도 안내" : "샘플 데이터 · 저장되지 않음"}
       </span>
     </header>
