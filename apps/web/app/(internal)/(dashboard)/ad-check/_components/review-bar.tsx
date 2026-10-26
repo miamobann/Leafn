@@ -4,6 +4,15 @@ import { Textarea } from "@/components/ui/textarea";
 import type { ReviewStatus } from "@/lib/schemas/common";
 import { ReviewStateBadge } from "./ad-badges";
 
+/** 승인 전 경고 (CLAUDE.md 1장: 결재가 약기법 검토를 대신하지 않는다). 막지는 않고, 승인을 누르면 한 번 더 묻는다 */
+export function approveWarningOf({ mustFixLeft, expertRequested }: { mustFixLeft: number; expertRequested: boolean }): string | null {
+  const parts = [
+    mustFixLeft > 0 ? `「고쳐야 함」 줄 ${mustFixLeft}개가 대체 표현 없이 그대로예요` : null,
+    expertRequested ? "전문가 확인을 요청한 검토예요" : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 type ReviewBarProps = {
   finalText: string;
   note: string;
@@ -18,6 +27,8 @@ type ReviewBarProps = {
   saveError?: string | null;
   onSaveNote?: () => void;
   onReset?: () => void;
+  /** 있으면 화면에 보여 주고, 「내부 검토 완료」를 누를 때 한 번 더 묻는다 */
+  approveWarning?: string | null;
 };
 
 export function ReviewBar({
@@ -34,6 +45,7 @@ export function ReviewBar({
   saveError = null,
   onSaveNote,
   onReset,
+  approveWarning = null,
 }: ReviewBarProps) {
   const statusHint = !persisted ? "저장되지 않았어요" :
     saveState === "saving"
@@ -75,13 +87,19 @@ export function ReviewBar({
             onBlur={onSaveNote}
           />
         </div>
+        {approveWarning && canApprove && status !== "approved" && (
+          <p className="rounded-md border border-risk-high/40 p-2 text-sm text-risk-high">승인 전 확인 · {approveWarning}</p>
+        )}
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             disabled={!canApprove || saveState === "saving"}
             aria-pressed={status === "approved"}
             variant={status === "approved" ? "default" : "outline"}
-            onClick={() => onStatusChange("approved")}
+            onClick={() => {
+              if (status !== "approved" && approveWarning && !window.confirm(`${approveWarning}.\n그래도 「내부 검토 완료」로 둘까요? (법적 승인이 아니에요)`)) return;
+              onStatusChange("approved");
+            }}
           >
             ✓ 내부 검토 완료
           </Button>

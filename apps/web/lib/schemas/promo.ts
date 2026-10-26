@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DateOnly, WorkspaceRow } from "./common";
+import { DateOnly, Timestamp, WorkspaceRow } from "./common";
 
 // (참조 I)
 export const PromoEvent = WorkspaceRow.extend({
@@ -11,7 +11,7 @@ export const PromoEvent = WorkspaceRow.extend({
   memo: z.string().nullable(),
   // 제안: docs/prototype-plan.md 8장 12번
   kind: z.enum(["platform_event", "own_campaign"]).optional(),
-  milestones: z.array(z.object({ label: z.string(), due_date: DateOnly })).optional(),
+  milestones: z.array(z.object({ label: z.string(), due_date: DateOnly, done_at: Timestamp.nullable().optional() })).optional(),
   /** false = 플랫폼 공지 전 예상 일정 (promo_events.is_confirmed) */
   is_confirmed: z.boolean().optional(),
 });

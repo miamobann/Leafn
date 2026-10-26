@@ -1,0 +1,30 @@
+# Qoo10 경쟁 제품 리뷰 수집기를 GitHub에서 실행한다. 웹의 「경쟁 제품 찾기」 버튼이 만든 대기(queued) 요청을 집어 가서 미리보기로 만든다.
+# 실행은 버튼을 누를 때(웹 서버가 workflow_dispatch를 부름)뿐이다. 정기 실행은 하지 않는다 (private 저장소의 Actions 무료 시간 월 2,000분을 CI와 나눠 쓰므로, 2026-10-26 Min 결정).
+# 필요한 Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WORKSPACE_ID (collectors/db.py가 읽는 이름 그대로)
+name: Collect
+
+on:
+  workflow_dispatch:
+
+# 한 번에 하나만 돈다. --once는 대기 요청을 모두 처리하고 끝나므로, 기다리다 밀려난 실행이 있어도 요청을 놓치지 않는다
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60 # 제품 1개에 약 1분: 상위 50개면 약 50분
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: collectors/requirements.txt
+      - run: pip install -r collectors/requirements.txt
+      - run: python -m collectors.collect_to_db --worker --once
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WORKSPACE_ID: ${{ secrets.WORKSPACE_ID }}
