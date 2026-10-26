@@ -1,6 +1,7 @@
 // 버전 미리보기 (docs/team-approval-ai-analysis.md 3장 3, 7장 3단계): 내용 · 근거 · 앞 버전과의 차이를 보고 팀장이 승인 · 반려한다
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ReviewStateBadge } from "@/app/(internal)/(dashboard)/ad-check/_components/ad-badges";
 import { SubmissionBody } from "@/components/common/submission-body";
 import { VersionStatusBadge } from "@/components/common/submission-badges";
 import { PageHeader } from "@/components/layout/page-header";
@@ -33,6 +34,8 @@ const TEXT = {
   sample: "샘플 데이터예요. 로그인한 워크스페이스에서만 결재할 수 있어요.",
   notPending: "결재 대기 중인 버전만 결재할 수 있어요.",
   risk: (n: number) => `이 시안의 광고 문구 ${n}건에 위험 높음 또는 전문가 확인 요청이 있어요. 팀장 결재는 약기법 검토를 대신하지 않아요.`,
+  adReview: "원본 광고 검토 상태",
+  adReviewNote: "시안 결재와 약기법 검토는 별개입니다. 원본 검토 상태는 광고 검토 화면에서 결정합니다.",
 };
 
 export default async function VersionPreviewPage({ params }: { params: Promise<{ versionId: string }> }) {
@@ -44,9 +47,8 @@ export default async function VersionPreviewPage({ params }: { params: Promise<{
 
   // 보완 7: 근거 광고 문구의 지금 상태로 위험 경고를 정한다
   const adIds = new Set(version.evidence.filter((e) => e.kind === "ad_check").map((e) => e.id));
-  const risky = adIds.size
-    ? (await getAdChecks({ source: "all" })).filter((c) => adIds.has(c.id) && (c.overall_risk === "high" || c.is_expert_review_requested === true))
-    : [];
+  const adChecks = adIds.size ? (await getAdChecks({ source: "all" })).filter((c) => adIds.has(c.id)) : [];
+  const risky = adChecks.filter((c) => c.overall_risk === "high" || c.is_expert_review_requested === true);
   const standard = history.find((v) => v.id === submission.approved_version_id);
   const canDecide = !sampleMode && my.role === "owner" && version.status === "submitted";
 
@@ -86,6 +88,20 @@ export default async function VersionPreviewPage({ params }: { params: Promise<{
               <div className="space-y-2">
                 {previous && <p className="text-xs text-muted-foreground">{TEXT.diffNote(previous.version_no)}</p>}
                 <SubmissionBody tab={submission.tab} body={version.body} previous={previous?.body ?? null} />
+                {submission.tab === "ad" && (
+                  <div className="space-y-2 border-t pt-3 text-sm">
+                    <p className="font-medium">{TEXT.adReview}</p>
+                    <p className="text-xs text-muted-foreground">{TEXT.adReviewNote}</p>
+                    {adChecks.map((check) => (
+                      <div key={check.id} className="flex flex-wrap items-center gap-2">
+                        <Link href={`/ad-check/${check.id}`} className="underline-offset-4 hover:underline">
+                          {check.input_text.split("\n")[0]}
+                        </Link>
+                        <ReviewStateBadge status={check.review_status} expertRequested={check.is_expert_review_requested} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ),
           },

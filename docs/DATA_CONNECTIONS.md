@@ -67,6 +67,6 @@
 
 - 읽기는 `lib/data/submissions.ts`, 쓰기는 Server Action(`submission-actions` · `ai-analysis-actions` · `member-tab-actions`)이다. 상태 바꾸기(제출·취소·승인/반려·숨김·팀장 확인)는 DB 함수(rpc)로만 한다.
 - 시안의 내용(`body`)은 화면이 보낸 값을 믿지 않고 저장하는 순간 서버가 다시 만든다 (`lib/data/submission-bodies.ts`). 리뷰는 리포트와 같은 국내(ko) 리뷰, 광고는 숨기지 않은 검토 건만.
-- 광고 검토 시안을 승인·반려하면 근거 `ad_checks`의 `review_status`도 같은 결정으로 바뀐다 (`decide_version`).
+- 광고 검토 시안에는 같은 제품의 근거만 담는다. 시안 결재와 원본 광고 검토 상태는 독립적이며, 결재함에서 둘을 함께 보여 준다.
 - 마이그레이션 적용 전 연결 환경: 목록은 비어 있고, 저장은 "시안 · 결재 테이블이 아직 DB에 적용되지 않았어요"로 실패한다. 샘플 모드는 `lib/mock/submissions.ts`를 보여 주고 저장 버튼은 막는다.
-- 통합 AI 분석은 `OPENAI_API_KEY`(또는 `AI_PROVIDER`에 맞는 키)가 있어야 실행된다.
+- 통합 AI 분석은 `OPENAI_API_KEY`(또는 `AI_PROVIDER`에 맞는 키)와 서버 전용 `SUPABASE_SERVICE_ROLE_KEY`가 있어야 실행·저장된다. 인증된 Server Action이 승인본과 제품을 확인한 뒤 결과만 저장한다.

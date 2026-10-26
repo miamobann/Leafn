@@ -109,7 +109,7 @@
 
 공개 설문 제출은 아직 보내지 않는다 (`app/(public)/survey/_lib/submit.ts`). 집계 화면은 DB를 읽는다.
 
-### 탭별 시안 · 팀장 결재 · AI 분석 (`20261025115007_team_approval.sql`)
+### 탭별 시안 · 팀장 결재 · AI 분석 (`20261025115007_team_approval.sql` 및 후속 무결성 마이그레이션)
 
 설계와 결정의 이유는 [team-approval-ai-analysis.md](team-approval-ai-analysis.md). Zod는 `lib/schemas/submission.ts`, `lib/schemas/ai-analysis.ts`.
 
@@ -117,12 +117,12 @@
 | --- | --- | --- |
 | `member_tabs` | user_id, tab (`market` · `review` · `ad`), granted_by | 멤버별 담당 탭. `(workspace_id, user_id)` → workspace_members 복합 FK라 팀에서 나가면 같이 지워진다. 주고 거두기는 owner만. owner는 행이 없어도 모든 탭 담당 (`has_tab()`) |
 | `tab_submissions` | project_id, product_id (비우면 프로젝트 전체, 시장 분석만), tab, title, owner_id, approved_version_id → submission_versions, status (`draft` · `in_review` · `approved` · `rejected`), deleted_at | 시안 = 제품 × 탭 한 칸. 같은 칸에 숨기지 않은 시안은 하나 (`nulls not distinct` 부분 unique). 판매 중 제품만 (insert 트리거). status는 함수가 버전 상태로 다시 계산한다 |
-| `submission_versions` | submission_id, version_no, author_id, summary(한 줄 결론), body `jsonb`(탭별 스냅샷), evidence `jsonb` [{kind, id}], data_as_of, note, status (`draft` · `submitted` · `approved` · `rejected` · `withdrawn`), submitted_at, deleted_at | 번호는 insert 트리거가 매긴다. 제출 후 내용 수정 불가, 승인본·AI 입력 버전은 숨김 불가 (update 트리거) |
+| `submission_versions` | submission_id, version_no, author_id, summary(한 줄 결론), body `jsonb`(탭별 스냅샷), evidence `jsonb` [{kind, id}], data_as_of, note, status (`draft` · `submitted` · `approved` · `rejected` · `withdrawn`), submitted_at, deleted_at | 번호는 insert 트리거가 매긴다. 광고 근거는 같은 팀·제품만 허용한다. 제출 후 내용 수정 불가, 승인본·AI 입력 버전은 숨김 불가 |
 | `submission_reviews` | version_id, reviewer_id, decision (`approved` · `rejected`), reason(반려면 필수), is_self_review, decided_at | 결재 기록. `decide_version()`으로만 쓰고 지우지 않는다 |
-| `ai_analyses` | project_id, product_id, title, input_version_ids `uuid[]`, result `jsonb`, summary, model, prompt_version, created_by, lead_checked_by, lead_checked_at, deleted_at | 입력은 같은 팀의 승인된 버전만 (insert 트리거). 팀장 확인 전이면 화면에 라벨 |
+| `ai_analyses` | project_id, product_id, title, input_version_ids `uuid[]`, result `jsonb`, summary, model, prompt_version, created_by, lead_checked_by, lead_checked_at, deleted_at | 입력은 같은 팀·프로젝트·제품의 승인된 버전만. 결과 저장은 인증된 서버 작업의 service role만, 멤버는 읽기만. 팀장 확인 전이면 화면에 라벨 |
 
 - 시안이 있는 프로젝트·제품은 지우지 못한다 (복합 FK, on delete 기본값). 결재 기록을 지키기 위해서다.
-- 상태 바꾸기는 함수로만 한다: `submit_version()`, `withdraw_version()`, `decide_version()`(광고 검토 시안이면 근거 `ad_checks`의 review_status·reviewer_id·reviewed_at도 같은 결정으로 바꾼다), `hide_version()`, `hide_submission()`, `check_ai_analysis()`, `hide_ai_analysis()`.
+- 상태 바꾸기는 함수로만 한다: `submit_version()`, `withdraw_version()`, `decide_version()`, `hide_version()`, `hide_submission()`, `check_ai_analysis()`, `hide_ai_analysis()`. 시안 결재는 원본 `ad_checks`의 약기법 검토 상태를 바꾸지 않는다.
 
 ## 3. 아직 없는 테이블
 
@@ -182,7 +182,7 @@ create policy "members delete" on products for delete using (is_member(workspace
   - `tab_submissions`: insert는 담당 탭에서 본인 이름으로. update·delete 정책 없음 (함수로만)
   - `submission_versions`: insert는 담당 탭의 숨기지 않은 시안에 본인 이름으로, update는 임시 버전만 작성자(담당 탭일 때)나 owner. delete 정책 없음
   - `submission_reviews`: 쓰기 정책 없음 (`decide_version()`으로만)
-  - `ai_analyses`: insert는 본인 이름으로. update·delete 정책 없음 (함수로만)
+  - `ai_analyses`: 멤버는 읽기만. insert는 서버의 service role로만, 팀장 확인·숨김은 함수로만
 
 ## 6. 마이그레이션 파일 (적용 순서)
 
@@ -206,6 +206,8 @@ create policy "members delete" on products for delete using (is_member(workspace
 | `20261024130000_create_ad_checks.sql` | ad_checks, ad_check_lines, content_guides |
 | `20261024172221_harden_ad_review_writes.sql` | 광고 검토 쓰기 권한을 owner로, 작성자 기본값 |
 | `20261025115007_team_approval.sql` | member_tabs, tab_submissions, submission_versions, submission_reviews, ai_analyses, `has_tab()`, 상태 바꾸기 함수 |
+| `20261026102012_ad_submission_integrity.sql` | 광고 시안 근거의 제품 일치 검사, 결재와 원본 광고 검토 상태 분리 |
+| `20261026102117_ai_analysis_trusted_writes.sql` | AI 결과 직접 insert 차단, 승인본의 프로젝트·제품 일치 검사 |
 | `20261026140000_create_review_translations.sql` | review_translations (상세페이지용 리뷰 번역) |
 | `20261026150000_products_add_title_ai.sql` | products.title_ai (AI가 정리한 제품명) |
 

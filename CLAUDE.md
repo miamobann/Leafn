@@ -351,7 +351,7 @@
 | `AI_MODEL_PRECISE`, `AI_MODEL_BULK` | web 서버 | 선택. 비우면 `lib/ai/` 설정 파일의 기본 모델 |
 | `NEXT_PUBLIC_SUPABASE_URL` | web | 공개 가능 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | 공개 가능 (RLS가 보호) |
-| `SUPABASE_SERVICE_ROLE_KEY` | collectors, 서버 전용 작업 | RLS 우회 키. 절대 브라우저/커밋 금지 |
+| `SUPABASE_SERVICE_ROLE_KEY` | collectors, 통합 AI 분석 결과 저장 Server Action | RLS 우회 키. 인증·팀·승인본 검증 후 결과 저장 호출에만 사용. 절대 브라우저/커밋 금지 |
 | `RAKUTEN_APPLICATION_ID` | (확장용) | 데모에서는 쓰지 않는다. 라쿠텐을 연동할 때 서버 전용으로 |
 | `SERPAPI_API_KEY` | web 서버 | 브라우저 노출 금지. 유료 호출이라 수집 버튼·예약 실행에서만 부른다 |
 | `APIFY_TOKEN` | web 서버 | 브라우저 노출 금지. 유료 호출이라 SNS [분석 시작] 버튼에서만 부른다 |
@@ -381,7 +381,7 @@
 
 **그 밖에 남은 것:** 공개 설문 제출 저장(G), 리뷰 번역 저장(F), 시장 화면의 라쿠텐 스냅샷 정리(Qoo10만 원칙).
 
-1~4단계는 PR 하나로 올린다 (2026-10-26). 마이그레이션 `20261025115007_team_approval.sql`은 머지 뒤 총괄이 원격 DB에 적용하고, 그 뒤 owner·member 두 계정으로 권한과 저장·결재 흐름을 확인한다.
+1~4단계는 PR 하나로 올린다 (2026-10-26). 마이그레이션 `20261025115007_team_approval.sql`과 후속 `20261026102012_ad_submission_integrity.sql`, `20261026102117_ai_analysis_trusted_writes.sql`은 머지 뒤 총괄이 순서대로 원격 DB에 적용하고, 그 뒤 owner·member 두 계정으로 권한과 저장·결재 흐름을 확인한다. 통합 AI 분석 결과 저장에는 서버 전용 `SUPABASE_SERVICE_ROLE_KEY`가 필요하다.
 
 ---
 

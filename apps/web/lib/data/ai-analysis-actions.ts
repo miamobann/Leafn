@@ -3,6 +3,7 @@
 // 통합 AI 분석 실행 · 저장 (docs/team-approval-ai-analysis.md 3장 5~6, 7장 4단계). 멤버 누구나 실행하고 결과는 팀 전체가 본다.
 // 입력은 그 제품의 탭별 승인본 하나씩(시장 분석은 프로젝트 전체 시안도 가능). 고른 버전이 정말 승인본인지 서버에서 다시 확인한다.
 import { z } from "zod";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
 import { IntegratedAnalysisParseError } from "@/lib/ai/integrated-analysis/parse";
@@ -16,6 +17,11 @@ const VersionIds = z.array(z.uuid()).min(1).max(3);
 export async function runAiAnalysis(productId: string, versionIds: string[]): Promise<SubmissionResult<{ analysisId: string }>> {
   const ctx = await writeContext();
   if (!ctx.ok) return ctx;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!serviceKey || !supabaseUrl) return fail("AI 결과 저장 설정이 없어요. 관리자에게 서버 키 설정을 요청해 주세요");
+  const { data: auth, error: authError } = await ctx.supabase.auth.getUser();
+  if (authError || !auth.user) return fail("로그인 상태를 확인하지 못했어요. 다시 로그인해 주세요");
   const ids = VersionIds.safeParse(versionIds);
   if (!ids.success) return fail("탭마다 승인본을 하나씩, 1~3개 골라 주세요");
   const target = await ownOnSaleProduct(productId);
@@ -51,7 +57,9 @@ export async function runAiAnalysis(productId: string, versionIds: string[]): Pr
     throw e;
   }
 
-  const { data, error } = await ctx.supabase
+  // 이 파일은 Server Action 전용이다. 키는 브라우저에 전달하지 않고 이 검증된 저장 호출에만 쓴다.
+  const service = createSupabaseClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data, error } = await service
     .from("ai_analyses")
     .insert({
       workspace_id: ctx.workspaceId,
@@ -63,6 +71,7 @@ export async function runAiAnalysis(productId: string, versionIds: string[]): Pr
       summary: run.result.summary,
       model: run.model,
       prompt_version: run.promptVersion,
+      created_by: auth.user.id,
     })
     .select("id")
     .single();

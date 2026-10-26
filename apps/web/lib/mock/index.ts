@@ -133,9 +133,8 @@ function checkRefs() {
     if (s) expect(VERSION_BODY_BY_TAB[s.tab].safeParse(v.body).success, `submissionVersions ${v.id}.body가 ${s.tab} 모양이 아님`);
     for (const e of v.evidence) {
       expect(evidenceIds[e.kind].has(e.id), `submissionVersions ${v.id} 근거 ${e.kind} ${e.id}`);
-      // 광고 검토 시안을 결재하면 근거 검토 건의 상태도 같은 결정이 된다 (decide_version)
-      if (s?.tab === "ad" && e.kind === "ad_check" && (v.status === "approved" || v.status === "rejected"))
-        expect(adChecks.find((a) => a.id === e.id)?.review_status === v.status, `submissionVersions ${v.id} 근거 ${e.id}의 검토 상태가 결재와 다름`);
+      if (s?.tab === "ad" && e.kind === "ad_check")
+        expect(adChecks.find((a) => a.id === e.id)?.product_id === s.product_id, `submissionVersions ${v.id} 근거 ${e.id}의 제품이 시안과 다름`);
     }
   }
   for (const r of submissionReviews) {

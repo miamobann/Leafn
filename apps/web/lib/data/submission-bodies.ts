@@ -56,11 +56,14 @@ export async function buildReviewSnapshot(productId: string): Promise<VersionSna
   };
 }
 
-/** 광고 검토 시안은 숨기지 않은 검토 건(ad_checks)을 묶는다. 없는 ID는 빼고, 하나도 없으면 오류 */
-export async function buildAdSnapshot(adCheckIds: string[]): Promise<VersionSnapshot<AdBody>> {
+/** 광고 검토 시안에는 같은 제품의 숨기지 않은 검토 건만 담는다. 일부라도 맞지 않으면 저장하지 않는다 */
+export async function buildAdSnapshot(productId: string, adCheckIds: string[]): Promise<VersionSnapshot<AdBody>> {
   const wanted = new Set(adCheckIds);
+  if (wanted.size === 0) throw new Error("시안에 담을 광고 검토 건을 골라 주세요");
   const checks = (await getAdChecks({ source: "all" })).filter((c) => wanted.has(c.id));
-  if (checks.length === 0) throw new Error("시안에 담을 광고 검토 건을 찾지 못했어요");
+  if (checks.length !== wanted.size || checks.some((c) => c.product_id !== productId)) {
+    throw new Error("이 제품에 속한 광고 검토 건만 시안에 담을 수 있어요");
+  }
   const body = AdBody.parse({
     items: checks.map((c) => ({
       ad_check_id: c.id,

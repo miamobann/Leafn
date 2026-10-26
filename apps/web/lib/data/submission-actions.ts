@@ -110,7 +110,7 @@ export async function saveAdDraft(
   }
   let snapshot: VersionSnapshot<object>;
   try {
-    snapshot = await buildAdSnapshot(checkIds);
+    snapshot = await buildAdSnapshot(productId, checkIds);
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e));
   }
@@ -194,8 +194,14 @@ export async function decideVersion(
   if (!Uuid.safeParse(versionId).success || !Decision.safeParse(decision).success) return fail("입력값을 확인해 주세요");
   const trimmed = reason.trim().slice(0, 1000);
   if (decision === "rejected" && !trimmed) return fail("반려 사유를 적어 주세요");
-  if (decision === "approved" && !riskAcknowledged && (await hasRiskyAdEvidence(ctx, versionId))) {
-    return fail("위험 높음 · 전문가 확인 요청이 있는 문구예요. 약기법 검토를 확인했다는 체크를 해 주세요");
+  if (decision === "approved" && !riskAcknowledged) {
+    let risky: boolean;
+    try {
+      risky = await hasRiskyAdEvidence(ctx, versionId);
+    } catch {
+      return fail("광고 검토 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요");
+    }
+    if (risky) return fail("위험 높음 · 전문가 확인 요청이 있는 문구예요. 약기법 검토를 확인했다는 체크를 해 주세요");
   }
   const { error } = await ctx.supabase.rpc("decide_version", { p_version_id: versionId, p_decision: decision, p_reason: trimmed || null });
   if (error) return fail(dbError(error));
@@ -203,9 +209,11 @@ export async function decideVersion(
 }
 
 async function hasRiskyAdEvidence(ctx: WriteContext, versionId: string) {
-  const { data } = await ctx.supabase.from("submission_versions").select("evidence").eq("id", versionId).maybeSingle();
+  const { data, error } = await ctx.supabase.from("submission_versions").select("evidence").eq("id", versionId).maybeSingle();
+  if (error || !data) throw new Error("광고 검토 근거를 읽지 못했습니다");
   const refs = z.array(EvidenceRef).safeParse(data?.evidence ?? []);
-  const ids = new Set(refs.success ? refs.data.filter((e) => e.kind === "ad_check").map((e) => e.id) : []);
+  if (!refs.success) throw new Error("광고 검토 근거가 올바르지 않습니다");
+  const ids = new Set(refs.data.filter((e) => e.kind === "ad_check").map((e) => e.id));
   if (ids.size === 0) return false;
   return (await getAdChecks({ source: "all" })).some(
     (c) => ids.has(c.id) && (c.overall_risk === "high" || c.is_expert_review_requested === true),
