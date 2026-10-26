@@ -1,7 +1,8 @@
 import { EmptyState } from "@/components/common/states";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTableTemplate } from "@/components/templates";
-import { getAdChecks, getContentGuides, getMembers, getProducts } from "@/lib/data";
+import { getAdChecks, getContentGuide, getContentGuides, getMembers, getProducts } from "@/lib/data";
+import type { AdAction } from "@/lib/schemas/ad-check";
 import { getAdProducts } from "@/lib/data/ad-products";
 import { getMyWorkspace } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
@@ -15,6 +16,12 @@ type GuideHistoryPageProps = {
 };
 
 const CHANNEL_LABEL = Object.fromEntries(GUIDE_CHANNELS.map((c) => [c.id, c.label]));
+
+/** 가장 무거운 판정 (고쳐야 함 > 전문가 확인 > 수정 권장 > 문제 없음). 판정이 없으면 null */
+const ACTION_WEIGHT: Record<AdAction, number> = { must_fix: 3, expert: 2, should_fix: 1, ok: 0 };
+function worstAction(actions: AdAction[]): AdAction | null {
+  return actions.reduce<AdAction | null>((worst, a) => (worst === null || ACTION_WEIGHT[a] > ACTION_WEIGHT[worst] ? a : worst), null);
+}
 
 /** 만든 가이드 목록 (content_guides). 검토 내역과 같은 표 모양. 삭제는 owner(팀장)만 */
 export default async function GuideHistoryPage({ searchParams }: GuideHistoryPageProps) {
@@ -36,7 +43,15 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
   const guides = all.filter((g) => !superseded.has(g.id) && (!productFilter || g.product_id === productFilter) && (!channelFilter || g.channel === channelFilter));
   const memberName = (id: string | null) => members.find((m) => m.user_id === id)?.display_name ?? "—";
   const productName = (id: string | null) => products.find((p) => p.id === id)?.name ?? "—";
-  const actionOf = (checkId: string | null) => checks.find((c) => c.id === checkId)?.overall_action ?? null;
+  // 수정본(약기법 수정)의 판정: 고친 줄은 통과로 보고 남은 줄 중 가장 무거운 판정 (getContentGuide 가 블록별로 계산)
+  const revisedAction = new Map(
+    await Promise.all(
+      guides
+        .filter((g) => g.parent_id)
+        .map(async (g) => [g.id, worstAction((await getContentGuide(g.id))?.checks.map((c) => c.action) ?? [])] as const),
+    ),
+  );
+  const actionOf = (g: (typeof all)[number]) => (g.parent_id ? (revisedAction.get(g.id) ?? null) : (checks.find((c) => c.id === g.ad_check_id)?.overall_action ?? null));
   // 콘텐츠를 만들 수 있는 제품(전성분·가격·용량이 등록된 자사 제품)과 이미 만든 콘텐츠의 제품만 고를 수 있게 한다
   const usable = new Set(adProducts.filter((p) => p.price_jpy > 0 && p.volume !== "미등록" && p.line !== "미등록").map((p) => p.id));
   const productOptions = products
@@ -68,7 +83,7 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
             ...(isOwner ? [{ key: "delete", label: "" }] : []),
           ]}
           rows={guides.map((g) => {
-            const action = actionOf(g.ad_check_id);
+            const action = actionOf(g);
             return {
               id: g.id,
               href: `/ad-check/guide/history/${g.id}`,
@@ -76,7 +91,11 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
                 title: (
                   // 목록 제목은 한국어로 통일 (검토 이력과 같다). 마우스를 올리면 일본어 제목
                   <span className="block max-w-80 truncate font-medium underline-offset-4 [a:hover_&]:underline" title={g.title.title_ja}>
-                    {g.parent_id && <span className="mr-1 rounded border px-1 text-xs font-normal">수정본</span>}
+                    {g.parent_id && (
+                      <span className="mr-1 rounded border px-1 text-xs font-normal" title="새 검토에서 대체 표현으로 고친 버전이에요. 고치기 전 버전은 목록에서 숨겨져 있어요">
+                        약기법 수정
+                      </span>
+                    )}
                     {g.title.title_ko}
                   </span>
                 ),
@@ -86,8 +105,7 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
                   </span>
                 ),
                 channel: <span className="whitespace-nowrap">{CHANNEL_LABEL[g.channel] ?? g.channel}</span>,
-                // 수정본의 검사 기록은 고치기 전 문구의 판정이라 배지 대신 반영 사실만 적는다 (고친 줄은 재검토 통과만 받는다)
-                action: g.parent_id ? <span className="whitespace-nowrap text-xs text-muted-foreground">대체 표현 반영</span> : action ? <ActionBadge action={action} /> : "—",
+                action: action ? <ActionBadge action={action} /> : "—",
                 author: memberName(g.created_by),
                 date: formatDate(g.created_at),
                 delete: <DeleteButton endpoint={`/api/content-guide/${g.id}`} confirmMessage="이 가이드를 삭제할까요? 지운 결과물은 되돌릴 수 없습니다. (약기법 검사 기록은 남아요)" />,

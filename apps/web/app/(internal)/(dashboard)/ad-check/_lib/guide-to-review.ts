@@ -31,6 +31,25 @@ export function slotText(line: string): string {
   return line.split(LINE_JOIN).join("\n");
 }
 
+/** 검토 → 「가이드에 반영」을 지금 할 수 있는지.
+ *  reflected: 이 검토로 이미 수정본을 만들었다 (두 번 만들지 않는다) · stale: 그 사이 가이드에 더 새 수정본이 생겼다 (버전이 갈라지지 않게 최신에서 다시 검토) */
+export type GuideReflectState = { kind: "ready" } | { kind: "reflected"; revisionId: string } | { kind: "stale"; latestId: string };
+
+type GuideLink = Pick<ContentGuideRow, "id" | "parent_id" | "ad_check_id" | "created_at">;
+
+export function guideReflectState(guides: GuideLink[], guideId: string, checkId: string): GuideReflectState {
+  const reflected = guides.find((g) => g.parent_id && g.ad_check_id === checkId);
+  if (reflected) return { kind: "reflected", revisionId: reflected.id };
+  // 이 가이드의 다음 버전을 따라가 가장 새 수정본을 찾는다
+  let latest = guideId;
+  for (let i = 0; i < guides.length; i++) {
+    const next = guides.filter((g) => g.parent_id === latest).toSorted((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    if (!next) break;
+    latest = next.id;
+  }
+  return latest === guideId ? { kind: "ready" } : { kind: "stale", latestId: latest };
+}
+
 export function guideToReviewInput(guide: ContentGuideRow, fill: Fill = asIs) {
   return { productId: guide.product_id ?? undefined, usage: USAGE[guide.channel], text: guideSlots(guide, fill).map((s) => s.text).join("\n") };
 }

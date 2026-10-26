@@ -82,6 +82,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
                       {first?.text ?? ""}
                     </span>
                     {rest.length > 0 && <span className="shrink-0 text-muted-foreground">외 {rest.length}줄</span>}
+                    {c.content_guide_id && <span className="shrink-0 rounded border px-1 text-[0.65rem] text-muted-foreground" title="만든 가이드에서 온 검토 (상세에서 「가이드에 반영」)">가이드</span>}
                   </span>
                 ),
                 product: (

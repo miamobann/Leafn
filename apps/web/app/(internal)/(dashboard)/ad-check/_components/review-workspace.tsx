@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { z } from "zod";
 import { AiResultMeta } from "@/components/common/ai";
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/states";
 import { ViewStateGate } from "@/components/common/view-state";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdCheck, AdUsage } from "@/lib/schemas/ad-check";
 import type { ReviewStatus } from "@/lib/schemas/common";
@@ -15,6 +14,7 @@ import { countLines } from "../_lib/lines";
 import type { LabProduct } from "../_lib/products";
 import { requestAdCheck, updateAdCheckReview, type AiMeta } from "../_lib/request";
 import { CopyButton } from "./copy-button";
+import { GuideRevisePanel, useGuideRevise } from "./guide-reflect";
 import { LineResultCard } from "./line-result-card";
 import { ResultSummary } from "./result-summary";
 import { ReviewBar } from "./review-bar";
@@ -37,9 +37,7 @@ type ReviewWorkspaceProps = {
 };
 
 export function ReviewWorkspace({ products, workspaceId, canApprove = true, initial, guideId }: ReviewWorkspaceProps) {
-  const router = useRouter();
-  const [revising, setRevising] = useState(false);
-  const [reviseError, setReviseError] = useState<string | null>(null);
+  const { revise, revising, failure: reviseFailure, reset: resetRevise } = useGuideRevise(guideId);
   const [productId, setProductId] = useState(
     initial?.productId && products.some((p) => p.id === initial.productId) ? initial.productId : products[0].id,
   );
@@ -65,7 +63,7 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
 
   function resetReview() {
     setSelected({});
-    setReviseError(null);
+    resetRevise();
     setStatus("pending");
     setExpertRequested(false);
     setNote("");
@@ -99,7 +97,7 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
     setError(null);
     setAiMeta(null);
     setSubmittedText(text);
-    const result = await requestAdCheck({ workspaceId, product, usage, text });
+    const result = await requestAdCheck({ workspaceId, product, usage, text, guideId });
     if (id !== requestId.current) return;
     if (result.ok) {
       // 화면에서 고른 제품을 결과에 남긴다
@@ -123,26 +121,6 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
     setCheck(null);
     setBusy(false);
     resetReview();
-  }
-
-  /** 고친 문구로 가이드 수정본을 만든다 (원본은 남는다). 서버가 재검토를 통과한 대체 표현인지 다시 확인한다 */
-  async function reviseGuide() {
-    if (!check || !guideId) return;
-    setRevising(true);
-    setReviseError(null);
-    try {
-      const res = await fetch(`/api/content-guide/${guideId}/revise`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ad_check_id: check.id, picks: selected }),
-      });
-      const json = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
-      if (!res.ok || !json.id) throw new Error(json.error ?? "가이드에 반영하지 못했어요");
-      router.push(`/ad-check/guide/history/${json.id}`);
-    } catch (e) {
-      setReviseError(e instanceof Error ? e.message : "가이드에 반영하지 못했어요");
-      setRevising(false);
-    }
   }
 
   function selectSuggestion(lineIndex: number, suggestion: string | null) {
@@ -247,8 +225,8 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
           mustFixLeft={lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length}
           checkLeft={lines.filter((l) => (l.action === "should_fix" || l.action === "expert") && !selected[l.line_index]).length}
           revising={revising}
-          error={reviseError}
-          onRevise={() => void reviseGuide()}
+          failure={reviseFailure}
+          onRevise={() => check && void revise(check.id, selected)}
         />
       )}
       {/* 다음 단계: 저장된 검토만 상세·전문가 자료로 넘길 수 있다 */}
@@ -268,24 +246,5 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
         </div>
       )}
     </ViewStateGate>
-  );
-}
-
-function GuideRevisePanel({ stale, mustFixLeft, checkLeft, revising, error, onRevise }: { stale: boolean; mustFixLeft: number; checkLeft: number; revising: boolean; error: string | null; onRevise: () => void }) {
-  const blocked = stale ? "입력이 바뀌었어요. 다시 판정한 뒤 반영할 수 있어요." : mustFixLeft > 0 ? `「고쳐야 함」 줄 ${mustFixLeft}개에 대체 표현을 골라 주세요.` : null;
-  return (
-    <div className="mt-4 space-y-2 rounded-lg border border-primary/40 p-3 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span>
-          가이드에 반영 · 고른 대체 표현으로 만든 가이드의 수정본을 만들어요. 원본과 검사 기록은 그대로 남아요.
-          {!blocked && checkLeft > 0 && <span className="text-muted-foreground"> 확인이 필요한 줄 {checkLeft}개는 지금 문구 그대로 들어가요.</span>}
-        </span>
-        <Button type="button" size="sm" disabled={Boolean(blocked) || revising} onClick={onRevise}>
-          {revising ? "반영 중…" : "가이드에 반영 →"}
-        </Button>
-      </div>
-      {blocked && <p className="text-xs text-muted-foreground">{blocked}</p>}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
   );
 }
