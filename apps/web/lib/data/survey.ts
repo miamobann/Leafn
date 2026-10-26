@@ -31,7 +31,7 @@ export async function readSurveySummary() {
     recent_7d: responses.filter((r) => r.created_at >= weekAgo).length,
     under18_count: minors.reduce((sum, r) => sum + r.count, 0),
     sensitive_count: responses.filter((r) => r.is_sensitive).length,
-    // 채널별 구매 클릭 · 출시 알림(화면 연 수)은 경로가 기록된 추천 기록으로 센다. 그런 기록이 없으면 비워 둔다 (화면에는 "—")
+    // 채널별 구매 클릭 · 출시 예정 화면 열기 횟수는 경로가 기록된 추천 이벤트로 센다.
     by_source: counts((r) => r.source ?? "other").map(([source, count]) => {
       const types = new Map<string, number>();
       for (const r of responses) if ((r.source ?? "other") === source) types.set(r.skin_type, (types.get(r.skin_type) ?? 0) + 1);
@@ -53,7 +53,7 @@ export async function readSurveySummary() {
     product_lines: [...new Set(events.map((r) => r.product_line))].map((line_id) => ({
       line_id, shown: events.filter((r) => r.product_line === line_id && r.event === "shown").length,
       clicks: events.filter((r) => r.product_line === line_id && r.event === "buy_click").length,
-      // 알림 신청 완료(이메일 · LINE)는 아직 저장하지 않아, 알림 화면을 연 사람 수로 센다
+      // 신청 완료나 사람 수가 아닌 화면 열기 이벤트 횟수
       notify_open: events.filter((r) => r.product_line === line_id && r.event === "notify_open").length,
     })),
     responses: responses.sort((a, b) => b.created_at.localeCompare(a.created_at)).map((r) => ({

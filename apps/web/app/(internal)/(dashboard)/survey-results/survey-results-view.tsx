@@ -194,9 +194,9 @@ export function SurveyResultsView({
                 <HBars items={concernTop3.map((c) => ({ label: CONCERN_KO[c.key] ?? c.key, value: c.count }))} total={summary.total} unit="명" />
                 <p className="text-xs leading-relaxed text-muted-foreground">연령대별 1위: {topConcernByAge(summary)}</p>
               </Tile>
-              <Tile title="라인별 반응" note="추천 본 사람 중">
+              <Tile title="라인별 반응" note="추천 노출 대비">
                 {topReaction && (
-                  <Hero value={pct(topReaction.reacted ?? 0, topReaction.shown)} label={`${topReaction.name} ${topReaction.onSale ? "구매 클릭" : "출시 알림"}`} />
+                  <Hero value={pct(topReaction.reacted ?? 0, topReaction.shown)} label={`${topReaction.name} ${topReaction.onSale ? "구매 클릭" : "출시 예정 화면 열기"}`} />
                 )}
                 <div className="flex flex-col gap-2.5">
                   {sortedReactions.map((r) => (
@@ -204,7 +204,7 @@ export function SurveyResultsView({
                       <span>
                         {r.name}
                         <small className="block text-[11.5px] text-muted-foreground">
-                          {r.onSale ? "판매 중 · 구매 클릭" : "개발 중 · 출시 알림"}
+                          {r.onSale ? "판매 중 · 구매 클릭" : "개발 중 · 출시 예정 화면 열기"}
                         </small>
                       </span>
                       <Track ratio={r.reacted === null || !r.shown ? 0 : r.reacted / r.shown} strong />
@@ -218,7 +218,7 @@ export function SurveyResultsView({
                 <HBars items={bySource.slice(0, 3).map((s) => ({ label: SOURCE_KO[s.source], value: s.count }))} total={summary.total} unit="건" />
                 {bySource[0] && (bySource[0].clicks !== undefined || bySource[0].notify !== undefined) && (
                   <p className="text-xs text-muted-foreground">
-                    {SOURCE_KO[bySource[0].source]} 구매 클릭 {countOr(bySource[0].clicks, "회")} · 출시 알림 {countOr(bySource[0].notify, "명")}
+                    {SOURCE_KO[bySource[0].source]} 구매 클릭 {countOr(bySource[0].clicks, "회")} · 출시 예정 화면 열기 {countOr(bySource[0].notify, "회")}
                   </p>
                 )}
               </Tile>
@@ -258,7 +258,7 @@ export function SurveyResultsView({
                     <TableHead className="text-right">응답</TableHead>
                     <TableHead>가장 많은 피부타입</TableHead>
                     <TableHead className="text-right">구매하기 클릭</TableHead>
-                    <TableHead className="text-right">출시 알림 신청</TableHead>
+                    <TableHead className="text-right">출시 예정 화면 열기</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -270,13 +270,13 @@ export function SurveyResultsView({
                       </TableCell>
                       <TableCell>{s.top_skin_type ? `${SKIN[s.top_skin_type].ko} ${s.top_skin_count ?? 0}명` : "—"}</TableCell>
                       <TableCell className="text-right">{countOr(s.clicks, "회")}</TableCell>
-                      <TableCell className="text-right">{countOr(s.notify, "명")}</TableCell>
+                      <TableCell className="text-right">{countOr(s.notify, "회")}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
               <p className="text-xs text-muted-foreground">
-                구매하기 클릭 · 출시 알림 신청은 결과 화면에서 추천을 본 뒤의 반응입니다. &apos;기타&apos;는 응답자가 직접 적은 경로입니다.
+                구매 클릭과 출시 예정 화면 열기는 이벤트 횟수입니다. 알림 신청 수나 고유 인원 수가 아닙니다. &apos;기타&apos;는 응답자가 직접 적은 경로입니다.
               </p>
             </CardContent>
           </Card>
@@ -444,12 +444,12 @@ export function SurveyResultsView({
       {tab === "product" && (
         <Card>
           <CardHeader>
-            <CardTitle>제품 추천 · 출시 알림</CardTitle>
+            <CardTitle>제품 추천 · 출시 예정</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              결과 화면에서 추천을 본 사람과 반응 수입니다. 출시 알림 수는 개발 중인 라인의 수요를 보여 줍니다. 연락처는 따로 저장되어 이
-              화면에는 숫자만 나옵니다.
+              결과 화면에서 추천이 노출된 횟수와 반응 횟수입니다. 개발 중인 라인은 출시 예정 화면을 연 횟수만 기록하며,
+              연락처나 알림 신청은 받지 않습니다.
             </p>
             <Table>
               <TableHeader>
@@ -457,7 +457,7 @@ export function SurveyResultsView({
                   <TableHead>라인</TableHead>
                   <TableHead>상태</TableHead>
                   <TableHead>추천 대상</TableHead>
-                  <TableHead className="text-right">추천 본 사람</TableHead>
+                  <TableHead className="text-right">추천 노출</TableHead>
                   <TableHead>반응률</TableHead>
                 </TableRow>
               </TableHeader>
@@ -465,13 +465,9 @@ export function SurveyResultsView({
                 {sortedReactions.map((r) => {
                   const p = summary.product_lines.find((x) => x.line_id === r.id);
                   const line = lines.find((l) => l.id === r.id);
-                  // 신청 수(이메일 · LINE)가 없으면(DB 모드) 알림 화면을 연 사람 수로 본다
-                  const signedUp = p?.notify_email !== undefined || p?.notify_line !== undefined;
                   const detail = r.onSale
                     ? `구매하기 클릭 ${p?.clicks ?? 0}회`
-                    : signedUp
-                      ? `출시 알림 ${r.reacted ?? 0}명 (이메일 ${p?.notify_email ?? 0} · LINE ${p?.notify_line ?? 0})`
-                      : `출시 알림 화면 연 사람 ${r.reacted ?? 0}명`;
+                    : `출시 예정 화면 열기 ${r.reacted ?? 0}회`;
                   return (
                     <TableRow key={r.id}>
                       <TableCell className="py-3">
@@ -482,7 +478,7 @@ export function SurveyResultsView({
                         <Badge variant={r.onSale ? "default" : "secondary"}>{r.onSale ? "판매 중" : "개발 중"}</Badge>
                       </TableCell>
                       <TableCell className="py-3">{line?.for_types.map((t) => SKIN[t].ko).join(", ")}</TableCell>
-                      <TableCell className="py-3 text-right">{r.shown}명</TableCell>
+                      <TableCell className="py-3 text-right">{r.shown}회</TableCell>
                       <TableCell className="py-3">
                         <div className="grid w-56 grid-cols-[minmax(0,1fr)_3.2rem] items-center gap-2.5">
                           <Track ratio={r.shown ? (r.reacted ?? 0) / r.shown : 0} strong />
@@ -496,8 +492,8 @@ export function SurveyResultsView({
               </TableBody>
             </Table>
             <p className="text-xs text-muted-foreground">
-              판매 중 → 개발 중, 그 안에서는 추천 본 사람이 많은 순. 한 사람에게 여러 라인을 함께 추천하므로 &apos;추천 본 사람&apos;의 합은 응답
-              수보다 많습니다. 예: 중성 결과({normalCount}명)에는 {normalLines.join(", ")}을 함께 추천합니다.
+              판매 중 → 개발 중, 그 안에서는 추천 노출이 많은 순입니다. 한 사람에게 여러 라인을 함께 추천하고 같은 화면을 다시 열 수도 있어
+              노출 횟수의 합은 응답 수보다 많을 수 있습니다. 예: 중성 결과({normalCount}명)에는 {normalLines.join(", ")}을 함께 추천합니다.
             </p>
           </CardContent>
         </Card>

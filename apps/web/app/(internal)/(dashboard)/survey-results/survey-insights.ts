@@ -46,13 +46,12 @@ const bareName = (line: SurveyProductLine | undefined, id: string) => lineName(l
 
 export type LineReaction = { id: string; name: string; onSale: boolean; shown: number; reacted: number | null };
 
-/** 라인별 반응: 판매 중은 구매하기 클릭, 개발 중은 출시 알림. 숫자가 없으면 reacted는 null */
+/** 라인별 반응: 판매 중은 구매하기 클릭, 개발 중은 출시 예정 화면 열기. 숫자가 없으면 reacted는 null */
 export function lineReactions(summary: SurveySummary, lines: SurveyProductLine[]): LineReaction[] {
   return summary.product_lines.map((p) => {
     const line = lines.find((l) => l.id === p.line_id);
     const onSale = line?.status === "on_sale";
-    const notify = p.notify_email === undefined && p.notify_line === undefined ? (p.notify_open ?? null) : (p.notify_email ?? 0) + (p.notify_line ?? 0);
-    return { id: p.line_id, name: bareName(line, p.line_id), onSale, shown: p.shown, reacted: onSale ? (p.clicks ?? null) : notify };
+    return { id: p.line_id, name: bareName(line, p.line_id), onSale, shown: p.shown, reacted: onSale ? (p.clicks ?? null) : (p.notify_open ?? null) };
   });
 }
 
@@ -111,7 +110,7 @@ export function surveyInsights(summary: SurveySummary, lines: SurveyProductLine[
     });
   }
 
-  // 2. 개발 중 라인의 출시 알림 vs 판매 중 라인의 구매 클릭 (알림 숫자가 없으면 비교하지 않는다)
+  // 2. 개발 중 라인의 출시 예정 화면 열기 vs 판매 중 라인의 구매 클릭 (기록이 없으면 비교하지 않는다)
   const reactions = lineReactions(summary, lines).filter((r) => r.reacted !== null && r.shown > 0);
   const rate = (r: LineReaction) => (r.reacted ?? 0) / r.shown;
   const dev = reactions.filter((r) => !r.onSale);
@@ -120,9 +119,9 @@ export function surveyInsights(summary: SurveySummary, lines: SurveyProductLine[
     const devWins = Math.max(...dev.map(rate)) > Math.max(...sale.map(rate));
     insights.push({
       headline: devWins
-        ? "개발 중 라인의 출시 알림이 판매 중 라인의 구매 클릭보다 많아요"
-        : "판매 중 라인의 구매 클릭이 개발 중 라인의 출시 알림보다 많아요",
-      evidence: `출시 알림 ${dev.map((r) => `${r.name} ${pct(r.reacted ?? 0, r.shown)}`).join(" · ")} · ${sale
+        ? "개발 중 라인의 출시 예정 화면 열기가 판매 중 라인의 구매 클릭보다 많아요"
+        : "판매 중 라인의 구매 클릭이 개발 중 라인의 출시 예정 화면 열기보다 많아요",
+      evidence: `출시 예정 화면 열기 ${dev.map((r) => `${r.name} ${pct(r.reacted ?? 0, r.shown)}`).join(" · ")} · ${sale
         .map((r) => `${r.name} 구매하기 클릭 ${pct(r.reacted ?? 0, r.shown)}`)
         .join(" · ")} → 다음 출시 순서를 정할 근거`,
     });
