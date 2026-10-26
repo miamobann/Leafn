@@ -5,8 +5,12 @@
 // workspace_id는 화면 입력을 믿지 않고 로그인한 워크스페이스로 채운다 (DB_RULES 4.1).
 import { z } from "zod";
 import { AppealTopic } from "@/lib/schemas/review";
-import { Decision, EvidenceRef, ReviewBody, type SubmissionTab } from "@/lib/schemas/submission";
-import { getAdChecks } from "./index";
+import { Decision, EvidenceRef, MarketBody, ReviewBody, type SubmissionTab } from "@/lib/schemas/submission";
+import { MARKET_CATEGORIES, MARKET_PLATFORMS, type MarketPlatform } from "@/lib/market-config";
+import { summarySnapshot } from "@/app/(internal)/(dashboard)/market/_lib/summary";
+import { weekLabel } from "@/app/(internal)/(dashboard)/market/_lib/market";
+import { seriesOf } from "@/app/(internal)/(dashboard)/market/_lib/overview";
+import { getAdChecks, getGeoSnapshots, getProducts, getSearchSnapshots, getSnsAnalyses, getTrendSnapshots } from "./index";
 import { buildAdSnapshot, buildAppeals, buildReviewSnapshot, buildTranslations, type VersionSnapshot, withExtras } from "./submission-bodies";
 import { dbError, fail, ownOnSaleProduct, type SubmissionResult, type WriteContext, writeContext } from "./submission-write";
 import { getCurrentUser } from "./workspace";
@@ -209,6 +213,85 @@ export async function saveAdDraft(
     snapshot = await buildAdSnapshot(productId, checkIds);
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e));
+  }
+  return insertVersion(ctx, submission.id, snapshot, parsed.data);
+}
+
+/**
+ * 시장 분석 시안 (2026-10-26): 시장 분석 요약 탭에 보이는 내용(이번 주 핵심 · 알 수 있는 것 · 한눈에 보기)을 그 순간의 데이터로 서버에서 다시 만들어 고정한다.
+ * 고정 기준 = 카테고리 · 플랫폼 · 기준 주 · 수집일 (body.summary.basis) + 시안 제품. 결재 문서는 다시 계산하지 않고 이 값을 보여 준다.
+ * 시안 칸은 고른 자사 제품 × 시장 분석 (판매 중 제품만). 내 임시 버전이 가장 최근이면 그 버전을 고치고, 아니면 새 버전을 만든다
+ */
+export async function saveMarketDraft(
+  productId: string,
+  view: { category: string; platform: string },
+  input: DraftInput,
+): Promise<SubmissionResult<{ versionId: string; versionNo: number }>> {
+  const parsed = DraftInput.safeParse(input);
+  if (!parsed.success) return fail("한 줄 결론은 300자, 메모는 1000자까지예요");
+  if (!(MARKET_CATEGORIES as readonly string[]).includes(view.category)) return fail("카테고리를 다시 골라 주세요");
+  const platform = MARKET_PLATFORMS.find((p) => p.source === view.platform)?.source as MarketPlatform | undefined;
+  if (!platform) return fail("플랫폼을 다시 골라 주세요");
+  const ctx = await writeContext();
+  if (!ctx.ok) return ctx;
+  const target = await ownOnSaleProduct(productId);
+  if (!target.ok) return target;
+
+  const [snapshots, products, search, geo, snsAll] = await Promise.all([getTrendSnapshots({ source: platform }), getProducts(), getSearchSnapshots(), getGeoSnapshots(), getSnsAnalyses()]);
+  // 요약 탭과 같은 입력: 고른 플랫폼 · 카테고리의 랭킹, 그 카테고리의 AI 검색 답변(샘플 여부 포함), 마지막 SNS 분석
+  const series = seriesOf(snapshots, platform, view.category);
+  const lastRanking = series.at(-1);
+  const geoCategory = geo.filter((g) => g.category === view.category);
+  const summary = summarySnapshot({
+    series,
+    products,
+    category: view.category,
+    search,
+    geo,
+    geoIsSample: geoCategory.length > 0 && geoCategory.every((g) => g.id.startsWith("geo-")),
+    sns: snsAll.filter((r) => r.category === view.category).at(-1) ?? null,
+    platform,
+    platformLabel: MARKET_PLATFORMS.find((p) => p.source === platform)?.label ?? platform,
+    week: lastRanking ? `${weekLabel(lastRanking.captured_at)} 주` : null,
+  });
+  if (summary.core.length === 0 && summary.points.length === 0 && summary.tiles.every((t) => t.value === "데이터 없음")) {
+    return fail("요약에 쓸 데이터가 아직 없어요. 랭킹 CSV를 올리거나 [데이터 업데이트]를 먼저 해 주세요");
+  }
+  // 근거: 고정한 랭킹 스냅샷(이번 · 직전)과 시안 제품. 실제로 읽은 행만 넣는다 (DB_RULES 4.2)
+  const refs: EvidenceRef[] = [...series.slice(-2).map((t) => ({ kind: "trend_snapshot" as const, id: t.id })), { kind: "product" as const, id: productId }];
+  // AI 분석은 points를 한 줄씩 읽는다: 이번 주 핵심 · 알 수 있는 것 · 한눈에 보기를 요약 탭에 보이는 글 그대로
+  const lines = [
+    ...summary.core.map((c) => `${c.label}: ${c.value} — ${c.meaning}${c.sub ? ` · ${c.sub}` : ""}`),
+    ...summary.points.map((pt) => `${pt.label}: ${pt.headline} — 할 일: ${pt.action}`),
+    ...summary.tiles.map((t) => `${t.title}: ${t.value}${t.label ? ` ${t.label}` : ""} — ${t.lines.join(" · ")}`),
+  ];
+  const body = MarketBody.parse({ scope: "product", points: lines.map((text) => ({ text, evidence: refs })), summary });
+  const dates = [lastRanking?.captured_at, ...search.map((s) => s.captured_at), ...geoCategory.map((g) => g.captured_at)].filter((d): d is string => Boolean(d));
+  const snapshot: VersionSnapshot<MarketBody> = { body, evidence: refs, data_as_of: dates.toSorted().at(-1) ?? null };
+
+  const submission = await ensureSubmission(ctx, target.product.project_id, productId, "market", `${target.product.name} 시장 분석`);
+  if (!submission.ok) return submission;
+  const { data: latest, error } = await ctx.supabase
+    .from("submission_versions")
+    .select("id, status, author_id")
+    .eq("submission_id", submission.id)
+    .is("deleted_at", null)
+    .order("version_no", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return fail(dbError(error));
+  const me = await getCurrentUser();
+  if (latest && latest.status === "draft" && me && latest.author_id === me.id) {
+    const { data, error: updateError } = await ctx.supabase
+      .from("submission_versions")
+      .update({ body: snapshot.body, evidence: snapshot.evidence, data_as_of: snapshot.data_as_of, summary: parsed.data.summary, note: parsed.data.note || null })
+      .eq("id", String(latest.id))
+      .eq("workspace_id", ctx.workspaceId)
+      .select("id, version_no")
+      .maybeSingle();
+    if (updateError) return fail(dbError(updateError));
+    if (!data) return fail("임시 버전을 고치지 못했어요. 화면을 새로 고쳐 주세요");
+    return { ok: true, data: { versionId: String(data.id), versionNo: Number(data.version_no) } };
   }
   return insertVersion(ctx, submission.id, snapshot, parsed.data);
 }

@@ -11,27 +11,15 @@ const TEXT = {
   notOnSale: "판매 중인 자사 제품만 시안을 올릴 수 있어요. 개발 중 제품은 판매를 시작하면 들어와요.",
 };
 
-export async function SubmissionSection({
-  tab,
-  product,
-  saveDraft,
-  snapshotNote,
-  carryOverLabel,
-  className,
-}: {
-  tab: SubmissionTab;
-  product: { id: string; kind: "own" | "competitor"; project_id: string | null; sale_status: SaleStatus | null };
-  saveDraft: SaveDraft;
-  snapshotNote: string;
-  carryOverLabel?: string;
-  /** 패널 바깥 여백. 기본은 결과 아래에 붙는 mt-6, 오른쪽 열에 둘 때는 덮어쓴다 */
-  className?: string;
-}) {
-  if (product.kind !== "own") return null;
-  if (!product.project_id || product.sale_status !== "on_sale") {
-    return <p className="mt-6 text-sm text-muted-foreground">{TEXT.notOnSale}</p>;
-  }
+/** 패널에 넘길 데이터 (저장 함수 빼고). 시장 분석처럼 저장 함수를 화면 상태와 묶어야 하는 곳은 이 값으로 SubmissionPanel을 직접 그린다 */
+export type SubmissionPanelData = Omit<Parameters<typeof SubmissionPanel>[0], "saveDraft" | "snapshotNote" | "carryOverLabel" | "className">;
 
+/** 그 제품 × 탭 칸의 시안 · 버전 · 결재 기록과 내 권한. 판매 중인 자사 제품이 아니면 null */
+export async function loadSubmissionPanel(
+  tab: SubmissionTab,
+  product: { id: string; kind: "own" | "competitor"; project_id: string | null; sale_status: SaleStatus | null },
+): Promise<SubmissionPanelData | null> {
+  if (product.kind !== "own" || !product.project_id || product.sale_status !== "on_sale") return null;
   const sampleMode = !isSupabaseConfigured();
   const [my, members, me, submissions] = await Promise.all([
     getMyTabs(),
@@ -64,19 +52,38 @@ export async function SubmissionSection({
     };
   });
 
-  return (
-    <SubmissionPanel
-      tabLabel={SUBMISSION_TAB_LABELS[tab]}
-      status={submission?.status ?? null}
-      versions={views}
-      canEdit={my.tabs.includes(tab)}
-      isOwner={my.role === "owner"}
-      meId={me?.id ?? null}
-      sampleMode={sampleMode}
-      saveDraft={saveDraft}
-      snapshotNote={snapshotNote}
-      carryOverLabel={carryOverLabel}
-      className={className}
-    />
-  );
+  return {
+    tabLabel: SUBMISSION_TAB_LABELS[tab],
+    status: submission?.status ?? null,
+    versions: views,
+    canEdit: my.tabs.includes(tab),
+    isOwner: my.role === "owner",
+    meId: me?.id ?? null,
+    sampleMode,
+  };
+}
+
+export async function SubmissionSection({
+  tab,
+  product,
+  saveDraft,
+  snapshotNote,
+  carryOverLabel,
+  className,
+}: {
+  tab: SubmissionTab;
+  product: { id: string; kind: "own" | "competitor"; project_id: string | null; sale_status: SaleStatus | null };
+  saveDraft: SaveDraft;
+  snapshotNote: string;
+  carryOverLabel?: string;
+  /** 패널 바깥 여백. 기본은 결과 아래에 붙는 mt-6, 오른쪽 열에 둘 때는 덮어쓴다 */
+  className?: string;
+}) {
+  if (product.kind !== "own") return null;
+  if (!product.project_id || product.sale_status !== "on_sale") {
+    return <p className="mt-6 text-sm text-muted-foreground">{TEXT.notOnSale}</p>;
+  }
+  const data = await loadSubmissionPanel(tab, product);
+  if (!data) return null;
+  return <SubmissionPanel {...data} saveDraft={saveDraft} snapshotNote={snapshotNote} carryOverLabel={carryOverLabel} className={className} />;
 }

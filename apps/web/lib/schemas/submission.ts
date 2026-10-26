@@ -128,7 +128,34 @@ export const AdBody = z.object({
 });
 export type AdBody = z.infer<typeof AdBody>;
 
-/** 시장 분석 시안. 화면 연결은 설계 7장 5단계라서 지금은 판단 목록만 둔다 */
+// ── 시장 분석 요약 스냅샷 (2026-10-26). 시장 분석 요약 탭에 보이는 내용을 시안을 올리는 순간 그대로 고정한다.
+// 서버가 요약 탭과 같은 계산(market/_lib/summary.ts)으로 다시 만들고, 결재 문서는 다시 계산하지 않고 이 값을 보여 준다
+
+/** 이번 주 핵심 칸 하나 */
+const MarketSummaryCore = z.object({ id: z.string(), label: z.string(), value: z.string(), meaning: z.string(), sub: z.string().nullable() });
+/** 이번 분석으로 알 수 있는 것 한 줄 */
+const MarketSummaryPoint = z.object({ id: z.string(), label: z.string(), headline: z.string(), action: z.string(), sample: z.boolean() });
+/** 한눈에 보기 칸 하나 (그래프 대신 같은 숫자를 글로) */
+const MarketSummaryTile = z.object({ key: z.string(), title: z.string(), value: z.string(), label: z.string(), lines: z.array(z.string()) });
+
+export const MarketSummary = z.object({
+  /** 고정 기준: 카테고리 · 플랫폼 · 기준 주 · 랭킹 수집일 */
+  basis: z.object({
+    category: z.string(),
+    platform: z.string(),
+    platform_label: z.string(),
+    week: z.string().nullable(),
+    captured_at: z.string().nullable(),
+  }),
+  core: z.array(MarketSummaryCore),
+  points: z.array(MarketSummaryPoint),
+  tiles: z.array(MarketSummaryTile),
+});
+export type MarketSummary = z.infer<typeof MarketSummary>;
+
+/**
+ * 시장 분석 시안. points = 판단 목록 (AI 분석이 읽는 한 줄씩), summary = 시장 분석 요약 탭 스냅샷 (2026-10-26 추가, 이전 시안에는 없어 선택 칸)
+ */
 export const MarketBody = z.object({
   scope: z.enum(["product", "project"]),
   points: z
@@ -139,6 +166,7 @@ export const MarketBody = z.object({
       }),
     )
     .min(1),
+  summary: MarketSummary.optional(),
 });
 export type MarketBody = z.infer<typeof MarketBody>;
 

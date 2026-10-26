@@ -11,9 +11,9 @@ import { SUBMISSION_TAB_LABELS, type VersionStatus } from "@/lib/schemas/submiss
 
 const TEXT = {
   title: "내 시안",
-  description: "내가 탭별로 올린 시안과 팀장 검토 상황이에요. 시안은 리뷰 리포트 · 광고 검토 상세 아래 「시안 · 결재」에서 올려요",
+  description: "내가 탭별로 올린 시안과 팀장 검토 상황이에요. 시안은 시장 분석 요약 · 리뷰 분석 요약 · 광고 검토 상세 아래 「시안 · 결재」에서 올려요",
   sample: "샘플 데이터예요. 로그인하면 내가 올린 시안만 보여요.",
-  empty: "아직 올린 시안이 없어요. 리뷰 리포트나 광고 검토 상세 화면 아래에서 「결재 올리기」를 눌러 보세요.",
+  empty: "아직 올린 시안이 없어요. 시장 분석 요약 · 리뷰 분석 요약 · 광고 검토 상세 화면 아래에서 「결재 올리기」를 눌러 보세요.",
   counts: (waiting: number, rejected: number) => `결재 대기 ${waiting}건 · 반려 ${rejected}건`,
   source: "원본 탭에서 보기",
   preview: "미리보기",

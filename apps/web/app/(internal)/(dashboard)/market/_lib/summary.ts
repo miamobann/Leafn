@@ -3,6 +3,7 @@
 // 카드 순서 = 판단 순서: 가격 → 할인·행사 → 경쟁 구도 → 성분 → 소비자 고민 언어 → AI 검색 노출. 데이터가 없는 카드는 만들지 않는다
 import type { GeoSnap } from "@/lib/schemas/geo";
 import type { SnsTrendResult } from "@/lib/schemas/market";
+import type { MarketSummary } from "@/lib/schemas/submission";
 import type { Product } from "@/lib/schemas/product";
 import type { SearchSnap } from "@/lib/schemas/search";
 import type { TrendSnapshot } from "@/lib/schemas/trend";
@@ -11,6 +12,7 @@ import { hasIngredient, INGREDIENT_MATCH, ingredientInterestRanking, OWN_BRAND, 
 import { ingredientMentions, ownBaseline, priceMap, rowsAt, top10 } from "./overview";
 import { concernSuggestions } from "./demand";
 import { keywordGap } from "./geo";
+import { KEYWORD_DICTIONARY } from "@/lib/external/geo-terms";
 
 export type MarketTab = "summary" | "action" | "supply" | "demand" | "competitors";
 
@@ -293,8 +295,8 @@ export type Glance = {
   rankingCount: number;
   /** ml당 가격: 자사 vs 순위권 중앙값 + 순위권 범위 */
   price: { values: number[]; min: number; max: number; median: number; own: { name: string; ppm: number } | null } | null;
-  /** 할인·행사 (겹치지 않게 나눈 100% 막대): 쿠폰 / 표시 할인만 / 정가 */
-  discount: { total: number; coupon: number; discountOnly: number; plain: number; couponRate: number | null; discountRate: number | null } | null;
+  /** AI 검색 키워드: AI 답변이 언급한 결정 키워드 순위 (답변 하나에서 같은 키워드는 1번, 2번 이상만) */
+  geoKeywords: { answers: number; rows: { keyword: string; ko: string | null; count: number }[] } | null;
   /** 상위권 브랜드 (Top N 칸 그림): 칸마다 브랜드 */
   brands: { cells: string[]; leader: string; leaderCount: number; others: number } | null;
   /** 성분 검색 관심도 (도넛, 합 100%) */
@@ -302,8 +304,8 @@ export type Glance = {
   language: { ko: string; seed: string; term: string; termKo: string | null }[];
 };
 
-export function glance(input: { series: TrendSnapshot[]; products: Product[]; category: string; search: SearchSnap[] }): Glance {
-  const { series, products, category, search } = input;
+export function glance(input: { series: TrendSnapshot[]; products: Product[]; category: string; search: SearchSnap[]; geo: GeoSnap[] }): Glance {
+  const { series, products, category, search, geo } = input;
   const rows = rowsAt(series, series.length - 1);
   const top = top10(rows);
 
@@ -320,20 +322,6 @@ export function glance(input: { series: TrendSnapshot[]; products: Product[]; ca
           own: o ? { name: o.name.replace("자사 ", ""), ppm: o.ppm } : null,
         }
       : null;
-
-  let discount: Glance["discount"] = null;
-  if (rows.length > 0) {
-    const coupon = rows.filter((r) => r.coupon_price_jpy != null && r.price_jpy > 0);
-    const discountOnly = rows.filter((r) => r.coupon_price_jpy == null && (r.discount_rate ?? 0) > 0);
-    discount = {
-      total: rows.length,
-      coupon: coupon.length,
-      discountOnly: discountOnly.length,
-      plain: rows.length - coupon.length - discountOnly.length,
-      couponRate: median(coupon.map((r) => Math.round((1 - (r.coupon_price_jpy as number) / r.price_jpy) * 100))),
-      discountRate: median(rows.filter((r) => (r.discount_rate ?? 0) > 0).map((r) => r.discount_rate as number)),
-    };
-  }
 
   let brands: Glance["brands"] = null;
   if (top.length > 0) {
@@ -361,9 +349,119 @@ export function glance(input: { series: TrendSnapshot[]; products: Product[]; ca
   return {
     rankingCount: rows.length,
     price,
-    discount,
+    geoKeywords: geoKeywordRanking(geo, category),
     brands,
     interest,
     language,
+  };
+}
+
+/** AI 검색 답변(이 카테고리, 저장된 전부)이 언급한 결정 키워드 순위. 답변 하나에서 같은 키워드는 1번으로 세고, 2번 이상 나온 것만 (상위 5개) */
+function geoKeywordRanking(geo: GeoSnap[], category: string): Glance["geoKeywords"] {
+  const answers = geo.filter((g) => g.category === category);
+  if (answers.length === 0) return null;
+  const counts = new Map<string, number>();
+  for (const a of answers) for (const kw of new Set(a.keywords.map((k) => k.keyword))) counts.set(kw, (counts.get(kw) ?? 0) + 1);
+  const rows = [...counts]
+    .filter(([, n]) => n >= 2)
+    .toSorted((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([keyword, count]) => ({ keyword, ko: KEYWORD_DICTIONARY[keyword]?.ko ?? null, count }));
+  return { answers: answers.length, rows };
+}
+
+/** ml당 가격 칸의 이름 줄: 자사가 순위권 중앙값보다 몇 % 비싼지 · 싼지 */
+export function priceGapLabel(price: NonNullable<Glance["price"]>): string {
+  if (!price.own) return "순위권 중앙값";
+  const { ppm } = price.own;
+  if (ppm > price.median) return `중앙값보다 ${Math.round((ppm / price.median - 1) * 100)}% 비쌈`;
+  if (ppm < price.median) return `중앙값보다 ${Math.round((1 - ppm / price.median) * 100)}% 쌈`;
+  return "중앙값과 같음";
+}
+
+/**
+ * 시안에 고정할 요약 탭 스냅샷 (2026-10-26). 요약 탭과 같은 계산(weekCore · keyPoints · glance)이라 화면과 같은 값이 저장된다.
+ * 한눈에 보기 칸은 그래프 대신 같은 숫자를 글로 남긴다
+ */
+export function summarySnapshot(input: {
+  series: TrendSnapshot[];
+  products: Product[];
+  category: string;
+  search: SearchSnap[];
+  geo: GeoSnap[];
+  geoIsSample: boolean;
+  sns: SnsTrendResult | null;
+  platform: string;
+  platformLabel: string;
+  week: string | null;
+}): MarketSummary {
+  const { series, products, category, search, geo, geoIsSample, sns } = input;
+  const core = weekCore({ series, products, category, search, sns });
+  const points = keyPoints({ series, products, category, search, geo, geoIsSample, sns });
+  const g = glance({ series, products, category, search, geo });
+  const none = (key: string, title: string, why: string) => ({ key, title, value: "데이터 없음", label: "", lines: [why] });
+
+  const tiles: MarketSummary["tiles"] = [
+    g.price
+      ? {
+          key: "price",
+          title: "ml당 가격",
+          value: g.price.own ? `${g.price.own.ppm}円` : `${g.price.median}円`,
+          label: priceGapLabel(g.price),
+          lines: [...(g.price.own ? [`우리 제품 ${g.price.own.ppm}円`] : []), `순위권 중앙값 ${g.price.median}円`, `순위권 범위 ${g.price.min}円 ~ ${g.price.max}円 (정가 기준)`],
+        }
+      : none("price", "ml당 가격", "용량을 아는 순위권 제품이 없어요"),
+    g.geoKeywords && g.geoKeywords.rows.length > 0
+      ? {
+          key: "geo_keywords",
+          title: "AI 검색 키워드",
+          value: `${g.geoKeywords.rows[0].count}회`,
+          label: g.geoKeywords.rows[0].keyword,
+          lines: [`AI 답변 ${g.geoKeywords.answers}개 중 언급`, ...g.geoKeywords.rows.map((r, i) => `${i + 1}. ${r.keyword}${r.ko ? ` ${r.ko}` : ""} · ${r.count}회`)],
+        }
+      : none("geo_keywords", "AI 검색 키워드", g.geoKeywords ? `AI 답변 ${g.geoKeywords.answers}개에서 2회 이상 언급된 키워드가 아직 없어요` : "AI 검색 답변 데이터가 아직 없어요"),
+    g.brands
+      ? {
+          key: "brands",
+          title: "상위권 브랜드",
+          value: `${g.brands.leaderCount}/${g.brands.cells.length}`,
+          label: g.brands.leader,
+          lines: [`Top ${g.brands.cells.length} 중 ${g.brands.leader} ${g.brands.leaderCount}개 · 다른 브랜드 ${g.brands.others}곳`],
+        }
+      : none("brands", "상위권 브랜드", "랭킹 데이터가 아직 없어요"),
+    g.interest
+      ? {
+          key: "interest",
+          title: "성분 검색 관심도",
+          value: `${g.interest.slices[0].share}%`,
+          label: g.interest.slices[0].label,
+          lines: g.interest.slices.map((sl) => `${sl.label} ${sl.share}%`),
+        }
+      : none("interest", "성분 검색 관심도", "성분 검색 관심도 데이터가 아직 없어요"),
+    g.language.length > 0
+      ? {
+          key: "language",
+          title: "고민별 검색 추천어",
+          value: `${g.language.length}개 고민`,
+          label: "Google 자동완성 1위",
+          lines: g.language.map((l) => `${l.ko}: ${l.seed} ${l.term}${l.termKo ? ` (${l.termKo})` : ""}`),
+        }
+      : none("language", "고민별 검색 추천어", "자동완성 데이터가 아직 없어요"),
+    sns && sns.needs.length > 0
+      ? {
+          key: "sns",
+          title: "SNS 핵심 니즈",
+          value: `${sns.needs[0].videos.length}/${sns.videos.length}`,
+          label: sns.needs[0].need_ko,
+          lines: [`TikTok 영상 ${sns.videos.length}개 · ${sns.analyzed_at.slice(0, 10)} 분석`, ...sns.needs.slice(0, 4).map((n) => `${n.need_ko} · 영상 ${n.videos.length}/${sns.videos.length}`)],
+        }
+      : none("sns", "SNS 핵심 니즈", "SNS 분석 데이터가 아직 없어요"),
+  ];
+
+  return {
+    basis: { category, platform: input.platform, platform_label: input.platformLabel, week: input.week, captured_at: series.at(-1)?.captured_at ?? null },
+    core: core.map((c) => ({ id: c.id, label: c.label, value: c.value, meaning: c.meaning, sub: c.sub })),
+    points: points.map((pt) => ({ id: pt.id, label: pt.label, headline: pt.headline, action: pt.action, sample: pt.sample ?? false })),
+    tiles,
   };
 }
