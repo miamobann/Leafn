@@ -7,7 +7,7 @@ import { type LintHit, lintBody } from "./lint";
 import { buildSystemPrompt, buildUserMessage, type GuideStep } from "./prompt";
 
 /** 지금 쓰는 프롬프트 버전. 저장하는 prompt_version 은 "content-guide.<버전>" */
-export const CONTENT_GUIDE_PROMPT_VERSION = "v5";
+export const CONTENT_GUIDE_PROMPT_VERSION = "v6";
 
 /** AI 응답이 두 번 모두 약속한 모양이 아닐 때. message 는 화면에 보여 줘도 안전하다 */
 export class ContentGuideParseError extends Error {

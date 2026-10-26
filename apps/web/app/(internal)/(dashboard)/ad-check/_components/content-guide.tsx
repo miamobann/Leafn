@@ -965,16 +965,17 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                   <p className="text-xs text-muted-foreground">겹치는 성분 없음 (성분 검색 관심도에 없는 카테고리이거나 전성분에 해당 성분이 없어요)</p>
                 )}
               </section>
-              {/* 프로모션 캘린더 (홈 · /calendar). 「예상」 일정은 날짜 없이 넘긴다 (materials.ts pickMegaSales) */}
+              {/* 프로모션 캘린더 (홈 · /calendar). 인스타 · X 일 때만 (메가와리 게시물에 들어간다). 「예상」 일정은 문구에 「開催予定」 (materials.ts pickMegaSales) */}
+              {hasPostType && (
               <section className="space-y-1 rounded-md bg-muted p-3 md:col-span-2">
                 <p className="flex items-center gap-2 font-medium">
                   <span className="rounded border bg-background px-1.5 text-xs">프로모션 캘린더</span>
                   행사
-                  <span className="text-xs font-normal text-muted-foreground">인스타그램 · X의 「메가와리」 게시물에만 들어가요</span>
+                  <span className="text-xs font-normal text-muted-foreground">게시물 종류가 「메가와리」일 때 들어가요</span>
                 </p>
                 {material.megaSales.length ? (
                   <ul className="flex flex-wrap gap-1">
-                    {[...material.megaSales.map((m) => ({ id: m.id, label: `Qoo10 메가와리 ${m.start_date.slice(5).replace("-", "/")}~${m.end_date.slice(5).replace("-", "/")}${m.confirmed ? "" : " (예상 · 날짜는 넣지 않아요)"}` })), { id: "", label: "행사 넣지 않기" }].map((o) => {
+                    {[...material.megaSales.map((m) => ({ id: m.id, label: `Qoo10 메가와리 ${m.start_date.slice(5).replace("-", "/")}~${m.end_date.slice(5).replace("-", "/")}${m.confirmed ? "" : " (예상)"}` })), { id: "", label: "행사 넣지 않기" }].map((o) => {
                       const on = o.id === "" ? megaSale === null : megaSale?.id === o.id;
                       return (
                         <li key={o.id || "none"}>
@@ -993,7 +994,9 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                 ) : (
                   <p className="text-xs text-muted-foreground">다가오는 Qoo10 메가와리 일정이 캘린더에 없어요. 메가와리 게시물이면 날짜 없이 써요.</p>
                 )}
+                {megaSale && !megaSale.confirmed && <p className="text-xs text-muted-foreground">예상 일정은 문구에 「開催予定」과 「※日程は変更になる場合があります」로 들어가요. 일정이 확정되면 캘린더에서 고친 뒤 다시 만들어 주세요.</p>}
               </section>
+              )}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">각 탭이 만들어 둔 결과를 읽어 와요.</p>
           </details>

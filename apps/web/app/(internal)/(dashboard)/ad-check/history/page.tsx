@@ -18,6 +18,15 @@ import { CONTENT_STATUS, loadRecords, type ContentRecord, type PhraseRecord } fr
 
 const CHANNEL_LABEL = Object.fromEntries(GUIDE_CHANNELS.map((c) => [c.id, c.label]));
 const KIND = ["content", "phrase"] as const;
+/** 목록에 보이는 제목 글자 수 */
+const TITLE_MAX = 36;
+/** 단어 중간에서 끊기지 않게 마지막 띄어쓰기에서 자른다 */
+function shortTitle(t: string) {
+  if (t.length <= TITLE_MAX) return t;
+  const cut = t.slice(0, TITLE_MAX);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > TITLE_MAX * 0.6 ? cut.slice(0, space) : cut).replace(/[\s/·,]+$/, "")}…`;
+}
 
 type HistoryPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -95,9 +104,9 @@ function ContentRow({ record, productName, author, isOwner }: { record: ContentR
     <article className="flex items-center gap-3 rounded-lg border p-3 text-sm">
       <Link href={`/ad-check/guide/history/${latest.id}`} className="min-w-0 flex-1 space-y-0.5">
         <p className="flex items-center gap-2">
-          {/* 길면 줄 끝을 「…」로 자른다. 마우스를 올리면 한국어 제목 전체 */}
+          {/* 목록 제목은 앞 TITLE_MAX 글자만 보이고 「…」로 줄인다 (화면이 넓어도 줄 길이를 맞춘다). 마우스를 올리면 한국어 제목 전체 */}
           <span className="min-w-0 truncate font-medium underline-offset-4 hover:underline" title={record.title.ko}>
-            {record.title.ko}
+            {shortTitle(record.title.ko)}
           </span>
           {versions.length > 1 && <span className="shrink-0 text-xs text-muted-foreground">v{versions.length}</span>}
         </p>

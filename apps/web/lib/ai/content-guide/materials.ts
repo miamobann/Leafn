@@ -40,7 +40,7 @@ type PromoLike = { id: string; platform: string; title: string; start_date: stri
 export type MegaSale = { id: string; start_date: string; end_date: string; confirmed: boolean; /** 프롬프트 [행사] 글 */ promo: string };
 
 /** 오늘 이후(또는 진행 중) 가까운 Qoo10 메가와리 일정 최대 max개 (화면에서 하나를 고른다, 2026-10-27).
- *  약기법 · 광고 정확성: 플랫폼 공지 전 「예상」 일정(is_confirmed = false)은 날짜 없이 넘겨 AI가 날짜를 쓰지 않게 한다 (프롬프트: 행사 날짜는 입력에 있을 때만) */
+ *  광고 정확성: 플랫폼 공지 전 「예상」 일정(is_confirmed = false)은 날짜 끝에 「(예상)」을 붙여 넘긴다 → 문구에는 「開催予定」 + 「※日程は変更になる場合があります」 (프롬프트 v6). 확정되면 캘린더에서 고치고 다시 만든다 */
 export function pickMegaSales(events: PromoLike[], today: string, max = 2): MegaSale[] {
   return events
     .filter((e) => (e.platform === "qoo10" || e.platform === "Qoo10") && /メガ割|메가와리/.test(e.title) && e.end_date >= today)
@@ -48,7 +48,7 @@ export function pickMegaSales(events: PromoLike[], today: string, max = 2): Mega
     .slice(0, max)
     .map((e) => {
       const confirmed = e.is_confirmed !== false;
-      return { id: e.id, start_date: e.start_date, end_date: e.end_date, confirmed, promo: confirmed ? `Qoo10メガ割 ${e.start_date}~${e.end_date} / 사은품: 없음` : "Qoo10メガ割 (일정 미정) / 사은품: 없음" };
+      return { id: e.id, start_date: e.start_date, end_date: e.end_date, confirmed, promo: `Qoo10メガ割 ${e.start_date}~${e.end_date}${confirmed ? "" : " (예상)"} / 사은품: 없음` };
     });
 }
 
