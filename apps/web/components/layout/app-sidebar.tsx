@@ -1,6 +1,7 @@
 "use client";
 
 import { History, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -8,6 +9,8 @@ import { formatDate } from "@/lib/format";
 import { activeHref, FOOTER_ITEMS, groupOf, HOME_ITEM, NAV_GROUPS, type NavGroup, type NavItem, type NavRole, visibleItems } from "./nav-config";
 
 const TEXT = {
+  logoAlt: "Leaf&",
+  brand: "해외마케팅",
   collapse: "사이드바 접기",
   expand: "사이드바 펼치기",
   activity: "최근 활동",
@@ -50,8 +53,10 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       href={item.href}
       target={item.external ? "_blank" : undefined}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm whitespace-nowrap ${
-        active ? "bg-sidebar-accent font-medium" : "text-muted-foreground hover:bg-sidebar-accent"
+      className={`flex h-10 shrink-0 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap ${
+        active
+          ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground"
+          : "text-sidebar-foreground hover:bg-sidebar-accent"
       }`}
     >
       {Icon && <Icon aria-hidden className="size-4 shrink-0" />}
@@ -60,10 +65,10 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-// 접은 줄의 칸은 펼친 메뉴 한 줄과 같은 크기(높이 32px, 좌우 12px 여백)로 둔다.
+// 접은 줄의 칸은 펼친 메뉴 한 줄과 같은 크기(높이 40px, 좌우 12px 여백)로 둔다.
 // 그래야 접고 펼 때 아이콘이 위아래·좌우로 움직이지 않는다 (아이콘 가운데 = 사이드바 왼쪽에서 32px).
 // 오른쪽 테두리 1px 때문에 아이콘 자리가 15px로 좁아지므로, 아이콘에 shrink-0을 줘서 16px 그대로 둔다
-const RAIL_BUTTON = "flex h-8 w-full items-center rounded-md px-3";
+const RAIL_BUTTON = "flex h-10 w-full shrink-0 items-center rounded-full px-3";
 
 /** 접은 사이드바의 아이콘 한 칸. 글자가 없으므로 aria-label과 title로 이름을 알린다 */
 function RailLink({ item, active }: { item: NavItem; active: boolean }) {
@@ -75,7 +80,9 @@ function RailLink({ item, active }: { item: NavItem; active: boolean }) {
       aria-label={item.label}
       title={item.label}
       aria-current={active ? "page" : undefined}
-      className={`${RAIL_BUTTON} ${active ? "bg-sidebar-accent" : "text-muted-foreground hover:bg-sidebar-accent"}`}
+      className={`${RAIL_BUTTON} ${
+        active ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent"
+      }`}
     >
       <Icon aria-hidden className="size-4 shrink-0" />
     </Link>
@@ -187,7 +194,12 @@ export function AppSidebar({ activity, role }: { activity: SidebarActivity[]; ro
       }`}
     >
       <div className={`flex items-center py-4 ${collapsed ? "justify-center px-2" : "justify-between pr-3 pl-5"}`}>
-        {!collapsed && <span className="text-lg font-semibold">Leafn</span>}
+        {!collapsed && (
+          <span className="flex items-end gap-2">
+            <Image src="/brand/leaf-and-wordmark.png" alt={TEXT.logoAlt} width={102} height={32} priority />
+            <span className="pb-0.5 text-xs text-muted-foreground">{TEXT.brand}</span>
+          </span>
+        )}
         <button
           type="button"
           onClick={() => setSidebarCollapsed(!collapsed)}
@@ -203,7 +215,7 @@ export function AppSidebar({ activity, role }: { activity: SidebarActivity[]; ro
 
       {collapsed ? (
         <>
-          <nav id={NAV_ID} className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-4">
+          <nav id={NAV_ID} className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4">
             <RailLink item={HOME_ITEM} active={current === HOME_ITEM.href} />
             {NAV_GROUPS.map((group) => (
               <RailLink key={group.label} item={groupLink(group, role)} active={currentGroup === group.label} />
@@ -218,7 +230,7 @@ export function AppSidebar({ activity, role }: { activity: SidebarActivity[]; ro
         </>
       ) : (
         <>
-          <nav id={NAV_ID} className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-4">
+          <nav id={NAV_ID} className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4">
             <NavLink item={HOME_ITEM} active={current === HOME_ITEM.href} />
             {NAV_GROUPS.map((group) => (
               <NavLink key={group.label} item={groupLink(group, role)} active={currentGroup === group.label} />
