@@ -4,7 +4,7 @@
 // 웹과 수집기는 DB로만 만난다: [불러오기]가 대기(queued) 요청을 만들면, 켜 둔 수집기(일꾼)가 집어 가서 읽고 미리보기(ready)로 바꾼다.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CollectionView, CollectProject } from "@/lib/data/collection";
-import { discardCollection, pollCollection, restoreCollection, saveCollection, startCollection } from "@/lib/data/collection-actions";
+import { discardCollection, pollCollection, restoreCollection, saveCollection, startCollection, wakeCollector } from "@/lib/data/collection-actions";
 import { type CollectForm, DEFAULT_STARS, needsSave } from "./collect-options";
 
 const POLL_MS = 3000; // 진행 상황을 확인하는 간격
@@ -20,7 +20,10 @@ export function useCollection(project: CollectProject) {
   });
   const [view, setView] = useState<CollectionView | null>(null);
   const [restoring, setRestoring] = useState(true);
-  const [busy, setBusy] = useState<"start" | "save" | "reset" | null>(null);
+  // 화면을 열 때 지난 요청이 되살아났는가 (방금 만든 요청과 구분해서 "이전 요청이 남아 있어요"를 알려 준다)
+  const [restored, setRestored] = useState(false);
+  const [busy, setBusy] = useState<"start" | "save" | "reset" | "wake" | null>(null);
+  const [wakeNote, setWakeNote] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [now, setNow] = useState(() => Date.now());
@@ -51,8 +54,10 @@ export function useCollection(project: CollectProject) {
     restoreCollection(project.id)
       .then((res) => {
         if (off) return;
-        if (res.ok && res.data) adopt(res.data);
-        else if (!res.ok) setMessage(res.message);
+        if (res.ok && res.data) {
+          adopt(res.data);
+          setRestored(true);
+        } else if (!res.ok) setMessage(res.message);
       })
       .catch(() => !off && setMessage("저장된 요청을 불러오지 못했어요. 새로고침해 주세요."))
       .finally(() => !off && setRestoring(false));
@@ -90,14 +95,29 @@ export function useCollection(project: CollectProject) {
   async function find() {
     setBusy("start");
     setMessage(null);
+    setRestored(false);
     try {
       const res = await startCollection({ ownProductId: project.id, platformId: form.platformId, category: form.categoryId, topN: form.topN, stars: form.stars, reviewLimit: form.limit });
-      if (res.ok) adopt(res.data);
-      else setMessage(res.message);
+      if (res.ok) {
+        adopt(res.data);
+        void wake(res.data.run.id);
+      } else setMessage(res.message);
     } catch {
       setMessage("서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
     } finally {
       setBusy(null);
+    }
+  }
+
+  /** 대기 중인 요청을 수집기가 집어 가도록 GitHub Actions를 실행시킨다. 요청 직후와 「수집기 다시 깨우기」가 부른다 */
+  async function wake(runId = view?.run.id) {
+    if (!runId) return;
+    setWakeNote(null);
+    try {
+      const res = await wakeCollector(runId);
+      setWakeNote(res.ok ? res.data.notice : res.message);
+    } catch {
+      setWakeNote("수집기를 깨우지 못했어요. 잠시 뒤 다시 눌러 주세요.");
     }
   }
 
@@ -134,6 +154,8 @@ export function useCollection(project: CollectProject) {
         }
       }
       lastStatus.current = null;
+      setRestored(false);
+      setWakeNote(null);
       setView(null);
       setSelected(new Set());
       return true;
@@ -157,5 +179,5 @@ export function useCollection(project: CollectProject) {
     setSelected(next);
   }
 
-  return { form, setForm, view, status, waiting, restoring, busy, message, selected, setSelected, toggle, now, find, save, reset, again };
+  return { form, setForm, view, status, waiting, restoring, busy, message, wakeNote, restored, selected, setSelected, toggle, now, find, save, reset, again, wake };
 }
