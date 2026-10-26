@@ -36,7 +36,7 @@ export default async function AdCheckPage({ searchParams }: AdCheckPageProps) {
       <AdDisclaimer extra="「내부 검토 완료」는 팀장만 누를 수 있고 법적 승인이 아닙니다. 판정하면 검토 이력에 자동 저장돼요." />
       {guide && !source && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>만든 가이드의 제목·본문을 한 줄씩 불러왔어요. 확인한 뒤 「검토 요청」을 누르면 판정합니다.</span>
+          <span>만든 가이드의 제목·본문을 한 줄씩 불러왔어요. 「검토 요청」으로 판정하고 대체 표현을 고르면 「가이드에 반영」으로 수정본을 만들 수 있어요. 줄을 더하거나 지우면 반영할 수 없어요.</span>
           <Link href={`/ad-check/guide/history/${guide.guide.id}`} className={`${buttonVariants({ variant: "outline", size: "sm" })} border-foreground/40!`}>
             만든 가이드로 돌아가기
           </Link>
@@ -52,7 +52,7 @@ export default async function AdCheckPage({ searchParams }: AdCheckPageProps) {
       )}
       <div className="mt-4">
         {products.length ? (
-          <ReviewWorkspace key={source?.id ?? guide?.guide.id ?? "new"} products={products} workspaceId={workspace.id} canApprove={canApprove} initial={initial} />
+          <ReviewWorkspace key={source?.id ?? guide?.guide.id ?? "new"} products={products} workspaceId={workspace.id} canApprove={canApprove} initial={initial} guideId={guide && !source ? guide.guide.id : undefined} />
         ) : (
           <p>전성분이 등록된 자사 제품이 없습니다. 제품 정보를 먼저 등록해 주세요.</p>
         )}
