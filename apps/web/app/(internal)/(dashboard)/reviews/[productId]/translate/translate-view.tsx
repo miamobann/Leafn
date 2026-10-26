@@ -383,6 +383,14 @@ export function TranslateView({
               </button>
             </span>
           </div>
+          {counts.approved > 0 && (
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              승인된 후기 {counts.approved}건이 있어요. 약기법 검토와 팀장 승인을 거친 일본어 후기라 콘텐츠를 만들 때 그대로 인용할 수 있어요.
+              <Link href={`/ad-check/guide?product=${product.id}`} className="font-medium underline-offset-4 hover:underline">
+                콘텐츠 제작 가이드 열기 →
+              </Link>
+            </p>
+          )}
           {copied && (
             <p role="status" className="text-sm text-muted-foreground">
               {copied}
