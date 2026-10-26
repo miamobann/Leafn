@@ -34,15 +34,24 @@ export function pickApprovedQuotes(quotes: { textJa: string; reviewTranslationId
   return picked;
 }
 
-type PromoLike = { platform: string; title: string; start_date: string; end_date: string; kind?: string };
+type PromoLike = { id: string; platform: string; title: string; start_date: string; end_date: string; kind?: string; is_confirmed?: boolean };
 
-/** 오늘 이후(또는 진행 중) 가장 가까운 Qoo10 메가와리 일정을 프롬프트 [행사] 글로. 없으면 null → AI는 날짜를 쓰지 않는다 */
-export function pickMegaSale(events: PromoLike[], today: string): string | null {
-  const next = events
+/** 콘텐츠 가이드에 넣을 수 있는 메가와리 일정 (프로모션 캘린더) */
+export type MegaSale = { id: string; start_date: string; end_date: string; confirmed: boolean; /** 프롬프트 [행사] 글 */ promo: string };
+
+/** 오늘 이후(또는 진행 중) 가까운 Qoo10 메가와리 일정 최대 max개 (화면에서 하나를 고른다, 2026-10-27).
+ *  약기법 · 광고 정확성: 플랫폼 공지 전 「예상」 일정(is_confirmed = false)은 날짜 없이 넘겨 AI가 날짜를 쓰지 않게 한다 (프롬프트: 행사 날짜는 입력에 있을 때만) */
+export function pickMegaSales(events: PromoLike[], today: string, max = 2): MegaSale[] {
+  return events
     .filter((e) => (e.platform === "qoo10" || e.platform === "Qoo10") && /メガ割|메가와리/.test(e.title) && e.end_date >= today)
-    .toSorted((a, b) => a.start_date.localeCompare(b.start_date))[0];
-  return next ? `Qoo10メガ割 ${next.start_date}~${next.end_date} / 사은품: 없음` : null;
+    .toSorted((a, b) => a.start_date.localeCompare(b.start_date))
+    .slice(0, max)
+    .map((e) => {
+      const confirmed = e.is_confirmed !== false;
+      return { id: e.id, start_date: e.start_date, end_date: e.end_date, confirmed, promo: confirmed ? `Qoo10メガ割 ${e.start_date}~${e.end_date} / 사은품: 없음` : "Qoo10メガ割 (일정 미정) / 사은품: 없음" };
+    });
 }
+
 
 // ── 리뷰 소구점 이름을 광고용으로 (약기법 우선, 2026-10-25) ──────────────
 // 리뷰 분석의 주제 이름은 소비자 말이라 그대로 AI에 넘기면 광고 문구가 근거 없는 표현이 되기 쉽다.

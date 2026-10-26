@@ -1,6 +1,6 @@
 // 콘텐츠 제작 가이드 화면 재료 (서버 전용): 제품 · 리뷰 소구점 · 검색어 · 메가와리 · PDF 작성자.
 // 제작 화면(guide/page.tsx)과 저장된 결과물 화면(guide/history/[guideId])이 같이 쓴다.
-import { pickApprovedQuotes, pickMegaSale, pickReviewQuotes, safeComplaintLabel, safePraiseLabels } from "@/lib/ai/content-guide/materials";
+import { pickApprovedQuotes, pickMegaSales, pickReviewQuotes, safeComplaintLabel, safePraiseLabels } from "@/lib/ai/content-guide/materials";
 import { pickSearchWords, pickTrendIngredients } from "@/lib/ai/content-guide/market";
 import { getAppealComparison, getPromoEvents, getSearchSnapshots, getWorkspace } from "@/lib/data";
 import { getAdProducts } from "@/lib/data/ad-products";
@@ -37,7 +37,7 @@ export async function loadGuideContext(picked?: PickedTopics) {
   ]);
   // 키가 있으면 「제작하기」가 AI를 부른다. 키 값은 화면에 넘기지 않고 있는지만 넘긴다
   const aiEnabled = Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
-  const megaSale = pickMegaSale(events, today);
+  const megaSales = pickMegaSales(events, today);
   const materials: GuideMaterials = Object.fromEntries(
     products.map((p, i) => {
       const appeal = appeals[i];
@@ -65,7 +65,7 @@ export async function loadGuideContext(picked?: PickedTopics) {
       // 검색어·요즘 뜨는 말: 피부 라인에 맞는 고민 자동완성에서 (약기법에 걸리는 말·우리 전성분에 없는 성분이 든 말은 뺀다)
       const words = pickSearchWords(snapshots, skinLineOf(p), own);
       // 승인된 일본어 후기가 있으면 한국어 리뷰 원문 대신 그대로 인용한다 (프롬프트 v4). 고른 소구점과 관계없이 쓴다 (후기에는 주제 정보가 없다)
-      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, pickedAppeals, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), approvedQuotes: pickApprovedQuotes(approved[i] ?? []), keywords: words.search, trending: words.trending, ingredients, megaSale }];
+      return [p.id, { hasReviews: (appeal?.ownReviewCount ?? 0) > 0, appeals: praised, pickedAppeals, complaints, candidates, reviewQuotes: pickReviewQuotes(topics), approvedQuotes: pickApprovedQuotes(approved[i] ?? []), keywords: words.search, trending: words.trending, ingredients, megaSales }];
     }),
   );
   return { products, materials, author, aiEnabled };

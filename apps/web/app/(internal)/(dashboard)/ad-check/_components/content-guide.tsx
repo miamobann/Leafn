@@ -36,6 +36,7 @@ import { type ContentGuideInput, GuideBodyResult, type GuideTitle, GuideTitlesRe
 import { buildCutList, PHOTO_DONTS, PHOTO_RULES } from "../_lib/photo-guide";
 import { type BlockWarnings, buildWarnings } from "../_lib/guide-warnings";
 import { makeFill, productKind, pickHashtags, visibleBlocks } from "../_lib/guide-report";
+import type { MegaSale } from "@/lib/ai/content-guide/materials";
 import { ContentGuideReport, memoLocation, type ReportAuthor } from "./content-guide-report";
 
 const LABEL = "mb-1 block text-sm font-medium";
@@ -68,7 +69,8 @@ export type GuideMaterials = Record<
     keywords: string[];
     trending: string[];
     ingredients: string[];
-    megaSale: string | null;
+    /** 프로모션 캘린더의 다가오는 Qoo10 메가와리 (최대 2개, 화면에서 하나를 고른다) */
+    megaSales: MegaSale[];
   }
 >;
 
@@ -633,6 +635,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   );
   const [memoState, setMemoState] = useState<keyof typeof MEMO_STATUS | null>(null);
   const memoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  /** 고른 메가와리 일정 id ("" = 행사 넣지 않기). 안 골랐으면 가장 가까운 일정 */
+  const [megaSaleId, setMegaSaleId] = useState<string | null>(null);
   /** 제품 id → 담당자가 고른 리뷰 소구점 (안 골랐으면 리뷰 분석에서 넘어온 것, 그것도 없으면 전체) */
   const [chosenAppeals, setChosenAppeals] = useState<Record<string, string[]>>({});
   /** 강조할 방향 (선택, 50자). 제작할 때 방향 참고로 함께 보낸다 */
@@ -680,12 +684,15 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   }
 
   const product = products.find((p) => p.id === productId) ?? products[0];
-  const material = materials[product.id] ?? { hasReviews: false, appeals: [], pickedAppeals: null, complaints: [], candidates: [], reviewQuotes: [], approvedQuotes: [], keywords: [], trending: [], ingredients: [], megaSale: null };
+  const material = materials[product.id] ?? { hasReviews: false, appeals: [], pickedAppeals: null, complaints: [], candidates: [], reviewQuotes: [], approvedQuotes: [], keywords: [], trending: [], ingredients: [], megaSales: [] };
   // 이번 제작에 쓸 소구점: 후보도 고른 것 안에서만 넘긴다
   const appeals = chosenAppeals[product.id] ?? material.pickedAppeals ?? material.appeals;
   const toggleAppeal = (label: string) =>
     setChosenAppeals((m) => ({ ...m, [product.id]: appeals.includes(label) ? appeals.filter((a) => a !== label) : material.appeals.filter((a) => a === label || appeals.includes(a)) }));
   const hasPostType = channel === "instagram" || channel === "x";
+  const megaSale = megaSaleId === "" ? null : (material.megaSales.find((m) => m.id === megaSaleId) ?? material.megaSales[0] ?? null);
+  // 행사는 인스타 · X 의 「메가와리」 게시물에만 넣는다
+  const usesPromo = hasPostType && postType === "mega_sale";
   // 가장 추천을 맨 앞에 둔다
   const list = (aiEnabled || saved ? aiDrafts : drafts)
     .filter((d) => d.channel === channel && (!hasPostType || d.post_type === postType))
@@ -736,7 +743,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
       review_quotes: material.hasReviews && material.approvedQuotes.length === 0 ? material.reviewQuotes : [],
       approved_quotes: material.hasReviews ? material.approvedQuotes : [],
       evidence: [],
-      promo: postType === "mega_sale" && hasPostType ? material.megaSale : null,
+      promo: usesPromo ? (megaSale?.promo ?? null) : null,
       channel,
       post_type: hasPostType ? postType : "general",
       season: null,
@@ -763,7 +770,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
     if (!aiEnabled) return wait("titles", () => setGeneratedKey(key));
     setLoading("titles");
     try {
-      const json = await postAi({ step: "titles", product_id: product.id, input: aiInput() });
+      const json = await postAi({ step: "titles", product_id: product.id, input: aiInput(), promo_event_id: usesPromo ? megaSale?.id : undefined });
       const titles = GuideTitlesResult.parse({ titles: json.titles }).titles;
       const made = titles.map((t, i) => ({ id: `ai-${Date.now()}-${i}`, title: t }));
       setAiTitles(Object.fromEntries(made.map((m) => [m.id, m.title])));
@@ -787,7 +794,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
     setAiError(null);
     setLoading("body");
     try {
-      const json = await postAi({ step: "body", product_id: product.id, input: aiInput(), picked: aiTitles[id] });
+      const json = await postAi({ step: "body", product_id: product.id, input: aiInput(), picked: aiTitles[id], promo_event_id: usesPromo ? megaSale?.id : undefined });
       const body = GuideBodyResult.parse(json.body);
       const blockWarnings = buildWarnings(
         (json.lintHits as { key: string; text: string; reason: string }[]) ?? [],
@@ -956,6 +963,35 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                   </ul>
                 ) : (
                   <p className="text-xs text-muted-foreground">겹치는 성분 없음 (성분 검색 관심도에 없는 카테고리이거나 전성분에 해당 성분이 없어요)</p>
+                )}
+              </section>
+              {/* 프로모션 캘린더 (홈 · /calendar). 「예상」 일정은 날짜 없이 넘긴다 (materials.ts pickMegaSales) */}
+              <section className="space-y-1 rounded-md bg-muted p-3 md:col-span-2">
+                <p className="flex items-center gap-2 font-medium">
+                  <span className="rounded border bg-background px-1.5 text-xs">프로모션 캘린더</span>
+                  행사
+                  <span className="text-xs font-normal text-muted-foreground">인스타그램 · X의 「메가와리」 게시물에만 들어가요</span>
+                </p>
+                {material.megaSales.length ? (
+                  <ul className="flex flex-wrap gap-1">
+                    {[...material.megaSales.map((m) => ({ id: m.id, label: `Qoo10 메가와리 ${m.start_date.slice(5).replace("-", "/")}~${m.end_date.slice(5).replace("-", "/")}${m.confirmed ? "" : " (예상 · 날짜는 넣지 않아요)"}` })), { id: "", label: "행사 넣지 않기" }].map((o) => {
+                      const on = o.id === "" ? megaSale === null : megaSale?.id === o.id;
+                      return (
+                        <li key={o.id || "none"}>
+                          <button
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => setMegaSaleId(o.id)}
+                            className={`rounded-full border px-2 py-0.5 text-xs ${on ? "border-primary bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                          >
+                            {o.label}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">다가오는 Qoo10 메가와리 일정이 캘린더에 없어요. 메가와리 게시물이면 날짜 없이 써요.</p>
                 )}
               </section>
             </div>

@@ -19,8 +19,9 @@ const MAX_BODY_BYTES = 32 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const Request = z.discriminatedUnion("step", [
-  z.object({ step: z.literal("titles"), input: ContentGuideInput, product_id: z.string().optional() }),
-  z.object({ step: z.literal("body"), input: ContentGuideInput, picked: GuideTitle, product_id: z.string().optional() }),
+  z.object({ step: z.literal("titles"), input: ContentGuideInput, product_id: z.string().optional(), promo_event_id: z.string().optional() }),
+  // promo_event_id: 메가와리 게시물이면 고른 캘린더 행사 (content_guides.promo_event_id 로 남긴다)
+  z.object({ step: z.literal("body"), input: ContentGuideInput, picked: GuideTitle, product_id: z.string().optional(), promo_event_id: z.string().optional() }),
 ]);
 
 /** 로그인 확인 (POST /api/ad-check 와 같은 기준): Supabase 를 연결하지 않은 로컬이면 통과 */
@@ -134,6 +135,7 @@ export async function POST(request: Request) {
         id,
         workspace_id: mine.workspace.id,
         product_id: productId,
+        promo_event_id: req.promo_event_id && UUID_RE.test(req.promo_event_id) ? req.promo_event_id : null,
         channel: req.input.channel,
         post_type: req.input.post_type,
         input: req.input,
