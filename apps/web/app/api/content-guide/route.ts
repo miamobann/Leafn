@@ -4,7 +4,7 @@ import { z } from "zod";
 import { AdCheckParseError } from "@/lib/ai/ad-check/judge";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
-import { type BodyCheck, checkBody } from "@/lib/ai/content-guide/check";
+import { type BodyCheck, checkBody, dropFlaggedHashtags } from "@/lib/ai/content-guide/check";
 import { toAdCheck } from "@/lib/ai/ad-check/to-ad-check";
 import { ContentGuideParseError, generateBody, generateTitles } from "@/lib/ai/content-guide/generate";
 import { makeFill } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-report";
@@ -115,7 +115,12 @@ export async function POST(request: Request) {
     const own = (await getAdProducts()).find((x) => x.id === req.product_id);
     const fill = own ? makeFill(own) : (t: string) => t;
     const filled = { ...made.result, blocks: made.result.blocks.map((b) => ({ ...b, options: b.options.map((o) => ({ ...o, text_ja: fill(o.text_ja) })) })) };
-    const checked = await checkBody(req.input.channel, { name: p.name, product_category: p.category, ingredients: p.ingredients_ja }, filled, {}, fill(req.picked.title_ja));
+    const judgeProduct = { name: p.name, product_category: p.category, ingredients: p.ingredients_ja };
+    const first = await checkBody(req.input.channel, judgeProduct, filled, {}, fill(req.picked.title_ja));
+    // 걸린 해시태그는 빼고 남은 태그만 다시 판정한다 (해시태그는 문구 검토로 고칠 수 없어서, 2026-10-27)
+    const cleaned = await dropFlaggedHashtags(req.input.channel, judgeProduct, made.result, made.lintHits, first);
+    const checked = cleaned.checked;
+    const result = { ...made.result, hashtags: cleaned.body.hashtags };
     const checks = checked.blocks.map((b) => ({ key: b.key, action: b.line.action, findings: b.line.findings.map((f) => ({ text: f.text, reason: f.reason })) }));
 
     let id: string | null = null;
@@ -140,8 +145,8 @@ export async function POST(request: Request) {
         post_type: req.input.post_type,
         input: req.input,
         title: req.picked,
-        body: made.result,
-        lint_hits: made.lintHits,
+        body: result,
+        lint_hits: cleaned.lintHits,
         ad_check_id: adCheckId,
         model: made.model,
         prompt_version: `content-guide.${made.promptVersion}`,
@@ -152,8 +157,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       id,
       checkSaved,
-      body: made.result,
-      lintHits: made.lintHits,
+      body: result,
+      lintHits: cleaned.lintHits,
       checks,
       meta: { model: made.model, promptVersion: made.promptVersion, usage: made.usage, checkUsage: checked.usage },
     });

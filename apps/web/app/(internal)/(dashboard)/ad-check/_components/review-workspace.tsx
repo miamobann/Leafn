@@ -13,7 +13,6 @@ import type { ReviewStatus } from "@/lib/schemas/common";
 import { countLines } from "../_lib/lines";
 import type { LabProduct } from "../_lib/products";
 import { requestAdCheck, updateAdCheckReview, type AiMeta } from "../_lib/request";
-import { CopyButton } from "./copy-button";
 import { GuideRevisePanel, useGuideRevise } from "./guide-reflect";
 import { ResultLines } from "./result-lines";
 import { ResultSummary } from "./result-summary";
@@ -216,16 +215,13 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
           onRevise={() => check && void revise(check.id, selected)}
         />
       )}
-      {/* 다음 단계: 결재는 콘텐츠 단위로 올린다 (2026-10-27). 콘텐츠에서 온 검토는 반영 뒤 콘텐츠로 돌아가고, 문구만 검토는 기록에 남는다 */}
-      {check && !busy && persisted && (
+      {/* 다음 단계 줄은 문구만 검토할 때만: 콘텐츠에서 온 검토는 「가이드에 반영」이 콘텐츠 가이드로 데려가고, 최종 문구 복사는 검토 메모의 아이콘으로 (2026-10-27) */}
+      {check && !busy && persisted && !guideId && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>{guideId ? "다음 단계 · 가이드에 반영한 뒤 콘텐츠 가이드에서 결재를 올려요." : "다음 단계 · 검토 기록에 저장됐어요. 최종 문구를 복사해 쓰거나 검토 기록에서 다시 볼 수 있어요."}</span>
-          <span className="flex flex-wrap gap-2">
-            <CopyButton text={finalText} label="최종 문구 복사" />
-            <Link href={guideId ? `/ad-check/guide/history/${guideId}` : "/ad-check/history"} className={buttonVariants({ variant: "outline", size: "sm" })}>
-              {guideId ? "콘텐츠 가이드로 돌아가기" : "검토 기록에서 보기"}
-            </Link>
-          </span>
+          <span>다음 단계 · 검토 기록에 저장됐어요. 최종 문구는 검토 메모에서 복사할 수 있어요.</span>
+          <Link href="/ad-check/history" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            검토 기록에서 보기
+          </Link>
         </div>
       )}
     </ViewStateGate>
@@ -241,7 +237,7 @@ function NextStep({ lines, selected, fromGuide, persisted }: { lines: AdLineResu
   const steps =
     toFix.length === 0
       ? [fromGuide ? "고칠 곳 없음 · 가이드는 이대로 써도 돼요" : "고칠 곳 없음", fromGuide ? "콘텐츠 가이드에서 결재 올리기" : persisted ? "검토 기록에 저장됨" : null].filter(Boolean)
-      : [`① 대체 표현 고르기 (${picked}/${toFix.length})`, fromGuide ? "② 아래 「가이드에 반영」" : null, fromGuide ? "③ 콘텐츠 가이드에서 결재 올리기" : persisted ? "② 최종 문구 복사 · 검토 기록에 저장됨" : null].filter(Boolean);
+      : [`① 대체 표현 고르기 (${picked}/${toFix.length})`, fromGuide ? "② 아래 「가이드에 반영」" : null, fromGuide ? "③ 콘텐츠 가이드에서 결재 올리기" : persisted ? "② 검토 메모에서 최종 문구 복사 · 검토 기록에 저장됨" : null].filter(Boolean);
   return (
     <p className="text-sm">
       <span className="font-medium">다음 할 일 · </span>

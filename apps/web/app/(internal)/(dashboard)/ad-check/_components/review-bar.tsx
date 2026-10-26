@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import type { ReviewStatus } from "@/lib/schemas/common";
 import { ReviewStateBadge } from "./ad-badges";
+import { CopyButton } from "./copy-button";
 
 // 검토 기록의 메모 · 전문가 확인 요청 (팀장만 저장). 승인 · 반려는 결재함에서 한다 (2026-10-27 결정: 결재가 우선, 검토 화면의 승인 버튼은 뺀다).
 // 예전에 「내부 검토 완료」 · 반려로 둔 검토는 상태 배지로만 보여 준다.
@@ -59,8 +60,9 @@ export function ReviewBar({
       <CardContent className="space-y-3">
         {showFinalText && (
         <div>
-          <p className="mb-1 text-sm font-medium">
+          <p className="mb-1 flex items-center gap-1 text-sm font-medium">
             최종 문구 <span className="font-normal text-muted-foreground">(선택한 대체 표현이 반영됨)</span>
+            {finalText && <CopyButton text={finalText} label="최종 문구 복사" />}
           </p>
           <p className="whitespace-pre-line rounded-md bg-muted p-3 text-sm leading-relaxed">{finalText}</p>
         </div>

@@ -47,3 +47,41 @@ export async function checkBody(channel: ContentChannel, product: AdCheckProduct
   }
   return { blocks, adUsage: USAGE[channel], usage, model, promptVersion };
 }
+
+/** 약기법에 걸린 해시태그는 빼고 저장한다 (2026-10-27 TAB 3: 해시태그는 「가이드에 반영」으로 고칠 수 없어 아예 보이지 않게).
+ *  금지어 검사(lintHits)와 판정 findings 가 짚은 말이 든 태그만 뺀다. 짚은 말을 태그에서 못 찾으면 아무것도 빼지 않고 경고를 그대로 남긴다 (약기법 우선).
+ *  뺐으면 남은 태그만 다시 판정해 해시태그 판정 줄을 바꾼다 (판정 기록을 손으로 고치지 않는다). 다시 걸리면 경고가 그대로 보인다 */
+export async function dropFlaggedHashtags<H extends { key: string; text: string }>(
+  channel: ContentChannel,
+  product: AdCheckProductInput,
+  body: GuideBodyResult,
+  lintHits: H[],
+  checked: BodyCheck,
+  deps: Deps = {},
+): Promise<{ body: GuideBodyResult; lintHits: H[]; checked: BodyCheck }> {
+  const tagLine = checked.blocks.find((b) => b.key === HASHTAG_KEY);
+  const words = [
+    ...lintHits.filter((h) => h.key === HASHTAG_KEY).map((h) => h.text),
+    ...(tagLine && tagLine.line.action !== "ok" ? tagLine.line.findings.map((f) => f.text) : []),
+  ]
+    .map((w) => w.replace(/^#/, "").trim())
+    .filter(Boolean);
+  const all = [...body.hashtags.brand, ...body.hashtags.ingredient, ...body.hashtags.trend];
+  // 짚은 말마다 그 말이 든 태그가 있어야 뺀다 (판정이 태그 밖의 말을 짚었으면 그대로 둔다)
+  if (words.length === 0 || !words.every((w) => all.some((t) => t.includes(w)))) return { body, lintHits, checked };
+  const keep = (tags: string[]) => tags.filter((t) => !words.some((w) => t.includes(w)));
+  const hashtags = { brand: keep(body.hashtags.brand), ingredient: keep(body.hashtags.ingredient), trend: keep(body.hashtags.trend) };
+  const left = [...hashtags.brand, ...hashtags.ingredient, ...hashtags.trend];
+  const others = checked.blocks.filter((b) => b.key !== HASHTAG_KEY);
+  const usage = { ...checked.usage };
+  let blocks = others;
+  if (left.length) {
+    const text = left.join(" ");
+    const judged = await judgeLines({ product, usage: USAGE[channel], lines: [text] }, deps);
+    usage.input += judged.usage.input;
+    usage.cached += judged.usage.cached;
+    usage.output += judged.usage.output;
+    blocks = [...others, { key: HASHTAG_KEY, text, line: judged.lines[0]! }];
+  }
+  return { body: { ...body, hashtags }, lintHits: lintHits.filter((h) => h.key !== HASHTAG_KEY), checked: { ...checked, blocks, usage } };
+}

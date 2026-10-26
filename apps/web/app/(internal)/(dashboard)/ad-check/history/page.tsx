@@ -112,13 +112,13 @@ function ContentRow({ record, productName, author, isOwner }: { record: ContentR
         </p>
         <Meta parts={[productName, CHANNEL_LABEL[latest.channel] ?? latest.channel, author, formatDate(latest.created_at)]} />
       </Link>
-      {/* 이 콘텐츠 가이드에서 나온 문구 검토 바로 가기 (처음 것부터 문구 v1, v2 …). 많으면 최근 3개만 */}
+      {/* 이 콘텐츠 가이드에서 나온 문구 검토 바로 가기: 가장 최근 것 하나 (처음 것부터 v1, v2 … 로 센 번호). 이전 검토는 콘텐츠 가이드 상세의 「이 가이드의 검토」 */}
       {phrases.length > 0 && (
         <span className="flex shrink-0 items-center gap-1">
           {phrases
             .toReversed()
             .map((p, i) => ({ ...p, no: i + 1 }))
-            .slice(-3)
+            .slice(-1)
             .map(({ check, reflected, no }) => (
               <Link
                 key={check.id}

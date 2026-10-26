@@ -118,7 +118,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
           <summary className="cursor-pointer font-medium">원문 · 최종 문구 전체 보기</summary>
           <div className="mt-3 space-y-4">
             <section>
-              <p className="mb-1 flex flex-wrap items-center justify-between gap-2 font-medium">
+              <p className="mb-1 flex flex-wrap items-center gap-1 font-medium">
                 최종 문구 {check.final_text && <CopyButton text={check.final_text} label="최종 문구 복사" />}
               </p>
               <p className="whitespace-pre-line rounded-md bg-muted p-3 leading-relaxed">{check.final_text ?? "—"}</p>

@@ -30,11 +30,11 @@ export const STATUS_LABEL: Record<ReviewStatus, string> = {
 };
 
 export const USAGE_LABEL: Record<z.infer<typeof AdUsage>, string> = {
-  detail_page: "상세페이지",
-  sns: "SNS",
-  banner: "광고 배너",
-  survey_result: "설문 결과 페이지",
-  notify_button: "알림받기 버튼",
+  detail_page: "상세페이지(큐텐)",
+  sns: "SNS (인스타그램 · X)",
+  banner: "배너",
+  survey_result: "설문조사",
+  notify_button: "알림받기",
 };
 
 export function ActionBadge({ action }: { action: AdAction }) {

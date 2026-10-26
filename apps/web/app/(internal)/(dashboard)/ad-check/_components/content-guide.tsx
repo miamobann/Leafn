@@ -204,7 +204,7 @@ function BodyPager({
         {b.options
           .filter((o) => o.text_ja)
           .map((o, j) => (
-            <div key={o.text_ja} className={`mt-2 ${j === 0 ? "" : "border-t pt-2"}`}>
+            <div key={j} className={`mt-2 ${j === 0 ? "" : "border-t pt-2"}`}>
               <p className="mb-1">{j === 0 ? <span className={RECOMMENDED}>가장 추천</span> : <span className="text-xs text-muted-foreground">다른 안</span>}</p>
               <p className="whitespace-pre-line" lang="ja">
                 {fill(o.text_ja)}

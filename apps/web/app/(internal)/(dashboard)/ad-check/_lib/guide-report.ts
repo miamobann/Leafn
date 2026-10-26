@@ -30,9 +30,19 @@ export function makeFill(product: LabProduct) {
     fillProduct(text, product.name_ko, product.ingredients, { kind_ja: kind.ja, kind_ko: kind.ko, volume: product.volume, product_ja: product.name_ja });
 }
 
+/** AI가 같은 블록 이름을 두 번 낼 때가 있다 (예: X 의 image 두 개). 화면 · 메모 · PDF 가 블록 이름으로 칸을 구분하므로 두 번째부터 「-2」 「-3」을 붙인다 */
+function uniqueKeys(blocks: GuideBlock[]): GuideBlock[] {
+  const seen = new Map<string, number>();
+  return blocks.map((b) => {
+    const n = (seen.get(b.key) ?? 0) + 1;
+    seen.set(b.key, n);
+    return n === 1 ? b : { ...b, key: `${b.key}-${n}` };
+  });
+}
+
 export function visibleBlocks(blocks: GuideBlock[], channel: GuideChannel, slideCount: number, hasReviews: boolean) {
   // AI가 비운 사진 칸은 블록별 기본 촬영 지시로 채운다 (미리보기 · PDF · 촬영 가이드가 같이 쓴다)
-  return withShotDefaults(blocks, channel).filter(
+  return withShotDefaults(uniqueKeys(blocks), channel).filter(
     (b) =>
       // 리뷰가 없는 제품(개발 중)은 리뷰 블록을 뺀다
       (!b.needs_reviews || hasReviews) &&
@@ -52,5 +62,6 @@ export function pickHashtags(hashtags: Hashtags, channel: GuideChannel, keywords
           trend: [...new Set([...hashtags.trend.slice(0, IG_HASHTAG_LIMIT - 3 - KEYWORD_TAGS), ...keywordTags])],
         }
       : hashtags;
-  return { groups, keywordTags, list: [...groups.brand, ...groups.ingredient, ...groups.trend] };
+  // 같은 태그가 두 그룹에 들어오면 한 번만 (화면 목록의 key 가 겹치지 않게)
+  return { groups, keywordTags, list: [...new Set([...groups.brand, ...groups.ingredient, ...groups.trend])] };
 }
