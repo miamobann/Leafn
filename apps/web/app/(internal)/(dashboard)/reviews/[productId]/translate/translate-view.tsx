@@ -63,6 +63,26 @@ function Box({ state }: { state: "on" | "off" | "some" }) {
   );
 }
 
+/** 약기법 검토가 짚은 구간을 문장 안에서 표시한다 (같은 내용을 아래에 다시 적지 않으려고) */
+function Marked({ text, marks }: { text: string; marks: string[] }) {
+  const words = marks.filter((m) => m && text.includes(m));
+  if (words.length === 0) return <>{text}</>;
+  const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return (
+    <>
+      {text.split(new RegExp(`(${escaped.join("|")})`)).map((part, i) =>
+        words.includes(part) ? (
+          <mark key={i} className="rounded-sm bg-orange-100 px-0.5 text-orange-900">
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
 function usePicks(initial: string[] = []) {
   const [picked, setPicked] = useState<Set<string>>(new Set(initial));
   const toggle = (id: string) =>
@@ -412,45 +432,53 @@ export function TranslateView({
               </Link>
             </p>
           )}
-          <ul className="space-y-1">
+          <ul className="divide-y">
             {donePaged.rows.map((t) => {
               const on = right.picked.has(t.id);
+              const fixing = t.status === "fix" && t.fixes.length > 0;
               return (
-                <li key={t.id} className={`flex items-start gap-3 rounded-lg px-2 py-2 text-sm ${on ? "bg-muted/40" : ""}`}>
+                <li key={t.id} className={`flex items-start gap-3 px-2 py-3 text-sm ${on ? "bg-muted/40" : ""}`}>
                   <button type="button" role="checkbox" aria-checked={on} aria-label="이 번역 선택" onClick={() => right.toggle(t.id)} className="mt-0.5">
                     <Box state={on ? "on" : "off"} />
                   </button>
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <p lang="ja">{t.textJa}</p>
-                    <p className="text-muted-foreground">
-                      {t.textKo}
-                      {t.edited && <span className="ml-1.5 rounded bg-stone-100 px-1.5 py-0.5 text-xs">고침</span>}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p lang="ja" className="leading-relaxed">
+                      {t.textJa}
                     </p>
-                    {t.note &&
-                      (t.checkId ? (
-                        <Link href={`/ad-check/${t.checkId}`} className={`block text-xs hover:underline ${t.status === "fix" ? "text-orange-800" : "text-muted-foreground"}`}>
-                          {t.note} →
-                        </Link>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">{t.note}</p>
-                      ))}
-                    {t.status === "fix" && t.fixes.length > 0 && (
-                      <ul className="mt-1.5 space-y-2 rounded-md border bg-muted/30 p-2.5">
+                    {t.textKo.trim() !== t.textJa.trim() && (
+                      <p className="leading-relaxed text-muted-foreground">{fixing ? <Marked text={t.textKo} marks={t.fixes.map((f) => f.text)} /> : t.textKo}</p>
+                    )}
+                    {/* 고침 표시와 검토 결과는 한 줄로. 고쳐야 함이면 사유는 아래 상자에만 적는다 */}
+                    {(t.edited || t.note || t.checkId) && (
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        {t.edited && <span className="rounded bg-stone-100 px-1.5 py-0.5">고침</span>}
+                        {t.checkId ? (
+                          <Link href={`/ad-check/${t.checkId}`} className="hover:underline">
+                            {fixing ? "약기법 검토 기록" : t.note || "약기법 검토 기록"} →
+                          </Link>
+                        ) : (
+                          !fixing && t.note && <span>{t.note}</span>
+                        )}
+                      </p>
+                    )}
+                    {fixing && (
+                      <ul className="mt-1 space-y-3 rounded-md border bg-muted/30 p-3">
                         {t.fixes.map((f) => (
-                          <li key={f.text} className="space-y-1">
-                            <p className="text-xs">
+                          <li key={f.text} className="space-y-1.5">
+                            <p className="text-xs leading-relaxed">
                               <b className={f.serious ? "text-orange-800" : ""}>「{f.text}」</b> <span className="text-muted-foreground">{f.reason}</span>
                             </p>
-                            <div className="flex flex-wrap gap-1.5">
+                            <div className="flex flex-col gap-1.5">
                               {f.suggestions.map((s) => (
                                 <button
                                   key={s.ja}
                                   type="button"
                                   disabled={busy !== null}
                                   onClick={() => applyFix(t, f.text, s.ja)}
-                                  className="rounded-md border bg-background px-2 py-1 text-left text-xs hover:bg-muted disabled:opacity-50"
+                                  className="rounded-md border bg-background px-2.5 py-1.5 text-left text-xs leading-relaxed hover:bg-muted disabled:opacity-50"
                                 >
-                                  <span className="font-medium">이렇게 고치기</span> · {s.ko}
+                                  <span className="mb-0.5 block font-medium text-primary">이렇게 고치기 →</span>
+                                  <span className="block">{s.ko}</span>
                                   <span lang="ja" className="block text-muted-foreground">
                                     {s.ja}
                                   </span>
