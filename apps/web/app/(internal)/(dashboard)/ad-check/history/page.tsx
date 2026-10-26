@@ -162,9 +162,7 @@ function PhraseRow({ record, productName, author, isOwner }: { record: PhraseRec
         <Meta parts={[productName, check.usage ? USAGE_LABEL[check.usage] : null, author, formatDate(check.created_at)]} />
       </Link>
       {check.overall_action && <ActionBadge action={check.overall_action} />}
-      <Link href={`/ad-check?from=${check.id}`} className={`${buttonVariants({ variant: "outline", size: "sm" })} border-foreground/40!`}>
-        재검토
-      </Link>
+      {/* 재검토는 검토 상세의 「이 내용으로 재검토」에서 (목록은 열기 · 삭제만, 2026-10-27) */}
       {isOwner && <DeleteButton endpoint={`/api/ad-check/${check.id}`} confirmMessage="이 검토를 목록에서 삭제할까요? 기록은 증거용으로 DB에 남습니다." />}
     </article>
   );
