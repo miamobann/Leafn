@@ -3,8 +3,10 @@ import { PageHeader } from "@/components/layout/page-header";
 import { DataTableTemplate, DetailTemplate } from "@/components/templates";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { getMembers, getWorkspace } from "@/lib/data";
+import { getMemberTabs } from "@/lib/data/submissions";
 import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/data/workspace";
 import { signOut } from "@/app/(internal)/(auth)/actions";
+import { MemberTabsTable } from "./member-tabs";
 
 const TEXT = {
   title: "설정",
@@ -19,6 +21,9 @@ const TEXT = {
   inviteCode: "초대 코드",
   myRole: "내 역할",
   members: "팀원",
+  memberTabs: "담당 탭",
+  memberTabsHelp: "팀원은 담당 탭에만 시안을 올릴 수 있어요. 담당 탭은 팀장이 정해요.",
+  memberTabsHelpOwner: "체크한 탭에만 시안을 올릴 수 있어요. 팀장은 모든 탭을 맡아요.",
 };
 
 const roleLabel = (role: "owner" | "member") => (role === "owner" ? "소유자" : "멤버");
@@ -29,6 +34,9 @@ export default async function SettingsPage() {
 
   const workspace = mine?.workspace ?? (await getWorkspace());
   const members = mine ? await getMyWorkspaceMembers(mine.workspace.id) : await getMembers();
+  // 워크스페이스 없이 로그인한 경우는 담당 탭이 없다 (팀 데이터 조회는 워크스페이스가 있어야 한다)
+  const memberTabs = mine || !user ? await getMemberTabs() : [];
+  const canEditTabs = mine?.role === "owner";
 
   return (
     <>
@@ -81,6 +89,17 @@ export default async function SettingsPage() {
         rows={members.map((m) => ({
           id: m.id,
           cells: { name: m.display_name ?? "—", title: m.title ?? "—", role: roleLabel(m.role) },
+        }))}
+      />
+      <h2 className="mt-8 mb-1 font-semibold">{TEXT.memberTabs}</h2>
+      <p className="mb-3 text-sm text-muted-foreground">{canEditTabs ? TEXT.memberTabsHelpOwner : TEXT.memberTabsHelp}</p>
+      <MemberTabsTable
+        canEdit={canEditTabs}
+        rows={members.map((m) => ({
+          userId: m.user_id,
+          name: m.display_name ?? "—",
+          isOwner: m.role === "owner",
+          tabs: memberTabs.filter((t) => t.user_id === m.user_id).map((t) => t.tab),
         }))}
       />
     </>

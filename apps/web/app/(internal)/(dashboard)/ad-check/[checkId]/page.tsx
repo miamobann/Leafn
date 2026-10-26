@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AiResultMeta } from "@/components/common/ai";
+import { SubmissionSection } from "@/components/common/submission-section";
 import { PageHeader } from "@/components/layout/page-header";
 import { DetailTemplate } from "@/components/templates";
 import { buttonVariants } from "@/components/ui/button";
 import { getAdCheck, getAdChecks, getMemberName, getProduct } from "@/lib/data";
+import { saveAdDraft } from "@/lib/data/submission-actions";
 import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
 import { ActionBadge, ReviewStateBadge, USAGE_LABEL } from "../_components/ad-badges";
@@ -106,6 +108,16 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
           initialExpertRequested={check.is_expert_review_requested ?? false}
           canApprove={canApprove}
         />
+        )}
+        {/* 제품에 연결된 직접 검토만 시안에 담는다 (docs/team-approval-ai-analysis.md 7장 2단계) */}
+        {!isGuideCheck && product && (
+          <SubmissionSection
+            tab="ad"
+            product={product}
+            saveDraft={saveAdDraft.bind(null, product.id, check.id)}
+            snapshotNote="이 검토 건의 판정과 최종 문구를 시안에 담아요. 시안을 승인 · 반려하면 이 검토 건의 상태도 같이 바뀌어요."
+            carryOverLabel="직전 버전에 담긴 다른 문구도 함께 담기"
+          />
         )}
       </div>
     </>

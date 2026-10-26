@@ -63,7 +63,7 @@ DB 규칙(RLS)으로 강제한다. 기존 `is_member(ws)` · `is_owner(ws)`에 �
 | `ai_analyses` | workspace_id, project_id, product_id, title, input_version_ids uuid[], result jsonb, summary, model, prompt_version, created_by, lead_checked_by, lead_checked_at, deleted_at | AI 분석 결과. 멤버 전원 읽기 |
 
 - `body`의 모양은 탭마다 Zod 스키마 하나로 고정한다 (`lib/schemas/submission.ts`: `MarketBody`, `ReviewBody`, `AdBody`). AI 분석은 이 모양만 읽는다.
-- 광고 검토는 기존 `ad_checks`를 근거로 묶는다. 버전이 승인·반려되면 연결된 `ad_checks.review_status`도 같이 바꿔서 기존 화면과 맞춘다.
+- 광고 검토는 같은 제품의 `ad_checks`만 근거로 묶는다. 시안 결재와 원본 약기법 검토는 별개이므로 버전 승인·반려가 `ad_checks.review_status`를 바꾸지 않는다.
 
 ## 6. 버전 · 결재 규칙
 
