@@ -88,7 +88,7 @@ DB 규칙(RLS)으로 강제한다. 기존 `is_member(ws)` · `is_owner(ws)`에 �
 | 1. 권한 · 테이블 | 위 5개 테이블 마이그레이션 + RLS + `has_tab()`, Zod, mock, `lib/data` 읽기 함수, **설정 화면의 멤버별 담당 탭 설정** | `supabase/migrations/`, `lib/schemas/submission.ts`, `lib/mock/submissions.ts`, `lib/data/submissions.ts`, `settings/` |
 | 2. 시안 제출 · 히스토리 | 리뷰 분석 · 광고 검토 결과 화면에 "시안으로 저장 / 제출", 버전 히스토리 패널(보기 · 수정 · 삭제 · 반려 사유). 담당이 아닌 탭에서는 버튼 숨김 | `reviews/`, `ad-check/`, `components/common/submission-*` |
 | 3. 팀장 결재함 + 제품 화면 | 결재함 목록 → **버전 미리보기 페이지**(내용 · 근거 · 이전 버전 비교 · 승인/반려). 제품 × 탭 진행 표(D안, 판매 중 제품만) | `app/(internal)/(dashboard)/approvals/`, `projects/` |
-| 4. AI 분석 탭 | 제품 선택 → 탭별 승인본 선택(기준 날짜 표시, 차이 30일 넘으면 경고) → 실행 → 저장 · 공유 · 팀장 확인 라벨 | `app/(internal)/(dashboard)/ai-analysis/`, `lib/ai/integrated-analysis/`, `prompts/integrated-analysis.v1.md` (호출은 `callAi`, 정밀 등급) |
+| 4. AI 분석 탭 | 제품 선택 → 탭별 승인본 선택(기준 날짜 표시, 차이 30일 넘으면 경고) → 실행 → 저장 · 공유 · 팀장 확인 라벨 | `app/(internal)/(dashboard)/ai-analysis/`, `lib/ai/integrated-analysis/`, `prompts/integrated-analysis.v2.md` (호출은 `callAi`, 정밀 등급) |
 | 5. 나중에 | 시장 분석 탭 연결, 대리 결재자, 알림, "새 데이터 있음" 표시 | |
 
 ## 8. 구조의 결점과 보완 (채택)
@@ -117,7 +117,7 @@ DB 규칙(RLS)으로 강제한다. 기존 `is_member(ws)` · `is_owner(ws)`에 �
 목표: 팀이 분석 관점·말투·금지 사항을 바꾸고 싶을 때 **프롬프트 파일만 새 버전으로 만들면** 되게 한다. 코드·DB를 고치는 일은 입력·출력의 모양이 바뀔 때뿐이다.
 
 **파일과 버전**
-- 원문: `apps/web/prompts/integrated-analysis.v1.md` (초안이 이미 있다. 4단계 PR에서 확정한다).
+- 원문: `apps/web/prompts/integrated-analysis.v2.md` (2026-10-26 v2: 판단 단계 6개, 확신도 · 같은 결론 · 종합 판단 · 반론 · 완료 기준 칸 추가, 날짜 차이 · 표본 수 · 미해결 광고 위험은 코드가 `facts`로 계산해 넣는다. v1 결과는 그대로 보인다).
 - 읽기: 기존 `loadPrompt("integrated-analysis", 버전)` (`lib/ai/prompts.ts`). 머리말(`---` 앞)은 사람용 설명이고 본문만 보낸다.
 - 쓰는 버전: `lib/ai/integrated-analysis/config.ts`의 상수 `PROMPT_VERSION` 한곳. 고칠 때는 v1을 v2로 복사해 고치고 이 상수만 바꾼다. 이미 쓴 버전 파일은 고치지 않는다 (결과 재현을 위해).
 - 결과 행 `ai_analyses.prompt_version`에 `integrated-analysis.v2`처럼 남는다. 화면은 결과마다 버전을 작게 보여준다.

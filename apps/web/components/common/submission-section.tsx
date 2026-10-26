@@ -5,6 +5,7 @@ import { getMyTabs, getSubmissionReviews, getSubmissionVersions, getSubmissions 
 import { getCurrentUser, isSupabaseConfigured } from "@/lib/data/workspace";
 import type { SaleStatus } from "@/lib/schemas/project";
 import { SUBMISSION_TAB_LABELS, type SubmissionTab } from "@/lib/schemas/submission";
+import type { SubmissionResult } from "@/lib/data/submission-actions";
 import { type SaveDraft, SubmissionPanel, type VersionView } from "./submission-panel";
 
 const TEXT = {
@@ -17,6 +18,7 @@ export async function SubmissionSection({
   saveDraft,
   snapshotNote,
   carryOverLabel,
+  loadContents,
   className,
 }: {
   tab: SubmissionTab;
@@ -24,6 +26,7 @@ export async function SubmissionSection({
   saveDraft: SaveDraft;
   snapshotNote: string;
   carryOverLabel?: string;
+  loadContents?: (versionId: string) => Promise<SubmissionResult<{ versionNo: number; summary: string; note: string }>>;
   /** 패널 바깥 여백. 기본은 결과 아래에 붙는 mt-6, 오른쪽 열에 둘 때는 덮어쓴다 */
   className?: string;
 }) {
@@ -76,6 +79,7 @@ export async function SubmissionSection({
       saveDraft={saveDraft}
       snapshotNote={snapshotNote}
       carryOverLabel={carryOverLabel}
+      loadContents={loadContents}
       className={className}
     />
   );
