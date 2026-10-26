@@ -1,11 +1,29 @@
-import { isSupabaseConfigured } from "@/lib/data/workspace";
 // 상단 헤더: 워크스페이스 / 프로젝트(제품군) 선택. 워크스페이스 → 프로젝트 → 제품 구조 (2026-10-24 총괄 결정)
+// 오른쪽: 알림 버튼(확인할 일 패널)과 계정 (2026-10-26 홈 새 디자인. 데이터 표시 배지는 뺐다)
+import Link from "next/link";
 import { getProjectsWithProducts, getWorkspace } from "@/lib/data";
+import { getNotifications } from "@/lib/data/notifications";
+import { getCurrentMember } from "./current-member";
+import { NotificationBell, type NotificationLink } from "./notification-bell";
 import { ProjectSwitcher } from "./project-switcher";
 import { WorkspaceName } from "./workspace-name";
 
+// 패널 아래 바로가기. 할 일 카드는 홈 캘린더 옆 카드 (app/(internal)/(dashboard)/_home/ids.ts의 HOME_TODO_ID)
+const TODO_HREF = "/#home-todo";
+const LINKS: Record<"owner" | "member", NotificationLink[]> = {
+  owner: [
+    { label: "결재함", href: "/approvals" },
+    { label: "검토 이력", href: "/ad-check/history" },
+    { label: "할 일 카드", href: TODO_HREF },
+  ],
+  member: [
+    { label: "내 시안", href: "/approvals/mine" },
+    { label: "할 일 카드", href: TODO_HREF },
+  ],
+};
+
 export async function TopBar() {
-  const [workspace, lines] = await Promise.all([getWorkspace(), getProjectsWithProducts()]);
+  const [workspace, lines, me, notices] = await Promise.all([getWorkspace(), getProjectsWithProducts(), getCurrentMember(), getNotifications()]);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-6">
@@ -16,9 +34,22 @@ export async function TopBar() {
         </span>
         <ProjectSwitcher base={lines} />
       </nav>
-      <span className="shrink-0 rounded-full bg-accent px-3 py-1 text-xs text-accent-foreground">
-        {isSupabaseConfigured() ? "실제 팀 데이터 · 미연결 기능 별도 안내" : "샘플 데이터 · 저장되지 않음"}
-      </span>
+      <div className="flex shrink-0 items-center gap-2">
+        <NotificationBell count={notices.count} todo={notices.todo} results={notices.results} links={LINKS[notices.role]} />
+        <Link
+          href="/settings"
+          aria-label={`${me.name} (${me.role === "owner" ? "팀장" : "팀원"}) · 설정`}
+          className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card py-1 pr-3.5 pl-1 text-foreground hover:bg-muted"
+        >
+          <span aria-hidden className="inline-flex size-8 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
+            {me.name.slice(0, 1)}
+          </span>
+          <span aria-hidden className="flex flex-col leading-tight">
+            <span className="text-[13px] font-medium">{me.name}</span>
+            <span className="text-[11px] text-muted-foreground">{me.role === "owner" ? "팀장" : "팀원"}</span>
+          </span>
+        </Link>
+      </div>
     </header>
   );
 }
