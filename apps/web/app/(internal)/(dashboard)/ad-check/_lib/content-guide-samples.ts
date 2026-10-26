@@ -9,7 +9,7 @@ import { ownProductName } from "@/lib/own-products";
 export const GUIDE_CHANNELS = [
   { id: "qoo10_detail", label: "상세페이지(큐텐)" },
   { id: "instagram", label: "인스타그램" },
-  { id: "x", label: "X" },
+  { id: "x", label: "X (엑스)" },
   { id: "banner", label: "배너" },
 ] as const;
 export const GuideChannel = z.enum(["qoo10_detail", "instagram", "x", "banner"]);
