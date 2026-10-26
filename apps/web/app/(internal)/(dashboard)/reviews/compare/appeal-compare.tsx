@@ -19,7 +19,6 @@ type TopicRow = AppealComparison["topics"][number];
 
 const RANK_PAGE = 10;
 const EVIDENCE_STEP = 3;
-const USES = ["상세페이지", "SNS", "배너"] as const;
 
 const TEXT = {
   caution:
@@ -63,7 +62,6 @@ export function AppealCompare({
   const [rankFilter, setRankFilter] = useState<"all" | "hit">("all");
   const [rankPage, setRankPage] = useState(1);
   const [showEmpty, setShowEmpty] = useState(false);
-  const [use, setUse] = useState<(typeof USES)[number]>("상세페이지");
 
   const data = comparisons.find((c) => c.own.id === productId) ?? comparisons[0];
   if (!data) return null;
@@ -256,17 +254,9 @@ export function AppealCompare({
                   </div>
                 )}
                 <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                    용도
-                    <select className="h-9 rounded-md border bg-background px-2 text-sm text-foreground" value={use} onChange={(e) => setUse(e.target.value as (typeof USES)[number])}>
-                      {USES.map((u) => (
-                        <option key={u}>{u}</option>
-                      ))}
-                    </select>
-                  </label>
-                  {/* 고른 소구점 · 용도를 광고 검토에 넘기는 주소 형식은 TAB 3 담당자와 정한다 (지금 /ad-check는 ?from=<검토 ID>만 받음) */}
-                  <Link href="/ad-check" className={buttonVariants({ size: "lg" })}>
-                    광고 검토 시작하기 →
+                  <p className="text-xs text-muted-foreground">콘텐츠 제작 가이드가 이 제품의 소구점·칭찬 리뷰를 그대로 가져가요</p>
+                  <Link href={`/ad-check/guide?product=${data.own.id}`} className={buttonVariants({ size: "lg" })}>
+                    이 소구점으로 콘텐츠 만들기 →
                   </Link>
                 </div>
               </div>
