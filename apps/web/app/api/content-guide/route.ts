@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     const own = (await getAdProducts()).find((x) => x.id === req.product_id);
     const fill = own ? makeFill(own) : (t: string) => t;
     const filled = { ...made.result, blocks: made.result.blocks.map((b) => ({ ...b, options: b.options.map((o) => ({ ...o, text_ja: fill(o.text_ja) })) })) };
-    const checked = await checkBody(req.input.channel, { name: p.name, product_category: p.category, ingredients: p.ingredients_ja }, filled);
+    const checked = await checkBody(req.input.channel, { name: p.name, product_category: p.category, ingredients: p.ingredients_ja }, filled, {}, fill(req.picked.title_ja));
     const checks = checked.blocks.map((b) => ({ key: b.key, action: b.line.action, findings: b.line.findings.map((f) => ({ text: f.text, reason: f.reason })) }));
 
     let id: string | null = null;

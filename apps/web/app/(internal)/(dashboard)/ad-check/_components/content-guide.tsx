@@ -639,6 +639,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   const [direction, setDirection] = useState(saved?.direction ?? "");
   /** 제작할 때 실제로 반영한 방향 (제작 뒤에 칸을 고쳐도 결과·PDF는 이 값) */
   const [appliedDirection, setAppliedDirection] = useState(saved?.direction ?? "");
+  /** 제작할 때 반영한 소구점 (제작 뒤에 소구점을 바꾸면 다시 제작해야 반영된다) */
+  const [appliedAppeals, setAppliedAppeals] = useState<string | null>(null);
   /** PDF 뒤에 촬영 가이드(붙임 1쪽)를 붙일지 */
   const [withPhotoGuide, setWithPhotoGuide] = useState(true);
   /** AI로 만든 제목·본문 (AI 모드). 본문은 제목을 고를 때 채운다 */
@@ -757,6 +759,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
     setMemos({});
     setAiError(null);
     setAppliedDirection(direction.trim());
+    setAppliedAppeals(appeals.join("|"));
     if (!aiEnabled) return wait("titles", () => setGeneratedKey(key));
     setLoading("titles");
     try {
@@ -978,6 +981,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
             />
             <p className="text-xs text-muted-foreground">제작할 때 방향으로 반영돼요. 부탁하듯 적어도 되지만 답장은 오지 않고, 약기법에 어긋나는 방향(효능 과장 등)은 반영하지 않아요.</p>
             {generated && direction.trim() !== appliedDirection && <p className="text-xs text-muted-foreground">방향을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
+            {generated && appliedAppeals !== null && appeals.join("|") !== appliedAppeals && <p className="text-xs text-muted-foreground">소구점을 바꿨어요. 「다시 제작하기」를 누르면 반영돼요.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button type="button" onClick={generate} disabled={detailBlocked || loading !== null}>
@@ -1085,7 +1089,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
                       {Object.entries(warnings[current.id] ?? {}).flatMap(([key, items]) =>
                         items.map((w) => (
                           <li key={`${key}-${w}`}>
-                            {key === "hashtags" ? "해시태그" : `${(blocks.findIndex((b) => b.key === key) + 1) || "-"}. ${blocks.find((b) => b.key === key)?.heading ?? key}`}: {w}
+                            {key === "hashtags" ? "해시태그" : key === "title" ? "제목" : `${(blocks.findIndex((b) => b.key === key) + 1) || "-"}. ${blocks.find((b) => b.key === key)?.heading ?? key}`}: {w}
                           </li>
                         )),
                       )}

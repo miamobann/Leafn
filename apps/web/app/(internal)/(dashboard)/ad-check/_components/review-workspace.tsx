@@ -17,7 +17,7 @@ import { CopyButton } from "./copy-button";
 import { GuideRevisePanel, useGuideRevise } from "./guide-reflect";
 import { LineResultCard } from "./line-result-card";
 import { ResultSummary } from "./result-summary";
-import { ReviewBar } from "./review-bar";
+import { approveWarningOf, ReviewBar } from "./review-bar";
 import { ReviewForm } from "./review-form";
 
 const COPY = {
@@ -216,6 +216,7 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
           }}
           onReset={() => { setStatus("pending"); setExpertRequested(false); void persistReview("pending", false, note, finalText); }}
           onSaveNote={() => void persistReview(status, expertRequested, note, finalText)}
+          approveWarning={approveWarningOf({ mustFixLeft: lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length, expertRequested })}
         />
       )}
       {/* 만든 가이드에서 넘어왔으면: 고친 문구를 가이드 수정본으로 되돌린다 (약기법 우선: 「고쳐야 함」 줄은 대체 표현을 골라야 반영) */}

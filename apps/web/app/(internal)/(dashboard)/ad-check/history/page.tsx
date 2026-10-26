@@ -3,7 +3,7 @@ import { EmptyState } from "@/components/common/states";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTableTemplate } from "@/components/templates";
 import { buttonVariants } from "@/components/ui/button";
-import { getAdChecks, getMembers, getProducts, getReviewTranslationCheckIds } from "@/lib/data";
+import { getAdChecks, getContentGuides, getMembers, getProducts, getReviewTranslationCheckIds } from "@/lib/data";
 import { getMyWorkspace } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
 import { ReviewStatus } from "@/lib/schemas/common";
@@ -23,7 +23,9 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
   const productFilter = typeof query.product === "string" ? query.product : undefined;
   // 종류: 직접 한 검토 / 리뷰 탭의 상세페이지용 리뷰 번역이 만든 검토 (번역 한 건마다 검토 한 건이 쌓인다)
   const kindFilter = query.kind === "manual" || query.kind === "review" ? query.kind : undefined;
-  const [all, members, products, mine, reviewCheckIds] = await Promise.all([getAdChecks(), getMembers(), getProducts(), getMyWorkspace().catch(() => null), getReviewTranslationCheckIds()]);
+  const [all, members, products, mine, reviewCheckIds, guides] = await Promise.all([getAdChecks(), getMembers(), getProducts(), getMyWorkspace().catch(() => null), getReviewTranslationCheckIds(), getContentGuides()]);
+  // 만든 가이드에서 온 검토가 이미 가이드에 반영됐는지 (그 검토로 만든 수정본이 있으면 반영됨)
+  const reflectedCheckIds = new Set(guides.flatMap((g) => (g.parent_id && g.ad_check_id ? [g.ad_check_id] : [])));
   // 삭제(숨김)는 owner(팀장)만. 팀원 화면에는 버튼을 그리지 않는다
   const isOwner = mine?.role === "owner";
   const checks = all
@@ -82,7 +84,16 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
                       {first?.text ?? ""}
                     </span>
                     {rest.length > 0 && <span className="shrink-0 text-muted-foreground">외 {rest.length}줄</span>}
-                    {c.content_guide_id && <span className="shrink-0 rounded border px-1 text-[0.65rem] text-muted-foreground" title="만든 가이드에서 온 검토 (상세에서 「가이드에 반영」)">가이드</span>}
+                    {c.content_guide_id &&
+                      (reflectedCheckIds.has(c.id) ? (
+                        <span className="shrink-0 rounded border px-1 text-[0.65rem] text-muted-foreground" title="만든 가이드에서 온 검토 · 가이드에 반영했어요">
+                          가이드 · 반영됨
+                        </span>
+                      ) : (
+                        <span className="shrink-0 rounded border border-primary/50 px-1 text-[0.65rem] text-primary" title="만든 가이드에서 온 검토 · 상세에서 대체 표현을 골라 「가이드에 반영」할 수 있어요">
+                          가이드 · 반영 전
+                        </span>
+                      ))}
                   </span>
                 ),
                 product: (

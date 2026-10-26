@@ -169,7 +169,8 @@ export async function getContentGuide(id: string) {
   if (!guide) return null;
   const lineRows = guide.ad_check_id ? ((await readRows("ad_check_lines").catch(missingTableOnly)) ?? []) : [];
   const slots = guide.parent_id ? guideSlots(guide) : [];
-  const blockKeys = new Set(guide.body.blocks.map((b) => b.key));
+  // 블록 + 제목 + 해시태그 판정 (lib/ai/content-guide/check.ts 의 TITLE_KEY · HASHTAG_KEY)
+  const blockKeys = new Set([...guide.body.blocks.map((b) => b.key), "title", "hashtags"]);
   const checks = lineRows
     .filter((l) => l.ad_check_id === guide.ad_check_id)
     .flatMap((l) => {

@@ -28,9 +28,10 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
   const query = await searchParams;
   const productFilter = typeof query.product === "string" ? query.product : undefined;
   const channelFilter = typeof query.channel === "string" ? query.channel : undefined;
-  const [all, checks, members, products, mine, adProducts] = await Promise.all([
+  const [all, checks, manualChecks, members, products, mine, adProducts] = await Promise.all([
     getContentGuides(),
     getAdChecks({ source: "content_guide" }),
+    getAdChecks(),
     getMembers(),
     getProducts(),
     getMyWorkspace().catch(() => null),
@@ -51,6 +52,16 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
         .map(async (g) => [g.id, worstAction((await getContentGuide(g.id))?.checks.map((c) => c.action) ?? [])] as const),
     ),
   );
+  // 게시 상태: 고칠 곳(고쳐야 함 · 전문가 확인)이 남았는지 → 팀장이 그 문구를 검토에서 승인(내부 검토 완료)했는지.
+  // 수정본은 그 수정본을 만든 검토, 처음 만든 가이드는 그 가이드에서 온 검토 중 하나가 승인되면 「게시 가능」
+  const approved = (g: (typeof all)[number]) =>
+    manualChecks.some((c) => c.review_status === "approved" && (g.parent_id ? c.id === g.ad_check_id : c.content_guide_id === g.id));
+  const statusOf = (g: (typeof all)[number]) => {
+    const action = actionOf(g);
+    if (action === "must_fix" || action === "expert") return { label: "고칠 곳 있음", tone: "border-risk-high/40 text-risk-high", hint: "「고쳐야 함」이나 「전문가 확인」이 남았어요. 새 검토에서 고쳐 반영해 주세요" };
+    if (approved(g)) return { label: "게시 가능", tone: "border-risk-low/50 text-risk-low", hint: "팀장이 검토에서 「내부 검토 완료」로 확인했어요 (법적 승인은 아니에요)" };
+    return { label: "팀장 확인 대기", tone: "text-muted-foreground", hint: "새 검토로 판정한 뒤 팀장이 「내부 검토 완료」를 누르면 게시 가능이 돼요" };
+  };
   const actionOf = (g: (typeof all)[number]) => (g.parent_id ? (revisedAction.get(g.id) ?? null) : (checks.find((c) => c.id === g.ad_check_id)?.overall_action ?? null));
   // 콘텐츠를 만들 수 있는 제품(전성분·가격·용량이 등록된 자사 제품)과 이미 만든 콘텐츠의 제품만 고를 수 있게 한다
   const usable = new Set(adProducts.filter((p) => p.price_jpy > 0 && p.volume !== "미등록" && p.line !== "미등록").map((p) => p.id));
@@ -78,6 +89,7 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
             { key: "product", label: "제품" },
             { key: "channel", label: "채널" },
             { key: "action", label: "약기법" },
+            { key: "status", label: "상태" },
             { key: "author", label: "작성자" },
             { key: "date", label: "만든 날" },
             ...(isOwner ? [{ key: "delete", label: "" }] : []),
@@ -106,6 +118,14 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
                 ),
                 channel: <span className="whitespace-nowrap">{CHANNEL_LABEL[g.channel] ?? g.channel}</span>,
                 action: action ? <ActionBadge action={action} /> : "—",
+                status: (() => {
+                  const st = statusOf(g);
+                  return (
+                    <span className={`whitespace-nowrap rounded border px-1.5 py-0.5 text-xs ${st.tone}`} title={st.hint}>
+                      {st.label}
+                    </span>
+                  );
+                })(),
                 author: memberName(g.created_by),
                 date: formatDate(g.created_at),
                 delete: <DeleteButton endpoint={`/api/content-guide/${g.id}`} confirmMessage="이 가이드를 삭제할까요? 지운 결과물은 되돌릴 수 없습니다. (약기법 검사 기록은 남아요)" />,

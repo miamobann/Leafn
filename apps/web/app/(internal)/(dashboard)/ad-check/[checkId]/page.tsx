@@ -42,6 +42,11 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
     revision && check.review_status === "pending" && (check.final_text ?? check.input_text) === check.input_text
       ? guideSlots(revision, revisionProduct ? makeFill(revisionProduct) : undefined).map((s) => s.text).join("\n")
       : null;
+  // 최종 문구의 n번째 줄이 판정한 원문 그대로인 「고쳐야 함」 줄 수 (대체 표현을 고르면 줄이 바뀐다)
+  const mustFixLeftIn = (finalText: string) => {
+    const finalLines = finalText.split("\n");
+    return (check.line_results ?? []).filter((l, i) => l.action === "must_fix" && (finalLines[i] ?? "").trim() === l.original.trim()).length;
+  };
   const canApprove = !isSupabaseConfigured() || mine?.role === "owner";
   // 콘텐츠 가이드 검사는 보기만 한다 (승인 대상이 아니라 검토 칸을 그리지 않는다)
   const isGuideCheck = !manual.some((c) => c.id === check.id);
@@ -146,6 +151,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
         <DetailReviewBar
           checkId={check.id}
           initialFinalText={reflectedText ?? check.final_text ?? check.input_text}
+          mustFixLeft={mustFixLeftIn(reflectedText ?? check.final_text ?? check.input_text)}
           initialNote={check.reviewer_note ?? ""}
           initialStatus={check.review_status}
           initialExpertRequested={check.is_expert_review_requested ?? false}
