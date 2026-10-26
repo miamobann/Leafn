@@ -45,16 +45,18 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  /* 위험도·감성·검토 상태 (색만으로 구분하지 않고 글자·아이콘을 함께 쓴다) */
-  --risk-high: oklch(0.58 0.2 27);
-  --risk-medium: oklch(0.7 0.15 70);
-  --risk-low: oklch(0.6 0.12 150);
-  --sentiment-positive: oklch(0.55 0.15 250);
-  --sentiment-negative: oklch(0.58 0.2 27);
-  --sentiment-neutral: oklch(0.6 0 0);
-  --status-pending: oklch(0.7 0.15 70);
-  --status-approved: oklch(0.6 0.12 150);
-  --status-rejected: oklch(0.58 0.2 27);
+  /* 위험도·감성·검토 상태 (색만으로 구분하지 않고 글자·아이콘을 함께 쓴다)
+     글자색과 15% 바탕(bg-x/15)을 같은 토큰으로 만들므로, 흰색·#fafbfa·#f0f5ee 위 15% 바탕에서 글자 대비 4.5:1 이상,
+     적색약·녹색약 시야에서도 단계가 구분되는 값으로 정했다 (2026-10-26, 디자인 전환 계획 0단계) */
+  --risk-high: #742f25;
+  --risk-medium: #905004;
+  --risk-low: #0f6a6e;
+  --sentiment-positive: #344868;
+  --sentiment-negative: #742f25;
+  --sentiment-neutral: #5a5f5b;
+  --status-pending: #905004;
+  --status-approved: #0f6a6e;
+  --status-rejected: #742f25;
 }
 
 @theme inline {
