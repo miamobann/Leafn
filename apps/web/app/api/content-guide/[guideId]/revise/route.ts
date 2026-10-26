@@ -4,10 +4,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { makeFill } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-report";
-import { findSourceGuide, guideReflectState, guideSlots, slotText, TITLE_SLOT } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-to-review";
+import { findSourceGuide, flaggedKeys, guideReflectState, guideSlots, slotText, TITLE_SLOT } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-to-review";
 import { getAdProducts } from "@/lib/data/ad-products";
 import { lintBody } from "@/lib/ai/content-guide/lint";
-import { getAdCheck, getContentGuide, getContentGuides } from "@/lib/data";
+import { getAdCheck, getContentGuide, getContentGuideChecks, getContentGuides } from "@/lib/data";
 import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { createClient } from "@/lib/supabase/server";
 
@@ -42,7 +42,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ gui
       const p = products.find((x) => x.id === productId);
       return p ? makeFill(p) : undefined;
     };
-    const source = findSourceGuide(check, guides, fillFor);
+    const checksOf = await getContentGuideChecks(guides);
+    const source = findSourceGuide(check, guides, fillFor, (g) => flaggedKeys(g.lint_hits, checksOf.get(g.id) ?? []));
     if (source && source.id !== guideId) return fail(400, "이 검토는 다른 가이드에서 온 검토예요.");
   }
   const state = guideReflectState(guides, guideId, check.id);
@@ -52,9 +53,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ gui
   // 새 검토 입력칸은 자리표시자를 실제 값으로 바꿔 채웠다 (새 검토 화면과 같은 기준으로 줄을 맞춘다)
   const product = products.find((p) => p.id === parent.product_id);
   const fill = product ? makeFill(product) : (t: string) => t;
-  const slots = guideSlots(parent, fill);
+  // 새 검토에는 걸린 칸만 넘겼거나(2026-10-27부터), 예전처럼 전부 넘겼다. 줄 수와 문구가 더 잘 맞는 쪽으로 칸을 맞춘다
   const lines = check.line_results ?? [];
-  if (lines.length !== slots.length) return fail(409, `가이드는 ${slots.length}줄인데 검토는 ${lines.length}줄이에요. 줄을 더하거나 지우지 말고 다시 판정해 주세요.`);
+  const full = guideSlots(parent, fill);
+  const flagged = flaggedKeys(parent.lint_hits, found.checks);
+  const subset = flagged.size ? guideSlots(parent, fill, flagged) : full;
+  const matches = (cands: typeof full) => (cands.length === lines.length ? lines.filter((l, i) => l.original === cands[i]!.text).length : -1);
+  const slots = matches(subset) >= matches(full) ? subset : full;
+  if (lines.length !== slots.length) return fail(409, `가이드에서 넘긴 줄은 ${subset.length}줄인데 검토는 ${lines.length}줄이에요. 줄을 더하거나 지우지 말고 다시 판정해 주세요.`);
 
   // 줄마다 반영할 문구와 한국어 뜻
   const finals = new Map<string, { ja: string; ko: string }>();

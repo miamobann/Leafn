@@ -793,7 +793,7 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
         (json.lintHits as { key: string; text: string; reason: string }[]) ?? [],
         (json.checks as { key: string; action: string; findings: { text: string }[] }[]) ?? [],
       );
-      setSaveNotice(json.checkSaved === false ? "결과물은 「만든 가이드」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
+      setSaveNotice(json.checkSaved === false ? "결과물은 「기록」에 저장했지만, 약기법 검사 기록은 저장하지 못했어요. 아래 주의 내용은 화면에서 확인해 주세요." : null);
       setAiDrafts((all) => all.map((d) => (d.id === id ? GuideDraft.parse({ ...d, blocks: body.blocks, hashtags: body.hashtags, gallery: body.gallery }) : d)));
       setWarnings((w) => ({ ...w, [id]: blockWarnings }));
       if (typeof json.id === "string") {
@@ -1163,22 +1163,36 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
         </>
       )}
 
-      {/* 다음 단계: 만든 가이드를 바로 검토로 넘긴다 (탭을 직접 고르지 않아도 흐름이 이어지게) */}
-      {current && loading === null && savedIds[current.id] && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>다음 단계 · 게시 전에 이 문구를 새 검토로 한 번 더 판정하세요.</span>
-          <span className="flex flex-wrap gap-2">
-            {!saved && (
-              <Link href={`/ad-check/guide/history/${savedIds[current.id]}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-                만든 가이드에서 보기
-              </Link>
-            )}
-            <Link href={`/ad-check?guide=${savedIds[current.id]}`} className={buttonVariants({ size: "sm" })}>
-              이 문구로 새 검토 →
-            </Link>
-          </span>
-        </div>
-      )}
+      {/* 다음 단계: 걸린 문구가 있으면 그 줄만 새 검토로, 없으면 이대로 결재 (2026-10-27). 해시태그는 새 검토로 고칠 수 없어 세지 않는다 */}
+      {current && loading === null && savedIds[current.id] && (() => {
+        const flagged = Object.keys(warnings[current.id] ?? {}).filter((k) => k !== "hashtags").length;
+        return (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+            <span>
+              {flagged > 0
+                ? `다음 단계 · 걸린 문구 ${flagged}줄을 새 검토로 고쳐 주세요. 고친 문구는 「가이드에 반영」으로 이 가이드에 돌아와요.`
+                : "다음 단계 · 자동 검사에서 걸린 문구가 없어요. 이대로 써도 돼요."}
+            </span>
+            <span className="flex flex-wrap gap-2">
+              {!saved && (
+                <Link href={`/ad-check/guide/history/${savedIds[current.id]}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                  기록에서 보기
+                </Link>
+              )}
+              {flagged > 0 ? (
+                <Link href={`/ad-check?guide=${savedIds[current.id]}`} className={buttonVariants({ size: "sm" })}>
+                  걸린 문구 새 검토 →
+                </Link>
+              ) : (
+                // 가이드 결재 올리기는 결재 쪽 연동을 기다린다 (버튼 자리만 둔다)
+                <Button type="button" size="sm" disabled title="가이드 결재 올리기는 결재 연동 뒤에 열려요">
+                  결재 올리기 (준비 중)
+                </Button>
+              )}
+            </span>
+          </div>
+        );
+      })()}
 
       <div className="flex items-center justify-end gap-2">
         <span className="text-xs text-muted-foreground">

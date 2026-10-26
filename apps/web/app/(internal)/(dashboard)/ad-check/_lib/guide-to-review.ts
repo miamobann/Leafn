@@ -4,6 +4,7 @@
 import { MAX_LINES } from "@/lib/ai/ad-check/action";
 import type { AdUsage } from "@/lib/schemas/ad-check";
 import type { ContentChannel, ContentGuideRow } from "@/lib/schemas/content-guide";
+import { buildWarnings } from "./guide-warnings";
 import type { z } from "zod";
 
 const USAGE: Record<ContentChannel, z.infer<typeof AdUsage>> = { qoo10_detail: "detail_page", instagram: "sns", x: "sns", banner: "banner" };
@@ -19,11 +20,17 @@ const asIs: Fill = (t) => t;
 
 /** 새 검토의 n번째 줄이 가이드의 어느 칸(제목 · 블록)인지. 빈 칸은 건너뛴다.
  *  fill: {product_ja} 같은 자리표시자를 실제 값으로 (화면 · PDF 와 같은 makeFill). 실제로 게시될 문장으로 검토한다 */
-export function guideSlots(guide: Pick<ContentGuideRow, "title" | "body">, fill: Fill = asIs): GuideSlot[] {
+export function guideSlots(guide: Pick<ContentGuideRow, "title" | "body">, fill: Fill = asIs, only?: Set<string>): GuideSlot[] {
   return [{ key: TITLE_SLOT, text: fill(guide.title.title_ja) }, ...guide.body.blocks.map((b) => ({ key: b.key, text: fill(b.options[0]?.text_ja ?? "") }))]
     .map((s) => ({ key: s.key, text: s.text.trim().replace(/\n+/g, LINE_JOIN) }))
-    .filter((s) => s.text)
+    .filter((s) => s.text && (!only || only.has(s.key)))
     .slice(0, MAX_LINES);
+}
+
+/** 가이드에서 걸린 칸 (금지어 검사 · 자동 약기법 판정이 「문제 없음」이 아닌 제목 · 블록). 새 검토에는 이 칸만 넘긴다 (2026-10-27).
+ *  해시태그는 블록이 아니라 「가이드에 반영」으로 되돌릴 수 없어 넣지 않는다 (새 검토 화면에 주의만 보여 준다) */
+export function flaggedKeys(lintHits: { key: string; text: string; reason: string }[], checks: { key: string; action: string; findings: { text: string }[] }[]): Set<string> {
+  return new Set(Object.keys(buildWarnings(lintHits, checks)).filter((k) => k !== "hashtags"));
 }
 
 /** 판정한 한 줄을 가이드 칸의 문구로 되돌린다 */
@@ -51,24 +58,33 @@ export function guideReflectState(guides: GuideLink[], guideId: string, checkId:
 }
 
 type GuideLike = Pick<ContentGuideRow, "id" | "product_id" | "title" | "body" | "created_at">;
+const joined = (slots: GuideSlot[]) => slots.map((s) => s.text).join("\n");
 type CheckLike = { content_guide_id?: string | null; product_id?: string; input_text: string; created_at: string };
 
 const sameText = (a: string, b: string) => a.split("\n").map((l) => l.trim()).join("\n") === b.split("\n").map((l) => l.trim()).join("\n");
 
 /** 이 검토가 어느 만든 가이드에서 왔는지. 연결 칸(content_guide_id)이 있으면 그것, 없으면(연결 기능 전에 만든 검토 · DB 적용 전)
  *  같은 제품 가이드 중 「이 문구로 새 검토」가 채운 입력과 문구가 똑같은 것 (자리표시자를 채운 문구 · 채우기 전 문구 둘 다 비교, 가장 최근 것) */
-export function findSourceGuide<G extends GuideLike>(check: CheckLike, guides: G[], fillFor: (productId: string | null) => Fill | undefined): G | undefined {
+export function findSourceGuide<G extends GuideLike>(
+  check: CheckLike,
+  guides: G[],
+  fillFor: (productId: string | null) => Fill | undefined,
+  /** 가이드의 걸린 칸 (새 검토에 걸린 칸만 넘긴 경우도 찾는다) */
+  flaggedOf: (guide: G) => Set<string> | undefined = () => undefined,
+): G | undefined {
   if (check.content_guide_id) return guides.find((g) => g.id === check.content_guide_id);
   return guides
     .filter((g) => (!check.product_id || g.product_id === check.product_id) && g.created_at <= check.created_at)
     .filter((g) => {
-      const raw = guideSlots(g).map((s) => s.text).join("\n");
       const fill = fillFor(g.product_id);
-      return sameText(raw, check.input_text) || (fill ? sameText(guideSlots(g, fill).map((s) => s.text).join("\n"), check.input_text) : false);
+      const flagged = flaggedOf(g);
+      const candidates = [guideSlots(g), ...(fill ? [guideSlots(g, fill)] : []), ...(flagged?.size ? [guideSlots(g, asIs, flagged), ...(fill ? [guideSlots(g, fill, flagged)] : [])] : [])];
+      return candidates.some((slots) => slots.length > 0 && sameText(joined(slots), check.input_text));
     })
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at))[0];
 }
 
-export function guideToReviewInput(guide: ContentGuideRow, fill: Fill = asIs) {
-  return { productId: guide.product_id ?? undefined, usage: USAGE[guide.channel], text: guideSlots(guide, fill).map((s) => s.text).join("\n") };
+/** 새 검토 입력칸. only 를 주면 그 칸(걸린 칸)만 */
+export function guideToReviewInput(guide: ContentGuideRow, fill: Fill = asIs, only?: Set<string>) {
+  return { productId: guide.product_id ?? undefined, usage: USAGE[guide.channel], text: joined(guideSlots(guide, fill, only)) };
 }

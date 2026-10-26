@@ -60,13 +60,11 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "광고 검토",
     icon: ShieldCheck,
     items: [
-      // 업무 순서대로: 만들기 → 만든 것 → 검토 → 이력 (실무자 비판 6번, 2026-10-25). 그룹 줄을 누르면 첫 메뉴(콘텐츠 제작 가이드)로 간다
+      // 기록이 먼저 (2026-10-27 TAB 3): 만든 콘텐츠와 그 문구 검토를 한 목록에서 보고 이어서 한다 → 콘텐츠 만들기 → 문구만 검토. 그룹 줄을 누르면 첫 메뉴(기록)로 간다
+      // 콘텐츠 상세(/ad-check/guide/history/<ID>) · 검토 상세(/ad-check/<ID>)도 기록에 속한다 (만들기 화면 /ad-check/guide 와 새 검토 /ad-check 는 제외)
+      { label: "기록", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/((?!history$|guide$)[^/]+|guide\/history(\/.*)?)$/ },
       { label: "콘텐츠 제작 가이드", href: "/ad-check/guide", featureId: "A" },
-      // /ad-check/guide/history/<콘텐츠 ID> 상세도 이 탭에 속한다 (주소 앞부분이 같아 자동으로 켜진다)
-      { label: "만든 가이드", href: "/ad-check/guide/history", featureId: "A" },
       { label: "새 검토", href: "/ad-check", featureId: "A" },
-      // /ad-check/<검토 ID> 상세는 저장된 검토라 이력에 속한다 (안내 화면 /ad-check/guide는 제외)
-      { label: "검토 이력", href: "/ad-check/history", featureId: "A", alsoActive: /^\/ad-check\/(?!history$|guide$)[^/]+$/ },
     ],
   },
   {

@@ -37,9 +37,9 @@ export default async function GuideHistoryDetailPage({ params }: { params: Promi
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <PageHeader title="만든 가이드" description="저장된 결과물을 만들었을 때 그대로 보여 줍니다" featureId="A" />
+        <PageHeader title="콘텐츠" description="만든 콘텐츠를 그대로 보여 줘요. 걸린 문구는 새 검토로 고쳐 반영하고, 다 고치면 결재에 올려요" featureId="A" />
         {mine?.role === "owner" && (
-          <DeleteButton endpoint={`/api/content-guide/${guide.id}`} confirmMessage="이 가이드를 삭제할까요? 지운 결과물은 되돌릴 수 없습니다. (약기법 검사 기록은 남아요)" redirectTo="/ad-check/guide/history" />
+          <DeleteButton endpoint={`/api/content-guide/${guide.id}`} confirmMessage="이 가이드를 삭제할까요? 지운 결과물은 되돌릴 수 없습니다. (약기법 검사 기록은 남아요)" redirectTo="/ad-check/history?type=content" />
         )}
       </div>
       <AdDisclaimer />

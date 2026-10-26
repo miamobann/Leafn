@@ -206,7 +206,7 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
         />
       )}
       {/* 만든 가이드에서 넘어왔으면: 고친 문구를 가이드 수정본으로 되돌린다 (약기법 우선: 「고쳐야 함」 줄은 대체 표현을 골라야 반영) */}
-      {check && !busy && persisted && guideId && (
+      {check && !busy && persisted && guideId && lines.some((l) => l.action !== "ok") && (
         <GuideRevisePanel
           stale={submittedText !== text}
           mustFixLeft={lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length}
@@ -216,18 +216,14 @@ export function ReviewWorkspace({ products, workspaceId, canApprove = true, init
           onRevise={() => check && void revise(check.id, selected)}
         />
       )}
-      {/* 다음 단계: 저장된 검토만 상세·전문가 자료로 넘길 수 있다 */}
+      {/* 다음 단계: 결재는 콘텐츠 단위로 올린다 (2026-10-27). 콘텐츠에서 온 검토는 반영 뒤 콘텐츠로 돌아가고, 문구만 검토는 기록에 남는다 */}
       {check && !busy && persisted && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-          <span>다음 단계 · 팀장 결재가 필요하면 검토 상세에서 시안으로 올려요. 최종 문구를 복사하거나 검토 이력에서 다시 볼 수도 있어요.</span>
+          <span>{guideId ? "다음 단계 · 가이드에 반영한 뒤 콘텐츠에서 결재를 올려요." : "다음 단계 · 기록에 저장됐어요. 최종 문구를 복사해 쓰거나 기록에서 다시 볼 수 있어요."}</span>
           <span className="flex flex-wrap gap-2">
-            {/* 이 화면의 검토 건은 자동 저장만 된다. 팀장 결재함에는 상세 화면의 「시안 · 결재」 패널에서 올린 시안만 들어간다 */}
-            <Link href={`/ad-check/${check.id}#submission`} className={buttonVariants({ size: "sm" })}>
-              시안으로 결재 올리기 →
-            </Link>
             <CopyButton text={finalText} label="최종 문구 복사" />
-            <Link href="/ad-check/history" className={buttonVariants({ variant: "outline", size: "sm" })}>
-              검토 이력에서 보기
+            <Link href={guideId ? `/ad-check/guide/history/${guideId}` : "/ad-check/history"} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              {guideId ? "콘텐츠로 돌아가기" : "기록에서 보기"}
             </Link>
           </span>
         </div>
@@ -241,11 +237,11 @@ function NextStep({ lines, selected, fromGuide, persisted }: { lines: AdLineResu
   const toFix = lines.filter((l) => l.action !== "ok");
   const picked = toFix.filter((l) => selected[l.line_index]).length;
   const mustFixLeft = lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length;
-  const steps = [
-    toFix.length > 0 ? `① 대체 표현 고르기 (${picked}/${toFix.length})` : "① 고칠 곳 없음",
-    fromGuide ? "② 아래 「가이드에 반영」" : null,
-    persisted ? `${fromGuide ? "③" : "②"} 검토 이력에서 열어 「시안으로 결재 올리기」` : null,
-  ].filter(Boolean);
+  // 다시 판정해 고칠 곳이 없으면 반영할 것도 없다 (가이드는 그대로 쓰면 된다)
+  const steps =
+    toFix.length === 0
+      ? [fromGuide ? "고칠 곳 없음 · 가이드는 이대로 써도 돼요" : "고칠 곳 없음", fromGuide ? "콘텐츠에서 결재 올리기" : persisted ? "기록에 저장됨" : null].filter(Boolean)
+      : [`① 대체 표현 고르기 (${picked}/${toFix.length})`, fromGuide ? "② 아래 「가이드에 반영」" : null, fromGuide ? "③ 콘텐츠에서 결재 올리기" : persisted ? "② 최종 문구 복사 · 기록에 저장됨" : null].filter(Boolean);
   return (
     <p className="text-sm">
       <span className="font-medium">다음 할 일 · </span>

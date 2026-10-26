@@ -162,27 +162,49 @@ export async function getContentGuides(): Promise<ContentGuideRow[]> {
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-/** 만든 가이드 하나와 그 약기법 검사의 블록별 판정 (block_key 가 있는 줄).
- *  수정본은 새 검토(block_key 없음)로 판정했으므로 줄 순서로 블록을 찾는다 (guideSlots, 제목 줄은 블록이 아니라 뺀다) */
+export type GuideBlockCheck = { key: string; action: AdCheckLineRow["action"]; findings: AdCheckLineRow["findings"] };
+
+/** 만든 가이드들의 약기법 검사 블록별 판정 (가이드 id → 판정). ad_check_lines 는 한 번만 읽는다.
+ *  수정본은 새 검토(block_key 없음)로 판정했으므로 줄 순서로 블록을 찾는다 (guideSlots). 새 검토에 걸린 줄만 넘겼으면 그 줄들로 맞춘다 */
+export async function getContentGuideChecks(guides: ContentGuideRow[]): Promise<Map<string, GuideBlockCheck[]>> {
+  const out = new Map<string, GuideBlockCheck[]>();
+  if (!guides.some((g) => g.ad_check_id)) return out;
+  const lineRows = ((await readRows("ad_check_lines").catch(missingTableOnly)) ?? []).flatMap((l) => {
+    const parsed = AdCheckLineRow.safeParse(l);
+    return parsed.success ? [parsed.data] : [];
+  });
+  for (const guide of guides) {
+    const lines = lineRows.filter((l) => l.ad_check_id === guide.ad_check_id).toSorted((a, b) => a.line_index - b.line_index);
+    // 블록 + 제목 + 해시태그 판정 (lib/ai/content-guide/check.ts 의 TITLE_KEY · HASHTAG_KEY)
+    const blockKeys = new Set([...guide.body.blocks.map((b) => b.key), "title", "hashtags"]);
+    const all = guide.parent_id ? guideSlots(guide) : [];
+    // 수정본의 검토가 걸린 줄만 담았다면 줄 순서로는 못 맞추므로, 지금 문구가 그 줄의 원문이나 대체 표현과 같은 칸으로 짝을 짓는다
+    const slots =
+      all.length === lines.length
+        ? all
+        : lines.map((l) => {
+            const texts = [l.original, ...l.findings.flatMap((f) => (f.suggestion_rechecks ?? []).map((r) => r.text))];
+            return all.find((s) => texts.includes(s.text));
+          });
+    out.set(
+      guide.id,
+      lines.flatMap((l, i) => {
+        if (l.block_key) return blockKeys.has(l.block_key) ? [{ key: l.block_key, action: l.action, findings: l.findings }] : [];
+        const slot = slots[i];
+        if (!slot || !blockKeys.has(slot.key)) return [];
+        // 판정한 문구와 지금 문구가 다르면 재검토를 통과한 대체 표현으로 바꾼 줄이다 (revise API 가 그것만 받는다)
+        return [slot.text === l.original ? { key: slot.key, action: l.action, findings: l.findings } : { key: slot.key, action: "ok" as const, findings: [] }];
+      }),
+    );
+  }
+  return out;
+}
+
+/** 만든 가이드 하나와 그 약기법 검사의 블록별 판정 */
 export async function getContentGuide(id: string) {
   const guide = (await getContentGuides()).find((g) => g.id === id);
   if (!guide) return null;
-  const lineRows = guide.ad_check_id ? ((await readRows("ad_check_lines").catch(missingTableOnly)) ?? []) : [];
-  const slots = guide.parent_id ? guideSlots(guide) : [];
-  // 블록 + 제목 + 해시태그 판정 (lib/ai/content-guide/check.ts 의 TITLE_KEY · HASHTAG_KEY)
-  const blockKeys = new Set([...guide.body.blocks.map((b) => b.key), "title", "hashtags"]);
-  const checks = lineRows
-    .filter((l) => l.ad_check_id === guide.ad_check_id)
-    .flatMap((l) => {
-      const parsed = AdCheckLineRow.safeParse(l);
-      if (!parsed.success) return [];
-      if (parsed.data.block_key) return blockKeys.has(parsed.data.block_key) ? [{ key: parsed.data.block_key, action: parsed.data.action, findings: parsed.data.findings }] : [];
-      const slot = slots[parsed.data.line_index - 1];
-      if (!slot || !blockKeys.has(slot.key)) return [];
-      // 판정한 문구와 지금 문구가 다르면 재검토를 통과한 대체 표현으로 바꾼 줄이다 (revise API 가 그것만 받는다)
-      return [slot.text === parsed.data.original ? { key: slot.key, action: parsed.data.action, findings: parsed.data.findings } : { key: slot.key, action: "ok" as const, findings: [] }];
-    });
-  return { guide, checks };
+  return { guide, checks: (await getContentGuideChecks([guide])).get(guide.id) ?? [] };
 }
 
 /** source는 필수 (楽天·Qoo10 시계열이 섞이지 않게). category를 빼면 모든 카테고리. captured_at 오름차순 */

@@ -144,7 +144,10 @@ export function GuideReflect({
           </span>
         </div>
       )}
-      {ready && (
+      {ready && !lines.some((l) => l.action !== "ok") && (
+        <p className="rounded-lg border p-3 text-sm">다시 판정해 보니 고칠 곳이 없어요. 반영할 것 없이 가이드를 이대로 써도 돼요.</p>
+      )}
+      {ready && lines.some((l) => l.action !== "ok") && (
         <GuideRevisePanel
           mustFixLeft={lines.filter((l) => l.action === "must_fix" && !selected[l.line_index]).length}
           checkLeft={lines.filter((l) => (l.action === "should_fix" || l.action === "expert") && !selected[l.line_index]).length}

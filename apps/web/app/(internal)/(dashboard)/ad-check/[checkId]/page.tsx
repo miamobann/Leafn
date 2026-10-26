@@ -5,7 +5,7 @@ import { SubmissionSection } from "@/components/common/submission-section";
 import { PageHeader } from "@/components/layout/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAdCheck, getAdChecks, getContentGuides, getMemberName, getProduct } from "@/lib/data";
+import { getAdCheck, getAdChecks, getContentGuideChecks, getContentGuides, getMemberName, getProduct } from "@/lib/data";
 import { saveAdDraft } from "@/lib/data/submission-actions";
 import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
@@ -13,7 +13,7 @@ import { ReviewStateBadge, USAGE_LABEL } from "../_components/ad-badges";
 import { CopyButton } from "../_components/copy-button";
 import { DetailReviewBar } from "../_components/detail-review-bar";
 import { GuideReflect } from "../_components/guide-reflect";
-import { findSourceGuide, guideReflectState } from "../_lib/guide-to-review";
+import { findSourceGuide, flaggedKeys, guideReflectState } from "../_lib/guide-to-review";
 import { makeFill } from "../_lib/guide-report";
 import { getAdProducts } from "@/lib/data/ad-products";
 import { ResultLines } from "../_components/result-lines";
@@ -37,19 +37,21 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
   };
   // 만든 가이드에서 온 검토: 누구나(팀장이 팀원 검토를 이어받아도) 대체 표현을 골라 「이 가이드에 반영」.
   // 연결 칸이 비어 있으면(연결 기능 전 검토 · DB 적용 전) 문구가 같은 가이드를 찾는다 (직접 쓴 검토는 걸리지 않는다)
-  const fromGuide = manual.some((c) => c.id === check.id) ? findSourceGuide(check, guides, fillFor) : undefined;
+  const checksOf = !check.content_guide_id && guides.length ? await getContentGuideChecks(guides) : new Map();
+  const fromGuide = manual.some((c) => c.id === check.id) ? findSourceGuide(check, guides, fillFor, (g) => flaggedKeys(g.lint_hits, checksOf.get(g.id) ?? [])) : undefined;
   const reflectState = fromGuide ? guideReflectState(guides, fromGuide.id, check.id) : null;
   const guideProduct = adProducts.find((p) => p.id === fromGuide?.product_id);
   const guideTitle = fromGuide ? (guideProduct ? makeFill(guideProduct)(fromGuide.title.title_ko) : fromGuide.title.title_ko) : "";
   // 콘텐츠 가이드 검사는 보기만 한다 (승인 대상이 아니라 검토 칸을 그리지 않는다)
   const isGuideCheck = !manual.some((c) => c.id === check.id);
-  const canSubmit = product?.kind === "own" && product.sale_status === "on_sale";
+  // 결재는 콘텐츠 단위 (2026-10-27): 콘텐츠에서 온 검토는 시안 칸을 두지 않고 콘텐츠로 돌아가 결재한다. 문구만 검토는 지금처럼 시안으로 올릴 수 있다
+  const canSubmit = !fromGuide && product?.kind === "own" && product.sale_status === "on_sale";
   // 결론 칸의 「다음 할 일」
   const nextStep = isGuideCheck
     ? "콘텐츠 가이드 자동 검사라 보기만 해요. 고치려면 만든 가이드에서 「이 문구로 새 검토」를 해요."
     : [
-        fromGuide && reflectState?.kind === "ready" ? "① 대체 표현 고르기 → ② 「가이드에 반영」" : null,
-        fromGuide && reflectState?.kind === "reflected" ? "가이드에 반영됨" : null,
+        fromGuide && reflectState?.kind === "ready" ? "① 대체 표현 고르기 → ② 「가이드에 반영」 → ③ 콘텐츠에서 결재 올리기" : null,
+        fromGuide && reflectState?.kind === "reflected" ? "가이드에 반영됨 → 콘텐츠에서 결재 올리기" : null,
         fromGuide && reflectState?.kind === "stale" ? "최신 수정본에서 다시 검토" : null,
         canSubmit ? "아래 「시안 · 결재」에서 결재 올리기" : null,
       ]
@@ -77,10 +79,10 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
       {fromGuide && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
           <span>
-            만든 가이드 「{guideTitle}」에서 온 검토예요.{reflectState?.kind === "ready" ? " 아래에서 대체 표현을 고르고 「가이드에 반영」을 누르면 가이드가 고쳐져요." : ""}
+            콘텐츠 「{guideTitle}」에서 온 검토예요.{reflectState?.kind === "ready" ? " 아래에서 대체 표현을 고르고 「가이드에 반영」을 누르면 가이드가 고쳐져요." : ""}
           </span>
           <Link href={`/ad-check/guide/history/${fromGuide.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-            가이드 보기
+            콘텐츠로 돌아가기
           </Link>
         </div>
       )}
@@ -143,7 +145,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
           />
         )}
         {/* 제품에 연결된 직접 검토만 시안에 담는다 (docs/team-approval-ai-analysis.md 7장 2단계) */}
-        {!isGuideCheck && product && (
+        {!isGuideCheck && !fromGuide && product && (
           <SubmissionSection
             tab="ad"
             product={product}
