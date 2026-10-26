@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { getMySubmissions } from "@/lib/data/submissions";
 import { isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
-import { SUBMISSION_TAB_LABELS, type VersionStatus } from "@/lib/schemas/submission";
+import { guideLabelOf, SUBMISSION_TAB_LABELS, type VersionStatus } from "@/lib/schemas/submission";
 
 const TEXT = {
   title: "내 시안",
@@ -50,6 +50,7 @@ export default async function MySubmissionsPage() {
                   <span className="font-medium">
                     {r.productName} · v{r.version.version_no}
                   </span>
+                  {guideLabelOf(r.submission.tab, r.version.body) && <span className="font-medium">{guideLabelOf(r.submission.tab, r.version.body)}</span>}
                   <VersionStatusBadge status={r.version.status} />
                   <span className="text-muted-foreground">{formatDate(r.version.submitted_at ?? r.version.created_at)}</span>
                   <span className="ml-auto flex flex-wrap gap-2">

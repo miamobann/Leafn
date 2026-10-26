@@ -9,7 +9,7 @@ import { getAdChecks } from "@/lib/data";
 import { getApprovalInbox, getMyTabs, STALE_REVIEW_DAYS } from "@/lib/data/submissions";
 import { getCurrentUser, isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
-import { SUBMISSION_TAB_LABELS } from "@/lib/schemas/submission";
+import { guideLabelOf, SUBMISSION_TAB_LABELS } from "@/lib/schemas/submission";
 import { type InboxItem, InboxList } from "./inbox-list";
 
 const TEXT = {
@@ -41,6 +41,7 @@ export default async function ApprovalsPage() {
       tab: r.submission.tab,
       productName: r.productName,
       versionNo: r.version.version_no,
+      guideLabel: guideLabelOf(r.submission.tab, r.version.body),
       summary: r.version.summary,
       note: r.version.note,
       authorName: r.authorName,
