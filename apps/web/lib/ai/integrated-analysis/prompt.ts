@@ -46,13 +46,15 @@ export type IntegratedInput = {
   versions: IntegratedInputVersion[];
 };
 
-/** 근거 리뷰 ID 목록은 AI가 쓸 일이 없고 길기만 해서 뺀다 */
+/** 근거 리뷰 ID 목록과 상세페이지용 번역 원문은 AI가 쓸 일이 없고 길기만 해서 뺀다 */
+const DROP_KEYS = new Set(["evidence_review_ids", "translations"]);
+
 function compact(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(compact);
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value)
-        .filter(([key]) => key !== "evidence_review_ids")
+        .filter(([key]) => !DROP_KEYS.has(key))
         .map(([key, v]) => [key, compact(v)]),
     );
   }

@@ -23,21 +23,32 @@ export const AiAnalysisPoint = z.object({
 });
 export type AiAnalysisPoint = z.infer<typeof AiAnalysisPoint>;
 
+/** "이번 분석으로 알 수 있는 것" 한 줄의 종류 (프롬프트 v3 #판단 단계 3단계) */
+export const AiLearningKind = z.enum(["agree", "conflict", "opportunity", "risk"]);
+export type AiLearningKind = z.infer<typeof AiLearningKind>;
+
 /** 빠진 근거. v1 결과는 문자열, v2부터는 어느 탭의 근거가 빠졌는지 함께 남긴다 */
 export const AiDataGap = z.union([z.string(), z.object({ text: z.string().min(1), tab: SubmissionTab })]);
 export type AiDataGap = z.infer<typeof AiDataGap>;
 
-// 저장 모양. v2에서 늘어난 칸(confidence · agreements · check_first · verdict · counterpoint · done_when)은
-// v1 결과 행에는 없으므로 선택 칸으로 둔다
+// 저장 모양. 버전마다 늘어난 칸은 이전 결과 행에는 없으므로 선택 칸으로 둔다.
+// v2: confidence · agreements · check_first · verdict · counterpoint · done_when
+// v3 (대시보드형): insight · learnings · 카드(sections)의 value · meaning · confidence
 export const AiAnalysisResult = z.object({
+  /** v3부터는 insight.headline 과 같다 */
   summary: z.string(),
+  insight: AiAnalysisPoint.extend({ story: z.string() }).optional(),
   sections: z.array(
     z.object({
       key: z.string().min(1),
       title: z.string().min(1),
+      value: z.string().optional(),
+      meaning: z.string().optional(),
+      confidence: AiConfidence.optional(),
       points: z.array(AiAnalysisPoint.extend({ confidence: AiConfidence.optional() })),
     }),
   ),
+  learnings: z.array(AiAnalysisPoint.extend({ kind: AiLearningKind, label: z.string(), action: z.string() })).optional(),
   agreements: z.array(AiAnalysisPoint).optional(),
   conflicts: z.array(AiAnalysisPoint.extend({ check_first: SubmissionTab.optional() })),
   data_gaps: z.array(AiDataGap),
@@ -68,25 +79,27 @@ export type AiAnalysisResult = z.infer<typeof AiAnalysisResult>;
 const OutputPoint = z.object({ text: z.string(), basis: z.array(z.string()) });
 
 /**
- * AI 응답 그대로의 모양 (프롬프트 #출력 형식). basis는 입력의 ref(예: review@v2)다.
+ * AI 응답 그대로의 모양 (프롬프트 v3 #출력 형식). basis는 입력의 ref(예: review@v2)다.
  * 구조화 출력에 쓰므로 선택 칸 · 숫자 범위를 두지 않고, 범위 확인과 ref → 버전 ID 바꾸기는 lib/ai/integrated-analysis/parse.ts가 한다.
- * 칸 순서가 곧 모델이 쓰는 순서다: 근거(sections …)를 먼저, 결론(summary)을 맨 끝에 둔다
+ * 칸 순서가 곧 모델이 쓰는 순서다: 근거(카드 · 알 수 있는 것)를 먼저, 결론(insight)을 맨 끝에 둔다
  */
 export const AiAnalysisOutput = z.object({
   sections: z.array(
     z.object({
       key: z.string(),
       title: z.string(),
-      points: z.array(OutputPoint.extend({ confidence: AiConfidence })),
+      value: z.string(),
+      meaning: z.string(),
+      confidence: AiConfidence,
+      points: z.array(OutputPoint),
     }),
   ),
-  agreements: z.array(OutputPoint),
-  conflicts: z.array(OutputPoint.extend({ check_first: SubmissionTab })),
+  learnings: z.array(z.object({ kind: AiLearningKind, label: z.string(), headline: z.string(), action: z.string(), basis: z.array(z.string()) })),
   data_gaps: z.array(z.object({ text: z.string(), tab: SubmissionTab })),
   verdict: z.object({ level: AiVerdictLevel, reason: z.string(), basis: z.array(z.string()) }),
   counterpoint: OutputPoint,
   actions: z.array(OutputPoint.extend({ tab: SubmissionTab, priority: z.number().int(), done_when: z.string() })),
-  summary: z.string(),
+  insight: z.object({ headline: z.string(), story: z.string(), basis: z.array(z.string()) }),
 });
 export type AiAnalysisOutput = z.infer<typeof AiAnalysisOutput>;
 

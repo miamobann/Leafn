@@ -59,23 +59,28 @@ export function parseIntegratedAnalysis(
   const blocked = output.verdict.level === "go" && goIsBlocked(facts);
   const counterText = output.counterpoint.text.trim();
   const counterIds = output.counterpoint.basis.map((ref) => refs.get(ref.trim())).filter((id): id is string => Boolean(id));
+  const headline = output.insight.headline.trim();
+  if (!headline) throw new IntegratedAnalysisParseError("인사이트가 비어 있음");
+  const insight = point({ text: headline, basis: output.insight.basis });
 
   return AiAnalysisResult.parse({
-    summary: output.summary.trim(),
-    // 섹션 제목은 AI가 쓴 값 대신 프롬프트의 관점 이름을 쓴다 (화면 제목이 프롬프트 버전과 맞게)
+    summary: headline,
+    insight: { ...insight, story: output.insight.story.trim() },
+    // 카드 제목은 AI가 쓴 값 대신 프롬프트의 관점 이름을 쓴다 (화면 제목이 프롬프트 버전과 맞게)
     sections: output.sections.map((s, i) => ({
       key: s.key,
       title: perspectives[i].name,
-      points: s.points.flatMap((p) => {
-        const q = point(p);
-        return q ? [{ ...q, confidence: p.confidence }] : [];
-      }),
+      value: s.value.trim(),
+      meaning: s.meaning.trim(),
+      confidence: s.confidence,
+      points: points(s.points),
     })),
-    agreements: points(output.agreements),
-    conflicts: output.conflicts.flatMap((c) => {
-      const p = point(c);
-      return p ? [{ ...p, check_first: c.check_first }] : [];
+    learnings: output.learnings.flatMap((l) => {
+      const p = point({ text: l.headline, basis: l.basis });
+      return p ? [{ ...p, kind: l.kind, label: l.label.trim(), action: l.action.trim() }] : [];
     }),
+    // v2의 탭끼리 어긋나는 점은 v3에서 learnings(kind: conflict)로 들어간다
+    conflicts: [],
     data_gaps: output.data_gaps.flatMap((g) => (g.text.trim() ? [{ text: g.text.trim(), tab: g.tab }] : [])),
     verdict: {
       level: blocked ? "fix_first" : output.verdict.level,
@@ -84,7 +89,7 @@ export function parseIntegratedAnalysis(
       ...((verdictBasis?.needs_check || blocked) && { needs_check: true }),
       ...(blocked && { adjusted_from: "go" as const }),
     },
-    // 반대 근거가 없을 때는 basis가 비어도 된다 (프롬프트 v2). 인용한 ref가 입력에 없을 때만 "근거 확인 필요"
+    // 반대 근거가 없을 때는 basis가 비어도 된다. 인용한 ref가 입력에 없을 때만 "근거 확인 필요"
     ...(counterText && {
       counterpoint: {
         text: counterText,
