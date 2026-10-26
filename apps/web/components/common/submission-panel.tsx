@@ -59,7 +59,11 @@ const TEXT = {
   newFrom: "이 버전에서 새 버전",
   load: "불러오기",
   loadTitle: "이 버전의 한 줄 결론 · 메모를 위 칸에 복사해요",
+  loadContentsTitle: "이 버전의 한 줄 결론 · 메모와 담은 내용을 지금 시안으로 복사해요",
+  loadConfirm: (no: number) => `지금 임시 저장 중인 시안의 담은 내용이 v${no}의 구성으로 바뀌어요. 불러올까요?`,
   loaded: (no: number) => `v${no}의 한 줄 결론 · 메모를 불러왔어요. 고칠 부분만 고친 뒤 올리면 새 버전이 돼요 (v${no}은 그대로 남아요).`,
+  loadedContents: (no: number, draftNo: number) =>
+    `v${no}의 한 줄 결론 · 메모와 담은 내용을 임시 v${draftNo}로 불러왔어요. 고칠 부분만 고친 뒤 올리면 돼요 (v${no}은 그대로 남아요).`,
   preview: "미리보기",
   dataAsOf: "데이터 기준",
   self: "자기 결재",
@@ -92,6 +96,7 @@ export function SubmissionPanel({
   saveDraft,
   snapshotNote,
   carryOverLabel,
+  loadContents,
   className = "mt-6",
 }: {
   tabLabel: string;
@@ -106,6 +111,8 @@ export function SubmissionPanel({
   snapshotNote: string;
   /** 있으면 "직전 버전 내용도 함께 담기" 체크를 보인다 (광고 검토) */
   carryOverLabel?: string;
+  /** 있으면 「불러오기」가 글뿐 아니라 그 버전의 담은 내용도 지금 임시 버전으로 복사한다 (리뷰 분석) */
+  loadContents?: (versionId: string) => Promise<SubmissionResult<{ versionNo: number; summary: string; note: string }>>;
   className?: string;
 }) {
   const router = useRouter();
@@ -114,15 +121,34 @@ export function SubmissionPanel({
   const [summary, setSummary] = useState("");
   const [note, setNote] = useState("");
   // 히스토리의 「불러오기」로 이전 버전의 글을 위 칸에 복사해 고쳐 올린다. 원래 버전은 건드리지 않는다
-  const [loadedFrom, setLoadedFrom] = useState<number | null>(null);
+  const [loadedFrom, setLoadedFrom] = useState<{ from: number; draftNo: number | null } | null>(null);
   const summaryRef = useRef<HTMLTextAreaElement>(null);
-  const loadVersion = (v: VersionView) => {
-    setSummary(v.summary);
-    setNote(v.note ?? "");
-    setLoadedFrom(v.version_no);
-    setError(null);
+  const fill = (from: number, draftNo: number | null, text: { summary: string; note: string }) => {
+    setSummary(text.summary);
+    setNote(text.note);
+    setLoadedFrom({ from, draftNo });
     summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     summaryRef.current?.focus({ preventScroll: true });
+  };
+  const loadVersion = (v: VersionView) => {
+    setError(null);
+    if (!loadContents) {
+      fill(v.version_no, null, { summary: v.summary, note: v.note ?? "" });
+      return;
+    }
+    // 지금 임시 버전이 있으면 그 담은 내용을 덮어쓰므로 한 번 묻는다
+    if (versions[0]?.status === "draft" && versions[0].id !== v.id && !window.confirm(TEXT.loadConfirm(v.version_no))) return;
+    let loaded: { versionNo: number; summary: string; note: string } | null = null;
+    run(
+      async () => {
+        const res = await loadContents(v.id);
+        if (res.ok) loaded = res.data;
+        return res;
+      },
+      () => {
+        if (loaded) fill(v.version_no, loaded.versionNo, loaded);
+      },
+    );
   };
   const [carryOver, setCarryOver] = useState(true);
   const [mode, setMode] = useState<"upload" | "save">("upload");
@@ -210,7 +236,7 @@ export function SubmissionPanel({
             </p>
             {loadedFrom !== null && (
               <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-                {TEXT.loaded(loadedFrom)}
+                {loadedFrom.draftNo === null ? TEXT.loaded(loadedFrom.from) : TEXT.loadedContents(loadedFrom.from, loadedFrom.draftNo)}
               </p>
             )}
             <label className="block space-y-1 text-sm">
@@ -266,7 +292,7 @@ export function SubmissionPanel({
                   </span>
                   <span className="ml-auto flex items-center gap-3">
                     {canEdit && !sampleMode && (v.summary || v.note) && (
-                      <button type="button" title={TEXT.loadTitle} onClick={() => loadVersion(v)} className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                      <button type="button" title={loadContents ? TEXT.loadContentsTitle : TEXT.loadTitle} disabled={disabled} onClick={() => loadVersion(v)} className="text-sm font-medium text-primary underline-offset-4 hover:underline">
                         {TEXT.load}
                       </button>
                     )}

@@ -6,7 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { getProduct } from "@/lib/data";
 import { getReviewDraftState } from "@/lib/data/review-draft";
 import { getReviewProductList } from "@/lib/data/reviews";
-import { saveReviewDraft } from "@/lib/data/submission-actions";
+import { loadReviewVersion, saveReviewDraft } from "@/lib/data/submission-actions";
 import { buildReviewSnapshot } from "@/lib/data/submission-bodies";
 import { SKIN_LINE_LABEL, VERDICT_LABEL } from "../_lib/topics";
 import { SummaryCard } from "./summary-card";
@@ -80,6 +80,7 @@ export default async function ReviewSummaryPage({ searchParams }: { searchParams
                     tab="review"
                     product={view.product}
                     saveDraft={saveReviewDraft.bind(null, selected.id)}
+                    loadContents={loadReviewVersion.bind(null, selected.id)}
                     snapshotNote="지금 리포트의 주제별 성적표 · 불만 · 재구매 요인과 왼쪽에 담은 소구점 · 일본어 후기를 그대로 저장해요. 제출하면 고칠 수 없어요."
                     className="mt-0"
                   />
