@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
 
 // 팀 테마(globals.css)의 무채색 차트 색을 쓴다. 색만으로 구분하지 않도록 선 모양(실선·점선)과 범례·라벨을 같이 쓴다.
 const AXIS = { fontSize: 11, fill: "var(--muted-foreground)" };
@@ -160,11 +160,19 @@ export function StackedBarChart({
   );
 }
 
+/** 가격 맵의 점: 지름 20px 원 + 카드 색 테두리 (겹쳐도 경계가 보이게) */
+const DOT_RADIUS = 10;
+function dotShape(props: unknown) {
+  const { cx, cy, fill } = props as { cx?: number; cy?: number; fill?: string };
+  if (cx === undefined || cy === undefined) return <g />;
+  return <circle cx={cx} cy={cy} r={DOT_RADIUS} fill={fill} stroke="var(--card)" strokeWidth={2} />;
+}
+
 export type PriceDot = { id: string; label: string; x: number; y: number; listPrice: number; salePrice: number | null; discountRate: number | null; promo: string | null };
 
 /**
  * 가격 포지셔닝 맵: X = 판매가, Y = ml당 실질 가격 (보기 기준에 따라 정가 또는 할인 적용가). 가운데 점선 = 각 축의 중앙값.
- * 할인·프로모션 없음 = 회색 원, 진행 중 = 파랑 세모, 자사 = 진한 마름모 (색과 모양을 같이 바꿔 색만으로 구분하지 않는다).
+ * 모두 큰 원 (2026-10-26 요청: 세모·마름모 대신 원, 작아서 보기 힘듦). 할인·프로모션 없음 = 회색, 진행 중 = 파랑, 자사 = 진한 색 · 구분은 위 범례로.
  * 축 범위는 데이터에 맞춰 좁혀서 점이 한쪽에 몰리지 않게 한다
  */
 export function PriceMapChart({
@@ -221,8 +229,6 @@ export function PriceMapChart({
           tickFormatter={(v: number) => `${v}円`}
           label={{ value: "ml당 가격", angle: -90, position: "insideLeft", fontSize: 12, fill: "var(--muted-foreground)" }}
         />
-        {/* 점 크기를 키워 겹쳐도 알아보기 쉽게 */}
-        <ZAxis range={[110, 110]} />
         {medianX !== null && <ReferenceLine x={medianX} stroke="var(--muted-foreground)" strokeDasharray="4 3" label={{ value: "판매가 중앙값", position: "insideTopRight", fontSize: 11, fill: "var(--muted-foreground)" }} />}
         {medianY !== null && <ReferenceLine y={medianY} stroke="var(--muted-foreground)" strokeDasharray="4 3" label={{ value: "ml당 중앙값", position: "insideBottomRight", fontSize: 11, fill: "var(--muted-foreground)" }} />}
         <Tooltip
@@ -246,9 +252,9 @@ export function PriceMapChart({
           }}
         />
         <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
-        <Scatter name="할인·프로모션 없음" data={plain} fill="var(--chart-2)" stroke="var(--card)" strokeWidth={2} onClick={click} className="cursor-pointer" isAnimationActive={false} />
-        <Scatter name="할인·프로모션 진행 중" data={promo} fill="var(--chart-promo)" shape="triangle" stroke="var(--card)" strokeWidth={2} onClick={click} className="cursor-pointer" isAnimationActive={false} />
-        <Scatter name="자사 (정가)" data={own} fill="var(--primary)" shape="diamond" stroke="var(--card)" strokeWidth={2} isAnimationActive={false} />
+        <Scatter name="할인·프로모션 없음" data={plain} fill="var(--chart-2)" shape={dotShape} onClick={click} className="cursor-pointer" isAnimationActive={false} />
+        <Scatter name="할인·프로모션 진행 중" data={promo} fill="var(--chart-promo)" shape={dotShape} onClick={click} className="cursor-pointer" isAnimationActive={false} />
+        <Scatter name="자사 (정가)" data={own} fill="var(--primary)" shape={dotShape} isAnimationActive={false} />
       </ScatterChart>
     </ResponsiveContainer>
   );
