@@ -254,8 +254,8 @@ export function AppealCompare({
                   </div>
                 )}
                 <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
-                  <p className="text-xs text-muted-foreground">콘텐츠 제작 가이드가 이 제품의 소구점·칭찬 리뷰를 그대로 가져가요</p>
-                  <Link href={`/ad-check/guide?product=${data.own.id}`} className={buttonVariants({ size: "lg" })}>
+                  <p className="text-xs text-muted-foreground">고른 소구점 {chosen.length}개를 콘텐츠 제작 가이드로 넘겨요</p>
+                  <Link href={`/ad-check/guide?product=${data.own.id}&topics=${chosen.map((t) => t.topic).join(",")}`} className={buttonVariants({ size: "lg" })}>
                     이 소구점으로 콘텐츠 만들기 →
                   </Link>
                 </div>
