@@ -11,6 +11,9 @@ import { ActionBadge, ReviewStateBadge, STATUS_LABEL, USAGE_LABEL } from "../_co
 import { DeleteButton } from "../_components/delete-button";
 import { HistoryFilters } from "../_components/history-filters";
 import { koLines } from "../_lib/ko-lines";
+import { findSourceGuide } from "../_lib/guide-to-review";
+import { makeFill } from "../_lib/guide-report";
+import { getAdProducts } from "@/lib/data/ad-products";
 
 type HistoryPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -26,6 +29,13 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
   const [all, members, products, mine, reviewCheckIds, guides] = await Promise.all([getAdChecks(), getMembers(), getProducts(), getMyWorkspace().catch(() => null), getReviewTranslationCheckIds(), getContentGuides()]);
   // 만든 가이드에서 온 검토가 이미 가이드에 반영됐는지 (그 검토로 만든 수정본이 있으면 반영됨)
   const reflectedCheckIds = new Set(guides.flatMap((g) => (g.parent_id && g.ad_check_id ? [g.ad_check_id] : [])));
+  // 가이드에서 온 검토: 연결 칸이 비어 있으면(연결 기능 전 · DB 적용 전) 문구가 같은 가이드로 찾는다 (검토 상세와 같은 기준)
+  const adProducts = guides.length ? await getAdProducts() : [];
+  const fillFor = (productId: string | null) => {
+    const p = adProducts.find((x) => x.id === productId);
+    return p ? makeFill(p) : undefined;
+  };
+  const fromGuide = new Set(all.flatMap((c) => (guides.length && findSourceGuide(c, guides, fillFor) ? [c.id] : [])));
   // 삭제(숨김)는 owner(팀장)만. 팀원 화면에는 버튼을 그리지 않는다
   const isOwner = mine?.role === "owner";
   const checks = all
@@ -84,7 +94,7 @@ export default async function AdCheckHistoryPage({ searchParams }: HistoryPagePr
                       {first?.text ?? ""}
                     </span>
                     {rest.length > 0 && <span className="shrink-0 text-muted-foreground">외 {rest.length}줄</span>}
-                    {c.content_guide_id &&
+                    {fromGuide.has(c.id) &&
                       (reflectedCheckIds.has(c.id) ? (
                         <span className="shrink-0 rounded border px-1 text-[0.65rem] text-muted-foreground" title="만든 가이드에서 온 검토 · 가이드에 반영했어요">
                           가이드 · 반영됨

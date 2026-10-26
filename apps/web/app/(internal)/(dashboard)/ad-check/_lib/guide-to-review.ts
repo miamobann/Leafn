@@ -50,6 +50,25 @@ export function guideReflectState(guides: GuideLink[], guideId: string, checkId:
   return latest === guideId ? { kind: "ready" } : { kind: "stale", latestId: latest };
 }
 
+type GuideLike = Pick<ContentGuideRow, "id" | "product_id" | "title" | "body" | "created_at">;
+type CheckLike = { content_guide_id?: string | null; product_id?: string; input_text: string; created_at: string };
+
+const sameText = (a: string, b: string) => a.split("\n").map((l) => l.trim()).join("\n") === b.split("\n").map((l) => l.trim()).join("\n");
+
+/** 이 검토가 어느 만든 가이드에서 왔는지. 연결 칸(content_guide_id)이 있으면 그것, 없으면(연결 기능 전에 만든 검토 · DB 적용 전)
+ *  같은 제품 가이드 중 「이 문구로 새 검토」가 채운 입력과 문구가 똑같은 것 (자리표시자를 채운 문구 · 채우기 전 문구 둘 다 비교, 가장 최근 것) */
+export function findSourceGuide<G extends GuideLike>(check: CheckLike, guides: G[], fillFor: (productId: string | null) => Fill | undefined): G | undefined {
+  if (check.content_guide_id) return guides.find((g) => g.id === check.content_guide_id);
+  return guides
+    .filter((g) => (!check.product_id || g.product_id === check.product_id) && g.created_at <= check.created_at)
+    .filter((g) => {
+      const raw = guideSlots(g).map((s) => s.text).join("\n");
+      const fill = fillFor(g.product_id);
+      return sameText(raw, check.input_text) || (fill ? sameText(guideSlots(g, fill).map((s) => s.text).join("\n"), check.input_text) : false);
+    })
+    .toSorted((a, b) => b.created_at.localeCompare(a.created_at))[0];
+}
+
 export function guideToReviewInput(guide: ContentGuideRow, fill: Fill = asIs) {
   return { productId: guide.product_id ?? undefined, usage: USAGE[guide.channel], text: guideSlots(guide, fill).map((s) => s.text).join("\n") };
 }

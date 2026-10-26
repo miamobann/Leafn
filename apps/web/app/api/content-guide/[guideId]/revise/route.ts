@@ -4,7 +4,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { makeFill } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-report";
-import { guideReflectState, guideSlots, slotText, TITLE_SLOT } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-to-review";
+import { findSourceGuide, guideReflectState, guideSlots, slotText, TITLE_SLOT } from "@/app/(internal)/(dashboard)/ad-check/_lib/guide-to-review";
 import { getAdProducts } from "@/lib/data/ad-products";
 import { lintBody } from "@/lib/ai/content-guide/lint";
 import { getAdCheck, getContentGuide, getContentGuides } from "@/lib/data";
@@ -36,6 +36,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ gui
   if (!check || check.workspace_id !== mine.workspace.id) return fail(404, "검토 기록을 찾을 수 없습니다. 판정이 저장됐는지 확인해 주세요.");
   // 다른 가이드에서 온 검토는 받지 않는다. 같은 검토로 두 번, 또는 그 사이 더 새 수정본이 생긴 가이드에는 반영하지 않는다 (버전이 갈라지지 않게)
   if (check.content_guide_id && check.content_guide_id !== guideId) return fail(400, "이 검토는 다른 가이드에서 온 검토예요.");
+  // 연결 칸이 없는 검토(연결 기능 전 · DB 적용 전)는 문구로 찾은 가이드가 다른 가이드면 받지 않는다 (입력을 고쳐 문구로 못 찾으면 그대로 받는다)
+  if (!check.content_guide_id) {
+    const fillFor = (productId: string | null) => {
+      const p = products.find((x) => x.id === productId);
+      return p ? makeFill(p) : undefined;
+    };
+    const source = findSourceGuide(check, guides, fillFor);
+    if (source && source.id !== guideId) return fail(400, "이 검토는 다른 가이드에서 온 검토예요.");
+  }
   const state = guideReflectState(guides, guideId, check.id);
   if (state.kind === "reflected") return NextResponse.json({ error: "이 검토로 이미 가이드를 고쳤어요.", revision_id: state.revisionId }, { status: 409 });
   if (state.kind === "stale") return NextResponse.json({ error: "그 사이 이 가이드가 다른 검토로 먼저 고쳐졌어요. 최신 수정본에서 다시 검토해 주세요.", latest_id: state.latestId }, { status: 409 });

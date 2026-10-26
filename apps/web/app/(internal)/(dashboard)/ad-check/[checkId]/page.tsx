@@ -13,7 +13,7 @@ import { ActionBadge, ReviewStateBadge, USAGE_LABEL } from "../_components/ad-ba
 import { CopyButton } from "../_components/copy-button";
 import { DetailReviewBar } from "../_components/detail-review-bar";
 import { GuideReflect } from "../_components/guide-reflect";
-import { guideReflectState, guideSlots } from "../_lib/guide-to-review";
+import { findSourceGuide, guideReflectState, guideSlots } from "../_lib/guide-to-review";
 import { makeFill } from "../_lib/guide-report";
 import { getAdProducts } from "@/lib/data/ad-products";
 import { LineResultCard } from "../_components/line-result-card";
@@ -28,16 +28,23 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
     getMemberName(check.reviewer_id),
     check.product_id ? getProduct(check.product_id) : null,
     isSupabaseConfigured() ? getMyWorkspace() : null,
-    check.content_guide_id ? getContentGuides() : [],
+    getContentGuides(),
   ]);
-  // 만든 가이드에서 온 검토: 누구나(팀장이 팀원 검토를 이어받아도) 대체 표현을 골라 「이 가이드에 반영」
-  const fromGuide = check.content_guide_id ? guides.find((g) => g.id === check.content_guide_id) : undefined;
+  const adProducts = guides.length ? await getAdProducts() : [];
+  const fillFor = (productId: string | null) => {
+    const p = adProducts.find((x) => x.id === productId);
+    return p ? makeFill(p) : undefined;
+  };
+  // 만든 가이드에서 온 검토: 누구나(팀장이 팀원 검토를 이어받아도) 대체 표현을 골라 「이 가이드에 반영」.
+  // 연결 칸이 비어 있으면(연결 기능 전 검토 · DB 적용 전) 문구가 같은 가이드를 찾는다 (직접 쓴 검토는 걸리지 않는다)
+  const fromGuide = manual.some((c) => c.id === check.id) ? findSourceGuide(check, guides, fillFor) : undefined;
   const reflectState = fromGuide ? guideReflectState(guides, fromGuide.id, check.id) : null;
   // 이미 반영된 검토(팀원이 반영까지 하고 물어본 경우): 팀장이 승인할 때 최종 문구가 실제 가이드 문구와 같도록 수정본 문구로 미리 채운다.
   // 팀장이 아직 정하지 않았고 최종 문구가 처음 그대로일 때만
   const revision = reflectState?.kind === "reflected" ? guides.find((g) => g.id === reflectState.revisionId) : undefined;
-  const adProducts = revision ? await getAdProducts() : [];
   const revisionProduct = adProducts.find((p) => p.id === revision?.product_id);
+  const guideProduct = adProducts.find((p) => p.id === fromGuide?.product_id);
+  const guideTitle = fromGuide ? (guideProduct ? makeFill(guideProduct)(fromGuide.title.title_ko) : fromGuide.title.title_ko) : "";
   const reflectedText =
     revision && check.review_status === "pending" && (check.final_text ?? check.input_text) === check.input_text
       ? guideSlots(revision, revisionProduct ? makeFill(revisionProduct) : undefined).map((s) => s.text).join("\n")
@@ -71,7 +78,7 @@ export default async function AdCheckDetailPage({ params }: { params: Promise<{ 
       {fromGuide && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
           <span>
-            만든 가이드 「{fromGuide.title.title_ko}」에서 온 검토예요.{reflectState?.kind === "ready" ? " 아래에서 대체 표현을 고르고 「가이드에 반영」을 누르면 가이드가 고쳐져요." : ""}
+            만든 가이드 「{guideTitle}」에서 온 검토예요.{reflectState?.kind === "ready" ? " 아래에서 대체 표현을 고르고 「가이드에 반영」을 누르면 가이드가 고쳐져요." : ""}
           </span>
           <Link href={`/ad-check/guide/history/${fromGuide.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
             가이드 보기

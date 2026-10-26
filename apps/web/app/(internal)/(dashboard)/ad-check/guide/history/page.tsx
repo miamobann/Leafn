@@ -10,6 +10,7 @@ import { ActionBadge } from "../../_components/ad-badges";
 import { DeleteButton } from "../../_components/delete-button";
 import { HistoryFilters } from "../../_components/history-filters";
 import { GUIDE_CHANNELS } from "../../_lib/content-guide-samples";
+import { makeFill } from "../../_lib/guide-report";
 
 type GuideHistoryPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -38,6 +39,11 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
     getAdProducts(),
   ]);
   const isOwner = mine?.role === "owner";
+  // 제목의 자리표시자({product_ja} 등)를 그 제품 값으로 (화면 · PDF 와 같은 기준)
+  const fillOf = (productId: string | null) => {
+    const product = adProducts.find((p) => p.id === productId);
+    return product ? makeFill(product) : (t: string) => t;
+  };
   // 수정 전 버전은 숨긴다: 수정본(parent_id 로 이어진 다음 버전)이 있는 가이드는 목록에서 빼고 최신 수정본만 보여 준다.
   // 지우지 않으므로 수정본 화면의 「이전 버전 보기」로 열 수 있다 (약기법에 걸린 문구와 검사 기록은 증거로 남는다)
   const superseded = new Set(all.flatMap((g) => (g.parent_id ? [g.parent_id] : [])));
@@ -102,13 +108,13 @@ export default async function GuideHistoryPage({ searchParams }: GuideHistoryPag
               cells: {
                 title: (
                   // 목록 제목은 한국어로 통일 (검토 이력과 같다). 마우스를 올리면 일본어 제목
-                  <span className="block max-w-80 truncate font-medium underline-offset-4 [a:hover_&]:underline" title={g.title.title_ja}>
+                  <span className="block max-w-80 truncate font-medium underline-offset-4 [a:hover_&]:underline" title={fillOf(g.product_id)(g.title.title_ja)}>
                     {g.parent_id && (
                       <span className="mr-1 rounded border px-1 text-xs font-normal" title="새 검토에서 대체 표현으로 고친 버전이에요. 고치기 전 버전은 목록에서 숨겨져 있어요">
                         약기법 수정
                       </span>
                     )}
-                    {g.title.title_ko}
+                    {fillOf(g.product_id)(g.title.title_ko)}
                   </span>
                 ),
                 product: (
