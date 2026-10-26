@@ -223,4 +223,10 @@
   :lang(ja) {
     font-family: var(--font-noto-jp, sans-serif), sans-serif;
   }
+  /* 키보드 포커스: 자체 포커스 모양이 없는 요소(링크·기본 선택 상자 등)는 브라우저 기본 대신 같은 초록 외곽선 2px.
+     공통 부품(버튼·입력 칸)은 자기 링을 그대로 쓴다 (디자인 전환 3단계) */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
