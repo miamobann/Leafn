@@ -146,10 +146,7 @@ export default async function ReviewsPage() {
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-baseline gap-2">
-          <h2 className="text-lg font-semibold">경쟁 제품</h2>
-          <span className="text-sm text-muted-foreground">일본 리뷰 기준 · {competitors.length}개</span>
-        </div>
+        {/* 제목 줄은 표가 그린다 (건수 · 수집 기준 포함) */}
         <CompetitorTable rows={competitors} />
       </section>
     </>
