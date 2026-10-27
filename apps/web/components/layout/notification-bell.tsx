@@ -20,6 +20,9 @@ const TEXT = {
   empty: "지금 확인할 일이 없어요",
   label: (n: number) => (n > 0 ? `확인할 일 ${n}건` : "확인할 일 없음"),
   isNew: "새 소식",
+  failed: "알림을 불러오지 못했어요",
+  failedHint: "잠시 뒤 새로고침해 주세요",
+  failedLabel: "확인할 일을 불러오지 못함",
 };
 
 const PANEL_ID = "notification-panel";
@@ -62,11 +65,14 @@ function saveSeen(ids: string[]) {
 export type NotificationLink = { label: string; href: string };
 
 export function NotificationBell({
+  failed,
   count,
   todo,
   results,
   links,
 }: {
+  /** 알림을 읽지 못함 (상단 바가 실패를 받아 넘긴다). 배지 없이 패널에 안내 문구만 */
+  failed: boolean;
   /** 처리할 일 수 (배지 숫자) */
   count: number;
   todo: Notice[];
@@ -93,7 +99,7 @@ export function NotificationBell({
   };
   // 닫을 때 지금 본 항목을 기억한다. 열려 있는 동안은 점이 남아 무엇이 새것인지 보인다
   const close = () => {
-    if (open) markSeen();
+    if (open && !failed) markSeen();
     setOpen(false);
   };
 
@@ -162,8 +168,8 @@ export function NotificationBell({
       <button
         type="button"
         onClick={() => (open ? close() : setOpen(true))}
-        aria-label={TEXT.label(count)}
-        title={TEXT.label(count)}
+        aria-label={failed ? TEXT.failedLabel : TEXT.label(count)}
+        title={failed ? TEXT.failedLabel : TEXT.label(count)}
         aria-expanded={open}
         aria-controls={PANEL_ID}
         className="relative inline-flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground hover:bg-muted"
@@ -190,20 +196,29 @@ export function NotificationBell({
         >
           <div className="flex items-center gap-2 border-b border-border px-1.5 pb-2">
             <h2 className="text-[15px] font-medium">{TEXT.title}</h2>
-            <span aria-live="polite" className="text-xs text-muted-foreground">
-              {TEXT.news(newCount)}
-            </span>
-            <button
-              type="button"
-              onClick={markSeen}
-              disabled={newCount === 0}
-              className="ml-auto rounded-full border border-border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
-            >
-              {TEXT.readAll}
-            </button>
+            {!failed && (
+              <>
+                <span aria-live="polite" className="text-xs text-muted-foreground">
+                  {TEXT.news(newCount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={markSeen}
+                  disabled={newCount === 0}
+                  className="ml-auto rounded-full border border-border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                >
+                  {TEXT.readAll}
+                </button>
+              </>
+            )}
           </div>
           <div className="max-h-[min(28rem,calc(100vh-8rem))] overflow-y-auto">
-            {all.length === 0 ? (
+            {failed ? (
+              <p role="status" className="px-1.5 py-6 text-center text-sm">
+                {TEXT.failed}
+                <span className="mt-1 block text-xs text-muted-foreground">{TEXT.failedHint}</span>
+              </p>
+            ) : all.length === 0 ? (
               <p className="px-1.5 py-6 text-center text-sm text-muted-foreground">{TEXT.empty}</p>
             ) : (
               <>
