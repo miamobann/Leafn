@@ -756,6 +756,8 @@ export function ContentGuide({ products, drafts, materials, author, aiEnabled, s
   async function postAi(payload: unknown): Promise<Record<string, unknown>> {
     const res = await fetch("/api/content-guide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    // 504 = 서버 시간 한도에 걸려 끊김 (응답이 JSON 이 아니라 이유를 못 읽는다)
+    if (res.status === 504) throw new Error("AI 제작이 오래 걸려 중간에 끊겼어요");
     if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "AI 제작에 실패했습니다");
     return json;
   }
