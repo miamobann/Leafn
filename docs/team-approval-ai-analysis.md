@@ -88,7 +88,7 @@ DB 규칙(RLS)으로 강제한다. 기존 `is_member(ws)` · `is_owner(ws)`에 �
 | 1. 권한 · 테이블 | 위 5개 테이블 마이그레이션 + RLS + `has_tab()`, Zod, mock, `lib/data` 읽기 함수, **설정 화면의 멤버별 담당 탭 설정** | `supabase/migrations/`, `lib/schemas/submission.ts`, `lib/mock/submissions.ts`, `lib/data/submissions.ts`, `settings/` |
 | 2. 시안 제출 · 히스토리 | 리뷰 분석 · 광고 검토 결과 화면에 "시안으로 저장 / 제출", 버전 히스토리 패널(보기 · 수정 · 삭제 · 반려 사유). 담당이 아닌 탭에서는 버튼 숨김 | `reviews/`, `ad-check/`, `components/common/submission-*` |
 | 3. 팀장 결재함 + 제품 화면 | 결재함 목록 → **버전 미리보기 페이지**(내용 · 근거 · 이전 버전 비교 · 승인/반려). 제품 × 탭 진행 표(D안, 판매 중 제품만) | `app/(internal)/(dashboard)/approvals/`, `projects/` |
-| 4. AI 분석 탭 | 제품 선택 → 탭별 승인본 선택(기준 날짜 표시, 차이 30일 넘으면 경고) → 실행 → 저장 · 공유 · 팀장 확인 라벨 | `app/(internal)/(dashboard)/ai-analysis/`, `lib/ai/integrated-analysis/`, `prompts/integrated-analysis.v3.md` (호출은 `callAi`, 정밀 등급) |
+| 4. AI 분석 탭 | 제품 선택 → 탭별 승인본 선택(기준 날짜 표시, 차이 30일 넘으면 경고) → 실행 → 저장 · 공유 · 팀장 확인 라벨 | `app/(internal)/(dashboard)/ai-analysis/`, `lib/ai/integrated-analysis/`, `prompts/integrated-analysis.v4.md` (호출은 `callAi`, 정밀 등급) |
 | 5. 나중에 | 시장 분석 탭 연결, 대리 결재자, 알림, "새 데이터 있음" 표시 | |
 
 ## 8. 구조의 결점과 보완 (채택)
@@ -117,7 +117,7 @@ DB 규칙(RLS)으로 강제한다. 기존 `is_member(ws)` · `is_owner(ws)`에 �
 목표: 팀이 분석 관점·말투·금지 사항을 바꾸고 싶을 때 **프롬프트 파일만 새 버전으로 만들면** 되게 한다. 코드·DB를 고치는 일은 입력·출력의 모양이 바뀔 때뿐이다.
 
 **파일과 버전**
-- 원문: `apps/web/prompts/integrated-analysis.v2.md` → 지금은 `integrated-analysis.v3.md` (2026-10-26 v2: 판단 단계 · 확신도 · 종합 판단 · 반론 · 완료 기준, 날짜 차이 · 표본 수 · 미해결 광고 위험은 코드가 `facts`로 계산. 같은 날 v3: 마케터 인사이트 하나 + 관점 카드 + "이번 분석으로 알 수 있는 것"의 대시보드형 결과와 PDF 보고서. v1 · v2 결과는 예전 화면 그대로 보인다).
+- 원문: `apps/web/prompts/integrated-analysis.v2.md` → `v3` → 지금은 `integrated-analysis.v4.md` (2026-10-26 v2: 판단 단계 · 확신도 · 종합 판단 · 반론 · 완료 기준, 날짜 차이 · 표본 수 · 미해결 광고 위험은 코드가 `facts`로 계산. 같은 날 v3: 마케터 인사이트 하나 + 관점 카드 + "이번 분석으로 알 수 있는 것"의 대시보드형 결과와 PDF 보고서. v1 · v2 결과는 예전 화면 그대로 보인다. 2026-10-27 v4: 홈 프로모션 캘린더의 다가오는 행사(90일)를 함께 보내 할 일마다 마감일 · 연결 행사를 붙이고, 소비자 설문 요약을 **결재 전 참고 데이터**(`survey@ref`)로 보내 "타깃 고객" 카드를 만든다. 설문은 verdict의 근거가 혼자 될 수 없다. DB 변경 없음. 설문을 네 번째 결재 탭으로 넣는 안(B안)은 보류).
 - 읽기: 기존 `loadPrompt("integrated-analysis", 버전)` (`lib/ai/prompts.ts`). 머리말(`---` 앞)은 사람용 설명이고 본문만 보낸다.
 - 쓰는 버전: `lib/ai/integrated-analysis/config.ts`의 상수 `PROMPT_VERSION` 한곳. 고칠 때는 v1을 v2로 복사해 고치고 이 상수만 바꾼다. 이미 쓴 버전 파일은 고치지 않는다 (결과 재현을 위해).
 - 결과 행 `ai_analyses.prompt_version`에 `integrated-analysis.v2`처럼 남는다. 화면은 결과마다 버전을 작게 보여준다.

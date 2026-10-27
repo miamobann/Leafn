@@ -20,6 +20,8 @@ export const AiAnalysisPoint = z.object({
   basis: z.array(Id),
   /** 입력에 없는 ref를 인용해서 근거를 사람이 확인해야 하는 문장 (설계 10장 "근거 확인 필요") */
   needs_check: z.boolean().optional(),
+  /** 설문 요약(survey@ref, 팀장 결재 전 참고 데이터)을 근거로 인용한 문장 (v4부터). basis에는 넣지 않는다 */
+  survey: z.boolean().optional(),
 });
 export type AiAnalysisPoint = z.infer<typeof AiAnalysisPoint>;
 
@@ -34,6 +36,7 @@ export type AiDataGap = z.infer<typeof AiDataGap>;
 // 저장 모양. 버전마다 늘어난 칸은 이전 결과 행에는 없으므로 선택 칸으로 둔다.
 // v2: confidence · agreements · check_first · verdict · counterpoint · done_when
 // v3 (대시보드형): insight · learnings · 카드(sections)의 value · meaning · confidence
+// v4: target(설문 참고 데이터로 본 타깃 고객) · 할 일의 due_date · event(캘린더 행사)
 export const AiAnalysisResult = z.object({
   /** v3부터는 insight.headline 과 같다 */
   summary: z.string(),
@@ -48,6 +51,16 @@ export const AiAnalysisResult = z.object({
       points: z.array(AiAnalysisPoint.extend({ confidence: AiConfidence.optional() })),
     }),
   ),
+  /** 설문 요약으로 본 타깃 고객 카드. 결재 전 참고 데이터라 화면에 그렇게 표시한다. 설문이 없었으면 칸이 없다 */
+  target: z
+    .object({
+      value: z.string(),
+      meaning: z.string(),
+      points: z.array(AiAnalysisPoint),
+      respondents: z.number().int().nonnegative(),
+      period: z.object({ from: z.string(), to: z.string() }).nullable(),
+    })
+    .optional(),
   learnings: z.array(AiAnalysisPoint.extend({ kind: AiLearningKind, label: z.string(), action: z.string() })).optional(),
   agreements: z.array(AiAnalysisPoint).optional(),
   conflicts: z.array(AiAnalysisPoint.extend({ check_first: SubmissionTab.optional() })),
@@ -71,6 +84,13 @@ export const AiAnalysisResult = z.object({
       priority: z.number().int().min(1),
       /** 끝났다고 볼 기준 (v2부터) */
       done_when: z.string().optional(),
+      /** 마감일 YYYY-MM-DD (v4부터) */
+      due_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+      /** 마감을 정한 캘린더 행사 (v4부터). 실행 시점의 이름 · 날짜를 같이 남긴다 */
+      event: z.object({ id: z.string(), title: z.string(), start: z.string(), end: z.string(), confirmed: z.boolean() }).optional(),
     }),
   ),
 });
@@ -79,7 +99,7 @@ export type AiAnalysisResult = z.infer<typeof AiAnalysisResult>;
 const OutputPoint = z.object({ text: z.string(), basis: z.array(z.string()) });
 
 /**
- * AI 응답 그대로의 모양 (프롬프트 v3 #출력 형식). basis는 입력의 ref(예: review@v2)다.
+ * AI 응답 그대로의 모양 (프롬프트 v4 #출력 형식). basis는 입력의 ref(예: review@v2)다.
  * 구조화 출력에 쓰므로 선택 칸 · 숫자 범위를 두지 않고, 범위 확인과 ref → 버전 ID 바꾸기는 lib/ai/integrated-analysis/parse.ts가 한다.
  * 칸 순서가 곧 모델이 쓰는 순서다: 근거(카드 · 알 수 있는 것)를 먼저, 결론(insight)을 맨 끝에 둔다
  */
@@ -94,11 +114,12 @@ export const AiAnalysisOutput = z.object({
       points: z.array(OutputPoint),
     }),
   ),
+  target: z.object({ value: z.string(), meaning: z.string(), points: z.array(OutputPoint) }),
   learnings: z.array(z.object({ kind: AiLearningKind, label: z.string(), headline: z.string(), action: z.string(), basis: z.array(z.string()) })),
   data_gaps: z.array(z.object({ text: z.string(), tab: SubmissionTab })),
   verdict: z.object({ level: AiVerdictLevel, reason: z.string(), basis: z.array(z.string()) }),
   counterpoint: OutputPoint,
-  actions: z.array(OutputPoint.extend({ tab: SubmissionTab, priority: z.number().int(), done_when: z.string() })),
+  actions: z.array(OutputPoint.extend({ tab: SubmissionTab, priority: z.number().int(), done_when: z.string(), due_date: z.string(), event: z.string() })),
   insight: z.object({ headline: z.string(), story: z.string(), basis: z.array(z.string()) }),
 });
 export type AiAnalysisOutput = z.infer<typeof AiAnalysisOutput>;
