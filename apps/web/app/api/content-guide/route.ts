@@ -14,7 +14,8 @@ import { getMyWorkspace, isSupabaseConfigured } from "@/lib/data/workspace";
 import { ContentGuideInput, GuideTitle } from "@/lib/schemas/content-guide";
 import { createClient } from "@/lib/supabase/server";
 
-export const maxDuration = 60; // 본문 + 판정에 20~40초 걸린다
+// 본문(정밀) + 약기법 판정(재시도 포함) + 걸린 해시태그 재판정이 60초를 넘겨 배포 화면에서 504가 났다 (2026-10-27). GEO 측정과 같은 한도
+export const maxDuration = 300;
 
 const MAX_BODY_BYTES = 32 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -42,7 +43,9 @@ function fail(status: number, error: string) {
 }
 
 function logFailure(e: unknown) {
-  const detail = e instanceof AiCallError ? `status=${e.status} code=${e.code}` : e instanceof Error ? e.message.replace(/sk-[A-Za-z0-9_\-*.]+/g, "sk-***") : "unknown";
+  // 응답 모양 오류는 어디가 틀렸는지(cause: Zod · JSON · 줄 빠짐)를 같이 남긴다 (2026-10-27: 원인 없이 「판정하지 못했습니다」만 찍혔다)
+  const cause = e instanceof Error && e.cause instanceof Error ? ` | cause: ${e.cause.message.slice(0, 500)}` : "";
+  const detail = e instanceof AiCallError ? `status=${e.status} code=${e.code}` : e instanceof Error ? `${e.message}${cause}`.replace(/sk-[A-Za-z0-9_\-*.]+/g, "sk-***") : "unknown";
   console.error(`[api/content-guide] ${e instanceof Error ? e.name : "Error"}: ${detail}`);
 }
 

@@ -1,7 +1,6 @@
 // 만든 일본어 문구를 광고 검토 판정(ad-check 판정, 기본 버전은 judge.ts의 AD_CHECK_PROMPT_VERSION)에 한 번 더 통과시킨다. 약기법이 항상 먼저라서, 제작 결과도 판정을 거친다.
-// 블록마다 첫 번째 안(가장 추천)만 본다. 줄 수가 많으면 판정 한도(MAX_LINES)씩 나눠 부른다.
-import { MAX_LINES } from "@/lib/ai/ad-check/action";
-import { judgeLines } from "@/lib/ai/ad-check/judge";
+// 블록마다 첫 번째 안(가장 추천)만 본다. 줄은 CHUNK_LINES줄씩 나눠 동시에 판정한다.
+import { AdCheckParseError, judgeLines } from "@/lib/ai/ad-check/judge";
 import type { AiReply, AiRequest, AiUsage } from "@/lib/ai/client";
 import type { AdUsage } from "@/lib/schemas/ad-check";
 import type { AdCheckProductInput, JudgedLine } from "@/lib/schemas/ad-check-ai";
@@ -9,6 +8,9 @@ import type { ContentChannel, GuideBodyResult } from "@/lib/schemas/content-guid
 import type { z } from "zod";
 
 const USAGE: Record<ContentChannel, z.infer<typeof AdUsage>> = { qoo10_detail: "detail_page", instagram: "sns", x: "sns", banner: "banner" };
+
+/** 한 번에 판정하는 줄 수. 작게 나눌수록 답이 짧아 모양 오류 · 시간 초과가 줄어든다 (판정 한도 MAX_LINES 안) */
+const CHUNK_LINES = 4;
 
 /** 해시태그 판정 줄의 키 (본문 블록 키와 겹치지 않게) */
 export const HASHTAG_KEY = "hashtags";
@@ -31,20 +33,34 @@ export async function checkBody(channel: ContentChannel, product: AdCheckProduct
   // 해시태그도 광고 표시라 같은 판정을 거친다 (트렌드 검색어가 들어가는 곳, 2026-10-25). 판정 키는 HASHTAG_KEY
   const tags = [...body.hashtags.brand, ...body.hashtags.ingredient, ...body.hashtags.trend].map((t) => t.trim()).filter(Boolean);
   if (tags.length) targets.push({ key: HASHTAG_KEY, text: tags.join(" ") });
+  // 작은 묶음(CHUNK_LINES줄)으로 나눠 동시에 판정한다 (2026-10-27: 한 번에 보내면 답이 길어 모양이 틀려 「판정하지 못했습니다」, 시간도 60초를 넘겼다).
+  // 묶음 판정이 모양 오류로 실패하면 그 묶음만 한 줄씩 다시 판정한다. 한 줄도 실패하면 그대로 오류 (판정 없이 저장하지 않는다, 약기법 우선)
+  const chunks: (typeof targets)[] = [];
+  for (let i = 0; i < targets.length; i += CHUNK_LINES) chunks.push(targets.slice(i, i + CHUNK_LINES));
+  const judgeChunk = async (chunk: typeof targets) => {
+    try {
+      return [await judgeLines({ product, usage: USAGE[channel], lines: chunk.map((t) => t.text) }, deps)];
+    } catch (e) {
+      if (!(e instanceof AdCheckParseError) || chunk.length === 1) throw e;
+      return Promise.all(chunk.map((t) => judgeLines({ product, usage: USAGE[channel], lines: [t.text] }, deps)));
+    }
+  };
+  const results = await Promise.all(chunks.map(judgeChunk));
   const usage: AiUsage = { input: 0, cached: 0, output: 0 };
   const blocks: BlockCheck[] = [];
   let model: string | null = null;
   let promptVersion: string | null = null;
-  for (let i = 0; i < targets.length; i += MAX_LINES) {
-    const chunk = targets.slice(i, i + MAX_LINES);
-    const judged = await judgeLines({ product, usage: USAGE[channel], lines: chunk.map((t) => t.text) }, deps);
-    usage.input += judged.usage.input;
-    usage.cached += judged.usage.cached;
-    usage.output += judged.usage.output;
-    model = judged.model;
-    promptVersion = judged.promptVersion;
-    judged.lines.forEach((line, j) => blocks.push({ key: chunk[j]!.key, text: chunk[j]!.text, line }));
-  }
+  results.forEach((judgedList, c) => {
+    const lines = judgedList.flatMap((j) => j.lines);
+    for (const j of judgedList) {
+      usage.input += j.usage.input;
+      usage.cached += j.usage.cached;
+      usage.output += j.usage.output;
+      model = j.model;
+      promptVersion = j.promptVersion;
+    }
+    lines.forEach((line, k) => blocks.push({ key: chunks[c]![k]!.key, text: chunks[c]![k]!.text, line }));
+  });
   return { blocks, adUsage: USAGE[channel], usage, model, promptVersion };
 }
 
