@@ -2,8 +2,10 @@
 // 응답의 ref(예: review@v2)는 입력 버전 ID로 바꾼다. 입력에 없는 ref를 인용한 문장은 버리지 않고 "근거 확인 필요"로 표시한다 (8장 보완 8).
 // 모양이 틀리면 예외를 던지고, 호출하는 쪽(run.ts)이 1회 재시도한다 (CLAUDE.md 7장 1번).
 // 종합 판단(verdict)이 프롬프트 규칙을 어기면 버리지 않고 코드가 fix_first로 낮춘 뒤 "근거 확인 필요"로 표시한다.
+// v4: survey@ref는 버전 ID가 없어 basis 대신 survey 표시로 남긴다. 할 일의 event(E1 …)는 행사로 되돌리고, 틀린 마감일 · 없는 행사는 버린다.
 import { AiAnalysisOutput, type AiAnalysisPoint, AiAnalysisResult } from "@/lib/schemas/ai-analysis";
-import type { IntegratedFacts, Perspective } from "./prompt";
+import { SURVEY_REF } from "./config";
+import type { IntegratedCalendarEvent, IntegratedFacts, IntegratedSurvey, Perspective } from "./prompt";
 
 /** AI 응답이 약속한 모양이 아닐 때. message 는 화면에 보여 줘도 안전하다 (모델 출력 원문은 cause 에만 있다) */
 export class IntegratedAnalysisParseError extends Error {
@@ -22,12 +24,19 @@ function goIsBlocked(facts: IntegratedFacts | undefined) {
   return (facts.ad_unresolved_high ?? 0) > 0 || facts.approved_tabs.length < 2;
 }
 
-/** refs: ref → 버전 ID · facts: 입력에 같이 보낸 사실 (verdict 규칙 확인용) */
+/** 입력에 같이 보낸 일정 · 설문 (v4부터) */
+export type ParseExtras = { events: IntegratedCalendarEvent[]; survey: IntegratedSurvey | null };
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const validDate = (d: string) => DATE.test(d) && !Number.isNaN(Date.parse(d));
+
+/** refs: ref → 버전 ID · facts: 입력에 같이 보낸 사실 (verdict 규칙 · 마감일 확인용) */
 export function parseIntegratedAnalysis(
   text: string,
   perspectives: Perspective[],
   refs: Map<string, string>,
   facts?: IntegratedFacts,
+  extras: ParseExtras = { events: [], survey: null },
 ): AiAnalysisResult {
   let json: unknown;
   try {
@@ -45,17 +54,26 @@ export function parseIntegratedAnalysis(
     throw new IntegratedAnalysisParseError(`관점이 프롬프트와 다름: ${keys.join(", ")}`);
   }
 
+  // 설문을 보내지 않았으면 survey@ref도 입력에 없는 ref로 본다
+  const isSurvey = (ref: string) => extras.survey !== null && ref.trim() === SURVEY_REF;
   const point = (p: { text: string; basis: string[] }): AiAnalysisPoint | null => {
     const text = p.text.trim();
     if (!text) return null;
-    const ids = p.basis.map((ref) => refs.get(ref.trim()));
+    const survey = p.basis.some(isSurvey);
+    const versionRefs = p.basis.filter((ref) => !isSurvey(ref));
+    const ids = versionRefs.map((ref) => refs.get(ref.trim()));
     const known = [...new Set(ids.filter((id): id is string => Boolean(id)))];
-    const needsCheck = known.length === 0 || known.length !== p.basis.length;
-    return needsCheck ? { text, basis: known, needs_check: true } : { text, basis: known };
+    const needsCheck = (known.length === 0 && !survey) || known.length !== versionRefs.length;
+    return { text, basis: known, ...(needsCheck && { needs_check: true }), ...(survey && { survey: true }) };
   };
   const points = (list: { text: string; basis: string[] }[]) => list.flatMap((p) => point(p) ?? []);
 
+  // 종합 판단은 승인본에 기대야 한다: 설문만 인용했으면 "근거 확인 필요" (프롬프트 v4 5-2단계)
   const verdictBasis = point({ text: output.verdict.reason || "-", basis: output.verdict.basis });
+  const verdictSurveyOnly = Boolean(verdictBasis && verdictBasis.basis.length === 0 && verdictBasis.survey);
+  const events = new Map(extras.events.map((e) => [e.key, e]));
+  const today = facts?.today ?? "";
+  const targetValue = output.target.value.trim();
   const blocked = output.verdict.level === "go" && goIsBlocked(facts);
   const counterText = output.counterpoint.text.trim();
   const counterIds = output.counterpoint.basis.map((ref) => refs.get(ref.trim())).filter((id): id is string => Boolean(id));
@@ -75,6 +93,16 @@ export function parseIntegratedAnalysis(
       confidence: s.confidence,
       points: points(s.points),
     })),
+    ...(extras.survey &&
+      targetValue && {
+        target: {
+          value: targetValue,
+          meaning: output.target.meaning.trim(),
+          points: points(output.target.points),
+          respondents: extras.survey.total,
+          period: extras.survey.period,
+        },
+      }),
     learnings: output.learnings.flatMap((l) => {
       const p = point({ text: l.headline, basis: l.basis });
       return p ? [{ ...p, kind: l.kind, label: l.label.trim(), action: l.action.trim() }] : [];
@@ -86,7 +114,7 @@ export function parseIntegratedAnalysis(
       level: blocked ? "fix_first" : output.verdict.level,
       reason: output.verdict.reason.trim(),
       basis: verdictBasis?.basis ?? [],
-      ...((verdictBasis?.needs_check || blocked) && { needs_check: true }),
+      ...((verdictBasis?.needs_check || blocked || verdictSurveyOnly) && { needs_check: true }),
       ...(blocked && { adjusted_from: "go" as const }),
     },
     // 반대 근거가 없을 때는 basis가 비어도 된다. 인용한 ref가 입력에 없을 때만 "근거 확인 필요"
@@ -101,7 +129,21 @@ export function parseIntegratedAnalysis(
       .flatMap((a) => {
         const p = point(a);
         const done = a.done_when.trim();
-        return p ? [{ ...p, tab: a.tab, priority: Math.max(1, Math.round(a.priority)), ...(done && { done_when: done }) }] : [];
+        const due = a.due_date.trim();
+        const event = events.get(a.event.trim());
+        return p
+          ? [
+              {
+                ...p,
+                tab: a.tab,
+                priority: Math.max(1, Math.round(a.priority)),
+                ...(done && { done_when: done }),
+                // 오늘보다 앞선 마감일은 쓰지 않는다 (today를 모르면 형식만 본다)
+                ...(validDate(due) && (!today || due >= today) && { due_date: due }),
+                ...(event && { event: { id: event.id, title: event.title, start: event.start, end: event.end, confirmed: event.confirmed } }),
+              },
+            ]
+          : [];
       })
       .toSorted((a, b) => a.priority - b.priority),
   });

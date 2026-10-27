@@ -2,14 +2,17 @@
 
 // 통합 AI 분석 실행 · 저장 (docs/team-approval-ai-analysis.md 3장 5~6, 7장 4단계). 멤버 누구나 실행하고 결과는 팀 전체가 본다.
 // 입력은 그 제품의 탭별 승인본 하나씩(시장 분석은 프로젝트 전체 시안도 가능). 고른 버전이 정말 승인본인지 서버에서 다시 확인한다.
+// 프롬프트 v4부터 홈 프로모션 캘린더의 다가오는 행사와 설문 요약(결재 전 참고 데이터)을 같이 보낸다. 둘 중 하나를 못 읽어도 분석은 승인본만으로 계속한다.
 import { z } from "zod";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
 import { IntegratedAnalysisParseError } from "@/lib/ai/integrated-analysis/parse";
-import type { IntegratedInputVersion } from "@/lib/ai/integrated-analysis/prompt";
+import { calendarBrief, surveyBrief, type IntegratedInputVersion } from "@/lib/ai/integrated-analysis/prompt";
 import { runIntegratedAnalysis } from "@/lib/ai/integrated-analysis/run";
+import { getPromoEventViews, getToday } from "./launch";
 import { getApprovedVersionsFor } from "./submissions";
+import { readSurveySummary } from "./survey";
 import { dbError, fail, ownOnSaleProduct, type SubmissionResult, writeContext } from "./submission-write";
 
 const VersionIds = z.array(z.uuid()).min(1).max(3);
@@ -45,11 +48,18 @@ export async function runAiAnalysis(productId: string, versionIds: string[]): Pr
     data_as_of: version.data_as_of,
   }));
 
+  const today = await getToday();
+  const [events, survey] = await Promise.allSettled([getPromoEventViews(), readSurveySummary()]);
+  for (const r of [events, survey]) if (r.status === "rejected") console.error("AI 분석 참고 데이터를 읽지 못했어요", r.reason);
+
   let run;
   try {
     run = await runIntegratedAnalysis({
       product: { name: product.name, skin_line: product.skin_line ?? null, sale_status: product.sale_status },
       versions,
+      today,
+      calendar: events.status === "fulfilled" ? calendarBrief(events.value, today) : [],
+      survey: survey.status === "fulfilled" ? surveyBrief(survey.value) : null,
     });
   } catch (e) {
     if (e instanceof AiConfigError) return fail(`AI 설정을 확인해 주세요: ${e.message}`);

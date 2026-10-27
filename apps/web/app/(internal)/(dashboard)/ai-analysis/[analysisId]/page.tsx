@@ -8,6 +8,7 @@ import { AiResultMeta } from "@/components/common/ai";
 import { AiCheckBadge } from "@/components/common/submission-badges";
 import { PageHeader } from "@/components/layout/page-header";
 import { getMemberName } from "@/lib/data";
+import { getToday } from "@/lib/data/launch";
 import { getAiAnalysis, getMyTabs, getVersionsByIds } from "@/lib/data/submissions";
 import { isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
@@ -22,6 +23,8 @@ import { PrintReportButton } from "./print-button";
 const TEXT = {
   back: "← AI 분석",
   notice: "AI가 팀장이 승인한 탭별 결론만 근거로 정리한 결과예요. 팀장 확인 전에는 참고로만 쓰세요.",
+  noticeWithReference:
+    "AI가 팀장이 승인한 탭별 결론을 근거로, 프로모션 일정과 설문(결재 전 참고 데이터)을 더해 정리한 결과예요. 팀장 확인 전에는 참고로만 쓰세요.",
   checked: (name: string, date: string) => `${name} · ${date} 확인`,
   summary: "결론",
   verdict: "종합 판단",
@@ -43,16 +46,19 @@ const TEXT = {
 export default async function AiAnalysisDetailPage({ params }: { params: Promise<{ analysisId: string }> }) {
   const analysis = await getAiAnalysis((await params).analysisId);
   if (!analysis) notFound();
-  const [inputs, my, checkedBy, createdBy] = await Promise.all([
+  const [inputs, my, checkedBy, createdBy, today] = await Promise.all([
     getVersionsByIds(analysis.input_version_ids),
     getMyTabs(),
     getMemberName(analysis.lead_checked_by),
     getMemberName(analysis.created_by),
+    getToday(),
   ]);
   const refOf = new Map(inputs.map(({ version, submission }) => [version.id, `${SUBMISSION_TAB_LABELS[submission.tab]} v${version.version_no}`]));
   const refRecord = Object.fromEntries(refOf);
   const { result } = analysis;
   const checked = analysis.lead_checked_at !== null;
+  // v4부터 일정 · 설문을 같이 읽은 결과면 안내 문구에 그렇게 적는다
+  const usesReference = Boolean(result.target || result.actions.some((a) => a.event));
 
   const Basis = ({ point }: { point: AiAnalysisPoint }) => (
     <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
@@ -96,7 +102,7 @@ export default async function AiAnalysisDetailPage({ params }: { params: Promise
         {checked ? (
           <span className="text-muted-foreground">{TEXT.checked(checkedBy, formatDate(analysis.lead_checked_at ?? ""))}</span>
         ) : (
-          <span className="text-muted-foreground">{TEXT.notice}</span>
+          <span className="text-muted-foreground">{usesReference ? TEXT.noticeWithReference : TEXT.notice}</span>
         )}
         {!checked && my.role === "owner" && isSupabaseConfigured() && <LeadCheckButton analysisId={analysis.id} />}
         <span className="ml-auto">
@@ -121,7 +127,7 @@ export default async function AiAnalysisDetailPage({ params }: { params: Promise
 
       <div className="space-y-6">
         {result.insight ? (
-          <InsightDashboard result={result} refOf={refRecord} />
+          <InsightDashboard result={result} refOf={refRecord} today={today} />
         ) : (
           <>
             <section className="space-y-2">

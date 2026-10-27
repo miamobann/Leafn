@@ -4,7 +4,7 @@
 import type { ReactNode } from "react";
 import type { AiAnalysisPoint, AiAnalysisResult } from "@/lib/schemas/ai-analysis";
 import { SUBMISSION_TAB_LABELS } from "@/lib/schemas/submission";
-import { CONFIDENCE, gapText, LEARNING_KIND, VERDICT, VERDICT_ADJUSTED } from "./labels";
+import { CONFIDENCE, dueText, gapText, LEARNING_KIND, SURVEY_REF_LABEL, SURVEY_REFERENCE_NOTE, VERDICT, VERDICT_ADJUSTED } from "./labels";
 
 const PRINT_CSS = `
 @page { size: A4 portrait; margin: 14mm 12mm; }
@@ -28,8 +28,8 @@ export type AnalysisReportProps = {
   meta: string;
 };
 
-function Refs({ point, refOf }: { point: Pick<AiAnalysisPoint, "basis" | "needs_check">; refOf: Record<string, string> }) {
-  const names = point.basis.map((id) => refOf[id] ?? "?");
+function Refs({ point, refOf }: { point: Pick<AiAnalysisPoint, "basis" | "needs_check" | "survey">; refOf: Record<string, string> }) {
+  const names = [...point.basis.map((id) => refOf[id] ?? "?"), ...(point.survey ? [SURVEY_REF_LABEL] : [])];
   if (names.length === 0 && !point.needs_check) return null;
   return <span className="ml-1 text-[8pt] text-muted-foreground">({[...names, ...(point.needs_check ? ["근거 확인 필요"] : [])].join(" · ")})</span>;
 }
@@ -47,7 +47,8 @@ function Section({ n, title, children }: { n: number; title: string; children: R
 }
 
 export function AnalysisReport({ title, result, refOf, inputs, createdAt, createdBy, checkedLabel, meta }: AnalysisReportProps) {
-  const { insight, verdict, learnings = [], counterpoint } = result;
+  const { insight, verdict, learnings = [], counterpoint, target } = result;
+  const scheduled = result.actions.some((a) => a.due_date || a.event);
   let n = 0;
   return (
     <div className="analysis-report hidden space-y-5 bg-background text-[9.5pt] leading-relaxed text-foreground print:block">
@@ -106,6 +107,28 @@ export function AnalysisReport({ title, result, refOf, inputs, createdAt, create
         </div>
       </Section>
 
+      {target && (
+        <Section n={++n} title={`타깃 고객 · ${SURVEY_REFERENCE_NOTE}`}>
+          <div className="grid grid-cols-[60mm_minmax(0,1fr)] gap-3 rounded-md border border-dashed p-3">
+            <div className="space-y-1">
+              <p className="text-[12pt] font-bold">{target.value}</p>
+              {target.meaning && <p>{target.meaning}</p>}
+              <p className="text-[8pt] text-muted-foreground">
+                소비자 설문 {target.respondents}명{target.period && ` · ${target.period.from} ~ ${target.period.to}`} · 워크스페이스 전체 응답, 팀장 결재 전
+              </p>
+            </div>
+            <ul className="list-disc space-y-0.5 pl-4 text-[8.5pt] text-muted-foreground">
+              {target.points.map((p, i) => (
+                <li key={i}>
+                  {p.text}
+                  <Refs point={p} refOf={refOf} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Section>
+      )}
+
       {learnings.length > 0 && (
         <Section n={++n} title="이번 분석으로 알 수 있는 것">
           <table className="w-full border-collapse">
@@ -138,6 +161,7 @@ export function AnalysisReport({ title, result, refOf, inputs, createdAt, create
               <th className="w-[20mm] py-1 font-medium">담당 탭</th>
               <th className="py-1 font-medium">할 일</th>
               <th className="w-[55mm] py-1 font-medium">완료 기준</th>
+              {scheduled && <th className="w-[30mm] py-1 font-medium">마감 · 행사</th>}
             </tr>
           </thead>
           <tbody>
@@ -150,6 +174,17 @@ export function AnalysisReport({ title, result, refOf, inputs, createdAt, create
                   <Refs point={a} refOf={refOf} />
                 </td>
                 <td className="py-1.5 text-muted-foreground">{a.done_when ?? "-"}</td>
+                {scheduled && (
+                  <td className="py-1.5 text-[8.5pt]">
+                    {a.due_date ? <b>{dueText(a.due_date)}</b> : "-"}
+                    {a.event && (
+                      <span className="block text-muted-foreground">
+                        {a.event.title}
+                        {!a.event.confirmed && " (예상)"}
+                      </span>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -192,7 +227,10 @@ export function AnalysisReport({ title, result, refOf, inputs, createdAt, create
       </Section>
 
       <footer className="keep border-t pt-1 text-[7.5pt] text-muted-foreground">
-        AI가 팀장이 승인한 탭별 결론만 근거로 정리한 결과입니다. 최종 판단은 팀장이 합니다. · {meta}
+        {target || scheduled
+          ? "AI가 팀장이 승인한 탭별 결론을 근거로, 프로모션 일정과 설문(결재 전 참고 데이터)을 더해 정리한 결과입니다."
+          : "AI가 팀장이 승인한 탭별 결론만 근거로 정리한 결과입니다."}{" "}
+        최종 판단은 팀장이 합니다. · {meta}
       </footer>
     </div>
   );
