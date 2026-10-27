@@ -1,6 +1,7 @@
 // AI 분석 결과 (docs/team-approval-ai-analysis.md 3장 6, 8장 보완 8, 10장).
 // 팀장 확인 전이면 라벨을 달고, 판단마다 근거 버전(결재함 미리보기)으로 가는 링크를 둔다.
-// 프롬프트 v2의 칸(종합 판단 · 확신도 · 같은 결론 · 반론 · 완료 기준)은 v1 결과에는 없으니 있을 때만 보인다
+// 프롬프트 v3부터(결과에 insight가 있으면) 대시보드형 화면(insight-dashboard.tsx)을 보이고, v1 · v2 결과는 아래 판단 목록 화면 그대로 둔다.
+// 「PDF 보고서」는 브라우저 인쇄로 analysis-report.tsx를 PDF로 저장한다
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AiResultMeta } from "@/components/common/ai";
@@ -10,9 +11,13 @@ import { getMemberName } from "@/lib/data";
 import { getAiAnalysis, getMyTabs, getVersionsByIds } from "@/lib/data/submissions";
 import { isSupabaseConfigured } from "@/lib/data/workspace";
 import { formatDate } from "@/lib/format";
-import type { AiAnalysisPoint, AiConfidence, AiDataGap, AiVerdictLevel } from "@/lib/schemas/ai-analysis";
+import type { AiAnalysisPoint, AiConfidence } from "@/lib/schemas/ai-analysis";
 import { SUBMISSION_TAB_LABELS } from "@/lib/schemas/submission";
+import { AnalysisReport } from "./analysis-report";
+import { InsightDashboard } from "./insight-dashboard";
+import { CONFIDENCE, gapText, VERDICT } from "./labels";
 import { LeadCheckButton } from "./lead-check-button";
+import { PrintReportButton } from "./print-button";
 
 const TEXT = {
   back: "← AI 분석",
@@ -35,16 +40,6 @@ const TEXT = {
   priority: (n: number) => `우선 ${n}`,
 };
 
-const VERDICT: Record<AiVerdictLevel, { label: string; className: string }> = {
-  go: { label: "지금 진행", className: "bg-status-approved/15 text-status-approved" },
-  fix_first: { label: "보완 후 진행", className: "bg-status-pending/15 text-status-pending" },
-  hold: { label: "보류", className: "bg-status-rejected/15 text-status-rejected" },
-};
-
-const CONFIDENCE: Record<AiConfidence, string> = { high: "확신 높음", medium: "확신 보통", low: "확신 낮음" };
-
-const gapText = (g: AiDataGap) => (typeof g === "string" ? g : `[${SUBMISSION_TAB_LABELS[g.tab]}] ${g.text}`);
-
 export default async function AiAnalysisDetailPage({ params }: { params: Promise<{ analysisId: string }> }) {
   const analysis = await getAiAnalysis((await params).analysisId);
   if (!analysis) notFound();
@@ -55,6 +50,7 @@ export default async function AiAnalysisDetailPage({ params }: { params: Promise
     getMemberName(analysis.created_by),
   ]);
   const refOf = new Map(inputs.map(({ version, submission }) => [version.id, `${SUBMISSION_TAB_LABELS[submission.tab]} v${version.version_no}`]));
+  const refRecord = Object.fromEntries(refOf);
   const { result } = analysis;
   const checked = analysis.lead_checked_at !== null;
 
@@ -68,7 +64,10 @@ export default async function AiAnalysisDetailPage({ params }: { params: Promise
       {point.needs_check && <span className="rounded bg-status-pending/15 px-1 text-xs text-status-pending">{TEXT.needsCheck}</span>}
     </span>
   );
-  type ShownPoint = AiAnalysisPoint & { confidence?: AiConfidence; check_first?: keyof typeof SUBMISSION_TAB_LABELS };
+  type ShownPoint = AiAnalysisPoint & {
+    confidence?: AiConfidence;
+    check_first?: keyof typeof SUBMISSION_TAB_LABELS;
+  };
   const Points = ({ points }: { points: ShownPoint[] }) =>
     points.length === 0 ? (
       <p className="text-sm text-muted-foreground">{TEXT.noPoints}</p>
@@ -100,83 +99,113 @@ export default async function AiAnalysisDetailPage({ params }: { params: Promise
           <span className="text-muted-foreground">{TEXT.notice}</span>
         )}
         {!checked && my.role === "owner" && isSupabaseConfigured() && <LeadCheckButton analysisId={analysis.id} />}
+        <span className="ml-auto">
+          <PrintReportButton />
+        </span>
       </div>
 
+      <AnalysisReport
+        title={analysis.title}
+        result={result}
+        refOf={refRecord}
+        inputs={inputs.map(({ version, submission }) => ({
+          ref: `${SUBMISSION_TAB_LABELS[submission.tab]} v${version.version_no}`,
+          summary: version.summary,
+          dataAsOf: version.data_as_of ? formatDate(version.data_as_of) : null,
+        }))}
+        createdAt={formatDate(analysis.created_at)}
+        createdBy={createdBy}
+        checkedLabel={checked ? `팀장 확인 (${checkedBy})` : "AI 결과 · 팀장 확인 전"}
+        meta={`${analysis.model} · ${analysis.prompt_version}`}
+      />
+
       <div className="space-y-6">
-        <section className="space-y-2">
-          <h2 className="font-semibold">{TEXT.summary}</h2>
-          <p className="text-sm">{result.summary}</p>
-        </section>
+        {result.insight ? (
+          <InsightDashboard result={result} refOf={refRecord} />
+        ) : (
+          <>
+            <section className="space-y-2">
+              <h2 className="font-semibold">{TEXT.summary}</h2>
+              <p className="text-sm">{result.summary}</p>
+            </section>
 
-        {result.verdict && (
-          <section className="space-y-2">
-            <h2 className="font-semibold">{TEXT.verdict}</h2>
-            <p className="text-sm">
-              <span className={`mr-2 rounded px-1.5 py-0.5 text-xs font-medium ${VERDICT[result.verdict.level].className}`}>
-                {VERDICT[result.verdict.level].label}
-              </span>
-              {result.verdict.reason}
-              <Basis point={{ text: result.verdict.reason, basis: result.verdict.basis, needs_check: result.verdict.needs_check }} />
-            </p>
-            {result.verdict.adjusted_from && <p className="text-xs text-status-pending">{TEXT.verdictAdjusted}</p>}
-          </section>
-        )}
+            {result.verdict && (
+              <section className="space-y-2">
+                <h2 className="font-semibold">{TEXT.verdict}</h2>
+                <p className="text-sm">
+                  <span className={`mr-2 rounded px-1.5 py-0.5 text-xs font-medium ${VERDICT[result.verdict.level].className}`}>
+                    {VERDICT[result.verdict.level].label}
+                  </span>
+                  {result.verdict.reason}
+                  <Basis
+                    point={{
+                      text: result.verdict.reason,
+                      basis: result.verdict.basis,
+                      needs_check: result.verdict.needs_check,
+                    }}
+                  />
+                </p>
+                {result.verdict.adjusted_from && <p className="text-xs text-status-pending">{TEXT.verdictAdjusted}</p>}
+              </section>
+            )}
 
-        {result.sections.map((s) => (
-          <section key={s.key} className="space-y-2">
-            <h2 className="font-semibold">{s.title}</h2>
-            <Points points={s.points} />
-          </section>
-        ))}
-
-        {result.agreements && (
-          <section className="space-y-2">
-            <h2 className="font-semibold">{TEXT.agreements}</h2>
-            {result.agreements.length ? <Points points={result.agreements} /> : <p className="text-sm text-muted-foreground">{TEXT.none}</p>}
-          </section>
-        )}
-
-        <section className="space-y-2">
-          <h2 className="font-semibold">{TEXT.conflicts}</h2>
-          {result.conflicts.length ? <Points points={result.conflicts} /> : <p className="text-sm text-muted-foreground">{TEXT.none}</p>}
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-semibold">{TEXT.gaps}</h2>
-          {result.data_gaps.length ? (
-            <ul className="list-disc space-y-1 pl-5 text-sm">
-              {result.data_gaps.map((g, i) => (
-                <li key={i}>{gapText(g)}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">{TEXT.none}</p>
-          )}
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-semibold">{TEXT.actions}</h2>
-          <ol className="space-y-1 text-sm">
-            {result.actions.map((a, i) => (
-              <li key={i}>
-                <span className="mr-2 rounded border px-1 text-xs">{TEXT.priority(a.priority)}</span>
-                <span className="mr-1 text-muted-foreground">[{SUBMISSION_TAB_LABELS[a.tab]}]</span>
-                {a.text}
-                <Basis point={a} />
-                {a.done_when && <p className="mt-0.5 pl-1 text-xs text-muted-foreground">{TEXT.doneWhen(a.done_when)}</p>}
-              </li>
+            {result.sections.map((s) => (
+              <section key={s.key} className="space-y-2">
+                <h2 className="font-semibold">{s.title}</h2>
+                <Points points={s.points} />
+              </section>
             ))}
-          </ol>
-        </section>
 
-        {result.counterpoint && (
-          <section className="space-y-2">
-            <h2 className="font-semibold">{TEXT.counterpoint}</h2>
-            <p className="text-sm">
-              {result.counterpoint.text}
-              <Basis point={result.counterpoint} />
-            </p>
-          </section>
+            {result.agreements && (
+              <section className="space-y-2">
+                <h2 className="font-semibold">{TEXT.agreements}</h2>
+                {result.agreements.length ? <Points points={result.agreements} /> : <p className="text-sm text-muted-foreground">{TEXT.none}</p>}
+              </section>
+            )}
+
+            <section className="space-y-2">
+              <h2 className="font-semibold">{TEXT.conflicts}</h2>
+              {result.conflicts.length ? <Points points={result.conflicts} /> : <p className="text-sm text-muted-foreground">{TEXT.none}</p>}
+            </section>
+
+            <section className="space-y-2">
+              <h2 className="font-semibold">{TEXT.gaps}</h2>
+              {result.data_gaps.length ? (
+                <ul className="list-disc space-y-1 pl-5 text-sm">
+                  {result.data_gaps.map((g, i) => (
+                    <li key={i}>{gapText(g)}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">{TEXT.none}</p>
+              )}
+            </section>
+
+            <section className="space-y-2">
+              <h2 className="font-semibold">{TEXT.actions}</h2>
+              <ol className="space-y-1 text-sm">
+                {result.actions.map((a, i) => (
+                  <li key={i}>
+                    <span className="mr-2 rounded border px-1 text-xs">{TEXT.priority(a.priority)}</span>
+                    <span className="mr-1 text-muted-foreground">[{SUBMISSION_TAB_LABELS[a.tab]}]</span>
+                    {a.text}
+                    <Basis point={a} />
+                    {a.done_when && <p className="mt-0.5 pl-1 text-xs text-muted-foreground">{TEXT.doneWhen(a.done_when)}</p>}
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            {result.counterpoint && (
+              <section className="space-y-2">
+                <h2 className="font-semibold">{TEXT.counterpoint}</h2>
+                <p className="text-sm">
+                  {result.counterpoint.text}
+                  <Basis point={result.counterpoint} />
+                </p>
+              </section>
+            )}
+          </>
         )}
 
         <section className="space-y-2">
