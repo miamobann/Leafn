@@ -65,6 +65,18 @@ export async function getApprovedGuideIds(): Promise<Set<string>> {
   return new Set(approved.flatMap((v) => AdBody.safeParse(v.body).data?.content_guide?.id ?? []));
 }
 
+/** 콘텐츠 가이드 버전 id → 그 가이드로 올린 가장 최근 시안 버전의 상태 (검토 기록의 「결재 대기」 · 「반려」, 2026-10-27 TAB 3) */
+export async function getGuideVersionStates(): Promise<Map<string, SubmissionVersion["status"]>> {
+  const latest = new Map<string, SubmissionVersion>();
+  for (const v of await getAllVersions()) {
+    const id = AdBody.safeParse(v.body).data?.content_guide?.id;
+    if (!id) continue;
+    const prev = latest.get(id);
+    if (!prev || v.created_at > prev.created_at) latest.set(id, v);
+  }
+  return new Map([...latest].map(([id, v]) => [id, v.status]));
+}
+
 /** 시안의 숨기지 않은 버전, 최신 번호부터 */
 export async function getSubmissionVersions(submissionId: string): Promise<SubmissionVersion[]> {
   return (await getAllVersions())
