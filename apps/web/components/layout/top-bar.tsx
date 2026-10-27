@@ -23,7 +23,16 @@ const LINKS: Record<"owner" | "member", NotificationLink[]> = {
 };
 
 export async function TopBar() {
-  const [workspace, lines, me, notices] = await Promise.all([getWorkspace(), getProjectsWithProducts(), getCurrentMember(), getNotifications()]);
+  // 알림을 못 읽어도 상단 바와 화면은 그대로 둔다. 실패는 패널에만 보이고(샘플로 숨기지 않음) 서버 로그에 남긴다
+  const [workspace, lines, me, notices] = await Promise.all([
+    getWorkspace(),
+    getProjectsWithProducts(),
+    getCurrentMember(),
+    getNotifications().catch((error: unknown) => {
+      console.error("[알림] 읽기 실패", error);
+      return null;
+    }),
+  ]);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-6">
@@ -35,7 +44,13 @@ export async function TopBar() {
         <ProjectSwitcher base={lines} />
       </nav>
       <div className="flex shrink-0 items-center gap-2">
-        <NotificationBell count={notices.count} todo={notices.todo} results={notices.results} links={LINKS[notices.role]} />
+        <NotificationBell
+          failed={notices === null}
+          count={notices?.count ?? 0}
+          todo={notices?.todo ?? []}
+          results={notices?.results ?? []}
+          links={LINKS[notices?.role ?? me.role]}
+        />
         <Link
           href="/settings"
           aria-label={`${me.name} (${me.role === "owner" ? "팀장" : "팀원"}) · 설정`}
