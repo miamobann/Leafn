@@ -1,13 +1,15 @@
 // AI 분석 결과의 대시보드형 화면 (프롬프트 v3부터, 2026-10-26). 시장 분석 · 리뷰 분석 요약 탭과 같은 순서로 읽힌다:
-// 인사이트 하나 + 종합 판단 → 관점 카드 → 이번 분석으로 알 수 있는 것 → 할 일 · 반대 근거 · 빠진 근거
+// 인사이트 하나 + 종합 판단 → 관점 카드 → 타깃 고객(v4, 설문 참고) → 이번 분석으로 알 수 있는 것 → 할 일 · 반대 근거 · 빠진 근거
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AiAnalysisResult } from "@/lib/schemas/ai-analysis";
 import { SUBMISSION_TAB_LABELS } from "@/lib/schemas/submission";
 import { Basis } from "./basis";
-import { CONFIDENCE, gapText, LEARNING_KIND, VERDICT, VERDICT_ADJUSTED } from "./labels";
+import { CONFIDENCE, dueText, gapText, LEARNING_KIND, SURVEY_REFERENCE_NOTE, VERDICT, VERDICT_ADJUSTED } from "./labels";
 
-export function InsightDashboard({ result, refOf }: { result: AiAnalysisResult; refOf: Record<string, string> }) {
-  const { insight, verdict, learnings = [], counterpoint } = result;
+/** today: 마감일 옆 D-n 계산용 (YYYY-MM-DD) */
+export function InsightDashboard({ result, refOf, today }: { result: AiAnalysisResult; refOf: Record<string, string>; today?: string }) {
+  const { insight, verdict, learnings = [], counterpoint, target } = result;
 
   return (
     <div className="space-y-6">
@@ -60,6 +62,38 @@ export function InsightDashboard({ result, refOf }: { result: AiAnalysisResult; 
         ))}
       </div>
 
+      {/* 타깃 고객: 설문 요약(결재 전 참고 데이터)으로 본 "누구에게" (v4) */}
+      {target && (
+        <Card className="border-dashed">
+          <CardContent className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <div className="space-y-1.5">
+              <p className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+                <span>타깃 고객</span>
+                <span className="rounded-full border px-2 py-0.5 font-normal">{SURVEY_REFERENCE_NOTE}</span>
+              </p>
+              <p className="text-xl leading-snug font-semibold break-keep">{target.value}</p>
+              {target.meaning && <p className="text-sm leading-relaxed break-keep">{target.meaning}</p>}
+              <p className="text-xs text-muted-foreground">
+                <Link href="/survey-results" className="underline-offset-4 hover:underline">
+                  소비자 설문 {target.respondents}명{target.period && ` · ${target.period.from} ~ ${target.period.to}`}
+                </Link>
+                {" · 워크스페이스 전체 응답"}
+              </p>
+            </div>
+            {target.points.length > 0 && (
+              <ul className="space-y-1 self-center text-sm leading-relaxed text-muted-foreground md:border-l md:pl-4">
+                {target.points.map((p, i) => (
+                  <li key={i} className="break-keep">
+                    {p.text}
+                    <Basis point={p} refOf={refOf} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {learnings.length > 0 && (
         <section className="space-y-3 rounded-xl bg-muted px-6 py-5">
           <h2 className="font-semibold">이번 분석으로 알 수 있는 것</h2>
@@ -90,7 +124,7 @@ export function InsightDashboard({ result, refOf }: { result: AiAnalysisResult; 
             <ol className="space-y-3 text-sm">
               {result.actions.map((a, i) => (
                 <li key={i} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
-                  <span className="mt-0.5 rounded border px-1 text-xs whitespace-nowrap">우선 {a.priority}</span>
+                  <span className="mt-0.5 self-start rounded border px-1 text-xs whitespace-nowrap">우선 {a.priority}</span>
                   <div className="min-w-0">
                     <p className="break-keep">
                       <span className="mr-1 text-muted-foreground">[{SUBMISSION_TAB_LABELS[a.tab]}]</span>
@@ -98,6 +132,16 @@ export function InsightDashboard({ result, refOf }: { result: AiAnalysisResult; 
                       <Basis point={a} refOf={refOf} />
                     </p>
                     {a.done_when && <p className="text-xs text-muted-foreground">완료 기준: {a.done_when}</p>}
+                    {(a.due_date || a.event) && (
+                      <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                        {a.due_date && <span className="rounded bg-muted px-1.5 py-0.5 font-medium">마감 {dueText(a.due_date, today)}</span>}
+                        {a.event && (
+                          <Link href="/calendar" className="text-muted-foreground underline-offset-4 hover:underline">
+                            📅 {a.event.title} ({a.event.start.slice(5).replace("-", "/")}~){!a.event.confirmed && " · 예상 일정"}
+                          </Link>
+                        )}
+                      </p>
+                    )}
                   </div>
                 </li>
               ))}

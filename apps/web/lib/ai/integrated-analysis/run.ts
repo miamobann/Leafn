@@ -23,9 +23,10 @@ export async function runIntegratedAnalysis(input: IntegratedInput, deps: Deps =
   if (input.versions.length === 0) throw new Error("승인본을 하나 이상 골라 주세요");
   const call = deps.call ?? callAi;
   const system = await buildSystemPrompt(PROMPT_VERSION);
-  const facts = computeFacts(input.versions);
+  const facts = computeFacts(input.versions, input);
   const user = buildUserMessage(input, facts);
   const refs = new Map(input.versions.map((v) => [v.ref, v.id]));
+  const extras = { events: input.calendar ?? [], survey: input.survey ?? null };
 
   const usage: AiUsage = { input: 0, cached: 0, output: 0 };
   let lastError: unknown;
@@ -35,7 +36,7 @@ export async function runIntegratedAnalysis(input: IntegratedInput, deps: Deps =
     usage.cached += reply.usage.cached;
     usage.output += reply.usage.output;
     try {
-      const result = parseIntegratedAnalysis(reply.text, system.perspectives, refs, facts);
+      const result = parseIntegratedAnalysis(reply.text, system.perspectives, refs, facts, extras);
       return { result, usage, model: reply.model, promptVersion: system.version, attempts: attempt };
     } catch (e) {
       if (!(e instanceof IntegratedAnalysisParseError)) throw e;
