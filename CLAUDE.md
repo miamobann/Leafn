@@ -352,6 +352,7 @@
 | `NEXT_PUBLIC_SUPABASE_URL` | web | 공개 가능 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | 공개 가능 (RLS가 보호) |
 | `SUPABASE_SERVICE_ROLE_KEY` | collectors, 통합 AI 분석 결과 저장 Server Action | RLS 우회 키. 인증·팀·승인본 검증 후 결과 저장 호출에만 사용. 절대 브라우저/커밋 금지 |
+| `DEMO_USER_ID` | web 서버 | 게스트 모드 데모 계정 id. 비우면 게스트 버튼이 안 보인다 (`docs/GUEST_MODE.md`) |
 | `RAKUTEN_APPLICATION_ID` | (확장용) | 데모에서는 쓰지 않는다. 라쿠텐을 연동할 때 서버 전용으로 |
 | `SERPAPI_API_KEY` | web 서버 | 브라우저 노출 금지. 유료 호출이라 수집 버튼·예약 실행에서만 부른다 |
 | `GITHUB_DISPATCH_TOKEN`, `GITHUB_DISPATCH_REPO`, `GITHUB_DISPATCH_REF` | web 서버 (Vercel) | 브라우저 노출 금지. 수집기 워크플로를 실행시키는 토큰(이 저장소 Actions 쓰기 권한만, 90일)과 대상 저장소(기본 `miamobann/Leafn`)·브랜치(기본 `Leafn_main`). 없으면 자동 실행을 건너뛰고, 수집기를 켜 둔 PC가 요청을 가져간다 |

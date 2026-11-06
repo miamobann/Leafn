@@ -3,6 +3,7 @@
 // 리뷰 AI 분석 (Server Action). 로그인한 사용자의 세션으로 읽고 쓰므로 RLS가 워크스페이스를 가른다 (service role 키는 쓰지 않는다).
 // 한 번 부를 때 리뷰 50건(한 제품 · 한 언어)만 분석하고, 화면이 남은 건수가 0이 될 때까지 반복해서 부른다 (CLAUDE.md 0장).
 // 결과: 제품 이야기가 있는 리뷰는 review_analyses 에 저장, 제품 외 불만(배송 · 파손 등)은 reviews.excluded_reason 만 채운다.
+import { GUEST_READ_ONLY_MESSAGE } from "@/lib/supabase/guest";
 import { z } from "zod";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
@@ -13,7 +14,7 @@ import type { Lang } from "@/lib/schemas/common";
 import type { ExcludedReason } from "@/lib/schemas/review";
 import { createClient } from "@/lib/supabase/server";
 import { getUntitledCount } from "./product-title-actions";
-import { getMyWorkspace, isSupabaseConfigured } from "./workspace";
+import { getMyWorkspace, isGuest, isSupabaseConfigured } from "./workspace";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
 /** pending = 분석 전 리뷰, untranslated = 한국어 번역이 없는 일본어 리뷰, untitled = 제품명 정리 전인 경쟁 제품 */
@@ -88,6 +89,8 @@ export async function getAnalysisStatus(productId?: string): Promise<AnalysisSta
 
 /** 다음 한 묶음(최대 50건)을 분석해 저장한다. productId 가 없으면 워크스페이스 전체에서 고른다 */
 export async function analyzeNextBatch(productId?: string): Promise<ActionResult<AnalysisBatchResult>> {
+  // 게스트는 AI·외부 호출 전에 막는다 (비용·외부 실행 방지)
+  if (await isGuest()) return fail(GUEST_READ_ONLY_MESSAGE);
   if (productId !== undefined && !z.uuid().safeParse(productId).success) return fail("제품 번호 형식이 올바르지 않아요.");
   if (!isSupabaseConfigured()) return fail("Supabase가 연결되어 있지 않아 분석할 수 없어요.");
   const mine = await getMyWorkspace();
@@ -150,6 +153,8 @@ export async function analyzeNextBatch(productId?: string): Promise<ActionResult
 
 /** 다음 한 묶음(최대 50건)의 일본어 리뷰를 한국어로 번역해 reviews.body_ko 에 저장한다. 분석에서 제외된 리뷰는 번역하지 않는다 */
 export async function translateNextBatch(productId?: string): Promise<ActionResult<TranslateBatchResult>> {
+  // 게스트는 AI·외부 호출 전에 막는다 (비용·외부 실행 방지)
+  if (await isGuest()) return fail(GUEST_READ_ONLY_MESSAGE);
   if (productId !== undefined && !z.uuid().safeParse(productId).success) return fail("제품 번호 형식이 올바르지 않아요.");
   if (!isSupabaseConfigured()) return fail("Supabase가 연결되어 있지 않아 번역할 수 없어요.");
   if (!(await getMyWorkspace())) return fail("워크스페이스가 없어요. 먼저 로그인하고 워크스페이스를 만들어 주세요.");

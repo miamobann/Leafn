@@ -1,5 +1,6 @@
 // 실제 Supabase에서 읽는 워크스페이스 함수 (서버 전용).
 // 다른 화면이 쓰는 getWorkspace()/getMembers()는 아직 가짜 데이터라서 그대로 두고, 여기 함수는 설정·온보딩만 쓴다.
+import { isGuestClaims } from "@/lib/supabase/guest";
 import { createClient } from "@/lib/supabase/server";
 import { WorkspaceMember, Workspace } from "@/lib/schemas/workspace";
 
@@ -14,6 +15,14 @@ export async function getCurrentUser() {
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims) return null;
   return { id: data.claims.sub, email: (data.claims.email as string | undefined) ?? null };
+}
+
+/** 게스트(데모 계정)로 로그인했는가. 쓰기 액션과 화면의 게스트 안내에서 쓴다 */
+export async function isGuest() {
+  if (!isSupabaseConfigured()) return false;
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  return isGuestClaims(data?.claims);
 }
 
 /** 내가 속한 워크스페이스 중 가장 먼저 들어간 곳 (여러 개 소속은 허용, 화면은 하나만 쓴다) */

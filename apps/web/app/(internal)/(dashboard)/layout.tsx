@@ -3,12 +3,14 @@ import { SectionTabs } from "@/components/layout/section-tabs";
 import { TopBar } from "@/components/layout/top-bar";
 import { getActivity } from "@/lib/data";
 import { getMyTabs } from "@/lib/data/submissions";
+import { isGuest } from "@/lib/data/workspace";
+import { signOut } from "@/app/(internal)/(auth)/actions";
 
 // 사이드바 맨 아래에 보여 줄 최근 활동 개수
 const RECENT_ACTIVITY_COUNT = 3;
 
 export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [rawActivity, my] = await Promise.all([getActivity(), getMyTabs()]);
+  const [rawActivity, my, guest] = await Promise.all([getActivity(), getMyTabs(), isGuest()]);
   const activity = rawActivity
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, RECENT_ACTIVITY_COUNT)
@@ -21,6 +23,16 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
       <div className="flex min-w-0 flex-1 overflow-hidden bg-background min-[1800px]:rounded-2xl">
         <AppSidebar activity={activity} role={my.role} />
         <div className="flex flex-1 flex-col overflow-hidden">
+          {guest && (
+            <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-muted px-6 py-2 text-sm">
+              <span>게스트 모드로 둘러보는 중이에요. 저장·분석·수집 같은 쓰기 기능은 막혀 있어요.</span>
+              <form action={signOut}>
+                <button type="submit" className="text-muted-foreground hover:underline">
+                  게스트 모드 나가기
+                </button>
+              </form>
+            </div>
+          )}
           <TopBar />
           <main className="flex-1 overflow-y-auto p-8">
             <SectionTabs role={my.role} />

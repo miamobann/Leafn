@@ -2,7 +2,8 @@
 // "use server" 파일은 async 함수만 내보낼 수 있어서 도우미를 여기에 둔다.
 import { createClient } from "@/lib/supabase/server";
 import { getProduct } from "./index";
-import { getMyWorkspace, isSupabaseConfigured } from "./workspace";
+import { GUEST_READ_ONLY_MESSAGE } from "@/lib/supabase/guest";
+import { getMyWorkspace, isGuest, isSupabaseConfigured } from "./workspace";
 
 export type SubmissionResult<T = null> = { ok: true; data: T } | { ok: false; message: string };
 
@@ -22,6 +23,8 @@ export function dbError(error: { code?: string; message: string }) {
 /** 로그인한 워크스페이스와 Supabase 클라이언트. 샘플 모드에서는 쓰지 않는다 */
 export async function writeContext() {
   if (!isSupabaseConfigured()) return fail("샘플 모드에서는 저장할 수 없어요");
+  // AI 분석 저장은 service role이라 DB 트리거를 거치지 않는다. 게스트는 여기서 먼저 막는다
+  if (await isGuest()) return fail(GUEST_READ_ONLY_MESSAGE);
   const mine = await getMyWorkspace();
   if (!mine) return fail("로그인한 워크스페이스가 없어요");
   return { ok: true as const, workspaceId: mine.workspace.id, role: mine.role, supabase: await createClient() };

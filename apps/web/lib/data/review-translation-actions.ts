@@ -5,6 +5,7 @@
 // 리뷰마다 ad_checks 1건(source = manual · 용도 = 상세페이지)과 review_translations 1건을 저장한다.
 // 승인은 문구마다 하지 않는다. 고친 문구를 시안에 담아(submission-actions addToReviewDraft) 팀장이 시안 단위로 결재한다.
 // 로그인한 사용자의 세션으로 읽고 쓰므로 RLS가 워크스페이스를 가른다 (service role 키는 쓰지 않는다).
+import { GUEST_READ_ONLY_MESSAGE } from "@/lib/supabase/guest";
 import { z } from "zod";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
@@ -16,7 +17,7 @@ import { AdFinding } from "@/lib/schemas/ad-check";
 import type { JudgedLine } from "@/lib/schemas/ad-check-ai";
 import { createClient } from "@/lib/supabase/server";
 import { getAdProducts } from "./ad-products";
-import { getMyWorkspace, isSupabaseConfigured } from "./workspace";
+import { getMyWorkspace, isGuest, isSupabaseConfigured } from "./workspace";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
 export type TranslateResult = { translated: number; mustFix: number; skipped: number };
@@ -97,6 +98,8 @@ async function saveCheck(
 
 /** 선택한 국내 리뷰(최대 5건)를 일본어로 번역하고 약기법 검토를 돌려 저장한다. 같은 리뷰를 다시 번역하면 번역과 검토를 새것으로 바꾼다 */
 export async function translateReviews(productId: string, reviewIds: string[]): Promise<ActionResult<TranslateResult>> {
+  // 게스트는 AI·외부 호출 전에 막는다 (비용·외부 실행 방지)
+  if (await isGuest()) return fail(GUEST_READ_ONLY_MESSAGE);
   const input = z.object({ productId: z.uuid(), reviewIds: z.array(z.uuid()).min(1).max(TRANSLATE_BATCH) }).safeParse({ productId, reviewIds: [...new Set(reviewIds)] });
   if (!input.success) return fail(`한 번에 1~${TRANSLATE_BATCH}건까지 번역할 수 있어요.`);
   if (!isSupabaseConfigured()) return fail("Supabase가 연결되어 있지 않아 번역할 수 없어요.");
@@ -188,6 +191,8 @@ async function loadTranslation(supabase: Db, translationId: string) {
  * 대체 표현은 화면이 넘긴 글이 아니라 저장된 검토 기록에서 찾아 쓴다 (문구를 마음대로 끼워 넣지 못하게).
  */
 export async function applySuggestion(translationId: string, findingText: string, suggestionText: string): Promise<ActionResult<{ mustFix: boolean }>> {
+  // 게스트는 AI·외부 호출 전에 막는다 (비용·외부 실행 방지)
+  if (await isGuest()) return fail(GUEST_READ_ONLY_MESSAGE);
   const input = z.object({ translationId: z.uuid(), findingText: z.string().min(1).max(300), suggestionText: z.string().min(1).max(500) }).safeParse({ translationId, findingText, suggestionText });
   if (!input.success) return fail("고칠 표현을 다시 골라 주세요.");
   if (!isSupabaseConfigured()) return fail("Supabase가 연결되어 있지 않아 고칠 수 없어요.");

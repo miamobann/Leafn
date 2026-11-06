@@ -2,16 +2,19 @@
 
 // 경쟁제품 1:1 비교의 일본어 문구 해석 (Server Action). 비교 패널을 열 때 화면에 보이는 일본어만 한 번에 번역한다 (저장하지 않음).
 // 유료 AI 호출이라 Supabase가 연결된 환경에서는 로그인한 사람만 부를 수 있다
+import { GUEST_READ_ONLY_MESSAGE } from "@/lib/supabase/guest";
 import { z } from "zod";
 import { AiConfigError } from "@/lib/ai/config";
 import { translateProductTexts } from "@/lib/ai/translate/product-text";
-import { getCurrentUser, isSupabaseConfigured } from "./workspace";
+import { getCurrentUser, isGuest, isSupabaseConfigured } from "./workspace";
 
 const Input = z.array(z.string().trim().min(1).max(400)).min(1).max(40);
 
 export type CompareTranslateResult = { ok: true; items: Record<string, string> } | { ok: false; message: string };
 
 export async function translateCompareTexts(texts: string[]): Promise<CompareTranslateResult> {
+  // 게스트는 AI·외부 호출 전에 막는다 (비용·외부 실행 방지)
+  if (await isGuest()) return { ok: false, message: GUEST_READ_ONLY_MESSAGE };
   const parsed = Input.safeParse(texts);
   if (!parsed.success) return { ok: false, message: "번역할 문구 형식이 올바르지 않아요" };
   if (isSupabaseConfigured() && !(await getCurrentUser())) return { ok: false, message: "로그인이 필요해요" };
