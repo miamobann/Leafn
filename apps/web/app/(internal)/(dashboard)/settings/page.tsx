@@ -4,7 +4,7 @@ import { DataTableTemplate, DetailTemplate } from "@/components/templates";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { getMembers, getWorkspace } from "@/lib/data";
 import { getMemberTabs } from "@/lib/data/submissions";
-import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers } from "@/lib/data/workspace";
+import { getCurrentUser, getMyWorkspace, getMyWorkspaceMembers, isGuest } from "@/lib/data/workspace";
 import { signOut } from "@/app/(internal)/(auth)/actions";
 import { MemberTabsTable } from "./member-tabs";
 
@@ -36,7 +36,8 @@ export default async function SettingsPage() {
   const members = mine ? await getMyWorkspaceMembers(mine.workspace.id) : await getMembers();
   // 워크스페이스 없이 로그인한 경우는 담당 탭이 없다 (팀 데이터 조회는 워크스페이스가 있어야 한다)
   const memberTabs = mine || !user ? await getMemberTabs() : [];
-  const canEditTabs = mine?.role === "owner";
+  const guest = await isGuest();
+  const canEditTabs = mine?.role === "owner" && !guest;
 
   return (
     <>
@@ -75,7 +76,8 @@ export default async function SettingsPage() {
       <DetailTemplate
         attributes={[
           { label: TEXT.workspace, value: workspace.name },
-          { label: TEXT.inviteCode, value: workspace.invite_code ?? "—" },
+          // 게스트에게는 초대 코드를 보여 주지 않는다 (실제 팀에 들어오는 열쇠)
+          ...(guest ? [] : [{ label: TEXT.inviteCode, value: workspace.invite_code ?? "—" }]),
           ...(mine ? [{ label: TEXT.myRole, value: roleLabel(mine.role) }] : []),
         ]}
       />

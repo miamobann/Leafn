@@ -3,13 +3,14 @@
 // 플랫폼 수집 화면의 쓰기 함수 (Server Action). 로그인한 사용자의 세션으로 쓰므로 RLS가 워크스페이스를 가른다.
 // 수집 자체는 여기서 하지 않는다: queued 요청만 만들면 수집기(일꾼)가 집어 가서 ready(미리보기)로 만든다 (collectors/collect_to_db.py).
 // 저장은 DB의 save_collection_run()이 한다 (미리보기 → products · reviews).
+import { GUEST_READ_ONLY_MESSAGE } from "@/lib/supabase/guest";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dispatchCollector } from "@/lib/external/github-actions";
 import { CollectionRunRow, STALE_RUNNING_MS, StartCollectionInput } from "@/lib/schemas/collection";
 import { createClient } from "@/lib/supabase/server";
 import { buildCollectionView, type CollectionView, getOpenCollection, RUN_COLUMNS } from "./collection";
-import { getMyWorkspace } from "./workspace";
+import { getMyWorkspace, isGuest } from "./workspace";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
 
@@ -24,6 +25,8 @@ async function loadRun(runId: string) {
 
 /** [경쟁 제품 불러오기]: 수집 요청(queued)을 만든다. 같은 우리 제품의 저장 전 요청은 먼저 지운다 (임시 결과가 쌓이지 않게) */
 export async function startCollection(raw: StartCollectionInput): Promise<ActionResult<CollectionView>> {
+  // 게스트는 AI·외부 호출 전에 막는다 (비용·외부 실행 방지)
+  if (await isGuest()) return fail(GUEST_READ_ONLY_MESSAGE);
   const parsed = StartCollectionInput.safeParse(raw);
   if (!parsed.success) return fail("고른 조건이 올바르지 않아요.");
   const input = parsed.data;
@@ -68,6 +71,8 @@ export async function startCollection(raw: StartCollectionInput): Promise<Action
  * notice가 있으면 화면에 보여 준다 (실행시키지 못했을 때의 안내).
  */
 export async function wakeCollector(runId: string): Promise<ActionResult<{ woke: boolean; notice: string | null }>> {
+  // 게스트는 AI·외부 호출 전에 막는다 (비용·외부 실행 방지)
+  if (await isGuest()) return fail(GUEST_READ_ONLY_MESSAGE);
   const id = z.string().min(1).safeParse(runId);
   if (!id.success) return fail("수집 요청이 올바르지 않아요.");
   const mine = await getMyWorkspace();

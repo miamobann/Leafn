@@ -3,12 +3,13 @@
 // 제품명 정리 (Server Action). 경쟁 제품의 긴 제목을 AI로 정리해 products.title_ai 에 저장한다.
 // 로그인한 사용자의 세션으로 읽고 쓰므로 RLS가 워크스페이스를 가른다 (service role 키는 쓰지 않는다).
 // 한 번 부를 때 최대 30개만 처리하고, 화면이 남은 수가 0이 될 때까지 반복해서 부른다.
+import { GUEST_READ_ONLY_MESSAGE } from "@/lib/supabase/guest";
 import { z } from "zod";
 import { AiCallError } from "@/lib/ai/client";
 import { AiConfigError } from "@/lib/ai/config";
 import { PRODUCT_TITLE_BATCH, ProductTitleParseError, summarizeProductTitles } from "@/lib/ai/product-title/summarize";
 import { createClient } from "@/lib/supabase/server";
-import { getMyWorkspace, isSupabaseConfigured } from "./workspace";
+import { getMyWorkspace, isGuest, isSupabaseConfigured } from "./workspace";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
 export type TitleBatchResult = { processed: number; remaining: number };
@@ -52,6 +53,8 @@ export async function getUntitledCount(productId?: string): Promise<number> {
 
 /** 다음 한 묶음(최대 30개)을 정리해 저장한다. productId 가 없으면 워크스페이스 전체에서 고른다 */
 export async function summarizeNextBatch(productId?: string): Promise<ActionResult<TitleBatchResult>> {
+  // 게스트는 AI·외부 호출 전에 막는다 (비용·외부 실행 방지)
+  if (await isGuest()) return fail(GUEST_READ_ONLY_MESSAGE);
   if (productId !== undefined && !z.uuid().safeParse(productId).success) return fail("제품 번호 형식이 올바르지 않아요.");
   if (!isSupabaseConfigured()) return fail("Supabase가 연결되어 있지 않아 제품명을 정리할 수 없어요.");
   if (!(await getMyWorkspace())) return fail("워크스페이스가 없어요. 먼저 로그인하고 워크스페이스를 만들어 주세요.");
